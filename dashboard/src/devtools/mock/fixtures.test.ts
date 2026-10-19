@@ -455,6 +455,19 @@ describe("mocked management directory", () => {
     expect(roles(true)).toBe("member");
   });
 
+  it("refuses the account directory when the panel says it fails, and only then", () => {
+    const path = "/api/prohibitorum/accounts";
+    expect(
+      read(
+        path,
+        config((draft) => {
+          draft.admin.accountsFail = true;
+        }),
+      ),
+    ).toMatchObject({ kind: "error", status: 500 });
+    expect(read(path, config())).toMatchObject({ kind: "json" });
+  });
+
   it("answers an unknown account with not_found rather than a fabricated one", () => {
     const many = config((draft) => {
       draft.admin.accounts = 2;
@@ -534,8 +547,8 @@ describe("mocked management directory", () => {
       nextCursor: string;
     };
     expect(page.items[0]?.searchFields).toEqual([
-      { key: "email", operators: ["eq", "contains"] },
-      { key: "subject", operators: ["eq"] },
+      { key: "email", operators: ["exact", "prefix", "contains"] },
+      { key: "subject", operators: ["exact"] },
     ]);
   });
 

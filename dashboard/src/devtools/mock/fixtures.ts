@@ -1331,8 +1331,8 @@ function identityProviders(config: MockConfig): IdentityProvider[] {
       config: config0(protocol, index),
       supportsOperator: protocol === "vrchat",
       searchFields: [
-        { key: "email", operators: ["eq", "contains"] },
-        { key: "subject", operators: ["eq"] },
+        { key: "email", operators: ["exact", "prefix", "contains"] },
+        { key: "subject", operators: ["exact"] },
       ],
       // Varied on purpose: the list shows this as a column, and a column of
       // identical numbers says nothing about whether it is being read from the
@@ -1940,10 +1940,12 @@ function readReply(
       const page = all.slice(start, start + mockPageSize);
       const next = start + page.length;
       return guarded(config, () =>
-        json({
-          items: page,
-          nextCursor: next < all.length ? String(next) : "",
-        }),
+        config.admin.accountsFail
+          ? { kind: "error", status: 500, code: "internal_error" }
+          : json({
+              items: page,
+              nextCursor: next < all.length ? String(next) : "",
+            }),
       );
     }
     case "/api/prohibitorum/accounts/{id}": {

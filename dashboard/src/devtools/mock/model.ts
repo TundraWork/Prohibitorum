@@ -73,6 +73,8 @@ export interface MockConfig {
      * outside user and admin can be walked through.
      */
     legacyRoleAccounts: boolean;
+    /** Whether the account directory answers with a server error, so its failure can be walked through. */
+    accountsFail: boolean;
     /**
      * Active accounts a rule is evaluated against. Apart from `accounts`
      * because a rule's total is not bounded by the directory page and a
@@ -374,6 +376,7 @@ export const defaultMockConfig: MockConfig = {
   admin: {
     accounts: 12,
     legacyRoleAccounts: false,
+    accountsFail: false,
     ruleAccounts: 12,
     ruleMatchEvery: 2,
     groups: 3,

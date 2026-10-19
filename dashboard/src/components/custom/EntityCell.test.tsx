@@ -95,4 +95,19 @@ describe("EntityCell", () => {
       screen.getByText("Disabled"),
     );
   });
+
+  it("draws a person's avatar round and an application's as a tile", async () => {
+    renderCell(
+      <>
+        <EntityCell name="Alice" shape="round" />
+        <EntityCell name="Grafana" />
+      </>,
+    );
+    const alice = (await screen.findByText("A")).closest(
+      '[data-slot="avatar"]',
+    );
+    const grafana = screen.getByText("G").closest('[data-slot="avatar"]');
+    expect(alice?.className).toContain("rounded-full");
+    expect(grafana?.className).not.toContain("rounded-full");
+  });
 });

@@ -44,6 +44,8 @@ export function EntityCell({
   marks,
   /** Overrides the avatar's placeholder; the app icon is the default. */
   fallback,
+  /** People are round and applications are tiles, as everywhere else. */
+  shape,
 }: {
   iconUrl?: string | undefined;
   name: ReactNode;
@@ -58,6 +60,7 @@ export function EntityCell({
   /** Badges after the name, one per fact the row has to say in words. */
   marks?: ReactNode;
   fallback?: ReactNode;
+  shape?: "tile" | "round";
 }) {
   const { t } = useLingui();
   const restrictedLabel = t({
@@ -72,6 +75,7 @@ export function EntityCell({
           iconUrl={iconUrl}
           name={typeof name === "string" ? name : undefined}
           fallback={fallback}
+          {...(shape === undefined ? {} : { shape })}
         />
       </span>
       <div className="flex max-w-52 min-w-0 flex-col sm:max-w-md">

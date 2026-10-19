@@ -3,8 +3,11 @@ import { parseSearch } from "@/app/search-params";
 import {
   accountFilterQuery,
   advancedFilterIncomplete,
+  filtersSet,
+  identityFilterSet,
+  isMatchOperator,
   userSearch,
-} from "@/pages/admin/user-filters";
+} from "@/pages/admin/users/user-filters";
 
 /** The filters a page at `?searchStr` reads. */
 function userFilters(searchStr: string) {
@@ -134,5 +137,41 @@ describe("advancedFilterIncomplete", () => {
       true,
     );
     expect(advancedFilterIncomplete({ ...empty, value: "x" })).toBe(true);
+  });
+});
+
+describe("identityFilterSet and filtersSet", () => {
+  const empty = userFilters("");
+
+  it("see nothing set on the untouched filters", () => {
+    expect(identityFilterSet(empty)).toBe(false);
+    expect(filtersSet(empty)).toBe(false);
+  });
+
+  it("count a half-filled identity filter, which is still the reader's filter", () => {
+    expect(identityFilterSet({ ...empty, provider: "github" })).toBe(true);
+    expect(identityFilterSet({ ...empty, value: "x" })).toBe(true);
+    expect(filtersSet({ ...empty, provider: "github" })).toBe(true);
+  });
+
+  it("count the search alone as a filter, but not as an identity filter", () => {
+    expect(identityFilterSet({ ...empty, q: "ali" })).toBe(false);
+    expect(filtersSet({ ...empty, q: "ali" })).toBe(true);
+  });
+
+  it("do not count role or state, which the page has no control for", () => {
+    expect(filtersSet({ ...empty, role: "admin", state: "disabled" })).toBe(
+      false,
+    );
+  });
+});
+
+describe("isMatchOperator", () => {
+  it("accepts only the operators the server defines", () => {
+    expect(isMatchOperator("exact")).toBe(true);
+    expect(isMatchOperator("prefix")).toBe(true);
+    expect(isMatchOperator("contains")).toBe(true);
+    expect(isMatchOperator("eq")).toBe(false);
+    expect(isMatchOperator("")).toBe(false);
   });
 });

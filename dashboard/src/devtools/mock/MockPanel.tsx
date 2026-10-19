@@ -543,6 +543,15 @@ export function MockPanel() {
               })
             }
           />
+          <Toggle
+            label="The account directory fails to load"
+            checked={config.admin.accountsFail}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.accountsFail = next;
+              })
+            }
+          />
           <Count
             label="Rule accounts"
             max={mockRuleAccountsMax}

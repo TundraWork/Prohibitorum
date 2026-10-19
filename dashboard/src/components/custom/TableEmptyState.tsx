@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -15,16 +16,19 @@ import {
  * header with its own, so a button repeated here reads as two offers of the same
  * thing. A list that is empty precisely when someone has just arrived — the
  * application lists — adds `description`, one line saying what the things are
- * for.
+ * for. A list that can be empty because of what the reader asked for passes
+ * `action`, the one way back out of it.
  */
 export function TableEmptyState({
   icon,
   title,
   description,
+  action,
 }: {
   icon: ReactNode;
   title: ReactNode;
   description?: ReactNode;
+  action?: ReactNode;
 }) {
   return (
     // Compact: inside a table the published empty state's page-sized padding
@@ -41,6 +45,9 @@ export function TableEmptyState({
           <EmptyDescription>{description}</EmptyDescription>
         )}
       </EmptyHeader>
+      {action !== undefined && (
+        <EmptyContent className="mt-4">{action}</EmptyContent>
+      )}
     </Empty>
   );
 }

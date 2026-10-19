@@ -685,7 +685,6 @@ msgstr "账号、用户组、邀请、身份提供商、下游应用、日志与
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
-#: src/pages/admin/AdminUsers.tsx
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "admin.column.actions"
 msgstr "操作"
@@ -864,23 +863,19 @@ msgid "admin.invitations.role.admin"
 msgstr "管理员"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.role.admin"
-msgstr "管理员"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role.admin"
 msgstr "管理员"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.role.admin"
+#: src/components/custom/ObjectHeader.tsx
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "object.status.admin"
 msgstr "管理员"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ObjectHeader.tsx
-msgid "object.status.admin"
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.role.admin"
 msgstr "管理员"
 
 #. js-lingui-explicit-id
@@ -1093,7 +1088,7 @@ msgid "admin.group.rule.source.any"
 msgstr "任意头像"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.provider"
 msgstr "任意提供商"
 
@@ -1805,12 +1800,12 @@ msgid "admin.group.decisions.dialog.checking"
 msgstr "正在检查此账号当前的决定…"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.field"
 msgstr "选择字段"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.match"
 msgstr "选择匹配方式"
 
@@ -1925,6 +1920,11 @@ msgid "admin.logs.filter.clear"
 msgstr "清除筛选"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.filters.clear"
+msgstr "清除筛选"
+
+#. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.clear"
 msgstr "清除所选项"
@@ -1935,7 +1935,7 @@ msgid "admin.group.decisions.clear.title"
 msgstr "清除对 {clearingName} 的拒绝？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.clear"
 msgstr "清除筛选"
 
@@ -2343,6 +2343,11 @@ msgstr "控制台首页"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.navigation"
 msgstr "控制台导航"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountIdentityFilter.tsx
+msgid "admin.users.filter.match.contains"
+msgstr "包含"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -3218,11 +3223,6 @@ msgid "admin.federation.danger.disable.confirm.title"
 msgstr "要停用该提供商吗？"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.state.disabled"
-msgstr "已停用"
-
-#. js-lingui-explicit-id
 #: src/components/custom/EntityCell.tsx
 msgid "entity.state.disabled"
 msgstr "已停用"
@@ -3288,11 +3288,6 @@ msgstr "显示名称"
 #: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.label"
 msgstr "显示名称"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.column.displayName"
-msgstr "显示名"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
@@ -3379,11 +3374,6 @@ msgstr "暮色"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.username.hint"
 msgstr "易读，管理员可以修改。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.edit"
-msgstr "编辑"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
@@ -3496,11 +3486,6 @@ msgstr "启用这个应用？"
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.enable"
 msgstr "启用该提供商"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.state.enabled"
-msgstr "已启用"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
@@ -3925,6 +3910,11 @@ msgid "security.tokens.access.sudo.hint.admin"
 msgstr "包括你作为管理员管理的内容和更改登录方式在内的所有操作，都无需验证你的身份。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountIdentityFilter.tsx
+msgid "admin.users.filter.match.exact"
+msgstr "完全匹配"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.response.code.hint"
 msgstr "在令牌端点用授权码换取令牌，PKCE 开启时一并使用。多数提供商只允许这种方式。"
@@ -3986,12 +3976,12 @@ msgid "console.admin.federation"
 msgstr "联合登录"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.fieldLabel"
 msgstr "字段"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.incomplete"
 msgstr "请填写提供商、字段、匹配方式和值，以应用该筛选。"
 
@@ -3999,6 +3989,21 @@ msgstr "请填写提供商、字段、匹配方式和值，以应用该筛选。
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter"
 msgstr "筛选"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FilterPopover.tsx
+msgid "filters.button"
+msgstr "筛选"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FilterPopover.tsx
+msgid "filters.title"
+msgstr "筛选"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FilterPopover.tsx
+msgid "filters.button.active"
+msgstr "筛选，已启用 {count} 项"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
@@ -4394,11 +4399,6 @@ msgid "audit.event.sudo_granted"
 msgstr "已确认身份"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.filter.advanced"
-msgstr "身份筛选"
-
-#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.identity-projection.saved"
 msgstr "身份投影已保存"
@@ -4534,9 +4534,14 @@ msgid "admin.invitations.invite"
 msgstr "邀请用户"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.invite"
 msgstr "邀请用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.empty.description"
+msgstr "邀请他人后，对方接受邀请即可在此看到其账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -4746,7 +4751,7 @@ msgid "admin.logs.range.1h"
 msgstr "最近 1 小时"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.column.lastSignIn"
 msgstr "最近登录"
 
@@ -5085,7 +5090,7 @@ msgid "admin.saml-apps.acs.default.required"
 msgstr "请把其中一个端点标记为默认。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.matchLabel"
 msgstr "匹配方式"
 
@@ -5269,6 +5274,11 @@ msgid "admin.federation.not-ready.brief.vrchat-unset"
 msgstr "需要登录运营账号"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.never"
+msgstr "从未登录"
+
+#. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.sub.hint"
 msgstr "始终不变。"
@@ -5420,6 +5430,16 @@ msgid "admin.group.matches.none"
 msgstr "没有账号匹配已保存的规则。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.empty.filtered"
+msgstr "没有符合这些筛选条件的账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.empty"
+msgstr "还没有账号"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.empty"
 msgstr "暂无在线会话"
@@ -5564,11 +5584,6 @@ msgstr "还没有选择用户组，选择之前没有人能使用这个应用。
 #: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.empty"
 msgstr "暂无用户组"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.empty"
-msgstr "没有匹配的用户"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -5767,11 +5782,6 @@ msgid "console.password.on"
 msgstr "已开启"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.filter.on"
-msgstr "已启用"
-
-#. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.description"
 msgstr "在已登录 {instance} 的设备上打开「<0>设备</0>」，输入下面的配对码。"
@@ -5855,6 +5865,11 @@ msgstr "不透明度"
 #: src/components/custom/ObjectHeader.tsx
 msgid "object.status.open"
 msgstr "开放"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.open"
+msgstr "打开 {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -6306,7 +6321,7 @@ msgid "admin.federation.column.protocol"
 msgstr "协议"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.providerLabel"
 msgstr "提供商"
 
@@ -7114,11 +7129,6 @@ msgid "admin.invitations.column.role"
 msgstr "角色"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.column.role"
-msgstr "角色"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role"
 msgstr "角色"
@@ -7403,7 +7413,7 @@ msgid "app.groups.dialog.placeholder"
 msgstr "搜索用户组"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.search"
 msgstr "搜索用户"
 
@@ -8063,9 +8073,9 @@ msgid "admin.user.sessions.detail.issued"
 msgstr "<0/>登录"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.column.state"
-msgstr "状态"
+#: src/pages/admin/users/AccountIdentityFilter.tsx
+msgid "admin.users.filter.match.prefix"
+msgstr "开头匹配"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -8359,6 +8369,11 @@ msgid "admin.federation.danger.delete.hint"
 msgstr "通过它绑定的账号会保留，只解除绑定。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.page.description"
+msgstr "可以登录此实例的账号。邀请他人即可添加账号。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.endpoints.override.note"
 msgstr "这里填写的地址会替换发现结果。"
@@ -8558,11 +8573,6 @@ msgstr "链接于 {expiry} 过期。"
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.error"
-msgstr "无法加载列表。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.error"
 msgstr "无法加载列表。"
 
 #. js-lingui-explicit-id
@@ -9714,13 +9724,13 @@ msgid "admin.invitations.role.user"
 msgstr "用户"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.role.user"
+#: src/pages/admin/users/AccountRoleField.tsx
+msgid "admin.user.role.user"
 msgstr "用户"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountRoleField.tsx
-msgid "admin.user.role.user"
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.column.account"
 msgstr "用户"
 
 #. js-lingui-explicit-id
@@ -9850,11 +9860,6 @@ msgid "console.username"
 msgstr "用户名"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.column.username"
-msgstr "用户名"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
 msgid "settings.sign-in.preview.username"
 msgstr "用户名"
@@ -9886,12 +9891,17 @@ msgid "federation_flow.username"
 msgstr "新账号的用户名"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.search.placeholder"
 msgstr "用户名或显示名"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.page.title"
+msgstr "用户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.table"
 msgstr "用户"
 
@@ -9911,11 +9921,6 @@ msgid "admin.federation.auth.discovery.hint"
 msgstr "按提供商公布的方式选择；手动填写端点时不可用。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.filter.valuePlaceholder"
-msgstr "值"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.value"
 msgstr "取值"
@@ -9926,7 +9931,7 @@ msgid "admin.forward-auth-apps.headers.column.value"
 msgstr "值"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.value"
 msgstr "要匹配的值"
 

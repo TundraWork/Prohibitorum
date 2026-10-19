@@ -22,8 +22,13 @@ import { searchChoice, searchText } from "@/app/search-params";
  */
 
 /** The operator set `pkg/federation` publishes; the server accepts no others. */
-const matchOperators = ["exact", "prefix", "contains"] as const;
+export const matchOperators = ["exact", "prefix", "contains"] as const;
 export type MatchOperator = (typeof matchOperators)[number];
+
+/** Whether `value` is an operator the server accepts. */
+export function isMatchOperator(value: string): value is MatchOperator {
+  return (matchOperators as readonly string[]).includes(value);
+}
 
 const roles = ["user", "admin"] as const;
 export type RoleFilter = (typeof roles)[number];
@@ -72,4 +77,22 @@ export function accountFilterQuery(filters: UserFilters): AccountFilters {
 export function advancedFilterIncomplete(filters: UserFilters): boolean {
   const parts = [filters.provider, filters.field, filters.value, filters.match];
   return parts.some((part) => part !== "") && parts.some((part) => part === "");
+}
+
+/** Whether any part of the identity filter has been filled in. */
+export function identityFilterSet(filters: UserFilters): boolean {
+  return (
+    filters.provider !== "" ||
+    filters.field !== "" ||
+    filters.value !== "" ||
+    filters.match !== ""
+  );
+}
+
+/**
+ * Whether the reader has narrowed the list at all, by search or by identity.
+ * `role` and `state` are not counted: nothing on the page sets them.
+ */
+export function filtersSet(filters: UserFilters): boolean {
+  return filters.q !== "" || identityFilterSet(filters);
 }

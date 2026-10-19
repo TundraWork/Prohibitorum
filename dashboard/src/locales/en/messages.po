@@ -685,7 +685,6 @@ msgstr "Accounts, user groups, invitations, identity providers, downstream appli
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
-#: src/pages/admin/AdminUsers.tsx
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "admin.column.actions"
 msgstr "Actions"
@@ -864,23 +863,19 @@ msgid "admin.invitations.role.admin"
 msgstr "Admin"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.role.admin"
-msgstr "Admin"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role.admin"
 msgstr "Admin"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.role.admin"
+#: src/components/custom/ObjectHeader.tsx
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "object.status.admin"
 msgstr "Admin"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ObjectHeader.tsx
-msgid "object.status.admin"
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.role.admin"
 msgstr "Admin"
 
 #. js-lingui-explicit-id
@@ -1093,7 +1088,7 @@ msgid "admin.group.rule.source.any"
 msgstr "Any picture"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.provider"
 msgstr "Any provider"
 
@@ -1805,12 +1800,12 @@ msgid "admin.group.decisions.dialog.checking"
 msgstr "Checking this account's current decision…"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.field"
 msgstr "Choose a field"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.match"
 msgstr "Choose a match"
 
@@ -1925,6 +1920,11 @@ msgid "admin.logs.filter.clear"
 msgstr "Clear filters"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.filters.clear"
+msgstr "Clear filters"
+
+#. js-lingui-explicit-id
 #: src/components/custom/EntityPicker.tsx
 msgid "admin.picker.clear"
 msgstr "Clear selection"
@@ -1935,7 +1935,7 @@ msgid "admin.group.decisions.clear.title"
 msgstr "Clear the deny for {clearingName}?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.clear"
 msgstr "Clear the filter"
 
@@ -2343,6 +2343,11 @@ msgstr "Console home"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.navigation"
 msgstr "Console navigation"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountIdentityFilter.tsx
+msgid "admin.users.filter.match.contains"
+msgstr "Contains"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -3218,11 +3223,6 @@ msgid "admin.federation.danger.disable.confirm.title"
 msgstr "Disable this provider?"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.state.disabled"
-msgstr "Disabled"
-
-#. js-lingui-explicit-id
 #: src/components/custom/EntityCell.tsx
 msgid "entity.state.disabled"
 msgstr "Disabled"
@@ -3287,11 +3287,6 @@ msgstr "Display name"
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx
 msgid "profile.display-name.label"
-msgstr "Display name"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.column.displayName"
 msgstr "Display name"
 
 #. js-lingui-explicit-id
@@ -3379,11 +3374,6 @@ msgstr "Dusk"
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.username.hint"
 msgstr "Easy to read. An administrator can change it."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.edit"
-msgstr "Edit"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
@@ -3496,11 +3486,6 @@ msgstr "Enable this application?"
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.enable"
 msgstr "Enable this provider"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.state.enabled"
-msgstr "Enabled"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
@@ -3925,6 +3910,11 @@ msgid "security.tokens.access.sudo.hint.admin"
 msgstr "Everything, including what you manage as an administrator and changing how you sign in, without being asked to confirm it is you."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountIdentityFilter.tsx
+msgid "admin.users.filter.match.exact"
+msgstr "Exact"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.response.code.hint"
 msgstr "Exchanges the code at the token endpoint, with PKCE when it is on. Most providers allow only this."
@@ -3986,12 +3976,12 @@ msgid "console.admin.federation"
 msgstr "Federation"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.fieldLabel"
 msgstr "Field"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.incomplete"
 msgstr "Fill in the provider, field, match and value to apply this filter."
 
@@ -3999,6 +3989,21 @@ msgstr "Fill in the provider, field, match and value to apply this filter."
 #: src/pages/admin/AdminLogs.tsx
 msgid "admin.logs.filter"
 msgstr "Filter"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FilterPopover.tsx
+msgid "filters.button"
+msgstr "Filters"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FilterPopover.tsx
+msgid "filters.title"
+msgstr "Filters"
+
+#. js-lingui-explicit-id
+#: src/components/custom/FilterPopover.tsx
+msgid "filters.button.active"
+msgstr "Filters, {count} active"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
@@ -4394,11 +4399,6 @@ msgid "audit.event.sudo_granted"
 msgstr "Identity confirmed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.filter.advanced"
-msgstr "Identity filter"
-
-#. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.identity-projection.saved"
 msgstr "Identity projection saved"
@@ -4534,9 +4534,14 @@ msgid "admin.invitations.invite"
 msgstr "Invite a user"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.invite"
 msgstr "Invite a user"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.empty.description"
+msgstr "Invite someone and their account appears here once they accept."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminLogs.tsx
@@ -4746,7 +4751,7 @@ msgid "admin.logs.range.1h"
 msgstr "Last hour"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.column.lastSignIn"
 msgstr "Last signed in"
 
@@ -5085,7 +5090,7 @@ msgid "admin.saml-apps.acs.default.required"
 msgstr "Mark exactly one endpoint as the default."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.matchLabel"
 msgstr "Match"
 
@@ -5269,6 +5274,11 @@ msgid "admin.federation.not-ready.brief.vrchat-unset"
 msgstr "Needs the operator account"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.never"
+msgstr "Never"
+
+#. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
 msgid "principal-source.sub.hint"
 msgstr "Never changes."
@@ -5420,6 +5430,16 @@ msgid "admin.group.matches.none"
 msgstr "No account matches the saved rule."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.empty.filtered"
+msgstr "No account matches these filters"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.empty"
+msgstr "No accounts yet"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.empty"
 msgstr "No active sessions"
@@ -5564,11 +5584,6 @@ msgstr "No user groups selected yet. Nobody can use this application until you s
 #: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.empty"
 msgstr "No user groups yet"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.empty"
-msgstr "No users match"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -5767,11 +5782,6 @@ msgid "console.password.on"
 msgstr "On"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.filter.on"
-msgstr "On"
-
-#. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.description"
 msgstr "On a device that's already signed in to {instance}, open <0>Devices</0> and enter the code below."
@@ -5855,6 +5865,11 @@ msgstr "Opacity"
 #: src/components/custom/ObjectHeader.tsx
 msgid "object.status.open"
 msgstr "Open"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.open"
+msgstr "Open {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -6306,7 +6321,7 @@ msgid "admin.federation.column.protocol"
 msgstr "Protocol"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.providerLabel"
 msgstr "Provider"
 
@@ -7114,11 +7129,6 @@ msgid "admin.invitations.column.role"
 msgstr "Role"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.column.role"
-msgstr "Role"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
 msgid "admin.user.role"
 msgstr "Role"
@@ -7403,7 +7413,7 @@ msgid "app.groups.dialog.placeholder"
 msgstr "Search user groups"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.search"
 msgstr "Search users"
 
@@ -8063,9 +8073,9 @@ msgid "admin.user.sessions.detail.issued"
 msgstr "Started <0/>"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.column.state"
-msgstr "State"
+#: src/pages/admin/users/AccountIdentityFilter.tsx
+msgid "admin.users.filter.match.prefix"
+msgstr "Starts with"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -8359,6 +8369,11 @@ msgid "admin.federation.danger.delete.hint"
 msgstr "The accounts linked through it stay; only the link is removed."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.page.description"
+msgstr "The accounts that can sign in to this instance. Invite someone to add an account."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.endpoints.override.note"
 msgstr "The addresses entered here replace what discovery finds."
@@ -8558,11 +8573,6 @@ msgstr "The link expires on {expiry}."
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminInvitations.tsx
 msgid "admin.invitations.error"
-msgstr "The list could not be loaded."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.error"
 msgstr "The list could not be loaded."
 
 #. js-lingui-explicit-id
@@ -9714,13 +9724,13 @@ msgid "admin.invitations.role.user"
 msgstr "User"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.role.user"
+#: src/pages/admin/users/AccountRoleField.tsx
+msgid "admin.user.role.user"
 msgstr "User"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountRoleField.tsx
-msgid "admin.user.role.user"
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.column.account"
 msgstr "User"
 
 #. js-lingui-explicit-id
@@ -9850,11 +9860,6 @@ msgid "console.username"
 msgstr "Username"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.column.username"
-msgstr "Username"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/LoginPreview.tsx
 msgid "settings.sign-in.preview.username"
 msgstr "Username"
@@ -9886,12 +9891,17 @@ msgid "federation_flow.username"
 msgstr "Username for your new account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.search.placeholder"
 msgstr "Username or display name"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AdminUsers.tsx
+msgid "admin.users.page.title"
+msgstr "Users"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.table"
 msgstr "Users"
 
@@ -9911,11 +9921,6 @@ msgid "admin.federation.auth.discovery.hint"
 msgstr "Uses what the provider publishes. Not available with manual endpoints."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
-msgid "admin.users.filter.valuePlaceholder"
-msgstr "Value"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.value"
 msgstr "Value"
@@ -9926,7 +9931,7 @@ msgid "admin.forward-auth-apps.headers.column.value"
 msgstr "Value"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/AdminUsers.tsx
+#: src/pages/admin/users/AccountIdentityFilter.tsx
 msgid "admin.users.filter.value"
 msgstr "Value to match"
 
