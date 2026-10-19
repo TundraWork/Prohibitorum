@@ -24,10 +24,8 @@ export const Route = createFileRoute("/_protected/admin/_admin/users_/$id")({
       replace: true,
     });
   },
-  // The four access lists sit above the sections a link may point at, so they
-  // are read before the first paint: lists that arrive afterwards would push
-  // the target down the page. A list that fails to load is not an error here;
-  // its section says so and offers a retry.
+  // The access lists sit above the sections a link may point at, so they load
+  // first; a failed one is its section's to report, not the page's.
   loader: async ({ context: { queryClient }, params: { id } }) => {
     const accountId = Number(id);
     const [account] = await Promise.all([

@@ -1,4 +1,4 @@
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import Bowser from "bowser";
 import { Monitor, MonitorSmartphone, Smartphone, Tablet } from "lucide-react";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
@@ -108,4 +108,23 @@ export function rawUserAgentDetail(userAgent: string | undefined) {
       {userAgent}
     </span>
   );
+}
+
+/**
+ * The device in words for a control's name: the browser and system when they
+ * can be read, otherwise the User-Agent cut as `DeviceName` cuts it.
+ */
+export function useDeviceLabel() {
+  const { t } = useLingui();
+  return (userAgent: string | undefined): string => {
+    if (!userAgent)
+      return t({ id: "device.unknown", message: "Unknown device" });
+    const { name } = describeDevice(userAgent);
+    return (
+      name ??
+      (userAgent.length > rawLimit
+        ? `${userAgent.slice(0, rawLimit - 1)}…`
+        : userAgent)
+    );
+  };
 }

@@ -1,12 +1,8 @@
-import { Trans, useLingui } from "@lingui/react/macro";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { describeError } from "@/api/errors";
-import { Button } from "@/components/custom/Button";
 import { InlineFailure } from "@/components/custom/InlineFailure";
 import { ItemList } from "@/components/custom/ItemList";
-import { Section } from "@/components/custom/Section";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { Section, SectionFailure } from "@/components/custom/Section";
 
 /**
  * One list on an account's page: the section's heading from the first frame,
@@ -46,33 +42,15 @@ export function AccessSection({
   writeError: unknown;
   children: ReactNode;
 }) {
-  const { t } = useLingui();
   const failed = query.error !== null && query.data === undefined;
   return (
     <Section id={id} icon={icon} title={title} description={description}>
       <InlineFailure error={writeError} />
       {failed ? (
-        <SurfaceAlert status="danger" role="alert">
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>
-              <Trans id="section.failed">
-                This section could not be loaded
-              </Trans>
-            </SurfaceAlert.Title>
-            <SurfaceAlert.Description>
-              {t(describeError(query.error))}
-            </SurfaceAlert.Description>
-            <Button
-              onClick={() => void query.refetch()}
-              variant="destructive"
-              size="sm"
-              className="mt-2 w-fit"
-            >
-              <Trans id="section.retry">Try again</Trans>
-            </Button>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
+        <SectionFailure
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
       ) : (
         <ItemList
           label={label}

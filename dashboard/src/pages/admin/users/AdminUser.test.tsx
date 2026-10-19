@@ -243,6 +243,32 @@ describe("the registration link", () => {
 });
 
 describe("the access lists", () => {
+  it("tell a list that fails to load in its own section, and nowhere else", async () => {
+    const account = accountFixture();
+    fakeApi({
+      ...publicApi({ ...testSession, role: "admin" }),
+      [`GET ${base}/accounts/${account.id}`]: () => Response.json(account),
+      [`GET ${base}/accounts/${account.id}/identities`]: () =>
+        Response.json([]),
+      [`GET ${base}/accounts/${account.id}/credentials`]: page,
+      [`GET ${base}/accounts/${account.id}/sessions`]: () =>
+        apiError("server_error", 500),
+      [`GET ${base}/accounts/${account.id}/tokens`]: page,
+    });
+    renderApp(`/admin/users/${account.id}`, queryClient);
+
+    expect(await screen.findByRole("heading", { level: 1 })).toBeVisible();
+    const sessions = screen
+      .getByRole("heading", { level: 2, name: "Active sessions" })
+      .closest("section") as HTMLElement;
+    expect(await within(sessions).findAllByRole("alert")).toHaveLength(1);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByText("No passkeys")).toBeVisible();
+    expect(screen.getByText("No access tokens")).toBeVisible();
+    expect(screen.getByText("No connected identities")).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
   it("are on screen with the page, so a link to a later section does not move", async () => {
     await openAccount(accountFixture());
     expect(screen.getByText("No passkeys")).toBeVisible();

@@ -15,6 +15,7 @@ import {
   DeviceIcon,
   DeviceName,
   rawUserAgentDetail,
+  useDeviceLabel,
 } from "@/components/custom/DeviceName";
 import { useInlineFailure } from "@/components/custom/InlineFailure";
 import { ItemListRow } from "@/components/custom/ItemList";
@@ -44,6 +45,14 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
   const [target, setTarget] = useState<Session | null>(null);
   const [endingAll, setEndingAll] = useState(false);
   const rows = sessions.data?.items ?? [];
+  const deviceLabel = useDeviceLabel();
+  const endLabel = (session: Session) => {
+    const device = deviceLabel(session.userAgent);
+    return t({
+      id: "admin.user.sessions.end.named",
+      message: `End the session on ${device}`,
+    });
+  };
 
   return (
     <>
@@ -117,10 +126,7 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
             ]}
             actions={
               <Button
-                aria-label={t({
-                  id: "admin.user.sessions.end",
-                  message: "End session",
-                })}
+                aria-label={endLabel(session)}
                 onClick={() => {
                   failure.clear();
                   setTarget(session);

@@ -31,13 +31,13 @@ describe("the connected identities section", () => {
         identity({}),
         identity({
           id: 2,
-          providerDisplayName: "Steam",
+          providerDisplayName: "Game hub",
           protocol: "steam",
           subject: "76561198000000000",
         }),
         identity({
           id: 3,
-          providerDisplayName: "VRChat",
+          providerDisplayName: "Social VR",
           protocol: "vrchat",
           subject: "usr_1",
         }),
@@ -58,11 +58,35 @@ describe("the connected identities section", () => {
     expect(rows[0]).toHaveTextContent("Corp SSO");
     expect(rows[0]).toHaveTextContent("OpenID Connect");
     expect(rows[0]).toHaveTextContent("00u1abcd2efg");
+    expect(rows[1]).toHaveTextContent("Game hub");
     expect(rows[1]).toHaveTextContent("Steam");
+    expect(rows[2]).toHaveTextContent("Social VR");
     expect(rows[2]).toHaveTextContent("VRChat");
     expect(rows[3]).toHaveTextContent("SAML");
     expect(within(list).queryByRole("button")).toBeNull();
     expect(screen.getByText(/Administrators cannot unlink them/)).toBeVisible();
+  });
+
+  it("breaks a long subject after its separators and leaves its text as it was", async () => {
+    const subject =
+      "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent:AAdz/ZW|Ny";
+    harness.mount(
+      <AccountIdentitiesSection accountId={2} />,
+      serve([identity({ subject })]),
+    );
+
+    const row = (
+      await screen.findByRole("list", { name: "Connected identities" })
+    ).querySelector("li") as HTMLElement;
+    const value = row.querySelector(".font-mono") as HTMLElement;
+    expect(value.textContent).toBe(subject);
+    // One break point after each separator.
+    expect(value.querySelectorAll("wbr")).toHaveLength(
+      (subject.match(/[:/|!#@]/g) ?? []).length,
+    );
+    for (const point of value.querySelectorAll("wbr")) {
+      expect(point.previousSibling?.textContent).toMatch(/[:/|!#@]$/);
+    }
   });
 
   it("says so when the account has none", async () => {

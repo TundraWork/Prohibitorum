@@ -306,8 +306,31 @@ function SectionError({
   error: unknown;
   onRetry: () => void;
 }) {
+  const alert = <SectionFailure error={error} onRetry={onRetry} />;
+  if (title === undefined) {
+    return (
+      <Frame>
+        <FramePanel>{alert}</FramePanel>
+      </Frame>
+    );
+  }
+  return (
+    <Section title={title} {...sectionProps}>
+      {alert}
+    </Section>
+  );
+}
+
+/** What a block that could not be read says, with the way to ask again. */
+export function SectionFailure({
+  error,
+  onRetry,
+}: {
+  error: unknown;
+  onRetry: () => void;
+}) {
   const { t } = useLingui();
-  const alert = (
+  return (
     <SurfaceAlert status="danger" role="alert">
       <SurfaceAlert.Indicator />
       <SurfaceAlert.Content>
@@ -327,17 +350,5 @@ function SectionError({
         </Button>
       </SurfaceAlert.Content>
     </SurfaceAlert>
-  );
-  if (title === undefined) {
-    return (
-      <Frame>
-        <FramePanel>{alert}</FramePanel>
-      </Frame>
-    );
-  }
-  return (
-    <Section title={title} {...sectionProps}>
-      {alert}
-    </Section>
   );
 }

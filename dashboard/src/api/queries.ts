@@ -453,10 +453,18 @@ export function accountQueryOptions(id: number) {
   });
 }
 
+/**
+ * How long an account's access list counts as fresh: the route loader reads
+ * each one and the section reads it again a moment later, which one read
+ * should serve. A write still refreshes its list, since invalidation ignores it.
+ */
+const accountAccessStaleTime = 5_000;
+
 /** A bare array, not a `{ items, nextCursor }` envelope. */
 export function accountIdentitiesQueryOptions(id: number) {
   return queryOptions({
     queryKey: ["admin", "accounts", id, "identities"] as const,
+    staleTime: accountAccessStaleTime,
     queryFn: ({ signal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/accounts/{id}/identities", {
@@ -470,6 +478,7 @@ export function accountIdentitiesQueryOptions(id: number) {
 export function accountCredentialsQueryOptions(id: number) {
   return queryOptions({
     queryKey: ["admin", "accounts", id, "credentials"] as const,
+    staleTime: accountAccessStaleTime,
     queryFn: ({ signal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/accounts/{id}/credentials", {
@@ -483,6 +492,7 @@ export function accountCredentialsQueryOptions(id: number) {
 export function accountSessionsQueryOptions(id: number) {
   return queryOptions({
     queryKey: ["admin", "accounts", id, "sessions"] as const,
+    staleTime: accountAccessStaleTime,
     queryFn: ({ signal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/accounts/{id}/sessions", {
@@ -496,6 +506,7 @@ export function accountSessionsQueryOptions(id: number) {
 export function accountTokensQueryOptions(id: number) {
   return queryOptions({
     queryKey: ["admin", "accounts", id, "tokens"] as const,
+    staleTime: accountAccessStaleTime,
     queryFn: ({ signal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/accounts/{id}/tokens", {

@@ -150,11 +150,13 @@ describe("signed-in devices", () => {
     ).toBeInTheDocument();
     expect(
       within(current as HTMLElement).queryByRole("button", {
-        name: "End session",
+        name: /^End the session on /,
       }),
     ).not.toBeInTheDocument();
     expect(
-      within(other as HTMLElement).getByRole("button", { name: "End session" }),
+      within(other as HTMLElement).getByRole("button", {
+        name: /^End the session on /,
+      }),
     ).toBeEnabled();
     expect(
       within(other as HTMLElement).queryByText("Use sign out to end this one"),
@@ -200,7 +202,9 @@ describe("signed-in devices", () => {
     const list = await screen.findByRole("list", { name: "Signed-in devices" });
     const [, other] = within(list).getAllByRole("listitem");
     await user.click(
-      within(other as HTMLElement).getByRole("button", { name: "End session" }),
+      within(other as HTMLElement).getByRole("button", {
+        name: /^End the session on /,
+      }),
     );
     const confirm = await screen.findByRole("alertdialog", {
       name: "End this session?",
@@ -231,7 +235,9 @@ describe("signed-in devices", () => {
     const list = await screen.findByRole("list", { name: "Signed-in devices" });
     const [, other] = within(list).getAllByRole("listitem");
     await user.click(
-      within(other as HTMLElement).getByRole("button", { name: "End session" }),
+      within(other as HTMLElement).getByRole("button", {
+        name: /^End the session on /,
+      }),
     );
     const confirm = await screen.findByRole("alertdialog");
     await user.click(

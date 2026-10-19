@@ -3514,23 +3514,24 @@ msgstr "加密证书"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
-msgid "devices.sessions.end"
-msgstr "结束会话"
-
-#. js-lingui-explicit-id
-#: src/pages/devices/DeviceSessionList.tsx
 msgid "devices.sessions.revoke.action"
-msgstr "结束会话"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountSessionsSection.tsx
-msgid "admin.user.sessions.end"
 msgstr "结束会话"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke.action"
 msgstr "结束会话"
+
+#. js-lingui-explicit-id
+#. placeholder {0}: deviceLabel(session.userAgent)
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.end.named"
+msgstr "结束 {device} 上的会话"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountSessionsSection.tsx
+msgid "admin.user.sessions.end.named"
+msgstr "结束 {device} 上的会话"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
@@ -9200,7 +9201,6 @@ msgstr "此密钥只显示一次。请立即填入客户端配置——之后无
 
 #. js-lingui-explicit-id
 #: src/components/custom/Section.tsx
-#: src/pages/admin/users/AccessSection.tsx
 msgid "section.failed"
 msgstr "无法加载这一部分"
 
@@ -9337,12 +9337,6 @@ msgid "pair.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id
-#: src/components/custom/Section.tsx
-#: src/pages/admin/users/AccessSection.tsx
-msgid "section.retry"
-msgstr "重试"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.retry"
 msgstr "重试"
@@ -9350,6 +9344,11 @@ msgstr "重试"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+#: src/components/custom/Section.tsx
+msgid "section.retry"
 msgstr "重试"
 
 #. js-lingui-explicit-id

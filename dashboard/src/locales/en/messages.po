@@ -3514,23 +3514,24 @@ msgstr "Encryption certificate"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
-msgid "devices.sessions.end"
-msgstr "End session"
-
-#. js-lingui-explicit-id
-#: src/pages/devices/DeviceSessionList.tsx
 msgid "devices.sessions.revoke.action"
-msgstr "End session"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountSessionsSection.tsx
-msgid "admin.user.sessions.end"
 msgstr "End session"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke.action"
 msgstr "End session"
+
+#. js-lingui-explicit-id
+#. placeholder {0}: deviceLabel(session.userAgent)
+#: src/pages/devices/DeviceSessionList.tsx
+msgid "devices.sessions.end.named"
+msgstr "End the session on {0}"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountSessionsSection.tsx
+msgid "admin.user.sessions.end.named"
+msgstr "End the session on {device}"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
@@ -9200,7 +9201,6 @@ msgstr "This secret is shown only once. Put it into the client's configuration n
 
 #. js-lingui-explicit-id
 #: src/components/custom/Section.tsx
-#: src/pages/admin/users/AccessSection.tsx
 msgid "section.failed"
 msgstr "This section could not be loaded"
 
@@ -9337,12 +9337,6 @@ msgid "pair.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id
-#: src/components/custom/Section.tsx
-#: src/pages/admin/users/AccessSection.tsx
-msgid "section.retry"
-msgstr "Try again"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.retry"
 msgstr "Try again"
@@ -9350,6 +9344,11 @@ msgstr "Try again"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
 msgid "admin.group.matches.retry"
+msgstr "Try again"
+
+#. js-lingui-explicit-id
+#: src/components/custom/Section.tsx
+msgid "section.retry"
 msgstr "Try again"
 
 #. js-lingui-explicit-id

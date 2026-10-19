@@ -16,6 +16,7 @@ import {
   DeviceIcon,
   DeviceName,
   rawUserAgentDetail,
+  useDeviceLabel,
 } from "@/components/custom/DeviceName";
 import {
   InlineFailure,
@@ -54,6 +55,7 @@ export function DeviceSessionList({
   watchUntil: SessionWatch | null;
 }) {
   const { t } = useLingui();
+  const deviceLabel = useDeviceLabel();
   const queryClient = useQueryClient();
   const { data } = useSuspenseQuery({
     ...quietQuery(sessionsQueryOptions()),
@@ -137,8 +139,8 @@ export function DeviceSessionList({
               ) : (
                 <Button
                   aria-label={t({
-                    id: "devices.sessions.end",
-                    message: "End session",
+                    id: "devices.sessions.end.named",
+                    message: `End the session on ${deviceLabel(session.userAgent)}`,
                   })}
                   onClick={() => setTarget(session)}
                   variant="destructive-outline"
