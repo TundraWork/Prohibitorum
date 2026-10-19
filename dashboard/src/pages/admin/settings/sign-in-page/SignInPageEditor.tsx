@@ -373,7 +373,7 @@ function ChangeMark({ changes }: { changes: number }) {
   const { t } = useLingui();
   if (changes === 0) return null;
   return (
-    <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
+    <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-muted-foreground text-xs">
       <span aria-hidden="true" className="size-1.5 rounded-full bg-warning" />
       {t({
         id: "settings.sign-in.unsaved",

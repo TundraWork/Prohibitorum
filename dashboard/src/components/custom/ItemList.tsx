@@ -203,7 +203,7 @@ export function ItemListRow({
       {icon !== undefined && (
         <span
           style={rowStyle}
-          className={`col-start-2 row-start-1 me-3 grid size-9 place-items-center text-muted-foreground max-sm:row-span-(--item-span) max-sm:self-start${iconBare ? "" : " rounded-md bg-muted"}`}
+          className={`col-start-2 row-start-1 me-3 grid size-9 place-items-center text-muted-foreground max-sm:row-span-(--item-span)${iconBare ? "" : " rounded-md bg-muted"}`}
         >
           {icon}
         </span>
@@ -307,7 +307,8 @@ export function ItemListRow({
       )}
     </>
   );
-  const rowClass = "col-span-full grid grid-cols-subgrid items-center py-3";
+  const rowClass =
+    "col-span-full grid grid-cols-subgrid items-center py-3 max-sm:items-start";
   return link !== undefined ? (
     link({
       className: `${rowClass} outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent/50`,
