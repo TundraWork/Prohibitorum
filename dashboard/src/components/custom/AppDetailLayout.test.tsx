@@ -69,6 +69,19 @@ describe("AppDetailLayout", () => {
     ).toBeInTheDocument();
   });
 
+  it("reserves room for the unsaved bar only while a section is dirty", () => {
+    const { rerender, container } = render(<Page />);
+    const columns = () =>
+      container.querySelector("[data-slot=detail-columns]") as HTMLElement;
+    expect(columns()).not.toHaveAttribute("data-reserving");
+
+    rerender(<Page dirty />);
+    expect(columns()).toHaveAttribute("data-reserving", "true");
+
+    rerender(<Page />);
+    expect(columns()).not.toHaveAttribute("data-reserving");
+  });
+
   it("also shows the facts outside the rail, for widths without one", () => {
     render(<Page />);
     expect(screen.getAllByText("id.example.test")).toHaveLength(2);

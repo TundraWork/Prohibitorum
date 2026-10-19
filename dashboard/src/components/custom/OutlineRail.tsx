@@ -35,6 +35,11 @@ function useCurrentSection(sections: RegisteredSection[]): string | undefined {
 /**
  * The "On this page" list for an object page: one in-page link per registered
  * section, unsaved ones dotted, the danger section last, and `facts` under it.
+ *
+ * The rail is a single `minmax(0, 1fr)` track so a long unbreakable fact, such
+ * as an issuer, truncates inside the column instead of widening it. Each entry
+ * keeps a trailing slot for the unsaved dot, so a dot appearing never makes a
+ * label wrap or the entries below it move.
  */
 export function OutlineRail({
   facts,
@@ -56,13 +61,13 @@ export function OutlineRail({
   return (
     <aside
       className={cn(
-        "sticky top-[calc(var(--app-sticky-offset)+5rem)] grid gap-0.5 text-sm",
+        "sticky top-[calc(var(--app-sticky-offset)+5rem)] grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5 text-sm",
         className,
       )}
     >
       <nav
         aria-label={t({ id: "outline.label", message: "On this page" })}
-        className="grid gap-0.5"
+        className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5"
       >
         <div
           aria-hidden="true"
@@ -76,7 +81,7 @@ export function OutlineRail({
             href={`#${section.id}`}
             aria-current={current === section.id ? "location" : undefined}
             className={cn(
-              "flex items-center rounded-md px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "relative flex items-center rounded-md px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring",
               section.tone === "danger"
                 ? "text-destructive-foreground"
                 : "text-muted-foreground hover:text-foreground",
@@ -94,7 +99,7 @@ export function OutlineRail({
                   id: "outline.unsaved",
                   message: "Unsaved changes",
                 })}
-                className="ms-auto size-1.5 rounded-full bg-warning"
+                className="absolute end-0.5 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-warning"
               />
             )}
           </a>
@@ -103,7 +108,7 @@ export function OutlineRail({
       {facts !== undefined && (
         <>
           <div className="mx-2 my-4 border-t" />
-          <div className="px-2 text-xs">{facts}</div>
+          <div className="min-w-0 px-2 text-xs">{facts}</div>
         </>
       )}
     </aside>
