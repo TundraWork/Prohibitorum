@@ -124,11 +124,35 @@ function EffectiveConfigTable({
         key,
         label: i18n._(label),
         value: <EffectiveValue field={key} value={field.value} />,
-        source: source === undefined ? undefined : i18n._(source),
+        // A value that is not used has no origin worth a badge.
+        source:
+          source === undefined || valueKind(key, field.value) === "unused"
+            ? undefined
+            : i18n._(source),
+        // The one value an operator changed is told apart from the rest.
+        changed: field.source === "override",
       },
     ];
   });
   return <SourcedList rows={rows} />;
+}
+
+type ValueKind = "jwks-none" | "scopes-none" | "unused" | "value";
+
+/**
+ * The JWKS sentinel and an empty scope list are configured values with a
+ * meaning of their own; reading them as "not used" would say the opposite.
+ */
+function valueKind(field: string, value: string | string[] | null): ValueKind {
+  if (field === "jwksEndpoint" && value === "none") return "jwks-none";
+  if (field === "scopes" && Array.isArray(value) && value.length === 0) {
+    return "scopes-none";
+  }
+  const empty =
+    value === null ||
+    value === "" ||
+    (Array.isArray(value) && value.length === 0);
+  return empty ? "unused" : "value";
 }
 
 export function EffectiveValue({
@@ -138,9 +162,8 @@ export function EffectiveValue({
   field: string;
   value: string | string[] | null;
 }) {
-  // The JWKS sentinel and an empty scope list are configured values with a
-  // meaning of their own; reading them as "not used" would say the opposite.
-  if (field === "jwksEndpoint" && value === "none") {
+  const kind = valueKind(field, value);
+  if (kind === "jwks-none") {
     return (
       <span className="text-muted-foreground text-sm">
         <Trans id="admin.federation.diagnostics.jwks-none">
@@ -149,18 +172,14 @@ export function EffectiveValue({
       </span>
     );
   }
-  if (field === "scopes" && Array.isArray(value) && value.length === 0) {
+  if (kind === "scopes-none") {
     return (
       <span className="text-muted-foreground text-sm">
         <Trans id="admin.federation.diagnostics.scopes-none">None sent</Trans>
       </span>
     );
   }
-  const empty =
-    value === null ||
-    value === "" ||
-    (Array.isArray(value) && value.length === 0);
-  if (empty) {
+  if (kind === "unused" || value === null) {
     return (
       <span className="text-muted-foreground text-sm">
         <Trans id="admin.federation.diagnostics.unused">Not used</Trans>

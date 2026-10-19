@@ -186,6 +186,13 @@ describe("the effective configuration", () => {
     expect(row("Token")).toHaveTextContent("Overridden");
     expect(row("PKCE")).toHaveTextContent("Manual");
     expect(row("UserInfo")).toHaveTextContent("Not used");
+    // A value that is not used has no origin to name.
+    expect(row("UserInfo")).not.toHaveTextContent("Discovered");
+    // The one value an operator changed is told apart from the others.
+    const badge = (label: string) =>
+      within(row(label)).getByText(/Discovered|Overridden|Manual/);
+    expect(badge("Token")).toHaveAttribute("data-changed");
+    expect(badge("Issuer")).not.toHaveAttribute("data-changed");
     expect(row("JWKS")).toHaveTextContent("Not used — the ID token is skipped");
     expect(row("Scopes")).toHaveTextContent("None sent");
     expect(
@@ -341,6 +348,35 @@ describe("the result dialog", () => {
     ).toBeVisible();
   });
 
+  it("names no source for a mapped value that did not arrive", async () => {
+    const passed = outcome("succeeded");
+    const body = {
+      ...passed,
+      identity: {
+        ...passed.identity,
+        displayName: { source: "userinfo", claim: "name", value: null },
+      },
+    };
+    mount(
+      {
+        [`GET ${resultPath}`]: () => Response.json(body),
+        [`POST ${completePath}`]: () => Response.json(body),
+      },
+      runId,
+    );
+    const dialog = await screen.findByRole("dialog");
+    await within(dialog).findByText("Test passed");
+
+    const missing = dialog.querySelector(
+      '[data-field="displayName"]',
+    ) as HTMLElement;
+    expect(missing).toHaveTextContent("Not provided");
+    expect(missing).not.toHaveTextContent("UserInfo");
+    expect(dialog.querySelector('[data-field="email"]')).toHaveTextContent(
+      /ID token|UserInfo/,
+    );
+  });
+
   it("shows the documents of a passed run", async () => {
     const user = mount(resultRoutes("succeeded"), runId);
     const dialog = await screen.findByRole("dialog");
@@ -462,6 +498,8 @@ describe("the result dialog", () => {
     });
     await within(dialog).findByText(/taking longer than expected/);
     expect(within(dialog).queryByLabelText("Loading")).toBeNull();
+    // One box carries the status; there is no second "Checking" beneath it.
+    expect(within(dialog).queryByText("Checking")).toBeNull();
     const reads = api.sent("GET", resultPath).length;
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000);
@@ -544,7 +582,8 @@ describe("the result dialog", () => {
     expect(
       await within(dialog).findByRole("tablist", { name: "Test results" }),
     ).toBeVisible();
-    expect(dialog).toHaveFocus();
+    // Focus lands once the popup has opened, which can follow the first paint.
+    await waitFor(() => expect(dialog).toHaveFocus());
   });
 
   it("offers Check again at once when a read fails mid-poll", async () => {

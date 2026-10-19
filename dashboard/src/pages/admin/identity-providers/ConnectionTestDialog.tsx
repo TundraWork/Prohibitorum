@@ -210,7 +210,10 @@ function DiagnosticResult({
   stalled,
 }: {
   result: DiagnosticResultView;
-  /** The watch window has closed while the run is still going. */
+  /**
+   * The watch window has closed while the run is still going, and the dialog
+   * is saying so itself.
+   */
   stalled: boolean;
 }) {
   const { t } = useLingui();
@@ -222,7 +225,9 @@ function DiagnosticResult({
 
   return (
     <div className="flex flex-col gap-5">
-      {state !== undefined && <RunStatus state={state} stalled={stalled} />}
+      {/* Once the watch has stalled the dialog's alert says so and carries
+          Check again, so a second box saying the same thing is left out. */}
+      {state !== undefined && !stalled && <RunStatus state={state} />}
 
       <ol
         aria-label={t({
@@ -254,23 +259,22 @@ const runStatusStyle: Record<
   failed: { variant: "error", icon: <CircleXIcon aria-hidden="true" /> },
 };
 
-function RunStatus({ state, stalled }: { state: RunState; stalled: boolean }) {
+function RunStatus({ state }: { state: RunState }) {
   const { i18n } = useLingui();
   const style = runStatusStyle[state];
-  // A spinner says it is still being watched; once the window has closed it is not.
-  const icon =
-    state === "checking" && stalled ? (
-      <ClockIcon aria-hidden="true" />
-    ) : (
-      style.icon
-    );
   return (
     <Alert variant={style.variant} role="status">
-      {icon}
+      {style.icon}
       <AlertTitle>{i18n._(runStatusLabel(state))}</AlertTitle>
     </Alert>
   );
 }
+
+/**
+ * Every tab's panel has the same height and scrolls inside it, so switching tabs
+ * never changes the dialog's height and the tab strip stays under the pointer.
+ */
+const panelClass = "h-[min(20rem,45dvh)] overflow-y-auto pt-3";
 
 /**
  * The mapped fields first, since that is what the reader came to check, then
@@ -308,7 +312,7 @@ function DiagnosticDetails({ result }: { result: DiagnosticResultView }) {
           </Trans>
         </TabsTab>
       </TabsList>
-      <TabsPanel value="identity" className="pt-3">
+      <TabsPanel value="identity" className={panelClass}>
         {result.identity === undefined ? (
           <EmptyDetail>
             <Trans id="admin.federation.diagnostics.identity.empty">
@@ -319,7 +323,7 @@ function DiagnosticDetails({ result }: { result: DiagnosticResultView }) {
           <IdentityList identity={result.identity} />
         )}
       </TabsPanel>
-      <TabsPanel value="id-token" className="pt-3">
+      <TabsPanel value="id-token" className={panelClass}>
         <DocumentPanel
           document={result.idToken}
           empty={
@@ -329,7 +333,7 @@ function DiagnosticDetails({ result }: { result: DiagnosticResultView }) {
           }
         />
       </TabsPanel>
-      <TabsPanel value="userinfo" className="pt-3">
+      <TabsPanel value="userinfo" className={panelClass}>
         <DocumentPanel
           document={result.userinfo}
           empty={
@@ -386,7 +390,11 @@ function IdentityList({ identity }: { identity: DiagnosticIdentityView }) {
     key,
     label: i18n._(label),
     value: <IdentityFieldValue field={identity[key]} />,
-    source: <FieldSource field={identity[key]} />,
+    // A value that never arrived has no source to name.
+    source:
+      identityValue(identity[key]).kind === "missing" ? undefined : (
+        <FieldSource field={identity[key]} />
+      ),
   }));
   return <SourcedList rows={rows} />;
 }

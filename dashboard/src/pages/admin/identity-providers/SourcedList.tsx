@@ -5,7 +5,10 @@ export interface SourcedRow {
   key: string;
   label: ReactNode;
   value: ReactNode;
-  source: ReactNode;
+  /** Absent when the value has no source to name. */
+  source?: ReactNode;
+  /** The value is one an operator changed, so its source stands out. */
+  changed?: boolean;
 }
 
 /**
@@ -31,7 +34,8 @@ export function SourcedList({ rows }: { rows: readonly SourcedRow[] }) {
             <dd className="col-start-2 row-start-1 min-w-0 justify-self-end @xl/sourced:col-start-3">
               {row.source !== undefined && row.source !== null && (
                 <Badge
-                  variant="outline"
+                  variant={row.changed === true ? "info" : "outline"}
+                  data-changed={row.changed === true ? "" : undefined}
                   className="h-auto min-h-5 max-w-full whitespace-normal wrap-anywhere text-start sm:min-h-4.5"
                 >
                   {row.source}
