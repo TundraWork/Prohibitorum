@@ -3,15 +3,9 @@ import { Outlet } from "@tanstack/react-router";
 import { useSetAtom } from "jotai";
 import { useLayoutEffect } from "react";
 import { loginWallpaperQueryOptions } from "@/api/queries";
-import { AppToolbar } from "@/components/custom/AppToolbar";
-import { InstanceIdentity } from "@/components/custom/InstanceIdentity";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
-import { publicCreditPlacement } from "@/components/custom/login-appearance/card-position";
-import { LoginBackdrop } from "@/components/custom/login-appearance/LoginBackdrop";
-import { cardSurfaceStyle } from "@/components/custom/login-appearance/surface-style";
 import { useLoginBackground } from "@/components/custom/login-appearance/use-login-background";
-import { WallpaperCredit } from "@/components/custom/login-appearance/WallpaperCredit";
-import { PublicStage } from "@/components/custom/PublicStage";
+import { PublicScene } from "@/components/custom/PublicScene";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
 import { publicThemeAtom } from "@/components/custom/ThemeSelect";
 
@@ -51,39 +45,11 @@ export function PublicLayout() {
     loginImages.map((image) => image.url),
     usesWallpaper ? wallpaper : undefined,
   );
-  const hasCredit = shown.wallpaperPicture !== undefined;
-  const credit = (
-    <WallpaperCredit appearance={appearance} picture={shown.wallpaperPicture} />
-  );
-
   return (
-    <>
-      <LoginBackdrop appearance={appearance} background={shown} />
-      <AppToolbar
-        surface={appearance.capsules}
-        showThemeSelect={appearance.theme === "switchable"}
-      >
-        <InstanceIdentity />
-      </AppToolbar>
-      <PublicStage
-        frame={background.source === "none" ? "plain" : "frosted"}
-        card={cardSurfaceStyle(appearance.card)}
-        position={appearance.cardPosition}
-        after={hasCredit && <div className="lg:hidden">{credit}</div>}
-      >
-        <RouteLayoutContext value="public">
-          <Outlet />
-        </RouteLayoutContext>
-      </PublicStage>
-      {hasCredit && (
-        <div
-          className={publicCreditPlacement({
-            position: appearance.cardPosition,
-          })}
-        >
-          {credit}
-        </div>
-      )}
-    </>
+    <PublicScene appearance={appearance} background={shown}>
+      <RouteLayoutContext value="public">
+        <Outlet />
+      </RouteLayoutContext>
+    </PublicScene>
   );
 }
