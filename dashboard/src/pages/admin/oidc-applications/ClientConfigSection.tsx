@@ -21,6 +21,11 @@ import {
   scopeFormValue,
   uriListProblem,
 } from "@/pages/admin/oidc-applications/oidc-validation";
+import {
+  ConsentSwitch,
+  PkceSwitch,
+  RedirectUriList,
+} from "@/pages/admin/oidc-applications/SignInFields";
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
 
@@ -135,7 +140,6 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
   const title = t({ id: "admin.oidc-apps.sign-in.title", message: "Sign-in" });
   const removedNames = pending?.removed ?? [];
   const removedCount = pending?.removed.length ?? 0;
-  const pkceLabel = <Trans id="admin.oidc-apps.field.pkce">Require PKCE</Trans>;
 
   return (
     <>
@@ -186,24 +190,7 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
               <form.FormError />
 
               <form.AppField name="redirectUris">
-                {() => (
-                  <UriList
-                    label={t({
-                      id: "admin.oidc-apps.field.redirects",
-                      message: "Redirect URIs",
-                    })}
-                    addLabel={
-                      <Trans id="admin.oidc-apps.uri.add">Add address</Trans>
-                    }
-                    placeholder="https://app.example.com/callback"
-                    minRows={1}
-                    minRowsReason={
-                      <Trans id="admin.oidc-apps.field.redirect.required">
-                        A client needs at least one redirect URI.
-                      </Trans>
-                    }
-                  />
-                )}
+                {() => <RedirectUriList />}
               </form.AppField>
 
               <form.AppField name="postLogoutRedirectUris">
@@ -232,42 +219,11 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
 
               <div className="flex flex-col gap-5 border-t pt-6">
                 <form.AppField name="requirePkce">
-                  {(field) =>
-                    isPublic ? (
-                      // Locked rather than hidden, with the reason beside the
-                      // switch: a disabled control gives none on its own.
-                      <field.SwitchField
-                        label={pkceLabel}
-                        description={
-                          <Trans id="admin.oidc-apps.field.pkce.public">
-                            A public client always proves the request it
-                            started.
-                          </Trans>
-                        }
-                        isDisabled
-                      />
-                    ) : (
-                      <field.SwitchField label={pkceLabel} />
-                    )
-                  }
+                  {() => <PkceSwitch isPublic={isPublic} />}
                 </form.AppField>
 
                 <form.AppField name="requireConsent">
-                  {(field) => (
-                    <field.SwitchField
-                      label={
-                        <Trans id="admin.oidc-apps.field.consent">
-                          Require consent
-                        </Trans>
-                      }
-                      description={
-                        <Trans id="admin.oidc-apps.field.consent.hint">
-                          Ask the account to approve the scopes before signing
-                          them in.
-                        </Trans>
-                      }
-                    />
-                  )}
+                  {() => <ConsentSwitch />}
                 </form.AppField>
               </div>
             </div>

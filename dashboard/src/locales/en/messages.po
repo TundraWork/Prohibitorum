@@ -236,7 +236,11 @@ msgstr "90 days"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.new.kind.public.description"
+msgstr "A browser or mobile app that cannot keep a secret. It has none, and proves each request with PKCE instead."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.redirect.required"
 msgstr "A client needs at least one redirect URI."
 
@@ -296,8 +300,7 @@ msgid "consent.scope.custom.description"
 msgstr "A permission defined by the app"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.pkce.public"
 msgstr "A public client always proves the request it started."
 
@@ -337,6 +340,11 @@ msgid "admin.federation.scope.invalid"
 msgstr "A scope cannot contain spaces, quotes or backslashes."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.kind.confidential.description"
+msgstr "A server-side application that can keep a secret. It signs in with a client secret, shown once after you create it."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.username_immutable"
 msgstr "A username cannot be changed once the account exists."
@@ -348,6 +356,7 @@ msgstr "Access"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "app.access.title"
 msgstr "Access"
 
@@ -600,8 +609,8 @@ msgid "setup_signin.title"
 msgstr "Add a way to sign in"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.uri.add"
 msgstr "Add address"
 
@@ -1011,6 +1020,11 @@ msgid "profile.oidc-subject.hint"
 msgstr "Applications identify you by this value. It never changes."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.page.description"
+msgstr "Applications that sign people in through this instance with OpenID Connect."
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.page.description"
 msgstr "Applications you allowed to sign you in. Removing one makes it ask again next time."
@@ -1046,8 +1060,7 @@ msgid "pair.approved"
 msgstr "Approved. Signing in…"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.consent.hint"
 msgstr "Ask the account to approve the scopes before signing them in."
 
@@ -1306,6 +1319,11 @@ msgstr "Cancel"
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
@@ -3726,6 +3744,11 @@ msgid "admin.federation.new.slug"
 msgstr "Identifier"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.identity.title"
+msgstr "Identity"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity.title"
 msgstr "Identity"
@@ -4558,6 +4581,11 @@ msgstr "New invitation"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.title"
+msgstr "New OIDC application"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.form"
 msgstr "New OIDC application"
 
@@ -4895,6 +4923,11 @@ msgstr "OIDC application"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.page.title"
+msgstr "OIDC applications"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.table"
 msgstr "OIDC applications"
 
@@ -5028,6 +5061,11 @@ msgstr "Open {name}"
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.identify.step.open"
 msgstr "Open <0>vrchat.com</0> in your browser and go to your profile page."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.access.description"
+msgstr "Open it to every account, or limit it to user groups. The groups are chosen on the application's page."
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -5562,8 +5600,7 @@ msgid "enroll.password_totp.steps.codes"
 msgstr "Recovery codes"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.redirects"
 msgstr "Redirect URIs"
 
@@ -5601,6 +5638,11 @@ msgstr "Regenerate"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.bing.region"
 msgstr "Region"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.description"
+msgstr "Register an application that signs people in through this instance. The rest of its settings are on its page once it exists."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
@@ -5961,14 +6003,12 @@ msgid "admin.federation.claims.verified"
 msgstr "Require a verified email address"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.consent"
 msgstr "Require consent"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.pkce"
 msgstr "Require PKCE"
 
@@ -6736,6 +6776,7 @@ msgid "console.signin.title"
 msgstr "Sign-in"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.sign-in.title"
 msgstr "Sign-in"
@@ -8840,6 +8881,11 @@ msgid "profile.avatar.description"
 msgstr "What others see next to your name."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.identity.description"
+msgstr "What people see, and the identifier the client is configured with."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity.description"
 msgstr "What the client is told about someone who signs in."
@@ -8881,6 +8927,7 @@ msgid "admin.saml-apps.field.acs.hint"
 msgstr "Where the instance sends the assertion. Exactly one endpoint is the default one."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.sign-in.description"
 msgstr "Where this application may send people back to, and what it may ask for."
@@ -8894,6 +8941,11 @@ msgstr "Where you are signed in"
 #: src/pages/Devices.tsx
 msgid "devices.page.description"
 msgstr "Where you are signed in right now, and a way to sign in a device that shows a pairing code."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.type.description"
+msgstr "Whether the application can keep a secret decides how it proves who it is."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

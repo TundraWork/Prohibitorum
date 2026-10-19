@@ -3,6 +3,7 @@ import { Link, type LinkProps } from "@tanstack/react-router";
 import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
+import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
@@ -15,17 +16,12 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
  *
  * ## How a switched-off row reads
  *
- * A row that is disabled recedes: the whole cell drops to a fraction of its
- * opacity, icon and text together. It is not labelled — a chip reading
- * "Disabled" on every settled row costs the measure and buries the rows that are
- * genuinely wrong, and there is no second state to tell it apart from, so the
- * words would carry nothing the recession does not.
- *
- * The recession is decoration on top of a fact, never the only record of it: an
- * `sr-only` line follows the name, because a screen reader sees no opacity, and
- * a reader who cannot distinguish the dimming would otherwise have no way to
- * know the row is switched off. The state itself is on the record's own page,
- * where it can be changed.
+ * A row that is disabled recedes — its icon and text drop to a fraction of
+ * their opacity — and says so with a "Disabled" badge beside the name, which
+ * stays at full strength. The dimming alone is not enough: a reader who cannot
+ * tell opacities apart would have nothing, and a badge is also what a screen
+ * reader finds. The badge is small and secondary, so a list with a few
+ * switched-off rows still reads as mostly settled ones.
  *
  * `restricted` stays a padlock beside the name, because it says what a row *is*
  * rather than something that happened to it.
@@ -59,25 +55,29 @@ export function EntityCell({
   });
 
   return (
-    <div className={`flex items-center gap-3 ${dimmed ? "opacity-60" : ""}`}>
-      <EntityAvatar
-        iconUrl={iconUrl}
-        name={typeof name === "string" ? name : undefined}
-        fallback={fallback}
-      />
+    <div className="flex items-center gap-3">
+      <span className={dimmed ? "opacity-60" : undefined}>
+        <EntityAvatar
+          iconUrl={iconUrl}
+          name={typeof name === "string" ? name : undefined}
+          fallback={fallback}
+        />
+      </span>
       <div className="flex min-w-0 flex-col">
         <span className="flex items-center gap-1.5">
-          {link === undefined ? (
-            name
-          ) : (
-            <Link className="hover:underline" {...link}>
-              {name}
-            </Link>
-          )}
+          <span className={dimmed ? "opacity-60" : undefined}>
+            {link === undefined ? (
+              name
+            ) : (
+              <Link className="hover:underline" {...link}>
+                {name}
+              </Link>
+            )}
+          </span>
           {dimmed && (
-            <span className="sr-only">
+            <Badge variant="secondary" size="sm">
               {t({ id: "entity.state.disabled", message: "Disabled" })}
-            </span>
+            </Badge>
           )}
           {restricted && (
             <Tooltip>
@@ -98,7 +98,9 @@ export function EntityCell({
           )}
         </span>
         {identifier !== undefined && (
-          <span className="truncate font-mono text-xs text-muted-foreground">
+          <span
+            className={`truncate font-mono text-xs text-muted-foreground ${dimmed ? "opacity-60" : ""}`}
+          >
             {identifier}
           </span>
         )}

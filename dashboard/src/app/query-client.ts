@@ -112,10 +112,11 @@ export function createQueryClient(
 }
 
 /** Marks a read as one whose failure the page draws itself, so no toast repeats it. */
-export function quietQuery<O extends { meta?: Record<string, unknown> }>(
+export function quietQuery<O extends object>(
   options: O,
-): O {
-  return { ...options, meta: { ...options.meta, quiet: true } };
+): O & { meta: Record<string, unknown> } {
+  const { meta } = options as { meta?: Record<string, unknown> };
+  return { ...options, meta: { ...meta, quiet: true } };
 }
 
 /** Marks a write as one whose failure the page shows itself; see `reportsInline`. */

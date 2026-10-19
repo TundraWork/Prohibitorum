@@ -1,17 +1,18 @@
-import { Alert } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { Blocks, Pencil } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Blocks, Pencil, Plus } from "lucide-react";
 import { useCursorList } from "@/api/cursor-list";
-import { describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { oidcAppsListOptions, sessionQueryOptions } from "@/api/queries";
+import { quietQuery } from "@/app/query-client";
 import { Button } from "@/components/custom/Button";
 import { DataTable, type TableColumn } from "@/components/custom/DataTable";
 import { EntityCell } from "@/components/custom/EntityCell";
+import { InlineFailure } from "@/components/custom/InlineFailure";
 import { RedirectCell } from "@/components/custom/ListCells";
+import { PageHeader } from "@/components/custom/PageHeader";
 import { TableEmptyState } from "@/components/custom/TableEmptyState";
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
@@ -25,9 +26,9 @@ const openAppMessage = msg({
  * The OIDC applications this instance is a provider for.
  *
  * A reader scanning this list asks three things of a row: what it is, whether a
- * client can still use it, and where it sends people back to. The first is the
- * identity cell, the third is the redirect column, and the second is the state
- * column at the trailing edge.
+ * client can still use it, and where it sends people back to. The first two are
+ * the identity cell, which dims a disabled application and badges it, and marks a
+ * restricted one with a lock; the third is the redirect column.
  *
  * The redirect column replaced a scopes column. A list of scopes is the same
  * four names on almost every row, and a reader comparing rows learned nothing
@@ -50,7 +51,7 @@ export function AdminOidcApplications() {
   const { t, i18n } = useLingui();
   const navigate = useNavigate();
   const session = useQuery(sessionQueryOptions());
-  const list = useCursorList<OidcApp>(oidcAppsListOptions());
+  const list = useCursorList<OidcApp>(quietQuery(oidcAppsListOptions()));
 
   const isAdmin = session.data?.role === "admin";
 
@@ -117,47 +118,57 @@ export function AdminOidcApplications() {
     },
   ];
 
+  const failed = list.error !== null && list.error !== undefined;
+
   return (
-    <div className="flex flex-col gap-4">
-      {isAdmin && (
-        <div className="flex flex-wrap items-center gap-4">
-          <Button
-            onClick={() =>
-              void navigate({ to: "/admin/oidc-applications/new" })
-            }
-          >
-            <Trans id="admin.oidc-apps.create">New application</Trans>
-          </Button>
-        </div>
-      )}
-
-      {list.error !== null && list.error !== undefined && (
-        <Alert status="danger" role="alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>{t(describeError(list.error))}</Alert.Title>
-          </Alert.Content>
-        </Alert>
-      )}
-
-      <DataTable
-        label={t({ id: "admin.oidc-apps.table", message: "OIDC applications" })}
-        columns={columns}
-        rows={list.items}
-        rowId={(app) => app.clientId}
-        loading={list.loading}
-        hasMore={list.hasMore}
-        loadingMore={list.loadingMore}
-        onLoadMore={list.loadMore}
-        empty={
-          <TableEmptyState
-            icon={<Blocks size={18} strokeWidth={1.75} aria-hidden="true" />}
-            title={
-              <Trans id="admin.oidc-apps.empty">No OIDC applications yet</Trans>
-            }
-          />
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title={<Trans id="admin.oidc-apps.page.title">OIDC applications</Trans>}
+        description={
+          <Trans id="admin.oidc-apps.page.description">
+            Applications that sign people in through this instance with OpenID
+            Connect.
+          </Trans>
+        }
+        actions={
+          isAdmin ? (
+            <Button render={<Link to="/admin/oidc-applications/new" />}>
+              <Plus aria-hidden="true" />
+              <Trans id="admin.oidc-apps.create">New application</Trans>
+            </Button>
+          ) : undefined
         }
       />
+
+      {failed && <InlineFailure error={list.error} />}
+
+      {/* A failed first read has no rows to show, and an empty table under the
+          failure would say there are none. */}
+      {(!failed || list.items.length > 0) && (
+        <DataTable
+          label={t({
+            id: "admin.oidc-apps.table",
+            message: "OIDC applications",
+          })}
+          columns={columns}
+          rows={list.items}
+          rowId={(app) => app.clientId}
+          loading={list.loading}
+          hasMore={list.hasMore}
+          loadingMore={list.loadingMore}
+          onLoadMore={list.loadMore}
+          empty={
+            <TableEmptyState
+              icon={<Blocks size={18} strokeWidth={1.75} aria-hidden="true" />}
+              title={
+                <Trans id="admin.oidc-apps.empty">
+                  No OIDC applications yet
+                </Trans>
+              }
+            />
+          }
+        />
+      )}
     </div>
   );
 }

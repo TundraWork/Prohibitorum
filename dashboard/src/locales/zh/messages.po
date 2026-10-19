@@ -236,7 +236,11 @@ msgstr "90 天"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.new.kind.public.description"
+msgstr "在浏览器或手机上运行、无法保管密钥的应用。它没有密钥，改用 PKCE 证明每一次请求。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.redirect.required"
 msgstr "客户端至少需要一个重定向 URI。"
 
@@ -296,8 +300,7 @@ msgid "consent.scope.custom.description"
 msgstr "由应用定义的权限"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.pkce.public"
 msgstr "公开客户端每次都会证明请求由自己发起。"
 
@@ -337,6 +340,11 @@ msgid "admin.federation.scope.invalid"
 msgstr "作用域不能包含空格、引号或反斜杠。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.kind.confidential.description"
+msgstr "能够保管密钥的服务端应用，用客户端密钥登录。创建后密钥只会显示一次。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.username_immutable"
 msgstr "账号创建后，用户名不可更改。"
@@ -348,6 +356,7 @@ msgstr "访问"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "app.access.title"
 msgstr "访问权限"
 
@@ -600,8 +609,8 @@ msgid "setup_signin.title"
 msgstr "添加一种登录方式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.uri.add"
 msgstr "添加地址"
 
@@ -1011,6 +1020,11 @@ msgid "profile.oidc-subject.hint"
 msgstr "应用通过这个值识别你，它不会改变。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.page.description"
+msgstr "通过 OpenID Connect 在此实例登录的应用。"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.page.description"
 msgstr "你允许其用于登录的应用。移除某个应用后，它下次会重新征求你的许可。"
@@ -1046,8 +1060,7 @@ msgid "pair.approved"
 msgstr "已批准，正在登录…"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.consent.hint"
 msgstr "登录前先让账号确认这些作用域。"
 
@@ -1306,6 +1319,11 @@ msgstr "取消"
 #: src/pages/admin/AdminInvitationForm.tsx
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
@@ -3726,6 +3744,11 @@ msgid "admin.federation.new.slug"
 msgstr "标识符"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.identity.title"
+msgstr "身份"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity.title"
 msgstr "身份"
@@ -4558,6 +4581,11 @@ msgstr "新建邀请"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.title"
+msgstr "新建 OIDC 应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.form"
 msgstr "新建 OIDC 应用"
 
@@ -4895,6 +4923,11 @@ msgstr "OIDC 应用"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
+msgid "admin.oidc-apps.page.title"
+msgstr "OIDC 应用"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.table"
 msgstr "OIDC 应用"
 
@@ -5028,6 +5061,11 @@ msgstr "开放 {name}"
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.identify.step.open"
 msgstr "在浏览器打开 <0>vrchat.com</0> 并进入你的个人资料页。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.access.description"
+msgstr "可以对所有账号开放，也可以只开放给部分用户组。用户组在应用创建后到它的页面里选择。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -5562,8 +5600,7 @@ msgid "enroll.password_totp.steps.codes"
 msgstr "恢复码"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.redirects"
 msgstr "重定向 URI"
 
@@ -5601,6 +5638,11 @@ msgstr "重新生成"
 #: src/pages/admin/settings/SignInPageControls.tsx
 msgid "settings.sign-in.bing.region"
 msgstr "地区"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.description"
+msgstr "注册一个通过此实例登录的应用。其余设置在它创建后的页面里。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
@@ -5961,14 +6003,12 @@ msgid "admin.federation.claims.verified"
 msgstr "要求邮箱已验证"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.consent"
 msgstr "要求用户同意"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
-#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+#: src/pages/admin/oidc-applications/SignInFields.tsx
 msgid "admin.oidc-apps.field.pkce"
 msgstr "要求 PKCE"
 
@@ -6736,6 +6776,7 @@ msgid "console.signin.title"
 msgstr "登录"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.sign-in.title"
 msgstr "登录"
@@ -8840,6 +8881,11 @@ msgid "profile.avatar.description"
 msgstr "别人在你的名字旁看到的图片。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.identity.description"
+msgstr "人们看到的名称，以及客户端配置所用的标识。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.identity.description"
 msgstr "客户端会得知的登录者信息。"
@@ -8881,6 +8927,7 @@ msgid "admin.saml-apps.field.acs.hint"
 msgstr "这个实例发送断言的目标地址。其中恰好一个端点是默认端点。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.sign-in.description"
 msgstr "此应用可以把人送回的地址，以及它可以请求的内容。"
@@ -8894,6 +8941,11 @@ msgstr "你已登录的位置"
 #: src/pages/Devices.tsx
 msgid "devices.page.description"
 msgstr "查看你当前在哪些设备上登录，并可让显示配对码的设备登录。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
+msgid "admin.oidc-apps.new.type.description"
+msgstr "应用能否保管密钥，决定了它如何证明自己的身份。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminGroupForm.tsx

@@ -44,8 +44,11 @@ export function cursorListOptions<T>(options: {
     cursor?: string;
     signal: AbortSignal;
   }) => Promise<CursorPage<T>>;
+  /** Carried to the cache, e.g. `quietQuery`'s marker for a page that shows the failure itself. */
+  meta?: Record<string, unknown>;
 }) {
   return {
+    ...(options.meta === undefined ? {} : { meta: options.meta }),
     queryKey: [...options.queryKey, cursorPagesMarker] as const,
     initialPageParam: undefined as string | undefined,
     queryFn: ({
@@ -69,6 +72,7 @@ export function useCursorList<T>(options: {
     cursor?: string;
     signal: AbortSignal;
   }) => Promise<CursorPage<T>>;
+  meta?: Record<string, unknown>;
   /**
    * `false` while the question is not finished — a date range with no end —
    * so nothing is sent until it is.

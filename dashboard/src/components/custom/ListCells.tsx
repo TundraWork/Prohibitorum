@@ -1,4 +1,5 @@
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
+import { TriangleAlert } from "lucide-react";
 import { useId } from "react";
 import { readPrincipalSource } from "@/api/federation";
 import { principalSourceLabel } from "@/components/custom/principal-sources";
@@ -91,13 +92,18 @@ export function CodeValue({
  * count does.
  *
  * A client with no redirect URI says so in words rather than drawing an empty
- * cell. That is the single most likely misconfiguration on this list, so it must
- * not look like a value that failed to arrive.
+ * cell, in the warning colour with a triangle. That is the single most likely
+ * misconfiguration on this list, so it must not look like a value that failed
+ * to arrive, nor like an ordinary muted cell.
  */
 export function RedirectCell({ uris }: { uris: readonly string[] }) {
   if (uris.length === 0) {
     return (
-      <span className="text-muted-foreground">
+      <span
+        data-tone="warning"
+        className="inline-flex items-center gap-1.5 text-warning-foreground"
+      >
+        <TriangleAlert size={14} aria-hidden="true" />
         <Trans id="list.diagnostics.redirect.none">None</Trans>
       </span>
     );

@@ -1,15 +1,27 @@
-import { Label, Radio, RadioGroup } from "@heroui/react";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import {
+  IdCardIcon,
+  LogInIcon,
+  ServerIcon,
+  ShieldCheckIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { createOidcAppMutationOptions } from "@/api/mutations";
 import type { CreateOidcAppResponse } from "@/api/raw-admin-paths";
-import { ConsoleCard } from "@/components/custom/ConsoleCard";
+import { withInlineReport } from "@/app/query-client";
+import { Button } from "@/components/custom/Button";
+import { ChoiceTile } from "@/components/custom/ChoiceTile";
+import { PageBody } from "@/components/custom/PageBody";
+import { PageHeader } from "@/components/custom/PageHeader";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
-import { UriList, uriRowProblem } from "@/components/custom/UriList";
+import { Section } from "@/components/custom/Section";
+import { uriRowProblem } from "@/components/custom/UriList";
+import { RadioGroup } from "@/components/ui/radio-group";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import { OidcScopesField } from "@/pages/admin/oidc-applications/OidcScopesField";
@@ -17,6 +29,11 @@ import {
   type AllowedScope,
   uriListProblem,
 } from "@/pages/admin/oidc-applications/oidc-validation";
+import {
+  ConsentSwitch,
+  PkceSwitch,
+  RedirectUriList,
+} from "@/pages/admin/oidc-applications/SignInFields";
 import { clientSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
 
 /**
@@ -51,9 +68,10 @@ const nameRequired = msg({
  * Registering an OIDC client with the instance.
  *
  * Only what the server cannot default is asked for. The launch URL, the
- * post-logout redirect URIs, the identity projection and the access policy all
- * have a working default — the record's own — and are set on the detail page,
- * where the application as it currently stands is beside the field.
+ * post-logout redirect URIs, the identity projection and the access policy's
+ * groups all have a working default — the record's own — and are set on the
+ * detail page, where the application as it currently stands is beside the
+ * field.
  *
  * ## The secret
  *
@@ -63,11 +81,16 @@ const nameRequired = msg({
  * to the detail page first and revealing on top of it would put the secret
  * behind a page load that a reload could lose. A public client has no secret, so
  * it goes straight through.
+ *
+ * A failed create is shown on the form or the field it belongs to, and the
+ * mutation marks itself inline so the failure is not also a toast.
  */
 export function AdminOidcApplicationNew() {
   const { t } = useLingui();
   const navigate = useNavigate();
-  const create = useMutation(createOidcAppMutationOptions());
+  const create = useMutation(
+    withInlineReport(createOidcAppMutationOptions(), true),
+  );
 
   const [isPublic, setIsPublic] = useState(false);
   // Held as the whole response: the dialog names the application as well as
@@ -128,182 +151,232 @@ export function AdminOidcApplicationNew() {
       }
     },
   });
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
 
   return (
     <>
-      <ConsoleCard>
+      <PageBody>
+        <PageHeader
+          title={
+            <Trans id="admin.oidc-apps.new.title">New OIDC application</Trans>
+          }
+          description={
+            <Trans id="admin.oidc-apps.new.description">
+              Register an application that signs people in through this
+              instance. The rest of its settings are on its page once it exists.
+            </Trans>
+          }
+        />
         <form.AppForm>
           <form.Form
             label={t({
               id: "admin.oidc-apps.new.form",
               message: "New OIDC application",
             })}
+            className="flex flex-col gap-8"
           >
             <form.FormError />
 
-            <form.AppField
-              name="displayName"
-              validators={{
-                onSubmit: ({ value }) =>
-                  value.trim() === "" ? nameRequired : undefined,
-              }}
+            <Section
+              id="identity"
+              icon={<IdCardIcon />}
+              title={
+                <Trans id="admin.oidc-apps.new.identity.title">Identity</Trans>
+              }
+              description={
+                <Trans id="admin.oidc-apps.new.identity.description">
+                  What people see, and the identifier the client is configured
+                  with.
+                </Trans>
+              }
             >
-              {(field) => (
-                <field.FormField
-                  label={<Trans id="admin.oidc-apps.field.name">Name</Trans>}
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
+              <div className="flex flex-col gap-5">
+                <form.AppField
+                  name="displayName"
+                  validators={{
+                    onSubmit: ({ value }) =>
+                      value.trim() === "" ? nameRequired : undefined,
+                  }}
+                >
+                  {(field) => (
+                    <field.FormField
+                      label={
+                        <Trans id="admin.oidc-apps.field.name">Name</Trans>
+                      }
+                    />
+                  )}
+                </form.AppField>
 
-            <form.AppField
-              name="clientId"
-              validators={{
-                onSubmit: ({ value }) => {
-                  const clientId = value.trim();
-                  if (clientId === "") return clientIdRequired;
-                  return clientIdPattern.test(clientId)
-                    ? undefined
-                    : clientIdInvalid;
-                },
-              }}
+                <form.AppField
+                  name="clientId"
+                  validators={{
+                    onSubmit: ({ value }) => {
+                      const clientId = value.trim();
+                      if (clientId === "") return clientIdRequired;
+                      return clientIdPattern.test(clientId)
+                        ? undefined
+                        : clientIdInvalid;
+                    },
+                  }}
+                >
+                  {(field) => (
+                    <field.FormField
+                      label={
+                        <Trans id="admin.oidc-apps.field.client-id">
+                          Client ID
+                        </Trans>
+                      }
+                      description={
+                        <Trans id="admin.oidc-apps.field.client-id.hint">
+                          The client is configured with this value; it cannot
+                          change.
+                        </Trans>
+                      }
+                      autoComplete="off"
+                      spellCheck={false}
+                      isMonospace
+                    />
+                  )}
+                </form.AppField>
+              </div>
+            </Section>
+
+            <Section
+              id="type"
+              icon={<ServerIcon />}
+              title={<Trans id="admin.oidc-apps.field.kind">Client type</Trans>}
+              description={
+                <Trans id="admin.oidc-apps.new.type.description">
+                  Whether the application can keep a secret decides how it
+                  proves who it is.
+                </Trans>
+              }
             >
-              {(field) => (
-                <field.FormField
+              {/* The reader's choice, not the form's: the type is what the rest
+                  of this form reads, so it stays in component state with the
+                  value it decides (`isPublic`). */}
+              <RadioGroup
+                aria-label={t({
+                  id: "admin.oidc-apps.field.kind",
+                  message: "Client type",
+                })}
+                value={isPublic ? "public" : "confidential"}
+                disabled={submitting}
+                onValueChange={(next) => {
+                  const toPublic = next === "public";
+                  setIsPublic(toPublic);
+                  // The locked switch shows the value it holds, so it has to
+                  // hold the one it is locked to.
+                  if (toPublic) form.setFieldValue("requirePkce", true);
+                }}
+              >
+                <ChoiceTile
+                  layout="list"
+                  value="confidential"
                   label={
-                    <Trans id="admin.oidc-apps.field.client-id">
-                      Client ID
+                    <Trans id="admin.oidc-apps.kind.confidential">
+                      Confidential
                     </Trans>
                   }
                   description={
-                    <Trans id="admin.oidc-apps.field.client-id.hint">
-                      The client is configured with this value; it cannot
-                      change.
-                    </Trans>
-                  }
-                  autoComplete="off"
-                  spellCheck={false}
-                  variant="secondary"
-                />
-              )}
-            </form.AppField>
-
-            {/* The reader's choice, not the form's: the type is what the rest of
-                this form reads, so it stays in component state with the value it
-                decides (`isPublic`). */}
-            <RadioGroup
-              variant="secondary"
-              value={isPublic ? "public" : "confidential"}
-              onChange={(next) => setIsPublic(next === "public")}
-            >
-              <Label>
-                <Trans id="admin.oidc-apps.field.kind">Client type</Trans>
-              </Label>
-              <Radio value="confidential">
-                <Radio.Content>
-                  <Radio.Control>
-                    <Radio.Indicator />
-                  </Radio.Control>
-                  <Trans id="admin.oidc-apps.kind.confidential">
-                    Confidential
-                  </Trans>
-                </Radio.Content>
-              </Radio>
-              <Radio value="public">
-                <Radio.Content>
-                  <Radio.Control>
-                    <Radio.Indicator />
-                  </Radio.Control>
-                  <Trans id="admin.oidc-apps.kind.public">Public</Trans>
-                </Radio.Content>
-              </Radio>
-            </RadioGroup>
-
-            <form.AppField name="redirectUris">
-              {() => (
-                <UriList
-                  label={t({
-                    id: "admin.oidc-apps.field.redirects",
-                    message: "Redirect URIs",
-                  })}
-                  addLabel={
-                    <Trans id="admin.oidc-apps.uri.add">Add address</Trans>
-                  }
-                  placeholder="https://app.example.com/callback"
-                  minRows={1}
-                  minRowsReason={
-                    <Trans id="admin.oidc-apps.field.redirect.required">
-                      A client needs at least one redirect URI.
+                    <Trans id="admin.oidc-apps.new.kind.confidential.description">
+                      A server-side application that can keep a secret. It signs
+                      in with a client secret, shown once after you create it.
                     </Trans>
                   }
                 />
-              )}
-            </form.AppField>
-
-            <form.AppField name="scopes">
-              {() => <OidcScopesField />}
-            </form.AppField>
-
-            <form.AppField name="requirePkce">
-              {(field) => (
-                <field.SwitchField
-                  label={
-                    <Trans id="admin.oidc-apps.field.pkce">Require PKCE</Trans>
-                  }
-                  isDisabled={isPublic}
+                <ChoiceTile
+                  layout="list"
+                  value="public"
+                  label={<Trans id="admin.oidc-apps.kind.public">Public</Trans>}
                   description={
-                    isPublic ? (
-                      <Trans id="admin.oidc-apps.field.pkce.public">
-                        A public client always proves the request it started.
+                    <Trans id="admin.oidc-apps.new.kind.public.description">
+                      A browser or mobile app that cannot keep a secret. It has
+                      none, and proves each request with PKCE instead.
+                    </Trans>
+                  }
+                />
+              </RadioGroup>
+            </Section>
+
+            <Section
+              id="sign-in"
+              icon={<LogInIcon />}
+              title={<Trans id="admin.oidc-apps.sign-in.title">Sign-in</Trans>}
+              description={
+                <Trans id="admin.oidc-apps.sign-in.description">
+                  Where this application may send people back to, and what it
+                  may ask for.
+                </Trans>
+              }
+            >
+              <div className="flex flex-col gap-6">
+                <form.AppField name="redirectUris">
+                  {() => <RedirectUriList />}
+                </form.AppField>
+
+                <form.AppField name="scopes">
+                  {() => <OidcScopesField />}
+                </form.AppField>
+
+                <div className="flex flex-col gap-5 border-t pt-6">
+                  <form.AppField name="requirePkce">
+                    {() => <PkceSwitch isPublic={isPublic} />}
+                  </form.AppField>
+
+                  <form.AppField name="requireConsent">
+                    {() => <ConsentSwitch />}
+                  </form.AppField>
+                </div>
+              </div>
+            </Section>
+
+            <Section
+              id="access"
+              icon={<ShieldCheckIcon />}
+              title={<Trans id="app.access.title">Access</Trans>}
+              description={
+                <Trans id="admin.oidc-apps.new.access.description">
+                  Open it to every account, or limit it to user groups. The
+                  groups are chosen on the application's page.
+                </Trans>
+              }
+            >
+              <form.AppField name="accessRestricted">
+                {(field) => (
+                  <field.SwitchField
+                    label={
+                      <Trans id="admin.oidc-apps.field.restricted">
+                        Restrict access
                       </Trans>
-                    ) : undefined
-                  }
-                />
-              )}
-            </form.AppField>
+                    }
+                    description={
+                      <Trans id="admin.oidc-apps.field.restricted.hint">
+                        Nobody can use the application until you select a user
+                        group.
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
+            </Section>
 
-            <form.AppField name="requireConsent">
-              {(field) => (
-                <field.SwitchField
-                  label={
-                    <Trans id="admin.oidc-apps.field.consent">
-                      Require consent
-                    </Trans>
-                  }
-                  description={
-                    <Trans id="admin.oidc-apps.field.consent.hint">
-                      Ask the account to approve the scopes before signing them
-                      in.
-                    </Trans>
-                  }
-                />
-              )}
-            </form.AppField>
-
-            <form.AppField name="accessRestricted">
-              {(field) => (
-                <field.SwitchField
-                  label={
-                    <Trans id="admin.oidc-apps.field.restricted">
-                      Restrict access
-                    </Trans>
-                  }
-                  description={
-                    <Trans id="admin.oidc-apps.field.restricted.hint">
-                      Nobody can use the application until you select a user
-                      group.
-                    </Trans>
-                  }
-                />
-              )}
-            </form.AppField>
-
-            <form.SubmitButton>
-              <Trans id="admin.oidc-apps.new.submit">Create application</Trans>
-            </form.SubmitButton>
+            <div className="flex flex-wrap items-center gap-2">
+              <form.SubmitButton>
+                <Trans id="admin.oidc-apps.new.submit">
+                  Create application
+                </Trans>
+              </form.SubmitButton>
+              <Button
+                variant="ghost"
+                render={<Link to="/admin/oidc-applications" />}
+              >
+                <Trans id="admin.oidc-apps.new.cancel">Cancel</Trans>
+              </Button>
+            </div>
           </form.Form>
         </form.AppForm>
-      </ConsoleCard>
+      </PageBody>
 
       {created?.secret !== undefined && (
         // Open and non-dismissable while the secret is held here, so it cannot

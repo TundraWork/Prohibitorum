@@ -2897,6 +2897,14 @@ function writeReply(
     case "/api/prohibitorum/oidc-applications": {
       const clientId = stringField(body, "clientId") ?? `mock-client-new`;
       const publicClient = booleanField(body, "public") ?? false;
+      // An existing application's Client ID is taken, as the server answers.
+      if (oidcApplications(config).some((app) => app.clientId === clientId)) {
+        return {
+          kind: "error",
+          status: 409,
+          code: "oidc_client_already_exists",
+        };
+      }
       return {
         kind: "json",
         status: 201,
