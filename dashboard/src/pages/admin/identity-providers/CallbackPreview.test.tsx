@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
@@ -20,6 +20,31 @@ let queryClient: QueryClient;
 function mountPage() {
   fakeApi(publicApi({ ...testSession, role: "admin" }));
   renderApp("/admin/identity-providers/new", queryClient);
+}
+
+/**
+ * Sets the identifier in one input event rather than one keystroke per
+ * character. Each `userEvent` keystroke runs the field's change pipeline
+ * under its own `act()` await — about 60ms apiece on this form — so a
+ * 65-character type takes four seconds unloaded and can outlive the whole
+ * test timeout under parallel CPU load, and the aborted typing then bleeds
+ * its remaining keystrokes into whatever element the next test focuses. The
+ * native setter plus a bubbling `input` event is the same change as far as
+ * TanStack Form's subscription is concerned, in one commit.
+ */
+async function fillIdentifier(
+  user: UserEvent,
+  identifier: HTMLInputElement,
+  value: string,
+) {
+  await user.click(identifier);
+  const descriptor = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype,
+    "value",
+  );
+  if (!descriptor?.set) throw new Error("HTMLInputElement has no value setter");
+  descriptor.set.call(identifier, value);
+  identifier.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 beforeEach(() => {
@@ -65,8 +90,10 @@ describe("the new-provider callback preview", () => {
   it("draws nothing past the 64-character identifier limit", async () => {
     mountPage();
     const user = userEvent.setup();
-    const identifier = await screen.findByLabelText("Identifier");
-    await user.type(identifier, "a".repeat(64));
+    const identifier = (await screen.findByLabelText(
+      "Identifier",
+    )) as HTMLInputElement;
+    await fillIdentifier(user, identifier, "a".repeat(64));
     expect(
       screen.getByRole("group", { name: "Callback addresses" }),
     ).toBeInTheDocument();

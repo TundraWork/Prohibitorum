@@ -511,22 +511,22 @@ func (q *policyTestQueries) ReplaceSAMLAppGroups(_ context.Context, arg db.Repla
 	return q.ListSAMLAppGroups(context.Background(), arg.SamlSpID)
 }
 
-func (q *policyTestQueries) CreateOIDCAppGroup(_ context.Context, arg db.CreateOIDCAppGroupParams) (db.UserGroup, error) {
+func (q *policyTestQueries) CreateOIDCAppGroup(_ context.Context, arg db.CreateOIDCAppGroupParams) (db.CreateOIDCAppGroupRow, error) {
 	q.mutationCalls++
 	for _, group := range q.groups {
 		if !q.oidcGroups[arg.OidcClientID][group.ID] {
 			continue
 		}
 		if group.Kind == "manual" && arg.Kind == "manual" {
-			return db.UserGroup{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_oidc_manual_uq"}
+			return db.CreateOIDCAppGroupRow{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_oidc_manual_uq"}
 		}
 		if group.Slug == arg.Slug {
-			return db.UserGroup{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_oidc_slug_uq"}
+			return db.CreateOIDCAppGroupRow{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_oidc_slug_uq"}
 		}
 	}
-	group := db.UserGroup{ID: q.nextGroupID, Kind: arg.Kind, Slug: arg.Slug, DisplayName: arg.DisplayName, Description: arg.Description, ExposedToDownstream: arg.ExposedToDownstream, Rule: arg.Rule}
+	group := db.CreateOIDCAppGroupRow{ID: q.nextGroupID, Kind: arg.Kind, Slug: arg.Slug, DisplayName: arg.DisplayName, Description: arg.Description, ExposedToDownstream: arg.ExposedToDownstream, Rule: arg.Rule}
 	q.nextGroupID++
-	q.groups[group.ID] = group
+	q.groups[group.ID] = db.UserGroup{ID: group.ID, Kind: group.Kind, Slug: group.Slug, DisplayName: group.DisplayName, Description: group.Description, ExposedToDownstream: group.ExposedToDownstream, Rule: group.Rule}
 	if q.oidcGroups[arg.OidcClientID] == nil {
 		q.oidcGroups[arg.OidcClientID] = make(map[int32]bool)
 	}
@@ -534,22 +534,22 @@ func (q *policyTestQueries) CreateOIDCAppGroup(_ context.Context, arg db.CreateO
 	return group, nil
 }
 
-func (q *policyTestQueries) CreateSAMLAppGroup(_ context.Context, arg db.CreateSAMLAppGroupParams) (db.UserGroup, error) {
+func (q *policyTestQueries) CreateSAMLAppGroup(_ context.Context, arg db.CreateSAMLAppGroupParams) (db.CreateSAMLAppGroupRow, error) {
 	q.mutationCalls++
 	for _, group := range q.groups {
 		if !q.samlGroups[arg.SamlSpID][group.ID] {
 			continue
 		}
 		if group.Kind == "manual" && arg.Kind == "manual" {
-			return db.UserGroup{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_saml_manual_uq"}
+			return db.CreateSAMLAppGroupRow{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_saml_manual_uq"}
 		}
 		if group.Slug == arg.Slug {
-			return db.UserGroup{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_saml_slug_uq"}
+			return db.CreateSAMLAppGroupRow{}, &pgconn.PgError{Code: "23505", ConstraintName: "user_group_saml_slug_uq"}
 		}
 	}
-	group := db.UserGroup{ID: q.nextGroupID, Kind: arg.Kind, Slug: arg.Slug, DisplayName: arg.DisplayName, Description: arg.Description, ExposedToDownstream: arg.ExposedToDownstream, Rule: arg.Rule}
+	group := db.CreateSAMLAppGroupRow{ID: q.nextGroupID, Kind: arg.Kind, Slug: arg.Slug, DisplayName: arg.DisplayName, Description: arg.Description, ExposedToDownstream: arg.ExposedToDownstream, Rule: arg.Rule}
 	q.nextGroupID++
-	q.groups[group.ID] = group
+	q.groups[group.ID] = db.UserGroup{ID: group.ID, Kind: group.Kind, Slug: group.Slug, DisplayName: group.DisplayName, Description: group.Description, ExposedToDownstream: group.ExposedToDownstream, Rule: group.Rule}
 	if q.samlGroups[arg.SamlSpID] == nil {
 		q.samlGroups[arg.SamlSpID] = make(map[int32]bool)
 	}

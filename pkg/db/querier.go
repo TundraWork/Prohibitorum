@@ -70,8 +70,13 @@ type Querier interface {
 	CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error)
 	CountVerifiedAccountsByEmail(ctx context.Context, lower string) (int64, error)
 	CreateGlobalGroup(ctx context.Context, arg CreateGlobalGroupParams) (UserGroup, error)
-	CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroupParams) (UserGroup, error)
-	CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroupParams) (UserGroup, error)
+	// The row is read from the INSERT's RETURNING set, not from user_group: a
+	// data-modifying CTE's writes are invisible to the main query's snapshot, so
+	// joining the base table here yields no rows for the just-created group.
+	CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroupParams) (CreateOIDCAppGroupRow, error)
+	// Same RETURNING-set read as CreateOIDCAppGroup: the base table cannot see
+	// the CTE's insert within the same statement.
+	CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroupParams) (CreateSAMLAppGroupRow, error)
 	DeleteAccountByID(ctx context.Context, id int32) error
 	// Every identity linked to one provider, removed together when the provider
 	// itself is deleted. The account rows survive: an account that could also sign

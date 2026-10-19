@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { client } from "@/api/client";
 import { ApiError } from "@/api/errors";
-import { installApiMocks, refreshTarget } from "@/devtools/mock/install";
+import {
+  installApiMocks,
+  mocksInstallable,
+  refreshTarget,
+} from "@/devtools/mock/install";
 import { resetMockConfig, updateMockConfig } from "@/devtools/mock/model";
 
 type Application = Parameters<typeof installApiMocks>[0];
@@ -41,16 +45,19 @@ describe("mock middleware latency", () => {
       draft.delayMs = 700;
     });
     const app = application();
-    installApiMocks(app);
-
     // The URL control is wired at install time: the address bar is read once
     // here and again on every navigation, so a walkthrough can set a screen up
-    // without the panel. Asserted on the latency test because `installApiMocks`
-    // runs once per module.
-    expect(app.router.subscribe).toHaveBeenCalledWith(
-      "onResolved",
-      expect.any(Function),
-    );
+    // without the panel. `installApiMocks` runs once per module, so a shuffled
+    // run may reach this test after another one already claimed it — assert
+    // the wiring only when this call is the one that performed it.
+    const wiredHere = mocksInstallable();
+    installApiMocks(app);
+    if (wiredHere) {
+      expect(app.router.subscribe).toHaveBeenCalledWith(
+        "onResolved",
+        expect.any(Function),
+      );
+    }
 
     const pending = client.GET("/api/prohibitorum/me");
     let settled = false;

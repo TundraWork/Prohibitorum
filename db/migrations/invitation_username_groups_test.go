@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pressly/goose/v3"
 
@@ -56,10 +57,19 @@ func TestInvitationUsernameGroupsMigrationPostgres(t *testing.T) {
 	if err := goose.SetDialect("postgres"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 41); err != nil {
+	// Two-phase search_path like the 033 migration test: migrations to 031
+	// create only app tables; 032's trigram index resolves gin_trgm_ops only
+	// once the extension's schema is on the path.
+	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpTo(conn, ".", 31); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted+", public"); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpTo(conn, ".", 41); err != nil {
 		t.Fatal(err)
 	}
 
@@ -105,19 +115,28 @@ func TestInvitationUsernameGroupsMigrationPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// ConsumeInviteEnrollment and InsertAccount are generated at HEAD, whose
+	// enrollment/account columns only exist after later migrations (048, 049);
+	// the redemption flow at 041 is asserted with SQL valid at this version.
+	var groupIDs []int32
+	var createdBy pgtype.Int4
+	if err := tx.QueryRow(ctx, `
+		UPDATE enrollment
+		SET consumed_at = now()
+		WHERE token = 'invite-with-groups' AND intent = 'invite' AND consumed_at IS NULL AND expires_at > now()
+		RETURNING group_ids, created_by_account_id`).Scan(&groupIDs, &createdBy); err != nil {
+		t.Fatal(err)
+	}
+	var accountID int32
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO account (username, display_name, webauthn_user_handle, role, attributes)
+		VALUES ('alice', 'Alice', decode('040506', 'hex'), 'user', '{}'::jsonb)
+		RETURNING id`).Scan(&accountID); err != nil {
+		t.Fatal(err)
+	}
 	txQueries := dbgen.New(tx)
-	enrollmentRow, err := txQueries.ConsumeInviteEnrollment(ctx, "invite-with-groups")
-	if err != nil {
-		t.Fatal(err)
-	}
-	account, err := txQueries.InsertAccount(ctx, dbgen.InsertAccountParams{
-		Username: "alice", DisplayName: "Alice", WebauthnUserHandle: []byte{4, 5, 6}, Role: "user", Attributes: []byte("{}"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	applied, err := txQueries.ApplyInvitationGroups(ctx, dbgen.ApplyInvitationGroupsParams{
-		GroupIds: enrollmentRow.GroupIds, AccountID: account.ID, CreatedBy: enrollmentRow.CreatedByAccountID,
+		GroupIds: groupIDs, AccountID: accountID, CreatedBy: createdBy,
 	})
 	if err != nil {
 		t.Fatal(err)

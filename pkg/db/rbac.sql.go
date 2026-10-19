@@ -114,7 +114,8 @@ WITH created AS (
   INSERT INTO oidc_client_group (client_id, group_id)
   SELECT $7::text, id FROM created
 )
-SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at FROM user_group g JOIN created c ON c.id = g.id
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
+FROM created
 `
 
 type CreateOIDCAppGroupParams struct {
@@ -127,7 +128,22 @@ type CreateOIDCAppGroupParams struct {
 	OidcClientID        string      `json:"oidcClientId"`
 }
 
-func (q *Queries) CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroupParams) (UserGroup, error) {
+type CreateOIDCAppGroupRow struct {
+	ID                  int32              `json:"id"`
+	Kind                string             `json:"kind"`
+	Slug                string             `json:"slug"`
+	DisplayName         string             `json:"displayName"`
+	Description         pgtype.Text        `json:"description"`
+	ExposedToDownstream bool               `json:"exposedToDownstream"`
+	Rule                []byte             `json:"rule"`
+	CreatedAt           pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt           pgtype.Timestamptz `json:"updatedAt"`
+}
+
+// The row is read from the INSERT's RETURNING set, not from user_group: a
+// data-modifying CTE's writes are invisible to the main query's snapshot, so
+// joining the base table here yields no rows for the just-created group.
+func (q *Queries) CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroupParams) (CreateOIDCAppGroupRow, error) {
 	row := q.db.QueryRow(ctx, createOIDCAppGroup,
 		arg.Kind,
 		arg.Slug,
@@ -137,7 +153,7 @@ func (q *Queries) CreateOIDCAppGroup(ctx context.Context, arg CreateOIDCAppGroup
 		arg.Rule,
 		arg.OidcClientID,
 	)
-	var i UserGroup
+	var i CreateOIDCAppGroupRow
 	err := row.Scan(
 		&i.ID,
 		&i.Kind,
@@ -162,7 +178,8 @@ WITH created AS (
   INSERT INTO saml_sp_group (saml_sp_id, group_id)
   SELECT $7::bigint, id FROM created
 )
-SELECT g.id, g.kind, g.slug, g.display_name, g.description, g.exposed_to_downstream, g.rule, g.created_at, g.updated_at FROM user_group g JOIN created c ON c.id = g.id
+SELECT id, kind, slug, display_name, description, exposed_to_downstream, rule, created_at, updated_at
+FROM created
 `
 
 type CreateSAMLAppGroupParams struct {
@@ -175,7 +192,21 @@ type CreateSAMLAppGroupParams struct {
 	SamlSpID            int64       `json:"samlSpId"`
 }
 
-func (q *Queries) CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroupParams) (UserGroup, error) {
+type CreateSAMLAppGroupRow struct {
+	ID                  int32              `json:"id"`
+	Kind                string             `json:"kind"`
+	Slug                string             `json:"slug"`
+	DisplayName         string             `json:"displayName"`
+	Description         pgtype.Text        `json:"description"`
+	ExposedToDownstream bool               `json:"exposedToDownstream"`
+	Rule                []byte             `json:"rule"`
+	CreatedAt           pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt           pgtype.Timestamptz `json:"updatedAt"`
+}
+
+// Same RETURNING-set read as CreateOIDCAppGroup: the base table cannot see
+// the CTE's insert within the same statement.
+func (q *Queries) CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroupParams) (CreateSAMLAppGroupRow, error) {
 	row := q.db.QueryRow(ctx, createSAMLAppGroup,
 		arg.Kind,
 		arg.Slug,
@@ -185,7 +216,7 @@ func (q *Queries) CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroup
 		arg.Rule,
 		arg.SamlSpID,
 	)
-	var i UserGroup
+	var i CreateSAMLAppGroupRow
 	err := row.Scan(
 		&i.ID,
 		&i.Kind,

@@ -336,9 +336,19 @@ func (s *Server) handleCreateManagedApplicationGroupHTTP(w http.ResponseWriter, 
 	var group db.UserGroup
 	switch app.ref.Kind {
 	case appaccess.KindOIDC, appaccess.KindForwardAuth:
-		group, err = q.CreateOIDCAppGroup(r.Context(), db.CreateOIDCAppGroupParams{Kind: body.Kind, Slug: body.Slug, DisplayName: body.DisplayName, Description: appGroupDescription(body.Description), ExposedToDownstream: exposed, Rule: rule, OidcClientID: app.ref.OIDCClientID})
+		created, createErr := q.CreateOIDCAppGroup(r.Context(), db.CreateOIDCAppGroupParams{Kind: body.Kind, Slug: body.Slug, DisplayName: body.DisplayName, Description: appGroupDescription(body.Description), ExposedToDownstream: exposed, Rule: rule, OidcClientID: app.ref.OIDCClientID})
+		if createErr != nil {
+			err = createErr
+		} else {
+			group = db.UserGroup{ID: created.ID, Kind: created.Kind, Slug: created.Slug, DisplayName: created.DisplayName, Description: created.Description, ExposedToDownstream: created.ExposedToDownstream, Rule: created.Rule, CreatedAt: created.CreatedAt, UpdatedAt: created.UpdatedAt}
+		}
 	case appaccess.KindSAML:
-		group, err = q.CreateSAMLAppGroup(r.Context(), db.CreateSAMLAppGroupParams{Kind: body.Kind, Slug: body.Slug, DisplayName: body.DisplayName, Description: appGroupDescription(body.Description), ExposedToDownstream: exposed, Rule: rule, SamlSpID: app.ref.SAMLSPID})
+		created, createErr := q.CreateSAMLAppGroup(r.Context(), db.CreateSAMLAppGroupParams{Kind: body.Kind, Slug: body.Slug, DisplayName: body.DisplayName, Description: appGroupDescription(body.Description), ExposedToDownstream: exposed, Rule: rule, SamlSpID: app.ref.SAMLSPID})
+		if createErr != nil {
+			err = createErr
+		} else {
+			group = db.UserGroup{ID: created.ID, Kind: created.Kind, Slug: created.Slug, DisplayName: created.DisplayName, Description: created.Description, ExposedToDownstream: created.ExposedToDownstream, Rule: created.Rule, CreatedAt: created.CreatedAt, UpdatedAt: created.UpdatedAt}
+		}
 	default:
 		writeAuthErr(w, authn.ErrClientNotFound())
 		return
