@@ -121,9 +121,7 @@ export function ClaimMappingTable({
           </Trans>
         </span>
         {fields !== null && lastTest != null && (
-          // Hidden from assistive technology: the list is described by the
-          // caption below, so reading it here too would say it twice.
-          <span aria-hidden="true" className="flex flex-col">
+          <span className="flex flex-col">
             <Trans id="admin.federation.claims.column.returned">
               Last test returned
             </Trans>
