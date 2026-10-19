@@ -231,7 +231,10 @@ function Children({
           <Trans id="admin.group.rule.add-group">Group</Trans>
         </Button>
         {reasonShown && (
-          <span id={reasonId} className="text-muted-foreground text-xs">
+          <span
+            id={reasonId}
+            className="text-pretty text-muted-foreground text-xs dark:text-foreground/60"
+          >
             {full ? (
               i18n._(issueMessage("max_children_exceeded"))
             ) : (

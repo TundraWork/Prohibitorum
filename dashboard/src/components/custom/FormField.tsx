@@ -97,7 +97,11 @@ export function FormField({
         autoFocus={autoFocus}
         aria-invalid={invalid || undefined}
       />
-      {description && <FieldDescription>{description}</FieldDescription>}
+      {description && (
+        <FieldDescription className="text-pretty">
+          {description}
+        </FieldDescription>
+      )}
       {invalid && (
         <FieldError match>
           <FormMessages errors={errors} />

@@ -72,7 +72,9 @@ export function TextAreaField({
         aria-invalid={invalid || undefined}
       />
       {description !== undefined && (
-        <FieldDescription>{description}</FieldDescription>
+        <FieldDescription className="text-pretty">
+          {description}
+        </FieldDescription>
       )}
       {invalid && (
         <FieldError match>
@@ -112,7 +114,9 @@ export function AddressField({
         aria-invalid={invalid || undefined}
       />
       {description !== undefined && (
-        <FieldDescription>{description}</FieldDescription>
+        <FieldDescription className="text-pretty">
+          {description}
+        </FieldDescription>
       )}
       {invalid && (
         <FieldError match>
@@ -146,7 +150,9 @@ export function SwitchField({
         <div className="flex min-w-0 flex-col gap-0.5">
           <FieldLabel>{label}</FieldLabel>
           {description !== undefined && (
-            <FieldDescription>{description}</FieldDescription>
+            <FieldDescription className="text-pretty">
+              {description}
+            </FieldDescription>
           )}
         </div>
         <Switch
@@ -218,7 +224,9 @@ export function NumberField({
         </NumberFieldGroup>
       </CossNumberField>
       {description !== undefined && (
-        <FieldDescription>{description}</FieldDescription>
+        <FieldDescription className="text-pretty">
+          {description}
+        </FieldDescription>
       )}
       {invalid && (
         <FieldError match>
@@ -255,7 +263,9 @@ export function ReadOnlyField({
         className={isMonospace ? "font-mono" : undefined}
       />
       {description !== undefined && (
-        <FieldDescription>{description}</FieldDescription>
+        <FieldDescription className="text-pretty">
+          {description}
+        </FieldDescription>
       )}
     </Field>
   );
