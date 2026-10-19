@@ -163,7 +163,8 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
       );
       try {
         await update.mutateAsync(body);
-        form.setFieldValue("unsplashAccessKey", "");
+        // What was saved is the form's new starting point.
+        form.reset({ appearance: body.appearance, unsplashAccessKey: "" });
         setReplacingKey(false);
       } catch (error) {
         if (isCancellation(error)) return;
