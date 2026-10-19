@@ -993,11 +993,6 @@ msgid "settings.sign-in.theme.light"
 msgstr "Always light"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupDecisionsFrame.tsx
-msgid "admin.group.decision-counts.partial"
-msgstr "Among the decisions loaded so far."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.key.invalid"
 msgstr "An access key has only letters, digits, hyphens and underscores, up to 128 of them."
@@ -1790,6 +1785,11 @@ msgstr "Checking"
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.checking"
 msgstr "Checking this account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.checking"
+msgstr "Checking this account's current decision…"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -8379,6 +8379,11 @@ msgstr "The connection"
 #: src/api/errors.ts
 msgid "error.bad_credentials"
 msgstr "The credentials could not be verified."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.check-failed"
+msgstr "The current decision for {name} could not be read, so saving may replace one that exists."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/CredentialsSection.tsx

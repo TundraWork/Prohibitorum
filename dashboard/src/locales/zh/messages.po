@@ -993,11 +993,6 @@ msgid "settings.sign-in.theme.light"
 msgstr "始终日间模式"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/groups/GroupDecisionsFrame.tsx
-msgid "admin.group.decision-counts.partial"
-msgstr "统计范围仅限目前已加载的决定。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.key.invalid"
 msgstr "Access Key 只包含字母、数字、连字符和下划线，最多 128 个字符。"
@@ -1790,6 +1785,11 @@ msgstr "正在检查"
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.checking"
 msgstr "正在检查此账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.checking"
+msgstr "正在检查此账号当前的决定…"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/AdminUsers.tsx
@@ -8379,6 +8379,11 @@ msgstr "直连地址"
 #: src/api/errors.ts
 msgid "error.bad_credentials"
 msgstr "无法验证凭据。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/groups/AddDecisionDialog.tsx
+msgid "admin.group.decisions.dialog.check-failed"
+msgstr "无法读取 {name} 当前的决定，保存时可能会替换已有的决定。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/CredentialsSection.tsx

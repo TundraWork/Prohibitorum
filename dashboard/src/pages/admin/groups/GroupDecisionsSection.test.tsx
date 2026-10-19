@@ -423,9 +423,11 @@ describe("adding an account", () => {
 });
 
 describe("changing a decision", () => {
-  it("switches an allow to a deny without asking", async () => {
+  it("switches an allow to a deny without asking, and reads the list again", async () => {
     const user = userEvent.setup();
     mount();
+    await rows();
+    const before = reads().length;
 
     await openRowMenu(user, "Ana Lima");
     await user.click(
@@ -443,6 +445,7 @@ describe("changing a decision", () => {
         expect.objectContaining({ id: "success.group.decision-saved" }),
       ),
     );
+    await waitFor(() => expect(reads().length).toBeGreaterThan(before));
   });
 
   it("switches a deny to an allow", async () => {
@@ -488,9 +491,11 @@ describe("changing a decision", () => {
 });
 
 describe("clearing a decision", () => {
-  it("clears an allow at once", async () => {
+  it("clears an allow at once and reads the list again", async () => {
     const user = userEvent.setup();
     mount();
+    await rows();
+    const before = reads().length;
 
     await openRowMenu(user, "Ana Lima");
     await user.click(await screen.findByRole("menuitem", { name: "Clear" }));
@@ -505,6 +510,7 @@ describe("clearing a decision", () => {
         expect.objectContaining({ id: "success.group.decision-cleared" }),
       ),
     );
+    await waitFor(() => expect(reads().length).toBeGreaterThan(before));
   });
 
   it("confirms before clearing a deny, saying what it may let through", async () => {
@@ -563,5 +569,171 @@ describe("clearing a decision", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
     expect(notifySuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("a failed clear of a deny", () => {
+  it("closes the confirmation and reports the failure once, in the section", async () => {
+    const user = userEvent.setup();
+    mount({
+      extra: (request) =>
+        request.method === "POST" &&
+        new URL(request.url).pathname.endsWith("/decisions/clear")
+          ? Response.json(
+              { code: "rate_limited", requestId: "r4" },
+              { status: 429 },
+            )
+          : undefined,
+    });
+
+    await openRowMenu(user, "Cy Dunn");
+    await user.click(await screen.findByRole("menuitem", { name: "Clear" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Clear" }));
+
+    expect(
+      await screen.findByText("Too many requests. Wait a moment."),
+    ).toBeVisible();
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(notifySuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("a write in flight", () => {
+  it("holds every row's menu until it settles, so no failure is lost", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount({
+      extra: (request) =>
+        request.method === "POST" && new URL(request.url).pathname === base
+          ? new Promise<Response>((resolve) => {
+              release = resolve;
+            })
+          : undefined,
+    });
+
+    await openRowMenu(user, "Ana Lima");
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Change to deny" }),
+    );
+
+    const ana = await screen.findByRole("button", {
+      name: "More actions for Ana Lima",
+    });
+    const cy = screen.getByRole("button", { name: "More actions for Cy Dunn" });
+    await waitFor(() => expect(ana).toHaveAttribute("aria-busy", "true"));
+    expect(cy).toBeDisabled();
+    expect(cy).not.toHaveAttribute("aria-busy");
+
+    release(
+      Response.json({
+        account: account(7, "ana", "Ana Lima"),
+        effect: "deny",
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "More actions for Cy Dunn" }),
+      ).toBeEnabled(),
+    );
+  });
+});
+
+describe("an account whose decision is on a page not yet loaded", () => {
+  const pages = {
+    "": { items: [ana], nextCursor: "c1" },
+    c1: { items: [cy], nextCursor: "" },
+  };
+
+  it("reads on before stating anything, then shows the decision found", async () => {
+    const user = userEvent.setup();
+    let release: () => void = () => {};
+    mount({
+      pages,
+      extra: (request) =>
+        request.method === "GET" &&
+        new URL(request.url).searchParams.get("cursor") === "c1"
+          ? new Promise<Response>((resolve) => {
+              release = () => resolve(Response.json(pages.c1));
+            })
+          : undefined,
+    });
+    await rows();
+
+    const dialog = await openAdd(user);
+    await choose(user, dialog, /Cy Dunn/);
+
+    expect(
+      await within(dialog).findByText(
+        "Checking this account's current decision…",
+      ),
+    ).toBeVisible();
+    const submit = within(dialog).getByRole("button", {
+      name: "Allow Cy Dunn",
+    });
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    await user.click(submit);
+    expect(writes("/decisions")).toHaveLength(0);
+
+    release();
+    expect(
+      await within(dialog).findByText(
+        "Cy Dunn is denied in this group now. Saving changes it to allow.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Allow Cy Dunn" }),
+    ).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("says the decision could not be read, and still allows the save", async () => {
+    const user = userEvent.setup();
+    mount({
+      pages,
+      extra: (request) =>
+        request.method === "GET" &&
+        new URL(request.url).searchParams.get("cursor") === "c1"
+          ? Response.json({ code: "internal_error" }, { status: 500 })
+          : undefined,
+    });
+    await rows();
+
+    const dialog = await openAdd(user);
+    await choose(user, dialog, /Cy Dunn/);
+
+    expect(
+      await within(dialog).findByText(
+        "The current decision for Cy Dunn could not be read, so saving may replace one that exists.",
+      ),
+    ).toBeVisible();
+    await user.click(
+      within(dialog).getByRole("button", { name: "Allow Cy Dunn" }),
+    );
+    await waitFor(() => expect(writes("/decisions")).toHaveLength(1));
+    expect(await writes("/decisions")[0]?.json()).toEqual({
+      accountId: 9,
+      effect: "allow",
+    });
+  });
+
+  it("states nothing for an account with no decision once every page is read", async () => {
+    const user = userEvent.setup();
+    mount({ pages });
+    await rows();
+
+    const dialog = await openAdd(user);
+    await choose(user, dialog, /Ben Ito/);
+
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole("button", { name: "Allow Ben Ito" }),
+      ).not.toHaveAttribute("aria-disabled"),
+    );
+    expect(
+      within(dialog).queryByText(/Checking|could not be read|in this group/),
+    ).toBeNull();
   });
 });

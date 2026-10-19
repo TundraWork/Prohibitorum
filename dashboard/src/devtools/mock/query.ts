@@ -2,6 +2,7 @@ import {
   clampAdminCount,
   clampAvatarUpstreams,
   clampCount,
+  clampDecisionCount,
   clampDelay,
   clampEnrollmentProviders,
   clampPairingExpiry,
@@ -158,8 +159,10 @@ function clampFor(path: string, value: number): number {
   }
   if (path === "avatar.upstreams") return clampAvatarUpstreams(value);
   if (path === "admin.diagnosticOutcome") return value;
-  if (path === "admin.ruleAccounts" || path === "admin.groupDecisions") {
-    return clampRuleAccounts(value);
+  if (path === "admin.ruleAccounts") return clampRuleAccounts(value);
+  if (path === "admin.groupDecisions") return clampDecisionCount(value);
+  if (path === "admin.groupDecisionsPageSize") {
+    return Math.max(1, Math.min(50, Math.floor(value)));
   }
   if (path === "admin.ruleMatchEvery") return clampRuleMatchEvery(value);
   if (path.endsWith(".opacity"))

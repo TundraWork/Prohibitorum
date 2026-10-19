@@ -10,6 +10,7 @@ import {
   getMockConfig,
   mockAdminListMax,
   mockAvatarUpstreamsMax,
+  mockDecisionsMax,
   mockDelayMax,
   mockEnrollmentProvidersMax,
   mockListMax,
@@ -563,11 +564,30 @@ export function MockPanel() {
           />
           <Count
             label="Manual group decisions"
-            max={mockRuleAccountsMax}
+            max={mockDecisionsMax}
             value={config.admin.groupDecisions}
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.admin.groupDecisions = next;
+              })
+            }
+          />
+          <Count
+            label="Decisions per page"
+            max={50}
+            value={config.admin.groupDecisionsPageSize}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.groupDecisionsPageSize = Math.max(1, next);
+              })
+            }
+          />
+          <Toggle
+            label="Later decision pages fail"
+            checked={config.admin.groupDecisionsLaterPagesFail}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.admin.groupDecisionsLaterPagesFail = next;
               })
             }
           />

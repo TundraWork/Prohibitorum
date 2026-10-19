@@ -1,6 +1,6 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { accountSearchQueryOptions } from "@/api/queries";
 import { Button } from "@/components/custom/Button";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
@@ -21,18 +21,32 @@ import {
 import { RadioGroup } from "@/components/ui/radio-group";
 import type { DecisionEffect } from "@/pages/admin/groups/decision-effect";
 
+/** What the section's list knows, and how to read on when it does not know enough. */
+export interface DecisionLookup {
+  /** The decisions the loaded pages hold, by account. */
+  current: ReadonlyMap<number, DecisionEffect>;
+  hasMore: boolean;
+  loadingMore: boolean;
+  /** The list's latest failure; while pages remain it is a failed page. */
+  error: unknown;
+  loadMore: () => void;
+}
+
 /**
  * Allow or deny one account, searched in the directory rather than listed.
  *
  * It never closes itself or writes: the section holds the write, so its
  * callbacks outlive the dialog, and dismissal is ignored while it is in flight.
- * An account that already has a decision, as far as the loaded pages show,
- * says so, and saving the decision it already has is refused in words.
+ * An account's current decision is read from the list, which is paged: when
+ * the chosen account is not in the pages loaded, the rest are read first, and
+ * the submit waits. If that fails the dialog says so and still allows the
+ * save, since the server's answer is the truth. An account that already has a
+ * decision says so, and saving the one it already has is refused in words.
  */
 export function AddDecisionDialog({
   open,
   session,
-  current,
+  decisions,
   pending,
   error,
   onCancel,
@@ -41,8 +55,7 @@ export function AddDecisionDialog({
   open: boolean;
   /** Changes with each opening, which resets the choice. */
   session: number;
-  /** The decisions the loaded pages hold, by account. */
-  current: ReadonlyMap<number, DecisionEffect>;
+  decisions: DecisionLookup;
   pending: boolean;
   error: unknown;
   onCancel: () => void;
@@ -59,7 +72,7 @@ export function AddDecisionDialog({
       >
         <AddDecisionForm
           key={session}
-          current={current}
+          decisions={decisions}
           pending={pending}
           error={error}
           onCancel={onCancel}
@@ -71,13 +84,13 @@ export function AddDecisionDialog({
 }
 
 function AddDecisionForm({
-  current,
+  decisions,
   pending,
   error,
   onCancel,
   onSubmit,
 }: {
-  current: ReadonlyMap<number, DecisionEffect>;
+  decisions: DecisionLookup;
   pending: boolean;
   error: unknown;
   onCancel: () => void;
@@ -112,30 +125,49 @@ function AddDecisionForm({
   );
 
   const name = chosen?.name ?? "";
-  const existing = chosen === null ? undefined : current.get(chosen.id);
+  const existing =
+    chosen === null ? undefined : decisions.current.get(chosen.id);
+  // Not in the pages loaded: read on until it turns up or the pages end.
+  const unknown =
+    chosen !== null && existing === undefined && decisions.hasMore;
+  const walkFailed = unknown && decisions.error !== null;
+  const checking = unknown && !walkFailed;
+  const { loadMore, loadingMore } = decisions;
+  useEffect(() => {
+    if (checking && !loadingMore) loadMore();
+  }, [checking, loadingMore, loadMore]);
   const unchanged = existing !== undefined && existing === effect;
-  const note =
-    existing === undefined
-      ? null
-      : unchanged
-        ? existing === "allow"
-          ? t({
-              id: "admin.group.decisions.dialog.same-allow",
-              message: `${name} is already allowed in this group. Choose Deny to change it.`,
-            })
-          : t({
-              id: "admin.group.decisions.dialog.same-deny",
-              message: `${name} is already denied in this group. Choose Allow to change it.`,
-            })
-        : existing === "allow"
-          ? t({
-              id: "admin.group.decisions.dialog.change-allow",
-              message: `${name} is allowed in this group now. Saving changes it to deny.`,
-            })
-          : t({
-              id: "admin.group.decisions.dialog.change-deny",
-              message: `${name} is denied in this group now. Saving changes it to allow.`,
-            });
+  const note = checking
+    ? t({
+        id: "admin.group.decisions.dialog.checking",
+        message: "Checking this account's current decision…",
+      })
+    : walkFailed
+      ? t({
+          id: "admin.group.decisions.dialog.check-failed",
+          message: `The current decision for ${name} could not be read, so saving may replace one that exists.`,
+        })
+      : existing === undefined
+        ? null
+        : unchanged
+          ? existing === "allow"
+            ? t({
+                id: "admin.group.decisions.dialog.same-allow",
+                message: `${name} is already allowed in this group. Choose Deny to change it.`,
+              })
+            : t({
+                id: "admin.group.decisions.dialog.same-deny",
+                message: `${name} is already denied in this group. Choose Allow to change it.`,
+              })
+          : existing === "allow"
+            ? t({
+                id: "admin.group.decisions.dialog.change-allow",
+                message: `${name} is allowed in this group now. Saving changes it to deny.`,
+              })
+            : t({
+                id: "admin.group.decisions.dialog.change-deny",
+                message: `${name} is denied in this group now. Saving changes it to allow.`,
+              });
 
   return (
     <form
@@ -151,7 +183,7 @@ function AddDecisionForm({
           setMissing(true);
           return;
         }
-        if (unchanged) return;
+        if (unchanged || checking) return;
         onSubmit(chosen.id, effect);
       }}
     >
@@ -225,7 +257,11 @@ function AddDecisionForm({
           </RadioGroup>
         </div>
         {note !== null && (
-          <p id={noteId} className="text-muted-foreground text-sm">
+          <p
+            id={noteId}
+            role={checking ? "status" : undefined}
+            className="text-muted-foreground text-sm"
+          >
             {note}
           </p>
         )}
@@ -239,8 +275,8 @@ function AddDecisionForm({
           className="w-full sm:w-auto"
           variant={effect === "deny" ? "destructive" : "default"}
           pending={pending}
-          aria-disabled={unchanged || undefined}
-          aria-describedby={unchanged ? noteId : undefined}
+          aria-disabled={unchanged || checking || undefined}
+          aria-describedby={unchanged || checking ? noteId : undefined}
         >
           {submitLabel(effect, chosen === null ? null : name)}
         </Button>

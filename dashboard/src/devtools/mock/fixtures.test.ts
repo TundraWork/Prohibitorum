@@ -737,6 +737,56 @@ describe("mocked management directory", () => {
     );
   });
 
+  it("names decision accounts as the directory does", () => {
+    const current = config((draft) => {
+      draft.session.role = "admin";
+      draft.session.username = "root";
+      draft.session.displayName = "Root User";
+    });
+    const decisions = bodyOf(
+      read(
+        "/api/prohibitorum/groups/{groupId}/decisions",
+        current,
+        "http://localhost/api/prohibitorum/groups/1/decisions",
+      ),
+    ) as { items: { account: { id: number; username: string } }[] };
+    const directory = bodyOf(read("/api/prohibitorum/accounts", current)) as {
+      items: { id: number; username: string; displayName: string }[];
+    };
+
+    for (const { account } of decisions.items) {
+      const row = directory.items.find((item) => item.id === account.id);
+      if (row) expect(account.username).toBe(row.username);
+    }
+    expect(decisions.items[0]?.account.username).toBe("root");
+  });
+
+  it("pages decisions by the panel's page size and can refuse later pages", () => {
+    const current = config((draft) => {
+      draft.session.role = "admin";
+      draft.admin.groupDecisions = 5;
+      draft.admin.groupDecisionsPageSize = 2;
+    });
+    const url = (cursor?: string) =>
+      `http://localhost/api/prohibitorum/groups/1/decisions${
+        cursor === undefined ? "" : `?cursor=${cursor}`
+      }`;
+    const path = "/api/prohibitorum/groups/{groupId}/decisions";
+    const first = bodyOf(read(path, current, url())) as {
+      items: unknown[];
+      nextCursor: string;
+    };
+    expect(first.items).toHaveLength(2);
+    expect(first.nextCursor).not.toBe("");
+
+    current.admin.groupDecisionsLaterPagesFail = true;
+    expect(read(path, current, url(first.nextCursor))).toMatchObject({
+      kind: "error",
+      status: 500,
+    });
+    expect(read(path, current, url())).toMatchObject({ kind: "json" });
+  });
+
   it("serves no decisions when the panel says none", () => {
     const current = config((draft) => {
       draft.session.role = "admin";

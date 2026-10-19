@@ -3,6 +3,7 @@ import {
   defaultMockConfig,
   getMockConfig,
   mockAdminListMax,
+  mockDecisionsMax,
   mockDelayMax,
   mockListMax,
   mockPairingExpiryMax,
@@ -119,9 +120,16 @@ describe("mock URL control", () => {
     applyMockQuery("?mock.admin.groupDecisions=120");
     expect(getMockConfig().admin.groupDecisions).toBe(120);
     applyMockQuery("?mock.admin.groupDecisions=99999");
-    expect(getMockConfig().admin.groupDecisions).toBe(mockRuleAccountsMax);
+    expect(getMockConfig().admin.groupDecisions).toBe(mockDecisionsMax);
     applyMockQuery("?mock.admin.groupDecisions=0");
     expect(getMockConfig().admin.groupDecisions).toBe(0);
+  });
+
+  it("keeps a decisions page between one and fifty", () => {
+    applyMockQuery("?mock.admin.groupDecisionsPageSize=0");
+    expect(getMockConfig().admin.groupDecisionsPageSize).toBe(1);
+    applyMockQuery("?mock.admin.groupDecisionsPageSize=999");
+    expect(getMockConfig().admin.groupDecisionsPageSize).toBe(50);
   });
 
   it("keeps the rule match stride at one or more", () => {

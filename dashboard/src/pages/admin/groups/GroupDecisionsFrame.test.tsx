@@ -53,20 +53,17 @@ describe("the decision counts", () => {
     );
 
     expect(await screen.findByText("2 allowed · 1 denied")).toBeVisible();
-    expect(
-      screen.queryByText("Among the decisions loaded so far."),
-    ).not.toBeInTheDocument();
   });
 
-  it("say they cover only what is loaded while pages remain", async () => {
+  it("are not drawn while pages remain, since a partial count would read as the whole", async () => {
     mount(() =>
       Response.json({ items: [decision(1, "allow")], nextCursor: "c1" }),
     );
 
-    expect(await screen.findByText("1 allowed · 0 denied")).toBeVisible();
-    expect(
-      screen.getByText("Among the decisions loaded so far."),
-    ).toBeVisible();
+    await waitFor(() => expect(fetchBoundary).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.queryByText(/allowed/)).not.toBeInTheDocument();
   });
 
   it("are not drawn with no decisions", async () => {

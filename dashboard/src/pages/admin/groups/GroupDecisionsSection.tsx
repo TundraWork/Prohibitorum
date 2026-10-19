@@ -1,7 +1,7 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { UserPlusIcon, UsersIcon } from "lucide-react";
+import { MoreHorizontalIcon, UserPlusIcon, UsersIcon } from "lucide-react";
 import { useState } from "react";
 import { useCursorList } from "@/api/cursor-list";
 import {
@@ -70,7 +70,9 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
   const current = new Map<number, DecisionEffect>(
     list.items.map((decision) => [decision.account.id, effectOf(decision)]),
   );
-  // The account a row write is for, so its menu waits while it is in flight.
+  // A second row write would take over the first one's callbacks, so every
+  // menu waits while one is in flight; the row it is for shows the spinner.
+  const writing = upsert.isPending || clear.isPending;
   const busyAccount = upsert.isPending
     ? upsert.variables.body.accountId
     : clear.isPending
@@ -199,16 +201,19 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
                     </Trans>
                   }
                   actions={
-                    busy ? (
+                    writing ? (
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        pending
+                        pending={busy}
+                        disabled={!busy}
                         aria-label={i18n._({
                           ...rowMenuLabel,
                           values: { name },
                         })}
-                      />
+                      >
+                        <MoreHorizontalIcon />
+                      </Button>
                     ) : (
                       <RowMenu
                         label={i18n._({ ...rowMenuLabel, values: { name } })}
@@ -255,7 +260,13 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
       <AddDecisionDialog
         open={adding}
         session={addings}
-        current={current}
+        decisions={{
+          current,
+          hasMore: list.hasMore,
+          loadingMore: list.loadingMore,
+          error: list.error,
+          loadMore: list.loadMore,
+        }}
         pending={upsert.isPending && adding}
         error={addFailure.error}
         onCancel={() => setAdding(false)}

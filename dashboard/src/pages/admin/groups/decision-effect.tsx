@@ -11,7 +11,7 @@ export const effectOf = ({ effect }: ManualDecisionView): DecisionEffect =>
 /** The effect as a badge: the same words and colours wherever a decision shows. */
 export function EffectBadge({ effect }: { effect: DecisionEffect }) {
   return effect === "deny" ? (
-    <Badge variant="destructive">
+    <Badge variant="error">
       <Trans id="admin.group.decisions.effect.deny">Deny</Trans>
     </Badge>
   ) : (

@@ -25,6 +25,7 @@ import type {
 import {
   clampAdminCount,
   clampCount,
+  clampDecisionCount,
   clampEnrollmentProviders,
   clampPairingExpiry,
   clampRuleAccounts,
@@ -1124,7 +1125,12 @@ function sampleRule(id: number): AppAccessRule {
   };
 }
 
-/** The server's default page for a group's decisions. */
+/** The directory row as the short account reference other records carry. */
+function accountSummary({ id, username, displayName }: Account) {
+  return { id, username, displayName };
+}
+
+/** The server's default page for a group's decisions, and its largest. */
 const decisionsPageSize = 50;
 
 /**
@@ -1137,20 +1143,20 @@ function groupDecisions(
   config: MockConfig,
   cursor?: string,
 ): PageManualDecisionView {
-  const total = clampRuleAccounts(config.admin.groupDecisions);
+  const total = clampDecisionCount(config.admin.groupDecisions);
+  const size = Math.max(
+    1,
+    Math.min(decisionsPageSize, config.admin.groupDecisionsPageSize),
+  );
   const start = Math.min(total, Number(cursor) || 0);
-  const end = Math.min(total, start + decisionsPageSize);
+  const end = Math.min(total, start + size);
   return {
     items: Array.from(
       { length: end - start },
       (_, offset): ManualDecisionView => {
         const index = start + offset;
         return {
-          account: {
-            id: index + 1,
-            username: `mock-user-${index + 1}`,
-            displayName: `Mock User ${index + 1}`,
-          },
+          account: accountSummary(accountAt(index, config)),
           effect: index % 3 === 2 ? "deny" : "allow",
           updatedAt: iso(-day * (index + 1)),
         };
@@ -2179,15 +2185,14 @@ function readReply(
         found ? json(found) : { kind: "error", status: 404, code: "not_found" },
       );
     }
-    case "/api/prohibitorum/groups/{groupId}/decisions":
+    case "/api/prohibitorum/groups/{groupId}/decisions": {
+      const cursor = new URL(request.url).searchParams.get("cursor");
       return guarded(config, () =>
-        json(
-          groupDecisions(
-            config,
-            new URL(request.url).searchParams.get("cursor") ?? undefined,
-          ),
-        ),
+        cursor !== null && config.admin.groupDecisionsLaterPagesFail
+          ? { kind: "error", status: 500, code: "internal_error" }
+          : json(groupDecisions(config, cursor ?? undefined)),
       );
+    }
     case "/api/prohibitorum/groups/{groupId}/preview":
       return guarded(config, () =>
         json(
@@ -2767,11 +2772,7 @@ function writeReply(
     case "/api/prohibitorum/groups/{groupId}/decisions": {
       const accountId = Number(field(body, "accountId"));
       return json({
-        account: {
-          id: accountId,
-          username: `mock-user-${accountId}`,
-          displayName: `Mock User ${accountId}`,
-        },
+        account: accountSummary(accountAt(accountId - 1, config)),
         effect: stringField(body, "effect") ?? "allow",
         updatedAt: iso(0),
       });

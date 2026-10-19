@@ -83,6 +83,10 @@ export interface MockConfig {
      * more than one page of them, or none.
      */
     groupDecisions: number;
+    /** Decisions per page, so a short list still has a second page (1-50). */
+    groupDecisionsPageSize: number;
+    /** Whether every page after the first is refused, so a walk can fail. */
+    groupDecisionsLaterPagesFail: boolean;
     invitations: number;
     /** Audit log entries, paged like the directory and capped the same. */
     auditEvents: number;
@@ -288,6 +292,14 @@ export const mockAdminListMax = 50;
 /** Upper bound for the accounts a rule is evaluated against. */
 export const mockRuleAccountsMax = 500;
 
+/** Upper bound for a manual group's decisions: a few hundred, several pages. */
+export const mockDecisionsMax = 500;
+
+export function clampDecisionCount(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(mockDecisionsMax, Math.floor(value)));
+}
+
 export function clampRuleMatchEvery(value: number): number {
   if (!Number.isFinite(value)) return 1;
   return Math.max(1, Math.min(mockRuleAccountsMax, Math.floor(value)));
@@ -343,6 +355,8 @@ export const defaultMockConfig: MockConfig = {
     ruleMatchEvery: 2,
     groups: 3,
     groupDecisions: 4,
+    groupDecisionsPageSize: 50,
+    groupDecisionsLaterPagesFail: false,
     invitations: 4,
     auditEvents: 24,
     signingKeys: 4,
