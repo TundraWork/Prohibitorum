@@ -239,12 +239,17 @@ Both are self-hosted woff2 files in `dashboard/src/styles/fonts`.
 - **Headline** (600, 24px, tight tracking): the page's only `h1`, from
   PageHeader, ObjectHeader and the public PageHeading.
 - **Dialog title** (700, 20px): coss DialogTitle and AlertDialogTitle.
-- **Title** (600, 14px): a Section's `h2` in the Frame band. Section titles are
-  deliberately the same size as body text; the band, not the size, separates them.
+- **Title** (600, 16px): a Section's `h2` in the Frame band, one step above
+  body text; the band and the step together separate a block from its rows.
 - **Body** (400, 14px from `sm`, 16px below it): descriptions, cells, field text.
   Inputs and buttons are 16px on phones so iOS does not zoom.
-- **Label** (500, 14px): buttons, field labels, navigation entries.
-- **Caption** (400, 12px): rail facts, list identifiers, change counts.
+- **Label** (500, 14px): buttons, field labels, navigation entries, and the
+  title of a list or danger row. A row title is never larger than its action's
+  label.
+- **Caption** (400, 13/18px, the `text-caption` theme token): a row's detail
+  line, a field's description, a hint and an inline error.
+- **Small** (400, 12px): rail facts, change counts, separators such as "or
+  with your password".
 - **Value** (Paper Mono, 13px): identifiers in headers, scopes, URLs, header
   names, JSON, colours typed by hand.
 - **Value in a list** (Paper Mono, 12px, muted): the identifier under an
@@ -292,9 +297,17 @@ corners, and the public stage fills the width with a 20px card padding.
 **Breakpoints:** `sm` 640px, `md` 768px (sidebar), `lg` 1024px (rail,
 two-column editor, card position), plus coss's `3xl` 1600px and `4xl` 2000px.
 
-**Rhythm:** a 4px base. 4px Frame inset, 8px between controls, 12px header
-meta, 16px inside wells, 20px panel padding, 24px between sections, 32px
-between page regions.
+**Rhythm:** a 4px base. 6px Frame bezel, 8px between controls, 12px header
+meta, 16px inside wells, 24px between sections, 32px between page regions.
+
+**The One-Edge Rule.** Everything inside a Frame starts on one content edge,
+`--frame-inset` (20px from `sm`, 16px below it): the band's icon and title, the
+panel's fields, a list row's icon tile and a table's first and last cells. The
+band and header cells sit outside the panel's 1px border, so they add it. The
+public stage follows the same rule with `--stage-inset` (28px, 20px below
+`sm`): the strip above the card and the stay-signed-in band below it start on
+the card's content edge, and the band's space above and below its text is
+equal.
 
 ## Elevation & Depth
 
@@ -347,8 +360,12 @@ separator.
 ## Components
 
 ### Buttons
-- **Shape:** gently rounded (10px), 32px tall from `sm`, 36px on phones; touch
-  pointers get a 44px hit area.
+- **Shape:** gently rounded (10px), 36px tall at every width (coss's desktop
+  step-down is removed); touch pointers get a 44px hit area. Section and row
+  actions use this size, and a text action in a row is at least 80px wide so a
+  two-character label does not shrink to a chip. The 32px compact size is for
+  ghost helpers and controls inside a field or rule. A page's primary action is
+  40px with its icon set in an inset chip, like the passkey button.
 - **Primary:** ink fill, white text, a 16% white inner top highlight.
 - **Outline:** popover fill, input-colour border, resting-sheet shadow; hover
   adds the accent veil at 50%.
