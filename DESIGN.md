@@ -1,6 +1,6 @@
 ---
 name: Prohibitorum
-description: A quiet, exact identity console on coss ui, with a sign-in page each instance can dress.
+description: A quiet, exact identity console on coss ui, with a sign-in page each instance can dress and a launcher that continues it.
 colors:
   primary: "oklch(26.9% 0 0)"
   primary-foreground: "oklch(98.5% 0 0)"
@@ -51,9 +51,9 @@ typography:
     lineHeight: 1
   title:
     fontFamily: '"Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif'
-    fontSize: "14px"
+    fontSize: "16px"
     fontWeight: 600
-    lineHeight: "20px"
+    lineHeight: "24px"
   body:
     fontFamily: '"Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif'
     fontSize: "14px"
@@ -66,9 +66,9 @@ typography:
     lineHeight: "20px"
   caption:
     fontFamily: '"Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif'
-    fontSize: "12px"
+    fontSize: "13px"
     fontWeight: 400
-    lineHeight: "16px"
+    lineHeight: "18px"
   value:
     fontFamily: '"Paper Mono", ui-monospace, Menlo, monospace'
     fontSize: "13px"
@@ -83,11 +83,13 @@ rounded:
   lg: "10px"
   xl: "14px"
   2xl: "16px"
+  frame: "22px"
   stage-card: "22px"
   stage-frame: "28px"
   full: "9999px"
 spacing:
-  frame-inset: "4px"
+  frame-bezel: "6px"
+  frame-inset: "20px"
   "2": "8px"
   "3": "12px"
   "4": "16px"
@@ -101,33 +103,33 @@ components:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.primary-foreground}"
     rounded: "{rounded.lg}"
-    height: "32px"
+    height: "36px"
     padding: "0 11px"
   button-outline:
     backgroundColor: "{colors.popover}"
     textColor: "{colors.foreground}"
     rounded: "{rounded.lg}"
-    height: "32px"
+    height: "36px"
     padding: "0 11px"
   button-destructive:
     backgroundColor: "{colors.destructive}"
     textColor: "#ffffff"
     rounded: "{rounded.lg}"
-    height: "32px"
+    height: "36px"
   input:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
     rounded: "{rounded.lg}"
-    height: "32px"
+    height: "36px"
   frame:
     backgroundColor: "{colors.muted}"
-    rounded: "{rounded.2xl}"
-    padding: "{spacing.frame-inset}"
+    rounded: "{rounded.frame}"
+    padding: "{spacing.frame-bezel}"
   frame-panel:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
-    rounded: "{rounded.xl}"
-    padding: "{spacing.panel}"
+    rounded: "{rounded.2xl}"
+    padding: "{spacing.frame-inset}"
   well:
     backgroundColor: "{colors.muted}"
     rounded: "{rounded.xl}"
@@ -135,7 +137,7 @@ components:
   badge-success:
     textColor: "{colors.success-foreground}"
     rounded: "{rounded.sm}"
-    height: "18px"
+    height: "20px"
   dialog:
     backgroundColor: "{colors.popover}"
     textColor: "{colors.foreground}"
@@ -147,6 +149,18 @@ components:
     rounded: "{rounded.stage-card}"
     padding: "{spacing.stage-card}"
     width: "440px"
+  app-tile:
+    backgroundColor: "{colors.sidebar}"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.stage-card}"
+    padding: "6px"
+  app-tile-cover:
+    rounded: "{rounded.2xl}"
+  app-tile-capsule:
+    backgroundColor: "{colors.background}"
+    textColor: "{colors.muted-foreground}"
+    rounded: "{rounded.full}"
+    size: "28px"
 ---
 
 # Design System: Prohibitorum
@@ -169,6 +183,13 @@ Bing or Unsplash picture, or uploaded images. The card and the toolbar capsules
 can be translucent and frosted. The console checks the text contrast of that
 choice before it is saved.
 
+The launcher, the signed-in home at `/`, sits between the two. It is not the
+console: it keeps the public pages' capsule toolbar and draws no sidebar, so
+the door a member signed in through stays open. A window illustration fades in
+from the top-left corner, and the member's connected applications are tiles in
+the console's ringed frame material, each cover calmly tinted from the
+application's own colour. The console is one step away, in the account menu.
+
 Interaction follows PRODUCT.md's split: the console is exact and restrained,
 the copy is plain and reassuring, and colour is never the only signal for a
 state.
@@ -180,6 +201,7 @@ state.
 - Concentric radii: each inner surface's corner is the outer one minus its inset.
 - One block per Frame; never a card inside a card.
 - Light and dark themes from one set of semantic tokens.
+- One identity hue per application, on the launcher only, calm and kept clear of the status hues.
 
 ## Colors
 
@@ -215,10 +237,23 @@ through coss's semantic tokens in `dashboard/src/styles/coss.css`.
 Status badges are a soft tint of the hue (8%, 16% in dark) with the
 `-foreground` text, never a solid fill.
 
+### Application identity (launcher only)
+- **Cover tint**: an OKLCH colour at fixed lightness (96.5% light, 25.5% dark)
+  carrying the application's hue. From an uploaded icon, the server's extracted
+  colour keeps its hue with chroma capped at 0.03; without one, the hue is
+  hashed from the name into a cool sweep (188 to 312 degrees, cyan to violet)
+  at chroma 0.018, the same every time.
+- **Monogram**: an application with no icon gets a white initial on a duotone
+  of its hue (a 145-degree ramp to the hue plus 30, lit by a soft highlight at
+  the top left), in a rounded square.
+
 ### Named Rules
 **The Status-Only Colour Rule.** Hue means state. Chrome, navigation and
 layout stay neutral; a coloured surface always says something is enabled,
-failing, pending or dangerous, and it says it in words or an icon too.
+failing, pending or dangerous, and it says it in words or an icon too. The one
+exception is an application's identity tint on the launcher, which is calm,
+never a swatch, and drawn from the cool sweep so it cannot read as green, amber
+or red state.
 
 **The Dot-Plus-Word Rule.** A state that can be scanned in a column ("Enabled",
 "Not ready", "Sent to applications", unsaved) carries a 6px dot in the current
@@ -238,6 +273,9 @@ Both are self-hosted woff2 files in `dashboard/src/styles/fonts`.
 ### Hierarchy
 - **Headline** (600, 24px, tight tracking): the page's only `h1`, from
   PageHeader, ObjectHeader and the public PageHeading.
+- **Greeting** (600, 30px, 36px from `sm`, tight tracking, balanced): the
+  launcher's `h1`, the member's first name in a time-of-day greeting, over a
+  one-line muted tagline. It is the only heading above 24px.
 - **Dialog title** (700, 20px): coss DialogTitle and AlertDialogTitle.
 - **Title** (600, 16px): a Section's `h2` in the Frame band, one step above
   body text; the band and the step together separate a block from its rows.
@@ -275,6 +313,17 @@ the sidebar trigger, a breadcrumb (section, then record) and, from `sm`, a
 240px search field with a `⌘K` hint. Content is one measured column, at most
 1152px (`max-w-6xl`), centred, with 24px side padding (40px from `lg`) and
 32px vertical padding. It is a size container, which tables measure against.
+
+**Launcher shell.** The signed-in landing at `/` is a page of its own: the
+public toolbar (instance identity capsule leading; language and theme capsule,
+then the account capsule with the avatar, trailing) over one centred column at
+most 1024px (`max-w-5xl`), 20px side padding (32px from `sm`). The greeting row
+puts the `h1` and tagline on the leading side and a 320px search field (`⌘K`,
+Ctrl K or `/`) on the trailing edge from `sm`, stacked below it. The pad is an
+auto-fill grid of tiles at least 11rem wide, 16px apart (9rem and 12px below
+`sm`), closed by the Add app tile. The corner atmosphere is anchored top-left
+under the toolbar, `clamp(22rem, 34vw, 42rem)` wide at 3:4, and recedes to
+about a third of its opacity below `sm` so the greeting keeps its contrast.
 
 **Page columns.**
 - Member pages (Security, Sessions, Devices, Tokens) use PageBody: one column
@@ -328,10 +377,14 @@ FramePanel, an input or an outline button read as a raised sheet.
   table can still scroll under its pinned column, driven by a scroll timeline.
 - **Frosted stage** (`shadow-2xl` at black 30%, white 40% ring,
   `backdrop-blur-2xl`): the public stage over a picture, gradient or colour.
+- **Tile lift** (resting sheet at rest; `shadow-lg/8` and a 4px rise on hover,
+  200ms ease-out, no rise under reduced motion): launcher tiles only. The tile is
+  opaque canvas under the band so the corner picture never shows through a name.
 
 ### Named Rules
 **The Four-Layer Rule.** Canvas, inset panel, Frame band, FramePanel. A new
-surface finds its place in that stack; it does not add a fifth.
+surface finds its place in that stack; it does not add a fifth. The launcher
+has no inset panel: canvas, then the tile's band, then its cover.
 
 **The No Card-in-Card Rule.** A Section owns exactly one panel. An ItemList or
 DataTable inside a Section becomes that panel; anything else is placed on the
@@ -346,7 +399,9 @@ panel is 12 to 14px; a pseudo-element highlight is the radius minus 1px; the
 public stage frame (28px) holds its card (22px) at a 6px inset. Controls are
 10px, small buttons and icon buttons 8px, badges 6px, checkboxes 4px, radios,
 switches and person avatars round. Application and provider icons are rounded
-tiles; people are circles.
+tiles; people are circles. A launcher tile follows the stage's arcs: a 22px
+frame holding a 16px cover at a 6px inset; the capsules on the cover are full
+circles, and a monogram is a squircle at 22% of its width.
 
 A **well** is the one in-panel grouping shape: 14px corners, the 60% veil and a
 60% hairline ring (`rounded-xl bg-muted/60 ring-1 ring-border/60`). It holds a
@@ -487,9 +542,38 @@ amber "Hard to read" with the advice to raise the opacity or pick another
 background, or an outline "Not measured" when the background cannot be read.
 It never guesses.
 
+### Launcher and the app tile
+The launcher is the signed-in home. Each connected application is a tile, and
+the whole tile is one link that opens it in a new tab, with a 2px focus ring
+offset 2px:
+- **Frame:** the ringed band (22px corners, 6px inset, resting sheet), lifting
+  on hover.
+- **Cover:** 4:3, the identity tint, a 6% hairline, the icon centred at 64% of
+  its height and never cropped (it grows 5% on hover), or the monogram.
+- **Authorization capsule** (top-left, 28px, frosted 85% paper, hairline
+  ring): the console's own kind glyph (OIDC, SAML, forward auth) with its
+  plain-language description in a tooltip. Kind is told by glyph and words,
+  never by colour.
+- **Menu capsule** (top-right, same material): Copy link, Manage application
+  for an administrator, and a separated destructive Remove access, which opens
+  a danger ConfirmDialog.
+- **Name band:** 14px medium name over up to two lines, an up-right arrow that
+  appears on hover and focus as the launch hint, and a success check with an
+  "Access granted" label when the member has allowed the application.
+Add app closes the pad as a dashed tile of the same proportions and opens a
+dialog listing the remaining applications as rows with a 36px tinted cover in
+small and their capsule. Loading shows skeleton tiles in the pad; no
+applications at all is one dashed Empty at the tile's 22px corners.
+
+**The One-Arrival Rule.** The launcher moves once per page load: the corner
+picture dissolves in (900ms) and the tiles settle 6px from 60% opacity, 35ms
+apart (520ms, `cubic-bezier(0.22, 1, 0.36, 1)`). A search does not replay it;
+under reduced motion everything is simply there.
+
 ### Navigation
-The sidebar lists the account pages, then the management headings the account
-may see. Headings are 12px muted labels, not heading elements. The selected
+The sidebar opens with **Home**, alone above the groups, which leads out of the
+console to the launcher at `/`. It then lists the account pages, then the
+management headings the account may see. Headings are 12px muted labels, not heading elements. The selected
 entry takes the accent veil and full ink; others use the sidebar text colour.
 The instance identity sits at the top and the account menu at the bottom
 (account pages, language, theme, sign out).
@@ -507,9 +591,10 @@ The instance identity sits at the top and the account menu at the bottom
 
 ### Don't:
 - **Don't** put a card or bordered box inside a FramePanel.
-- **Don't** use gradients, glows or decorative fills in the console chrome. Gradients belong to the public backdrop presets, which are the sign-in page's own material.
+- **Don't** use gradients, glows or decorative fills in the console chrome. Gradients belong to the public backdrop presets and, on the launcher, to the corner picture and an application's monogram.
 - **Don't** introduce a brand hue in the console; the primary is ink.
 - **Don't** put uppercase eyebrows or kickers above titles.
-- **Don't** use shadows heavier than `shadow-lg/5` on console surfaces; the frosted stage's large shadow is for the public page only.
+- **Don't** use shadows heavier than `shadow-lg/5` on console surfaces; the frosted stage's large shadow is for the public page only, and the tile lift for the launcher.
+- **Don't** give an application a state hue or a saturated cover; its identity is a calm tint from the cool sweep or its own icon.
 - **Don't** use Paper Mono for words, or Cal Sans for values a person copies.
 - **Don't** hand-edit `src/components/ui` or `coss.css`; re-copy from the registry and re-apply the documented patches.
