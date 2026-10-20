@@ -178,18 +178,22 @@ describe("console navigation", () => {
       "aria-current",
       "page",
     );
-    expect(
-      within(nav).getByRole("link", { name: "Console home" }),
-    ).not.toHaveAttribute("aria-current");
+    expect(within(nav).getByRole("link", { name: "Home" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
-  it("marks only the console home on the console home", async () => {
-    const nav = await mount("/", admin);
+  it("leads Home out to the launcher, never marked as the page you are on", async () => {
+    const nav = await mount("/profile", admin);
 
+    expect(within(nav).getByRole("link", { name: "Home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
     const current = within(nav)
       .getAllByRole("link")
       .filter((link) => link.getAttribute("aria-current") === "page");
-    expect(current.map((link) => link.textContent)).toEqual(["Console home"]);
+    expect(current.map((link) => link.textContent)).toEqual(["Profile"]);
   });
 
   it("shows a SAML manager the one group their assignment reaches", async () => {

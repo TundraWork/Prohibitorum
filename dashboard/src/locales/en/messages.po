@@ -100,7 +100,6 @@ msgid "list.diagnostics.redirect.description"
 msgstr "{count, plural, one {# address} other {# addresses}}: {hostList}"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.remaining"
 msgstr "{count, plural, one {# code left} other {# codes left}}"
@@ -124,11 +123,6 @@ msgstr "{count, plural, one {# file wasn't uploaded because the 10-image limit w
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.short"
 msgstr "{count, plural, one {# linked account stops} other {# linked accounts stop}} matching and will be treated as a new identity at the next sign-in."
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.devices.count"
-msgstr "{count, plural, one {# signed-in device} other {# signed-in devices}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
@@ -196,11 +190,6 @@ msgid "admin.group.rule.provider.sign-in-off"
 msgstr "{name} · sign-in off"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.page.description"
-msgstr "{name} account"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.consequence.admin"
 msgstr "{name} gets access to the administration pages."
@@ -234,11 +223,6 @@ msgstr "{name} is under maintenance"
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.consequence.user"
 msgstr "{name} loses access to the administration pages."
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.passkeys.count"
-msgstr "{passkeyCount, plural, one {# passkey} other {# passkeys}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -473,6 +457,11 @@ msgstr "Access cleared"
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.access_denied"
 msgstr "Access denied"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.granted"
+msgstr "Access granted"
 
 #. js-lingui-explicit-id
 #: src/pages/public/ErrorLanding.tsx
@@ -762,6 +751,11 @@ msgid "admin.saml-apps.mapping.add"
 msgstr "Add an attribute"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.add"
+msgstr "Add app"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.acs.required"
 msgstr "Add at least one Assertion Consumer Service endpoint."
@@ -841,6 +835,7 @@ msgstr "Admin"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 msgid "console.role.admin"
 msgstr "Admin"
 
@@ -848,6 +843,11 @@ msgstr "Admin"
 #: src/components/custom/ConsoleLayout.tsx
 #: src/pages/admin/AdminHome.tsx
 msgid "admin.home.title"
+msgstr "Administration"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LauncherLayout.tsx
+msgid "launcher.admin"
 msgstr "Administration"
 
 #. js-lingui-explicit-id
@@ -881,7 +881,6 @@ msgid "admin.logs.range.all"
 msgstr "All time"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.used_up"
 msgstr "All used"
@@ -2306,9 +2305,24 @@ msgid "consent.scope.openid"
 msgstr "Confirm who you are"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.add.title"
+msgstr "Connect an app"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.connect_first"
+msgstr "Connect an app to get started."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.description"
 msgstr "Connect an outside account service. The rest of its settings are on its page once it exists."
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.add.hint"
+msgstr "Connect more"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -2361,11 +2375,6 @@ msgstr "Connection test"
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.test"
 msgstr "Connection test"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.home"
-msgstr "Console home"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -2492,6 +2501,11 @@ msgstr "Copy codes"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.kid.copy"
 msgstr "Copy key ID"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.copy"
+msgstr "Copy link"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -3112,7 +3126,6 @@ msgid "devices.form"
 msgstr "Device pairing"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/Devices.tsx
 msgid "devices.page.title"
 msgstr "Devices"
@@ -3121,11 +3134,6 @@ msgstr "Devices"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.devices"
 msgstr "Devices"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.devices.list"
-msgstr "Devices summary"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
@@ -4082,6 +4090,11 @@ msgid "sudo.intro"
 msgstr "For your security, verify your identity again to continue."
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/ProtocolCapsule.tsx
+msgid "launcher.kind.forward_auth.name"
+msgstr "Forward auth"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupUsedBySection.tsx
 msgid "admin.group.used-by.kind.forward-auth"
 msgstr "Forward-auth"
@@ -4212,6 +4225,21 @@ msgid "admin.oidc-apps.secret.continue"
 msgstr "Go to the application"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.greeting.afternoon"
+msgstr "Good afternoon, {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.greeting.evening"
+msgstr "Good evening, {name}"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.greeting.morning"
+msgstr "Good morning, {name}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.oidc.hint"
 msgstr "Google, Microsoft Entra ID, Keycloak and other providers."
@@ -4286,6 +4314,11 @@ msgstr "Hide details"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.retired.hide"
 msgstr "Hide retired keys"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.home"
+msgstr "Home"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
@@ -4713,6 +4746,11 @@ msgid "admin.federation.danger.enable.hint"
 msgstr "It is not offered at sign-in right now."
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.revoke.body"
+msgstr "It will ask for your permission again the next time you sign in to it."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.general.entity-id.hint"
 msgstr "Its Entity ID, shown above, is what the instance sends with every response."
@@ -4960,6 +4998,11 @@ msgid "security.identities.link.title"
 msgstr "Link another identity"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.copied"
+msgstr "Link copied"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.enrollment_issued"
 msgstr "Link issued"
@@ -5137,6 +5180,11 @@ msgid "admin.user.role.action.user"
 msgstr "Make user and save"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.manage"
+msgstr "Manage application"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.label"
 msgstr "Manager"
@@ -5267,6 +5315,12 @@ msgstr "More actions for {name}"
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.row-menu"
 msgstr "More actions for {name}"
+
+#. js-lingui-explicit-id
+#. placeholder {0}: app.name
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.more"
+msgstr "More for {0}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
@@ -5594,9 +5648,19 @@ msgid "token.access.none"
 msgstr "No applications"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.empty.title"
+msgstr "No applications yet"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.empty"
 msgstr "No approved applications yet"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.search.none"
+msgstr "No apps match “{query}”."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -5674,7 +5738,6 @@ msgid "admin.user.passkeys.empty"
 msgstr "No passkeys"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.empty.title"
 msgstr "No passkeys yet"
@@ -5841,11 +5904,6 @@ msgid "admin.federation.credentials.not-set"
 msgstr "Not set"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.password.off"
-msgstr "Not set up"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.none"
 msgstr "Not set up"
@@ -5924,11 +5982,6 @@ msgstr "OIDC subject"
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.oidcSubject"
 msgstr "OIDC subject"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.password.on"
-msgstr "On"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
@@ -6021,6 +6074,13 @@ msgid "object.status.open"
 msgstr "Open"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: app.name
+#: src/pages/launcher/AppTile.tsx
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.open"
+msgstr "Open {0} in a new tab"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.open"
 msgstr "Open {name}"
@@ -6062,6 +6122,11 @@ msgstr "Open <0>vrchat.com</0> in your browser and go to your profile page."
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.oidc-apps.new.access.description"
 msgstr "Open it to every account, or limit it to user groups. The groups are chosen on the application's page."
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.add.description"
+msgstr "Open one to sign in to it. It joins your apps once you have."
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -6232,7 +6297,6 @@ msgid "error.login_failed"
 msgstr "Passkey sign-in failed. You can use your password instead."
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.section.passkeys"
 msgstr "Passkeys"
@@ -6298,7 +6362,6 @@ msgid "enroll.password_totp.steps.password"
 msgstr "Password"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.section.password"
 msgstr "Password and authenticator"
@@ -6476,6 +6539,7 @@ msgstr "Profile"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 msgid "console.profile"
 msgstr "Profile"
 
@@ -6488,6 +6552,11 @@ msgstr "Profile picture"
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.verified.title"
 msgstr "Profile verified"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/ProtocolCapsule.tsx
+msgid "launcher.kind.forward_auth"
+msgstr "Protected by your sign-in"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -6612,6 +6681,11 @@ msgid "pair.qr"
 msgstr "QR code that opens this pairing on the other device"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.tagline"
+msgstr "Quick access to your connected applications. Choose Add app to connect more."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata.dialog.submit"
 msgstr "Re-import"
@@ -6693,7 +6767,6 @@ msgid "audit.factor.recovery_code"
 msgstr "Recovery code"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.title"
 msgstr "Recovery codes"
@@ -6865,8 +6938,19 @@ msgid "apps.confirm.remove"
 msgstr "Remove access"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.revoke"
+msgstr "Remove access"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.title"
+msgstr "Remove access?"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.revoke.title"
 msgstr "Remove access?"
 
 #. js-lingui-explicit-id
@@ -7406,7 +7490,6 @@ msgid "admin.group.kind.badge.rule"
 msgstr "Rule group"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.low"
 msgstr "Running low"
@@ -7643,6 +7726,16 @@ msgid "admin.users.search"
 msgstr "Search users"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.search.placeholder"
+msgstr "Search your apps"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.search"
+msgstr "Search your apps"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.credentials.form"
 msgstr "Secret"
@@ -7659,6 +7752,7 @@ msgstr "Security"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 msgid "console.security"
 msgstr "Security"
 
@@ -7988,6 +8082,7 @@ msgstr "Sign in with your phone or another device"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 #: src/components/custom/RouteFeedback.tsx
 #: src/pages/public/Maintenance.tsx
 msgid "console.logout"
@@ -8017,11 +8112,6 @@ msgstr "Sign this account out everywhere?"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.activate.title"
 msgstr "Sign with this key?"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.signin.title"
-msgstr "Sign-in"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -8096,11 +8186,6 @@ msgstr "Sign-in response"
 #: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps"
 msgstr "Sign-in setup steps"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.signin.list"
-msgstr "Sign-in summary"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
@@ -8246,6 +8331,16 @@ msgstr "Signs in with a passkey"
 #: src/pages/admin/groups/explain-labels.ts
 msgid "admin.group.explain.method.password_totp"
 msgstr "Signs in with a password and authenticator"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/ProtocolCapsule.tsx
+msgid "launcher.kind.oidc"
+msgstr "Signs you in with OpenID Connect"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/ProtocolCapsule.tsx
+msgid "launcher.kind.saml"
+msgstr "Signs you in with SAML"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
@@ -8702,6 +8797,11 @@ msgstr "The audit log could not be loaded."
 #: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.summary.description"
 msgstr "The background, card and toolbar people see before they sign in."
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.copy_failed"
+msgstr "The browser did not allow copying the link."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -10184,6 +10284,7 @@ msgstr "User"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 msgid "console.role.user"
 msgstr "User"
 
@@ -10553,11 +10654,6 @@ msgid "admin.federation.credentials.steam.label"
 msgstr "Web API key"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.page.title"
-msgstr "Welcome, {displayName}"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.background.description"
 msgstr "What fills the page behind the card."
@@ -10655,6 +10751,11 @@ msgid "profile.username.hint"
 msgstr "What you type to sign in."
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.empty.description"
+msgstr "When an administrator gives you access to an application, it appears here."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.general.sign_in.hint"
@@ -10701,11 +10802,6 @@ msgstr "Where this application may send people back to, and what it may ask for.
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.description"
 msgstr "Where this provider signs people in, and how this instance talks to it."
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.devices.row"
-msgstr "Where you are signed in"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -10889,6 +10985,21 @@ msgstr "Your {provider} identity"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.account"
 msgstr "Your account"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LauncherLayout.tsx
+msgid "launcher.account"
+msgstr "Your account"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.list"
+msgstr "Your applications"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.failed"
+msgstr "Your applications could not be loaded"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx

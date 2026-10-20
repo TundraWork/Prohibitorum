@@ -322,6 +322,20 @@ export function factorsQueryOptions() {
   });
 }
 
+/**
+ * The applications this account may open, as the server's launchpad lists
+ * them: name, where it opens, and its icon when one is uploaded.
+ */
+export function myAppsQueryOptions() {
+  return queryOptions({
+    queryKey: ["session", "apps"],
+    // The launcher draws a failed read itself, with a retry.
+    meta: { requiresSession: true, quiet: true },
+    queryFn: ({ signal }) =>
+      requireJsonData(client.GET("/api/prohibitorum/me/apps", { signal })),
+  });
+}
+
 export function sessionsQueryOptions() {
   return queryOptions({
     queryKey: ["session", "sessions"],

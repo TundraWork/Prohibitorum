@@ -64,15 +64,8 @@ describe("first-load mock activation", () => {
     expect(session).toMatchObject({ username: "mock", role: "admin" });
 
     // The middleware owns every read of the first load, not the session one
-    // alone; a path with no fixture still fails as `mock_unmocked` rather than
-    // being answered by the server, because the mock owns whole verbs rather
-    // than a list of paths.
+    // alone.
     const factors = await client.GET("/api/prohibitorum/me/factors");
     expect(factors.response.status).toBe(200);
-    await expect(client.GET("/api/prohibitorum/me/apps")).rejects.toMatchObject(
-      {
-        code: "mock_unmocked",
-      },
-    );
   });
 });

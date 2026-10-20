@@ -110,6 +110,15 @@ export function notifySuccess(message: MessageDescriptor) {
   notificationQueue.add({ success: message }, { timeout: successTimeout });
 }
 
+/**
+ * Says that something the reader asked for did not happen, for a failure that
+ * is not a request (the clipboard refused a copy). It stays until dismissed,
+ * like every error.
+ */
+export function notifyFailure(message: MessageDescriptor) {
+  notificationQueue.add({ error: message });
+}
+
 export function AppNotifications() {
   const [details, setDetails] = useState<RequestExchange | null>(null);
   useEffect(() => {

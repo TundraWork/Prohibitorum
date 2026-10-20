@@ -468,6 +468,25 @@ export function MockPanel() {
             }
           />
           <Count
+            label="Launcher applications"
+            value={config.launchpad.apps}
+            max={mockAdminListMax}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.launchpad.apps = next;
+              })
+            }
+          />
+          <Toggle
+            label="The launcher fails to load"
+            checked={config.launchpad.fail}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.launchpad.fail = next;
+              })
+            }
+          />
+          <Count
             label="Connected applications"
             value={config.lists.consentedApps}
             onChange={(next) =>

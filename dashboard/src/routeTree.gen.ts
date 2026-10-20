@@ -9,9 +9,10 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LauncherRouteImport } from './routes/_launcher'
 import { Route as ProtectedRouteImport } from './routes/_protected'
 import { Route as PublicRouteImport } from './routes/_public'
-import { Route as ProtectedIndexRouteImport } from './routes/_protected.index'
+import { Route as LauncherIndexRouteImport } from './routes/_launcher.index'
 import { Route as ProtectedAdminRouteImport } from './routes/_protected.admin'
 import { Route as ProtectedAppsRouteImport } from './routes/_protected.apps'
 import { Route as ProtectedDevicesRouteImport } from './routes/_protected.devices'
@@ -56,6 +57,10 @@ import { Route as ProtectedAdminAdminInvitationsNewRouteImport } from './routes/
 import { Route as ProtectedAdminAdminSettingsSignInPageRouteImport } from './routes/_protected.admin._admin.settings_.sign-in-page'
 import { Route as ProtectedAdminAdminUsersIdRouteImport } from './routes/_protected.admin._admin.users_.$id'
 
+const LauncherRoute = LauncherRouteImport.update({
+  id: '/_launcher',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProtectedRoute = ProtectedRouteImport.update({
   id: '/_protected',
   getParentRoute: () => rootRouteImport,
@@ -64,10 +69,10 @@ const PublicRoute = PublicRouteImport.update({
   id: '/_public',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProtectedIndexRoute = ProtectedIndexRouteImport.update({
+const LauncherIndexRoute = LauncherIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => ProtectedRoute,
+  getParentRoute: () => LauncherRoute,
 } as any)
 const ProtectedAdminRoute = ProtectedAdminRouteImport.update({
   id: '/admin',
@@ -309,7 +314,7 @@ const ProtectedAdminAdminUsersIdRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof ProtectedIndexRoute
+  '/': typeof LauncherIndexRoute
   '/admin': typeof ProtectedAdminRouteWithChildren
   '/apps': typeof ProtectedAppsRoute
   '/devices': typeof ProtectedDevicesRoute
@@ -354,7 +359,7 @@ export interface FileRoutesByFullPath {
   '/admin/identity-providers/': typeof ProtectedAdminAdminIdentityProvidersIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof ProtectedIndexRoute
+  '/': typeof LauncherIndexRoute
   '/admin': typeof ProtectedAdminAdminIndexRoute
   '/apps': typeof ProtectedAppsRoute
   '/devices': typeof ProtectedDevicesRoute
@@ -399,6 +404,7 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/_launcher': typeof LauncherRouteWithChildren
   '/_protected': typeof ProtectedRouteWithChildren
   '/_public': typeof PublicRouteWithChildren
   '/_protected/admin': typeof ProtectedAdminRouteWithChildren
@@ -414,7 +420,7 @@ export interface FileRoutesById {
   '/_public/saml-consent': typeof PublicSamlConsentRoute
   '/_public/setup-signin': typeof PublicSetupSigninRoute
   '/_public/welcome': typeof PublicWelcomeRoute
-  '/_protected/': typeof ProtectedIndexRoute
+  '/_launcher/': typeof LauncherIndexRoute
   '/_protected/admin/_admin': typeof ProtectedAdminAdminRouteWithChildren
   '/_public/enroll/$token': typeof PublicEnrollTokenRoute
   '/_public/login_/recovery': typeof PublicLoginRecoveryRoute
@@ -538,6 +544,7 @@ export interface FileRouteTypes {
     | '/admin/identity-providers'
   id:
     | '__root__'
+    | '/_launcher'
     | '/_protected'
     | '/_public'
     | '/_protected/admin'
@@ -553,7 +560,7 @@ export interface FileRouteTypes {
     | '/_public/saml-consent'
     | '/_public/setup-signin'
     | '/_public/welcome'
-    | '/_protected/'
+    | '/_launcher/'
     | '/_protected/admin/_admin'
     | '/_public/enroll/$token'
     | '/_public/login_/recovery'
@@ -587,12 +594,20 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  LauncherRoute: typeof LauncherRouteWithChildren
   ProtectedRoute: typeof ProtectedRouteWithChildren
   PublicRoute: typeof PublicRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/_launcher': {
+      id: '/_launcher'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof LauncherRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_protected': {
       id: '/_protected'
       path: ''
@@ -607,12 +622,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PublicRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_protected/': {
-      id: '/_protected/'
+    '/_launcher/': {
+      id: '/_launcher/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof ProtectedIndexRouteImport
-      parentRoute: typeof ProtectedRoute
+      preLoaderRoute: typeof LauncherIndexRouteImport
+      parentRoute: typeof LauncherRoute
     }
     '/_protected/admin': {
       id: '/_protected/admin'
@@ -918,6 +933,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LauncherRouteChildren {
+  LauncherIndexRoute: typeof LauncherIndexRoute
+}
+
+const LauncherRouteChildren: LauncherRouteChildren = {
+  LauncherIndexRoute: LauncherIndexRoute,
+}
+
+const LauncherRouteWithChildren = LauncherRoute._addFileChildren(
+  LauncherRouteChildren,
+)
+
 interface ProtectedAdminAdminRouteChildren {
   ProtectedAdminAdminInvitationsRoute: typeof ProtectedAdminAdminInvitationsRoute
   ProtectedAdminAdminLogsRoute: typeof ProtectedAdminAdminLogsRoute
@@ -1003,7 +1030,6 @@ interface ProtectedRouteChildren {
   ProtectedDevicesRoute: typeof ProtectedDevicesRoute
   ProtectedProfileRoute: typeof ProtectedProfileRoute
   ProtectedSecurityRoute: typeof ProtectedSecurityRoute
-  ProtectedIndexRoute: typeof ProtectedIndexRoute
 }
 
 const ProtectedRouteChildren: ProtectedRouteChildren = {
@@ -1012,7 +1038,6 @@ const ProtectedRouteChildren: ProtectedRouteChildren = {
   ProtectedDevicesRoute: ProtectedDevicesRoute,
   ProtectedProfileRoute: ProtectedProfileRoute,
   ProtectedSecurityRoute: ProtectedSecurityRoute,
-  ProtectedIndexRoute: ProtectedIndexRoute,
 }
 
 const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
@@ -1057,6 +1082,7 @@ const PublicRouteWithChildren =
   PublicRoute._addFileChildren(PublicRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  LauncherRoute: LauncherRouteWithChildren,
   ProtectedRoute: ProtectedRouteWithChildren,
   PublicRoute: PublicRouteWithChildren,
 }

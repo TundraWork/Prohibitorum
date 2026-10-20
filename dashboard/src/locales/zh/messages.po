@@ -100,7 +100,6 @@ msgid "list.diagnostics.redirect.description"
 msgstr "{count, plural, other {# 个地址}}：{hostList}"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.remaining"
 msgstr "{count, plural, other {剩余 # 个}}"
@@ -124,11 +123,6 @@ msgstr "{count, plural, other {已达到 10 张上限，有 # 个文件没有上
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.short"
 msgstr "{count, plural, other {# 个已关联账号}}将不再匹配，下次登录时会被当作新身份。"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.devices.count"
-msgstr "{count, plural, other {# 台已登录设备}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
@@ -196,11 +190,6 @@ msgid "admin.group.rule.provider.sign-in-off"
 msgstr "{name} · 登录已关闭"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.page.description"
-msgstr "{name} 账号"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.consequence.admin"
 msgstr "{name} 将获得管理页面的访问权限。"
@@ -234,11 +223,6 @@ msgstr "{name} 正在维护"
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.consequence.user"
 msgstr "{name} 将失去管理页面的访问权限。"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.passkeys.count"
-msgstr "{passkeyCount, plural, other {# 个通行密钥}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
@@ -473,6 +457,11 @@ msgstr "已清除访问决定"
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.access_denied"
 msgstr "访问被拒绝"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.granted"
+msgstr "已授权"
 
 #. js-lingui-explicit-id
 #: src/pages/public/ErrorLanding.tsx
@@ -762,6 +751,11 @@ msgid "admin.saml-apps.mapping.add"
 msgstr "添加一个属性"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.add"
+msgstr "添加应用"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.acs.required"
 msgstr "请至少添加一个 ACS 端点。"
@@ -841,6 +835,7 @@ msgstr "管理员"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 msgid "console.role.admin"
 msgstr "管理员"
 
@@ -849,6 +844,11 @@ msgstr "管理员"
 #: src/pages/admin/AdminHome.tsx
 msgid "admin.home.title"
 msgstr "管理"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LauncherLayout.tsx
+msgid "launcher.admin"
+msgstr "管理后台"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
@@ -881,7 +881,6 @@ msgid "admin.logs.range.all"
 msgstr "全部"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.used_up"
 msgstr "已用完"
@@ -2306,9 +2305,24 @@ msgid "consent.scope.openid"
 msgstr "确认你的身份"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.add.title"
+msgstr "连接应用"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.connect_first"
+msgstr "连接一个应用即可开始。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.description"
 msgstr "接入一个外部账号服务。创建后，其余设置在它自己的页面上调整。"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.add.hint"
+msgstr "连接更多"
 
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
@@ -2361,11 +2375,6 @@ msgstr "连接测试"
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
 msgid "admin.federation.diagnostics.test"
 msgstr "连接测试"
-
-#. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-msgid "console.home"
-msgstr "控制台首页"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
@@ -2492,6 +2501,11 @@ msgstr "复制恢复码"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.kid.copy"
 msgstr "复制 Key ID"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.copy"
+msgstr "复制链接"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -3112,7 +3126,6 @@ msgid "devices.form"
 msgstr "设备配对"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/Devices.tsx
 msgid "devices.page.title"
 msgstr "设备"
@@ -3121,11 +3134,6 @@ msgstr "设备"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.devices"
 msgstr "设备"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.devices.list"
-msgstr "设备概览"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
@@ -4082,6 +4090,11 @@ msgid "sudo.intro"
 msgstr "出于安全考虑，请重新验证身份后继续。"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/ProtocolCapsule.tsx
+msgid "launcher.kind.forward_auth.name"
+msgstr "前向认证"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupUsedBySection.tsx
 msgid "admin.group.used-by.kind.forward-auth"
 msgstr "前向认证"
@@ -4212,6 +4225,21 @@ msgid "admin.oidc-apps.secret.continue"
 msgstr "前往应用"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.greeting.afternoon"
+msgstr "下午好，{name}"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.greeting.evening"
+msgstr "晚上好，{name}"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.greeting.morning"
+msgstr "早上好，{name}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.protocol.oidc.hint"
 msgstr "Google、Microsoft Entra ID、Keycloak 等提供商。"
@@ -4286,6 +4314,11 @@ msgstr "收起详情"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.retired.hide"
 msgstr "隐藏已退役的密钥"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ConsoleLayout.tsx
+msgid "console.home"
+msgstr "首页"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
@@ -4713,6 +4746,11 @@ msgid "admin.federation.danger.enable.hint"
 msgstr "当前登录时不会提供它。"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.revoke.body"
+msgstr "下次你登录它时，它会重新请求你的授权。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.general.entity-id.hint"
 msgstr "上方显示的 Entity ID，是这个实例在每次响应中带上的标识符。"
@@ -4960,6 +4998,11 @@ msgid "security.identities.link.title"
 msgstr "绑定其他身份"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.copied"
+msgstr "链接已复制"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.enrollment_issued"
 msgstr "已签发链接"
@@ -5137,6 +5180,11 @@ msgid "admin.user.role.action.user"
 msgstr "设为用户并保存"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.manage"
+msgstr "管理应用"
+
+#. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.label"
 msgstr "应用管理员"
@@ -5267,6 +5315,12 @@ msgstr "{name} 的更多操作"
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
 msgid "admin.group.decisions.row-menu"
 msgstr "{name} 的更多操作"
+
+#. js-lingui-explicit-id
+#. placeholder {0}: app.name
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.more"
+msgstr "{0} 的更多操作"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ProviderGrid.tsx
@@ -5594,9 +5648,19 @@ msgid "token.access.none"
 msgstr "没有应用"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.empty.title"
+msgstr "暂无应用"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.empty"
 msgstr "还没有已批准的应用"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.search.none"
+msgstr "没有与“{query}”匹配的应用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -5674,7 +5738,6 @@ msgid "admin.user.passkeys.empty"
 msgstr "暂无通行密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.empty.title"
 msgstr "还没有通行密钥"
@@ -5841,11 +5904,6 @@ msgid "admin.federation.credentials.not-set"
 msgstr "未设置"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.password.off"
-msgstr "未设置"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.none"
 msgstr "未设置"
@@ -5924,11 +5982,6 @@ msgstr "OIDC 主体"
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.oidcSubject"
 msgstr "OIDC 主体"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.password.on"
-msgstr "已开启"
 
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
@@ -6021,6 +6074,13 @@ msgid "object.status.open"
 msgstr "开放"
 
 #. js-lingui-explicit-id
+#. placeholder {0}: app.name
+#: src/pages/launcher/AppTile.tsx
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.open"
+msgstr "在新标签页中打开 {0}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.open"
 msgstr "打开 {name}"
@@ -6062,6 +6122,11 @@ msgstr "在浏览器打开 <0>vrchat.com</0> 并进入你的个人资料页。"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.oidc-apps.new.access.description"
 msgstr "可以对所有账号开放，也可以只开放给部分用户组。用户组在应用创建后到它的页面里选择。"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.add.description"
+msgstr "打开其中一个即可登录它，登录后它会加入你的应用。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -6232,7 +6297,6 @@ msgid "error.login_failed"
 msgstr "通行密钥登录失败，可以改用密码。"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.section.passkeys"
 msgstr "通行密钥"
@@ -6298,7 +6362,6 @@ msgid "enroll.password_totp.steps.password"
 msgstr "密码"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.section.password"
 msgstr "密码与身份验证器"
@@ -6476,6 +6539,7 @@ msgstr "资料"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 msgid "console.profile"
 msgstr "个人资料"
 
@@ -6488,6 +6552,11 @@ msgstr "头像"
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.verified.title"
 msgstr "资料已验证"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/ProtocolCapsule.tsx
+msgid "launcher.kind.forward_auth"
+msgstr "受你的登录保护"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -6612,6 +6681,11 @@ msgid "pair.qr"
 msgstr "在另一台设备上打开此配对的二维码"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.tagline"
+msgstr "快速访问你已连接的应用。选择“添加应用”连接更多应用。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.metadata.dialog.submit"
 msgstr "重新导入"
@@ -6693,7 +6767,6 @@ msgid "audit.factor.recovery_code"
 msgstr "恢复码"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.title"
 msgstr "恢复码"
@@ -6865,8 +6938,19 @@ msgid "apps.confirm.remove"
 msgstr "移除授权"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.revoke"
+msgstr "移除授权"
+
+#. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.title"
+msgstr "移除授权？"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.revoke.title"
 msgstr "移除授权？"
 
 #. js-lingui-explicit-id
@@ -7406,7 +7490,6 @@ msgid "admin.group.kind.badge.rule"
 msgstr "规则用户组"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
 #: src/pages/security/PasswordTotpPanel.tsx
 msgid "security.recovery.low"
 msgstr "即将用完"
@@ -7643,6 +7726,16 @@ msgid "admin.users.search"
 msgstr "搜索用户"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.search.placeholder"
+msgstr "搜索你的应用"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.search"
+msgstr "搜索你的应用"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
 msgid "admin.federation.credentials.form"
 msgstr "密钥"
@@ -7659,6 +7752,7 @@ msgstr "安全"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 msgid "console.security"
 msgstr "安全"
 
@@ -7988,6 +8082,7 @@ msgstr "用手机或其他设备登录"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 #: src/components/custom/RouteFeedback.tsx
 #: src/pages/public/Maintenance.tsx
 msgid "console.logout"
@@ -8017,11 +8112,6 @@ msgstr "要将该账号在所有设备上登出吗？"
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.activate.title"
 msgstr "用这个密钥签名？"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.signin.title"
-msgstr "登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -8096,11 +8186,6 @@ msgstr "登录响应"
 #: src/components/custom/PasswordTotpStepHeader.tsx
 msgid "enroll.password_totp.steps"
 msgstr "登录方式设置步骤"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.signin.list"
-msgstr "登录概览"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
@@ -8246,6 +8331,16 @@ msgstr "使用通行密钥登录"
 #: src/pages/admin/groups/explain-labels.ts
 msgid "admin.group.explain.method.password_totp"
 msgstr "使用密码和身份验证器登录"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/ProtocolCapsule.tsx
+msgid "launcher.kind.oidc"
+msgstr "通过 OpenID Connect 为你登录"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/ProtocolCapsule.tsx
+msgid "launcher.kind.saml"
+msgstr "通过 SAML 为你登录"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
@@ -8702,6 +8797,11 @@ msgstr "无法加载审计日志。"
 #: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.summary.description"
 msgstr "访客登录前看到的背景、卡片和工具栏。"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/AppTile.tsx
+msgid "launcher.copy_failed"
+msgstr "浏览器不允许复制该链接。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -10184,6 +10284,7 @@ msgstr "用户"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
+#: src/components/custom/LauncherLayout.tsx
 msgid "console.role.user"
 msgstr "用户"
 
@@ -10553,11 +10654,6 @@ msgid "admin.federation.credentials.steam.label"
 msgstr "Web API 密钥"
 
 #. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.page.title"
-msgstr "欢迎，{displayName}"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.background.description"
 msgstr "铺在卡片后面的页面背景。"
@@ -10655,6 +10751,11 @@ msgid "profile.username.hint"
 msgstr "登录时输入的名称。"
 
 #. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.empty.description"
+msgstr "当管理员授予你某个应用的访问权限后，它会显示在这里。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.general.sign_in.hint"
@@ -10701,11 +10802,6 @@ msgstr "此应用可以把人送回的地址，以及它可以请求的内容。
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.description"
 msgstr "提供商在哪里让人登录，以及本实例如何与它通信。"
-
-#. js-lingui-explicit-id
-#: src/pages/Console.tsx
-msgid "console.devices.row"
-msgstr "你已登录的位置"
 
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
@@ -10889,6 +10985,21 @@ msgstr "你的 {provider} 身份"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.account"
 msgstr "你的账号"
+
+#. js-lingui-explicit-id
+#: src/components/custom/LauncherLayout.tsx
+msgid "launcher.account"
+msgstr "你的账号"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.list"
+msgstr "你的应用"
+
+#. js-lingui-explicit-id
+#: src/pages/launcher/Launcher.tsx
+msgid "launcher.failed"
+msgstr "无法加载你的应用"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx

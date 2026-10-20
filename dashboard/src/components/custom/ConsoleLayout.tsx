@@ -116,7 +116,7 @@ type ConsoleSection = {
 const consoleHome: ConsoleSection = {
   path: "/",
   icon: House,
-  title: msg({ id: "console.home", message: "Console home" }),
+  title: msg({ id: "console.home", message: "Home" }),
 };
 
 const accountSections: ConsoleSection[] = [

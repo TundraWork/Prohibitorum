@@ -251,15 +251,45 @@ describe("mock replies", () => {
     ]);
   });
 
-  it("fails an endpoint it has no fixture for instead of reaching the server", () => {
-    // The account's own application list has no fixture on purpose: nothing in
-    // the console reads it, so a walkthrough never reaches it.
-    expect(read("/api/prohibitorum/me/apps")).toEqual({
-      kind: "error",
-      status: 501,
-      code: "mock_unmocked",
-      details: { method: "GET", path: "/api/prohibitorum/me/apps" },
-    });
+  it("lists the launcher's applications by name, in the shapes the page must hold", () => {
+    const apps = bodyOf(
+      read(
+        "/api/prohibitorum/me/apps",
+        config((draft) => {
+          draft.launchpad.apps = 12;
+        }),
+      ),
+    ) as {
+      name: string;
+      kind: string;
+      launchUrl: string;
+      iconUrl?: string;
+      accentColor?: string;
+    }[];
+    expect(apps).toHaveLength(12);
+    const names = apps.map((app) => app.name);
+    expect(names).toEqual([...names].sort());
+    expect(new Set(apps.map((app) => app.kind))).toEqual(
+      new Set(["oidc", "saml", "forward_auth"]),
+    );
+    // A SAML application opens through this instance, by a relative address.
+    expect(apps.find((app) => app.kind === "saml")?.launchUrl).toMatch(
+      /^\/saml\/sso\/init\?sp=/,
+    );
+    // An uploaded icon comes with its accent; an application without one has neither.
+    expect(apps.some((app) => app.iconUrl && app.accentColor)).toBe(true);
+    expect(apps.some((app) => !app.iconUrl && !app.accentColor)).toBe(true);
+  });
+
+  it("answers the launcher's failure when asked to", () => {
+    expect(
+      read(
+        "/api/prohibitorum/me/apps",
+        config((draft) => {
+          draft.launchpad.fail = true;
+        }),
+      ),
+    ).toMatchObject({ kind: "error", status: 500 });
   });
 });
 

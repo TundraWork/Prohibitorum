@@ -59,6 +59,13 @@ export interface MockConfig {
     federationProviders: number;
     forwardAuthApps: number;
   };
+  /** The home page's launcher: the applications this account may open. */
+  launchpad: {
+    /** How many applications `GET /me/apps` lists, up to 50. */
+    apps: number;
+    /** Whether the list answers with a server error. */
+    fail: boolean;
+  };
   /**
    * The management area's directory. Kept apart from `lists` because these are
    * the instance's records rather than the signed-in account's, and because
@@ -383,6 +390,7 @@ export const defaultMockConfig: MockConfig = {
     federationProviders: 2,
     forwardAuthApps: 1,
   },
+  launchpad: { apps: 9, fail: false },
   admin: {
     accounts: 12,
     legacyRoleAccounts: false,

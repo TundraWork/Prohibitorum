@@ -17,20 +17,30 @@ export function AppToolbar({
   children,
   surface,
   showThemeSelect,
+  account,
 }: {
   children: ReactNode;
   surface: LoginSurface;
   showThemeSelect: boolean;
+  /** The signed-in account's menu, on its own capsule at the trailing end. */
+  account?: ReactNode;
 }) {
   return (
     <header className="flex h-16 min-w-0 shrink-0 items-center justify-between gap-3 px-5">
       <Capsule surface={surface} className="ps-1.5 pe-3 font-medium text-sm">
         {children}
       </Capsule>
-      <Capsule surface={surface} className="shrink-0 gap-0.5 px-1">
-        <LanguageMenu />
-        {showThemeSelect && <ThemeMenu />}
-      </Capsule>
+      <div className="flex shrink-0 items-center gap-2">
+        <Capsule surface={surface} className="shrink-0 gap-0.5 px-1">
+          <LanguageMenu />
+          {showThemeSelect && <ThemeMenu />}
+        </Capsule>
+        {account !== undefined && (
+          <Capsule surface={surface} className="shrink-0 px-1">
+            {account}
+          </Capsule>
+        )}
+      </div>
     </header>
   );
 }

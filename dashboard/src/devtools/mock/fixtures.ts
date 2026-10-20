@@ -47,6 +47,7 @@ type Identity = components["schemas"]["AccountIdentityView"];
 type Token = components["schemas"]["PersonalAccessTokenView"];
 type ForwardAuthApp = components["schemas"]["MyForwardAuthApp"];
 type ConsentedApp = components["schemas"]["ConsentedApp"];
+type LaunchpadApp = components["schemas"]["LaunchpadApp"];
 type Provider = components["schemas"]["FederationProvider"];
 type EnrollmentPreview = components["schemas"]["EnrollmentPreview"];
 type Factors = components["schemas"]["MeFactorsView"];
@@ -523,6 +524,115 @@ function consentedAppList(config: MockConfig): ConsentedApp[] {
     grantedAt: iso(-day * (index + 4)),
     scopes: ["openid", "profile", "email"],
   }));
+}
+
+/**
+ * What a self-hosted instance tends to offer, in the shapes the launcher must
+ * hold: a logo or none, a short or a long name, each of the three kinds of
+ * application. A SAML application opens through this instance's own
+ * IdP-initiated sign-in, so its address is relative.
+ */
+const launchpadCatalogue: readonly {
+  name: string;
+  kind: "oidc" | "saml" | "forward_auth";
+  host: string;
+  logo?: { fill: string; letter: string };
+}[] = [
+  {
+    name: "Grafana",
+    kind: "forward_auth",
+    host: "grafana.example.test",
+    logo: { fill: "#f05a28", letter: "G" },
+  },
+  {
+    name: "Gitea",
+    kind: "oidc",
+    host: "git.example.test",
+    logo: { fill: "#609926", letter: "G" },
+  },
+  {
+    name: "Nextcloud",
+    kind: "oidc",
+    host: "cloud.example.test",
+    logo: { fill: "#0082c9", letter: "N" },
+  },
+  { name: "Outline", kind: "oidc", host: "wiki.example.test" },
+  { name: "Expense reports", kind: "saml", host: "expenses.example.test" },
+  {
+    name: "Immich",
+    kind: "oidc",
+    host: "photos.example.test",
+    logo: { fill: "#4250af", letter: "I" },
+  },
+  {
+    name: "Prometheus (dev)",
+    kind: "forward_auth",
+    host: "prometheus.dev.example.test",
+  },
+  {
+    name: "Purchase requests and approvals portal",
+    kind: "saml",
+    host: "purchasing.example.test",
+  },
+  {
+    name: "Jellyfin",
+    kind: "oidc",
+    host: "media.example.test",
+    logo: { fill: "#7b4fc0", letter: "J" },
+  },
+  {
+    name: "Home Assistant",
+    kind: "forward_auth",
+    host: "home.example.test",
+    logo: { fill: "#18bcf2", letter: "H" },
+  },
+  { name: "Paperless-ngx", kind: "oidc", host: "docs.example.test" },
+  {
+    name: "Vaultwarden",
+    kind: "oidc",
+    host: "vault.example.test",
+    logo: { fill: "#175ddc", letter: "V" },
+  },
+];
+
+function launchpadApps(config: MockConfig): LaunchpadApp[] {
+  return (
+    adminRange(config.launchpad.apps)
+      .map((index): LaunchpadApp => {
+        const entry = launchpadCatalogue[index % launchpadCatalogue.length];
+        if (entry === undefined) throw new Error("empty launchpad catalogue");
+        const round = Math.floor(index / launchpadCatalogue.length);
+        const name = round === 0 ? entry.name : `${entry.name} ${round + 1}`;
+        // The first OIDC and the first SAML application are the ones the
+        // account's grants list (`consentedAppList`), so the launcher shows them
+        // connected and the others waiting behind Add app.
+        const id =
+          index === 1
+            ? "mock-client-1"
+            : index === 4
+              ? "mock-client-2"
+              : `launch-${index + 1}`;
+        const launchUrl =
+          entry.kind === "saml"
+            ? `/saml/sso/init?sp=${encodeURIComponent(`https://${entry.host}/saml/metadata`)}`
+            : `https://${entry.host}/`;
+        return {
+          kind: entry.kind,
+          id,
+          name,
+          launchUrl,
+          ...(entry.kind === "oidc" ? { requireConsent: index % 3 !== 0 } : {}),
+          ...(entry.logo === undefined
+            ? {}
+            : {
+                iconUrl: appLogoUrl(entry.logo.fill, entry.logo.letter),
+                accentColor: entry.logo.fill,
+              }),
+        };
+      })
+      // In the server's order: by name, compared byte for byte.
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+  );
 }
 
 function providerList(config: MockConfig): Provider[] {
@@ -1885,6 +1995,12 @@ function readReply(
       return guarded(config, () => json(forwardAuthAppList(config)));
     case "/api/prohibitorum/me/consent":
       return guarded(config, () => json(consentedAppList(config)));
+    case "/api/prohibitorum/me/apps":
+      return guarded(config, () =>
+        config.launchpad.fail
+          ? { kind: "error", status: 500, code: "internal_error" }
+          : json(launchpadApps(config)),
+      );
     case "/api/prohibitorum/me/avatar":
       return guarded(config, () => json(myAvatarView(config)));
     case "/api/prohibitorum/auth/federation":

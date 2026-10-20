@@ -159,6 +159,7 @@ function clampFor(path: string, value: number): number {
     return Math.max(1, clampEnrollmentProviders(value));
   }
   if (path === "avatar.upstreams") return clampAvatarUpstreams(value);
+  if (path === "launchpad.apps") return clampAdminCount(value);
   if (path === "admin.diagnosticOutcome") return value;
   if (path === "admin.ruleAccounts") return clampRuleAccounts(value);
   if (path === "admin.groupDecisions") return clampDecisionCount(value);
