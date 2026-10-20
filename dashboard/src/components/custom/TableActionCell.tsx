@@ -23,7 +23,10 @@ import { TableCell, TableHead } from "@/components/ui/table";
  */
 export function TableActionCell({ children }: { children: ReactNode }) {
   return (
-    <TableCell data-pinned="end" className="table-pinned sticky end-0 z-[1]">
+    <TableCell
+      data-pinned="end"
+      className="table-pinned sticky end-0 z-[1] w-px"
+    >
       <div className="flex items-center justify-end gap-1">{children}</div>
     </TableCell>
   );
@@ -42,7 +45,7 @@ export function TableActionColumn({ children }: { children: ReactNode }) {
     <TableHead
       scope="col"
       data-pinned="end"
-      className="sticky end-0 z-[1] rounded-se-xl text-end"
+      className="sticky end-0 z-[1] w-px rounded-se-2xl text-end"
     >
       {children}
     </TableHead>

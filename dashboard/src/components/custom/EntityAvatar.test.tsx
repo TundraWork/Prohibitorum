@@ -29,6 +29,11 @@ describe("EntityAvatar", () => {
     expect(avatar(container)).toHaveTextContent("US");
   });
 
+  it("leaves a bracketed aside and punctuation out of the initials", () => {
+    const { container } = render(<EntityAvatar name="Prometheus (dev)" />);
+    expect(avatar(container)).toHaveTextContent(/^P$/);
+  });
+
   it("falls back to one letter for a one-word name", () => {
     const { container } = render(<EntityAvatar name="grafana" />);
     expect(avatar(container)).toHaveTextContent("G");

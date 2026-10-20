@@ -210,7 +210,7 @@ export function DataTable<T extends RowData>({
       column !== undefined &&
         column.width === undefined &&
         !column.pinned &&
-        (column.id === flexibleId ? "w-full max-w-0 min-w-48" : "w-px"),
+        (column.id === flexibleId ? "max-w-0 min-w-48" : "w-px"),
     ) || undefined;
 
   const isEmpty = rows.length === 0 && !loading;

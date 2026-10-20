@@ -10,9 +10,15 @@ const sizeClass = {
   xl: "size-14 text-lg",
 } as const;
 
-/** Letters for the placeholder: the first two words' initials, or one letter. */
+/**
+ * Letters for the placeholder: the first two words' initials, or one letter. A
+ * bracketed aside such as "(dev)" and punctuation are not words, so "Prometheus
+ * (dev)" is "P" rather than "P(".
+ */
 export function initialsOf(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
+  const wordsOf = (text: string) => text.match(/[\p{L}\p{N}]+/gu) ?? [];
+  const main = wordsOf(name.replace(/\([^)]*\)|\[[^\]]*\]/g, " "));
+  const words = main.length > 0 ? main : wordsOf(name);
   const letters = words.slice(0, 2).map((word) => Array.from(word)[0] ?? "");
   return letters.join("").toLocaleUpperCase();
 }
