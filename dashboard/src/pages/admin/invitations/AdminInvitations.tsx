@@ -109,7 +109,7 @@ export function AdminInvitations() {
           }
           marks={
             invitation.role === "admin" ? (
-              <Badge variant="info">
+              <Badge variant="outline">
                 <Trans id="object.status.admin">Admin</Trans>
               </Badge>
             ) : null

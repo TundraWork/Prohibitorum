@@ -1,4 +1,4 @@
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { KeyRoundIcon } from "lucide-react";
 import { useState } from "react";
@@ -11,9 +11,9 @@ import {
   InlineFailure,
   useInlineFailure,
 } from "@/components/custom/InlineFailure";
+import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { Section } from "@/components/custom/Section";
-import { SettingRow } from "@/components/custom/SettingRow";
 import { rotatedSecretCopy } from "@/pages/admin/oidc-applications/secret-copy";
 
 type OidcApp = components["schemas"]["OIDCApplicationView"];
@@ -31,6 +31,7 @@ type OidcApp = components["schemas"]["OIDCApplicationView"];
  * closing never drops its outcome.
  */
 export function CredentialsSection({ app }: { app: OidcApp }) {
+  const { t } = useLingui();
   const queryClient = useQueryClient();
   const rotate = useMutation(
     withInlineReport(rotateOidcSecretMutationOptions(queryClient), true),
@@ -58,31 +59,44 @@ export function CredentialsSection({ app }: { app: OidcApp }) {
         </p>
       ) : (
         <>
-          <SettingRow
-            title={
-              <Trans id="admin.oidc-apps.credentials.secret">
-                Client secret
-              </Trans>
-            }
-            description={
-              <Trans id="admin.oidc-apps.rotate.note">
-                Issues a new secret and discards the old one. Clients still
-                using the old secret stop signing accounts in until they are
-                updated.
-              </Trans>
-            }
+          <ItemList
+            label={t({
+              id: "admin.oidc-apps.credentials",
+              message: "Credentials",
+            })}
+            empty={null}
           >
-            <Button
-              pending={rotate.isPending}
-              onClick={() => {
-                failure.clear();
-                setConfirming(true);
-              }}
-              variant="outline"
-            >
-              <Trans id="admin.oidc-apps.rotate.action">Rotate secret</Trans>
-            </Button>
-          </SettingRow>
+            <ItemListRow
+              icon={<KeyRoundIcon size={18} aria-hidden="true" />}
+              title={
+                <Trans id="admin.oidc-apps.credentials.secret">
+                  Client secret
+                </Trans>
+              }
+              details={[
+                <Trans key="note" id="admin.oidc-apps.rotate.note">
+                  Issues a new secret and discards the old one. Clients still
+                  using the old secret stop signing accounts in until they are
+                  updated.
+                </Trans>,
+              ]}
+              stackActions
+              actions={
+                <Button
+                  pending={rotate.isPending}
+                  onClick={() => {
+                    failure.clear();
+                    setConfirming(true);
+                  }}
+                  variant="outline"
+                >
+                  <Trans id="admin.oidc-apps.rotate.action">
+                    Rotate secret
+                  </Trans>
+                </Button>
+              }
+            />
+          </ItemList>
           <InlineFailure error={failure.error} />
         </>
       )}

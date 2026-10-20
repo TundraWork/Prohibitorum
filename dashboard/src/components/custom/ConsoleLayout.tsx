@@ -650,7 +650,7 @@ function ConsoleShell({
       </Sidebar>
       {/* Content sits on the inset panel, so a pinned table header paints that
           surface rather than the page's. */}
-      <SidebarInset className="min-w-0 [--content-surface:var(--background)]">
+      <SidebarInset className="min-w-0 [--content-surface:var(--background)] md:dark:ring-1 md:dark:ring-white/6">
         <header className="sticky top-[var(--app-sticky-offset)] z-10 flex h-14 shrink-0 items-center gap-2 rounded-t-xl border-b bg-background/80 px-4 backdrop-blur">
           <SidebarTrigger
             className="-ms-1"

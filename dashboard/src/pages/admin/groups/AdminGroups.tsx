@@ -3,9 +3,9 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
+  ChevronRight,
   HandIcon,
   ListFilterIcon,
-  Pencil,
   Plus,
   UsersRound,
 } from "lucide-react";
@@ -134,7 +134,11 @@ export function AdminGroups() {
           variant="ghost"
           size="icon-sm"
         >
-          <Pencil size={16} aria-hidden="true" />
+          <ChevronRight
+            size={16}
+            aria-hidden="true"
+            className="text-muted-foreground"
+          />
         </Button>
       ),
       pinned: true,

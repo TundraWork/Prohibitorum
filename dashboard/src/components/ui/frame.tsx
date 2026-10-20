@@ -8,7 +8,7 @@ export function Frame({
   return (
     <div
       className={cn(
-        "relative flex flex-col rounded-[22px] bg-muted/72 p-1.5 shadow-xs/5 ring-1 ring-border [--frame-inset:--spacing(4)] sm:[--frame-inset:--spacing(5)]",
+        "relative flex flex-col rounded-[22px] bg-(--frame-band) p-1.5 shadow-xs/5 ring-1 ring-border [--frame-inset:--spacing(4)] sm:[--frame-inset:--spacing(5)]",
         "*:[[data-slot=frame-panel]+[data-slot=frame-panel]]:mt-1.5",
         className,
       )}

@@ -129,8 +129,9 @@ describe("ObjectHeader", () => {
     );
 
     expect(screen.getByText(url)).toBeInTheDocument();
-    // A break point after the scheme and after each path segment, none inside one.
-    expect(container.querySelectorAll("wbr")).toHaveLength(3);
+    // A break point after each path segment, none after the scheme's "//" or
+    // inside a segment.
+    expect(container.querySelectorAll("wbr")).toHaveLength(2);
   });
 
   it("copies the identifier value and confirms with Copied", async () => {

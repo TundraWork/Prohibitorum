@@ -2,7 +2,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Pencil, Plus, Route } from "lucide-react";
+import { ChevronRight, Plus, Route } from "lucide-react";
 import { useCursorList } from "@/api/cursor-list";
 import type { components } from "@/api/generated/schema";
 import { forwardAuthAppsListOptions, sessionQueryOptions } from "@/api/queries";
@@ -119,7 +119,11 @@ export function AdminForwardAuthApps() {
           variant="ghost"
           size="icon-sm"
         >
-          <Pencil size={16} aria-hidden="true" />
+          <ChevronRight
+            size={16}
+            aria-hidden="true"
+            className="text-muted-foreground"
+          />
         </Button>
       ),
       pinned: true,

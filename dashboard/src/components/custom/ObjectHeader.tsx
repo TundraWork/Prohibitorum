@@ -91,7 +91,7 @@ export function ObjectHeader({
     "not-ready": "warning",
     sent: "success",
     "not-sent": "outline",
-    admin: "info",
+    admin: "outline",
     user: "outline",
   };
 

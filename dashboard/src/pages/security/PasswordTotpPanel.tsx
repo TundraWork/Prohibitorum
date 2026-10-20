@@ -443,13 +443,11 @@ function TurnOffRow({
   const reason = useId();
   return (
     <ItemListRow
-      icon={<PowerOff className="text-destructive-foreground" />}
+      icon={<PowerOff />}
       title={
-        <span className="text-destructive-foreground">
-          <Trans id="security.revoke.title">
-            Turn off password and authenticator
-          </Trans>
-        </span>
+        <Trans id="security.revoke.title">
+          Turn off password and authenticator
+        </Trans>
       }
       details={
         lastWay

@@ -23,13 +23,25 @@
   /* The content edge inside a Frame; each Frame sets its own (16px, 20px
      from sm). This is the value outside one. */
   --frame-inset: 1.25rem;
+  /* A Frame's bezel: recessed under the white panel it holds, in both themes.
+     A pinned table cell repaints it, so it is one value. */
+  --frame-band: color-mix(in oklab, var(--muted) 72%, transparent);
+}
+
+.dark {
+  --frame-band: color-mix(in oklab, black 30%, transparent);
 }
 
 /* The console's caption role: a row's detail line, a field's hint and its
-   inline error, a step below 14px body text. */
-@theme {
-  --text-caption: 0.8125rem;
-  --text-caption--line-height: 1.125rem;
+   inline error, one step below body text. Body is 16px on phones and 14px
+   from sm, so the caption is 14px and then 13px. */
+@utility text-caption {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  @variant sm {
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+  }
 }
 
 /* Native scrollbars, form controls and the canvas follow the theme class. */
@@ -126,7 +138,7 @@ body {
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
-  background-color: color-mix(in oklab, var(--muted) 72%, transparent);
+  background-color: var(--frame-band);
 }
 
 /* The pinned cell's outer corners are transparent, so cells scrolled under it
@@ -141,10 +153,7 @@ body {
   height: var(--radius-2xl);
   pointer-events: none;
   background:
-    linear-gradient(
-      color-mix(in oklab, var(--muted) 72%, transparent),
-      color-mix(in oklab, var(--muted) 72%, transparent)
-    ),
+    linear-gradient(var(--frame-band), var(--frame-band)),
     var(--content-surface);
 }
 

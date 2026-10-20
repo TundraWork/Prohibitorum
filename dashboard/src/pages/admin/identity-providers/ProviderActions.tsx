@@ -1,6 +1,6 @@
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { Pencil } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/custom/Button";
 
 const openProviderMessage = msg({
@@ -36,7 +36,11 @@ export function ProviderActions({
       variant="ghost"
       size="icon-sm"
     >
-      <Pencil size={16} aria-hidden="true" />
+      <ChevronRight
+        size={16}
+        aria-hidden="true"
+        className="text-muted-foreground"
+      />
     </Button>
   );
 }

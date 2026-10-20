@@ -79,7 +79,9 @@ export function EntityCell({
         />
       </span>
       <div className="flex max-w-52 min-w-0 flex-col sm:max-w-md">
-        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 sm:flex-nowrap">
+        {/* A badge is taller than the cell's 14px line; it overhangs the line
+            evenly instead of making the row taller than its neighbours. */}
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 *:data-[slot=badge]:-my-[3px] sm:flex-nowrap">
           <span
             className={`-mx-1 -my-0.5 min-w-0 truncate px-1 py-0.5${dimmed ? " opacity-70" : ""}`}
             title={typeof name === "string" ? name : undefined}

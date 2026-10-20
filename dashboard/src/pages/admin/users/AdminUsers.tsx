@@ -1,7 +1,7 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Pencil, Plus, SearchIcon, UserRound } from "lucide-react";
+import { ChevronRight, Plus, SearchIcon, UserRound } from "lucide-react";
 import { useCursorList } from "@/api/cursor-list";
 import type { components } from "@/api/generated/schema";
 import { accountsListOptions } from "@/api/queries";
@@ -98,7 +98,7 @@ export function AdminUsers() {
           dimmed={account.disabled}
           marks={
             account.role === "admin" ? (
-              <Badge variant="info">
+              <Badge variant="outline">
                 <Trans id="object.status.admin">Admin</Trans>
               </Badge>
             ) : null
@@ -138,7 +138,11 @@ export function AdminUsers() {
           variant="ghost"
           size="icon-sm"
         >
-          <Pencil size={16} aria-hidden="true" />
+          <ChevronRight
+            size={16}
+            aria-hidden="true"
+            className="text-muted-foreground"
+          />
         </Button>
       ),
       pinned: true,

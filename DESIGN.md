@@ -292,7 +292,8 @@ the inset panel and object pages show the rail. **At 390px** the sidebar
 becomes an 18rem sheet named in the reader's language, the search field is
 hidden, the outline rail is dropped and its facts move under the header,
 header actions drop under the title, dialogs become bottom sheets with square
-corners, and the public stage fills the width with a 20px card padding.
+corners, and the public stage keeps the toolbar's 20px side margin, so the
+brand capsule and the frame share an edge, with a 20px card padding.
 
 **Breakpoints:** `sm` 640px, `md` 768px (sidebar), `lg` 1024px (rail,
 two-column editor, card position), plus coss's `3xl` 1600px and `4xl` 2000px.

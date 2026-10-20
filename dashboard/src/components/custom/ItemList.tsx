@@ -218,7 +218,7 @@ export function ItemListRow({
         <div className="col-start-3 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span
             data-dimmed={dimmed ? "true" : undefined}
-            className="min-w-0 wrap-anywhere text-sm font-medium data-dimmed:text-muted-foreground"
+            className="min-w-0 wrap-anywhere text-base font-medium data-dimmed:text-muted-foreground sm:text-sm"
           >
             {title}
           </span>
