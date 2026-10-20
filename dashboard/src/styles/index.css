@@ -44,6 +44,13 @@
   }
 }
 
+/* Native scrollbars take the palette instead of the platform's grey chrome;
+   on classic scrollbars (Windows) this also drops the arrow buttons. */
+* {
+  scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent)
+    transparent;
+}
+
 /* Native scrollbars, form controls and the canvas follow the theme class. */
 .dark {
   color-scheme: dark;

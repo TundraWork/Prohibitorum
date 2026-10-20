@@ -65,7 +65,8 @@ export interface TableColumn<T> {
   align?: "start" | "end";
   /**
    * Width classes that give the column one fixed track (such as
-   * `w-56 max-w-56`), clipping what will not fit. Lists of the same family set
+   * `w-56 min-w-56 max-w-56`, so the flexible column cannot squeeze it),
+   * clipping what will not fit. Lists of the same family set
    * the same widths, so their columns line up and stay put as rows change; the
    * column left without one is the flexible one.
    */
@@ -194,11 +195,22 @@ export function DataTable<T extends RowData>({
   });
 
   // Cells never wrap: a wrapped timestamp or user agent makes rows different
-  // heights and hides the column rhythm. The table scrolls sideways instead.
+  // heights and hides the column rhythm. The first column without a fixed
+  // width is the flexible one: it takes the space the others leave and
+  // truncates before the table grows wider than its frame, down to 12rem, and
+  // only below that does the table scroll sideways. Any other unsized column
+  // keeps its content's width.
+  const flexibleId = columns.find(
+    (column) => column.width === undefined && !column.pinned,
+  )?.id;
   const cellClass = (column: TableColumn<T> | undefined) =>
     cn(
       column?.align === "end" && "text-end tabular-nums whitespace-nowrap",
       column?.width !== undefined && cn("truncate", column.width),
+      column !== undefined &&
+        column.width === undefined &&
+        !column.pinned &&
+        (column.id === flexibleId ? "w-full max-w-0 min-w-48" : "w-px"),
     ) || undefined;
 
   const isEmpty = rows.length === 0 && !loading;
@@ -217,10 +229,10 @@ export function DataTable<T extends RowData>({
       variant="card"
       aria-label={label}
       aria-busy={loading || undefined}
-      // An empty table fits the frame so the well keeps its border and radius
-      // instead of running past the edge.
       className={cn(
-        isEmpty ? "w-full" : "w-max min-w-full",
+        // A table's width is a floor: it still grows past the frame when
+        // its columns cannot fit, and then scrolls sideways.
+        "w-full",
         // The outer cells start on the frame's content edge, like a list row
         // or a Section band; header cells sit outside the body's 1px border.
         "[&_td:first-child]:ps-(--frame-inset) [&_td:last-child]:pe-(--frame-inset) [&_th:first-child]:ps-[calc(var(--frame-inset)+1px)] [&_th:last-child]:pe-[calc(var(--frame-inset)+1px)]",
@@ -316,9 +328,10 @@ export function DataTable<T extends RowData>({
         ) : rows.length === 0 ? (
           <TableRow>
             <TableCell colSpan={columns.length}>
-              {/* Held at the leading edge and no wider than the frame, so the
-                  message stays centred however wide the columns run. */}
-              <div className="sticky start-2.5 w-[calc(100cqw-1.25rem)] whitespace-normal leading-normal">
+              {/* Held at the leading edge and no wider than the frame (less
+                  the cell's inset on both sides and the body's 1px borders), so
+                  the message stays centred however wide the columns run. */}
+              <div className="sticky start-(--frame-inset) w-[calc(100cqw-2*var(--frame-inset)-2px)] whitespace-normal leading-normal">
                 {empty}
               </div>
             </TableCell>
@@ -409,7 +422,7 @@ export function DataTable<T extends RowData>({
                       {/* Held at the leading edge of the scrolling area and
                           no wider than it, so the detail stays readable
                           however far the columns are scrolled. */}
-                      <div className="sticky start-2.5 w-[calc(100cqw-1.25rem)]">
+                      <div className="sticky start-(--frame-inset) w-[calc(100cqw-2*var(--frame-inset)-2px)]">
                         {detail}
                       </div>
                     </TableCell>

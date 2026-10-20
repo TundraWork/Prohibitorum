@@ -27,7 +27,7 @@ import { i18n } from "@/i18n";
  * and the columns stay put as rows load, filter or run out. The application
  * column in front of them is the flexible one.
  */
-export const APP_DATA_COLUMN = "w-56 max-w-56";
+export const APP_DATA_COLUMN = "w-56 min-w-56 max-w-56";
 
 /**
  * The one state that gets to speak: a provider whose configuration is not

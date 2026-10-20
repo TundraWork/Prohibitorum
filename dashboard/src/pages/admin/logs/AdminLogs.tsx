@@ -344,7 +344,7 @@ function auditColumns(i18n: Locale): TableColumn<AuditEventView>[] {
       id: "account",
       // A fixed track like the lists elsewhere, so a long username truncates
       // here instead of pushing the address out of the frame.
-      width: "w-56 max-w-56",
+      width: "w-56 min-w-56 max-w-56",
       header: <Trans id="admin.logs.column.account">Account</Trans>,
       cell: (event) =>
         event.accountId === undefined ? (

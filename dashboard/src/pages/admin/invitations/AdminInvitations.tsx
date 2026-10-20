@@ -86,9 +86,6 @@ export function AdminInvitations() {
   const columns: TableColumn<Invitation>[] = [
     {
       id: "invitee",
-      // A fixed track, so a long name truncates inside it instead of pushing
-      // Created and Expires out of the frame.
-      width: "w-80 max-w-80",
       header: <Trans id="admin.invitations.column.invitee">Invitee</Trans>,
       cell: (invitation) => (
         <EntityCell
@@ -119,7 +116,7 @@ export function AdminInvitations() {
     },
     {
       id: "provider",
-      width: "w-48 max-w-48",
+      width: "w-48 min-w-48 max-w-48",
       header: (
         <Trans id="admin.invitations.column.provider">Upstream provider</Trans>
       ),
@@ -137,7 +134,7 @@ export function AdminInvitations() {
     },
     {
       id: "groups",
-      width: "w-48 max-w-48",
+      width: "w-48 min-w-48 max-w-48",
       header: <Trans id="admin.invitations.column.groups">User groups</Trans>,
       cell: (invitation) => {
         const groups = invitation.groups ?? [];
