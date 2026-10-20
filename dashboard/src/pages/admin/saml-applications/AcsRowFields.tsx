@@ -125,7 +125,7 @@ export function AcsRowFields({
           />
         </Field>
 
-        <Field className="h-9 justify-center sm:h-8" disabled={submitting}>
+        <Field className="h-9 justify-center" disabled={submitting}>
           <div className="flex items-center gap-2">
             <Switch
               checked={row.isDefault}
@@ -138,7 +138,7 @@ export function AcsRowFields({
         </Field>
       </div>
       {invalid && (
-        <p className="text-destructive-foreground text-xs">
+        <p className="text-destructive-foreground text-sm">
           <FormMessages errors={[error]} />
         </p>
       )}

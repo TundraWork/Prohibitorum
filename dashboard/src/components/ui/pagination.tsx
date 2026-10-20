@@ -121,7 +121,7 @@ export function PaginationEllipsis({
       data-slot="pagination-ellipsis"
       {...props}
     >
-      <MoreHorizontalIcon className="size-5 sm:size-4" />
+      <MoreHorizontalIcon className="size-5" />
       <span className="sr-only">More pages</span>
     </span>
   );

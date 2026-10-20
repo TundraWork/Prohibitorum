@@ -36,7 +36,7 @@ export function SourcedList({ rows }: { rows: readonly SourcedRow[] }) {
                 <Badge
                   variant={row.changed === true ? "info" : "outline"}
                   data-changed={row.changed === true ? "" : undefined}
-                  className="h-auto min-h-5 max-w-full whitespace-normal wrap-anywhere text-start sm:min-h-4.5"
+                  className="h-auto min-h-5 max-w-full whitespace-normal wrap-anywhere text-start"
                 >
                   {row.source}
                 </Badge>

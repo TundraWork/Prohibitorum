@@ -350,7 +350,7 @@ export function DataTable<T extends RowData>({
                               // detail on one line.
                               <span
                                 aria-hidden="true"
-                                className="-ms-2 size-8 shrink-0 sm:size-7"
+                                className="-ms-2 size-8 shrink-0"
                               />
                             ) : (
                               <Button

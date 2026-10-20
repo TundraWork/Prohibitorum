@@ -78,7 +78,7 @@ export function ColorControl({
             value={valid ? value : lastValid.current}
             disabled={disabled}
             onChange={(event) => onChange(event.target.value.toLowerCase())}
-            className="size-9 shrink-0 cursor-pointer rounded-lg border border-input bg-transparent p-0.5 disabled:cursor-not-allowed disabled:opacity-64 sm:size-8"
+            className="size-9 shrink-0 cursor-pointer rounded-lg border border-input bg-transparent p-0.5 disabled:cursor-not-allowed disabled:opacity-64"
           />
           <Input
             value={value}

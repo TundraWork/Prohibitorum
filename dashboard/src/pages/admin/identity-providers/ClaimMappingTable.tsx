@@ -83,7 +83,7 @@ export function ClaimMappingTable({
         <p
           id={captionId}
           data-slot="claims-last-test-failed"
-          className="text-destructive-foreground text-xs"
+          className="text-destructive-foreground text-sm"
         >
           {lastTest.stale ? (
             <Trans id="admin.federation.claims.test.failed.stale">
@@ -148,7 +148,7 @@ export function ClaimMappingTable({
           {children}
         </dl>
       </ReturnedFieldsContext.Provider>
-      <p className="text-muted-foreground text-xs">
+      <p className="text-muted-foreground text-sm">
         <Trans id="admin.federation.claims.mapping.path-hint">
           A name with dots is read as the exact claim key first; only when no
           claim is spelled that way is it read as a path into nested claims,
@@ -196,7 +196,7 @@ export function ClaimMappingRow({
     >
       {/* A control's height on the wide table, so the name sits on the
           input's centre line rather than at its top edge. */}
-      <dt className="flex min-h-8.5 flex-col justify-center text-sm sm:min-h-7.5">
+      <dt className="flex min-h-8.5 flex-col justify-center text-sm">
         <span id={nameId} className="font-medium text-foreground">
           {name}
         </span>

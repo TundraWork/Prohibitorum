@@ -412,7 +412,7 @@ function MappingRowFields({
         <p
           id={fullFormatId}
           data-slot="name-format-full"
-          className="-mt-1.5 col-span-2 wrap-anywhere font-mono text-muted-foreground text-xs @2xl/mapping:col-span-4 @2xl/mapping:col-start-3 @2xl/mapping:row-start-2"
+          className="-mt-1.5 col-span-2 wrap-anywhere font-mono text-muted-foreground text-sm @2xl/mapping:col-span-4 @2xl/mapping:col-start-3 @2xl/mapping:row-start-2"
         >
           {row.nameFormat}
         </p>
@@ -448,12 +448,12 @@ function MappingRowFields({
         </div>
       </Field>
 
-      <div className="col-start-2 row-start-1 flex h-9 items-center justify-end self-center @2xl/mapping:col-start-6 @2xl/mapping:self-start sm:h-8">
+      <div className="col-start-2 row-start-1 flex h-9 items-center justify-end self-center @2xl/mapping:col-start-6 @2xl/mapping:self-start">
         {remove}
       </div>
 
       {hasError && (
-        <p className="col-span-full text-destructive-foreground text-xs">
+        <p className="col-span-full text-destructive-foreground text-sm">
           <FormMessages errors={[error]} />
         </p>
       )}

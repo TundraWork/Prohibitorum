@@ -213,11 +213,11 @@ function AliasRowFields({
           </SelectPopup>
         </Select>
       </Field>
-      <div className="col-start-2 row-start-1 flex h-9 items-center justify-end @md/aliases:col-start-3 sm:h-8">
+      <div className="col-start-2 row-start-1 flex h-9 items-center justify-end @md/aliases:col-start-3">
         {remove}
       </div>
       {hasError && (
-        <p className="col-span-full text-destructive-foreground text-xs">
+        <p className="col-span-full text-destructive-foreground text-sm">
           <FormMessages errors={[error]} />
         </p>
       )}
