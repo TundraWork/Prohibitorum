@@ -127,8 +127,8 @@ body {
   content: "";
   position: absolute;
   inset-inline-end: -1px;
-  width: var(--radius-xl);
-  height: var(--radius-xl);
+  width: var(--radius-2xl);
+  height: var(--radius-2xl);
   pointer-events: none;
   background:
     linear-gradient(
@@ -142,8 +142,8 @@ body {
   top: -1px;
   mask-image: radial-gradient(
     circle at 0 100%,
-    transparent calc(var(--radius-xl) - 0.5px),
-    #000 var(--radius-xl)
+    transparent calc(var(--radius-2xl) - 0.5px),
+    #000 var(--radius-2xl)
   );
 }
 
@@ -151,8 +151,8 @@ body {
   bottom: -1px;
   mask-image: radial-gradient(
     circle at 0 0,
-    transparent calc(var(--radius-xl) - 0.5px),
-    #000 var(--radius-xl)
+    transparent calc(var(--radius-2xl) - 0.5px),
+    #000 var(--radius-2xl)
   );
 }
 

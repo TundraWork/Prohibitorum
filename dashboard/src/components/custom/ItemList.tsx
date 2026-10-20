@@ -203,7 +203,7 @@ export function ItemListRow({
       {icon !== undefined && (
         <span
           style={rowStyle}
-          className={`col-start-2 row-start-1 me-3 grid size-9 place-items-center text-muted-foreground max-sm:row-span-(--item-span)${iconBare ? "" : " rounded-md bg-muted"}`}
+          className={`col-start-2 row-start-1 me-3.5 grid size-10 place-items-center text-muted-foreground max-sm:row-span-(--item-span)${iconBare ? "" : " rounded-[10px] bg-muted ring-1 ring-border"}`}
         >
           {icon}
         </span>
@@ -217,7 +217,7 @@ export function ItemListRow({
         <div className="col-start-3 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span
             data-dimmed={dimmed ? "true" : undefined}
-            className="min-w-0 wrap-anywhere text-sm font-medium data-dimmed:text-muted-foreground"
+            className="min-w-0 wrap-anywhere text-base font-medium data-dimmed:text-muted-foreground"
           >
             {title}
           </span>
@@ -234,7 +234,7 @@ export function ItemListRow({
               // and drop them.
               <p
                 data-slot="item-details"
-                className="flex flex-wrap gap-x-1.5 text-muted-foreground text-xs max-sm:flex-col"
+                className="flex flex-wrap gap-x-1.5 text-muted-foreground text-sm max-sm:flex-col"
               >
                 {shown.map((detail, index) => (
                   // Details are positional and never reordered.
@@ -308,7 +308,7 @@ export function ItemListRow({
     </>
   );
   const rowClass =
-    "col-span-full grid grid-cols-subgrid items-center py-3 max-sm:items-start";
+    "col-span-full grid grid-cols-subgrid items-center py-3.5 max-sm:items-start";
   return link !== undefined ? (
     link({
       className: `${rowClass} outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring`,

@@ -145,7 +145,7 @@ export function Section({
                   <span
                     data-slot="section-icon"
                     aria-hidden="true"
-                    className="text-muted-foreground *:size-4"
+                    className="text-muted-foreground *:size-4.5"
                   >
                     {icon}
                   </span>
