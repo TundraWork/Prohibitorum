@@ -100,12 +100,12 @@ export function TagListField({
         }
       />
       {description !== undefined && (
-        <p id={descriptionId} className="text-muted-foreground text-xs">
+        <p id={descriptionId} className="text-muted-foreground text-sm">
           {description}
         </p>
       )}
       {invalid && (
-        <p id={errorId} className="text-destructive-foreground text-xs">
+        <p id={errorId} className="text-destructive-foreground text-sm">
           <FormMessages errors={errors} />
         </p>
       )}

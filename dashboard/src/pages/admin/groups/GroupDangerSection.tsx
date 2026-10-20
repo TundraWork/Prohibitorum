@@ -89,7 +89,7 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
           {used > 0 && (
             <p
               id={reasonId}
-              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-xs"
+              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-sm"
             >
               <TriangleAlertIcon
                 aria-hidden="true"

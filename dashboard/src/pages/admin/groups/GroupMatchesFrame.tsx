@@ -122,7 +122,7 @@ export function GroupMatchesFrame({
         </span>
       </div>
       {error !== null && (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-muted-foreground text-sm">
           <Trans id="admin.group.matches.stale">
             The latest check failed, so this may be out of date.
           </Trans>

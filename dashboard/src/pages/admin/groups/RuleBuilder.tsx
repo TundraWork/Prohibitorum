@@ -372,7 +372,7 @@ function Messages({ id, codes }: { id: string; codes: readonly string[] }) {
   const { i18n: catalogue } = useLingui();
   if (codes.length === 0) return null;
   return (
-    <p id={id} className="text-destructive-foreground text-xs">
+    <p id={id} className="text-destructive-foreground text-sm">
       {codes.map((code) => catalogue._(issueMessage(code))).join(" ")}
     </p>
   );
@@ -654,7 +654,7 @@ function ConditionRow({
       </div>
       <Messages id={messageId} codes={codes} />
       {namesFailed && (
-        <p id={noteId} className="text-muted-foreground text-xs">
+        <p id={noteId} className="text-muted-foreground text-sm">
           <Trans id="admin.group.rule.provider.names-failed">
             The provider names could not be loaded.
           </Trans>

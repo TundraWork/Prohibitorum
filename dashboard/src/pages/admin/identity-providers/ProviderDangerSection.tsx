@@ -130,7 +130,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           }
         >
           {cannotEnable && (
-            <p className="flex items-center gap-1.5 text-pretty text-warning-foreground text-xs">
+            <p className="flex items-center gap-1.5 text-pretty text-warning-foreground text-sm">
               <TriangleAlertIcon
                 aria-hidden="true"
                 className="size-3.5 shrink-0"

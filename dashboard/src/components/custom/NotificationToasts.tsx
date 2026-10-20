@@ -21,11 +21,10 @@ const TOAST_ICONS = {
   warning: TriangleAlertIcon,
 } as const;
 
-// Bottom left, clear of the sidebar: the console's primary actions (Save, and
-// the danger zone's Delete) sit at the right and the bottom of the page, and a
-// toast over them would hide the very button the reader is about to press.
-const position = "bottom-left";
-const swipeDirection = ["left", "down"] as ("left" | "down")[];
+// Bottom right, where readers look for a notification; the unsaved bar lifts
+// it while it shows, so Save is never covered.
+const position = "bottom-right";
+const swipeDirection = ["right", "down"] as ("right" | "down")[];
 
 /**
  * The toast viewport, composed from the same Base UI primitives and classes as
@@ -58,8 +57,6 @@ function ToastList(): React.ReactElement {
           "data-[position*=bottom]:bottom-[max(var(--toast-inset),var(--unsaved-bar-space,0px))]",
           // Horizontal positioning
           "data-[position*=left]:left-(--toast-inset)",
-          // Clear of the sidebar, but only where one is drawn open.
-          "md:[body:has([data-slot=sidebar][data-state=expanded])_&]:data-[position*=left]:left-[calc(16rem+var(--toast-inset))]",
           "data-[position*=right]:right-(--toast-inset)",
           "data-[position*=center]:left-1/2 data-[position*=center]:-translate-x-1/2",
         )}

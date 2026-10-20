@@ -217,7 +217,7 @@ export function AccountIdentityFilter({
       </div>
 
       {advancedFilterIncomplete(filters) && (
-        <p className="text-muted-foreground text-xs" role="status">
+        <p className="text-muted-foreground text-sm" role="status">
           <Trans id="admin.users.filter.incomplete">
             Fill in the provider, field, match and value to apply this filter.
           </Trans>

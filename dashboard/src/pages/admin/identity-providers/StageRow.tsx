@@ -99,7 +99,7 @@ export function StageRow({ stage }: { stage: DiagnosticStageView }) {
           </span>
         )}
         {description !== undefined && (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-sm">
             <Trans id="admin.federation.diagnostics.stage.provider-message-line">
               Provider message:{" "}
               <span className="break-words">{description}</span>

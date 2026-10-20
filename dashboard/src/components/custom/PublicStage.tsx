@@ -125,7 +125,7 @@ export function PublicStage({
           <div
             ref={setFooter}
             data-slot="stage-footer"
-            className="flex items-center gap-3 px-3 pt-2.5 pb-1.5 text-sm empty:hidden"
+            className="flex min-h-12 items-center gap-3 px-4 pt-3 pb-2 text-base empty:hidden"
           />
         </section>
         {after}

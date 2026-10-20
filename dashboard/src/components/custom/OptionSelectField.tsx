@@ -111,7 +111,7 @@ export function OptionSelectField<T extends string>({
                 <span className={cn(option.literal && "font-mono")}>
                   {i18n._(option.label)}
                 </span>
-                <span className="text-pretty text-muted-foreground text-xs">
+                <span className="text-pretty text-muted-foreground text-sm">
                   {i18n._(option.description)}
                 </span>
               </div>

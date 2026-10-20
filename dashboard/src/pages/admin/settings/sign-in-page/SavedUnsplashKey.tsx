@@ -85,7 +85,7 @@ export function SavedUnsplashKey({
         </div>
       </div>
       {inUse && !replacing && (
-        <p id={reasonId} className="text-muted-foreground text-xs">
+        <p id={reasonId} className="text-muted-foreground text-sm">
           <Trans id="settings.sign-in.unsplash.key.in_use">
             Switch the background to another source and save before removing the
             key.

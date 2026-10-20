@@ -137,7 +137,7 @@ function UriRow({
         {remove}
       </div>
       {hasError && (
-        <p id={errorId} className="text-destructive-foreground text-xs">
+        <p id={errorId} className="text-destructive-foreground text-sm">
           <FormMessages errors={[error]} />
         </p>
       )}

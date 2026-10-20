@@ -153,7 +153,7 @@ export function ImageUploadControl({
           </Button>
         )}
       </div>
-      <p className="text-muted-foreground text-xs">{hint}</p>
+      <p className="text-muted-foreground text-sm">{hint}</p>
 
       {rejected !== null && (
         <ImageRejectedAlert reason={rejected} maxBytes={maxBytes} />

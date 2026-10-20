@@ -15,7 +15,7 @@ export function RememberCheckbox({
   isDisabled?: boolean;
 }) {
   return (
-    <Label className="w-fit">
+    <Label className="w-fit gap-2.5 text-base/5 sm:text-base/5">
       <Checkbox
         checked={isSelected}
         disabled={isDisabled}

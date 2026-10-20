@@ -86,7 +86,7 @@ export function DangerZone({
         trigger
       )}
       {description !== undefined && (
-        <p className="text-muted-foreground text-xs">{description}</p>
+        <p className="text-muted-foreground text-sm">{description}</p>
       )}
 
       <ConfirmDialog

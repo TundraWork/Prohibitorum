@@ -478,7 +478,7 @@ function OrderStrip({ groups }: { groups: AppGroupView[] }) {
             </div>
             <div
               data-tone={step.key === "rest" ? "danger" : undefined}
-              className="mt-0.5 text-muted-foreground text-xs data-[tone=danger]:text-destructive-foreground"
+              className="mt-0.5 text-muted-foreground text-sm data-[tone=danger]:text-destructive-foreground"
             >
               {step.detail}
             </div>

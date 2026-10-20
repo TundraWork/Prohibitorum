@@ -73,7 +73,7 @@ export function RuleJsonTab({
         onChange={(event) => setText(event.target.value)}
         onBlur={apply}
       />
-      <p className="text-muted-foreground text-xs">
+      <p className="text-muted-foreground text-sm">
         <Trans id="admin.group.rule.json.applies">
           Applied when you leave the box. The builder then shows what the
           document says.
@@ -83,7 +83,7 @@ export function RuleJsonTab({
         <p
           id={errorId}
           role="alert"
-          className="text-destructive-foreground text-xs"
+          className="text-destructive-foreground text-sm"
         >
           <RuleJsonProblem problem={problem} />
         </p>

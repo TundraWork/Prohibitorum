@@ -398,7 +398,7 @@ function ProofStep({
               </Trans>
             </Step>
           </Steps>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-sm">
             <Trans id="federation_flow.proof.expires">
               The verification link works until {until}.
             </Trans>

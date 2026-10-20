@@ -116,7 +116,7 @@ export function AccountDangerSection({
           {blocked && (
             <p
               id={reasonId}
-              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-xs"
+              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-sm"
             >
               <TriangleAlertIcon
                 aria-hidden="true"
@@ -160,7 +160,7 @@ export function AccountDangerSection({
           {isSelf && (
             <p
               id={selfReasonId}
-              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-xs"
+              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-sm"
             >
               <TriangleAlertIcon
                 aria-hidden="true"

@@ -192,7 +192,7 @@ export function EndpointsField() {
       )}
 
       {discovery && shown.length > 0 && (
-        <p className="text-muted-foreground text-xs">
+        <p className="text-muted-foreground text-sm">
           <Trans id="admin.federation.endpoints.override.note">
             The addresses entered here replace what discovery finds.
           </Trans>
@@ -432,7 +432,7 @@ function JwksEndpoint({
               {problem !== undefined && (
                 <p
                   id={errorId}
-                  className="mt-1.5 text-destructive-foreground text-xs"
+                  className="mt-1.5 text-destructive-foreground text-sm"
                 >
                   {i18n._(problem.message)}
                 </p>
