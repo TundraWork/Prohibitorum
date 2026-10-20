@@ -8,6 +8,7 @@ import {
   FramePanel,
   FrameTitle,
 } from "@/components/ui/frame";
+import { cn } from "@/lib/utils";
 
 type ListColumns = { actions?: boolean };
 
@@ -76,7 +77,7 @@ export function ItemList({
                 : "auto",
             } as CSSProperties
           }
-          className="grid grid-cols-[1rem_auto_minmax(0,1fr)_auto_auto_var(--item-actions)_auto_1rem] [&>li:not(:first-child)]:border-t"
+          className="grid grid-cols-[var(--frame-inset)_auto_minmax(0,1fr)_auto_auto_var(--item-actions)_auto_var(--frame-inset)] [&>li:not(:first-child)]:border-t"
         >
           {rows.map((row, index) => (
             <li
@@ -203,7 +204,7 @@ export function ItemListRow({
       {icon !== undefined && (
         <span
           style={rowStyle}
-          className={`col-start-2 row-start-1 me-3.5 grid size-10 place-items-center text-muted-foreground max-sm:row-span-(--item-span)${iconBare ? "" : " rounded-[10px] bg-muted ring-1 ring-border"}`}
+          className={`col-start-2 row-start-1 me-3 grid size-9 place-items-center text-muted-foreground max-sm:row-span-(--item-span)${iconBare ? "" : " rounded-[10px] bg-muted ring-1 ring-border"}`}
         >
           {icon}
         </span>
@@ -217,7 +218,7 @@ export function ItemListRow({
         <div className="col-start-3 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <span
             data-dimmed={dimmed ? "true" : undefined}
-            className="min-w-0 wrap-anywhere text-base font-medium data-dimmed:text-muted-foreground"
+            className="min-w-0 wrap-anywhere text-sm font-medium data-dimmed:text-muted-foreground"
           >
             {title}
           </span>
@@ -234,7 +235,7 @@ export function ItemListRow({
               // and drop them.
               <p
                 data-slot="item-details"
-                className="flex flex-wrap gap-x-1.5 text-muted-foreground text-sm max-sm:flex-col"
+                className="flex flex-wrap gap-x-1.5 text-muted-foreground text-caption max-sm:flex-col"
               >
                 {shown.map((detail, index) => (
                   // Details are positional and never reordered.
@@ -276,7 +277,7 @@ export function ItemListRow({
           {hasMeta && (
             <span
               data-slot="item-meta"
-              className="text-muted-foreground text-xs sm:col-start-5 sm:row-start-1 sm:ms-3 sm:whitespace-nowrap sm:text-sm"
+              className="text-muted-foreground text-caption sm:col-start-5 sm:row-start-1 sm:ms-3 sm:whitespace-nowrap sm:text-sm"
             >
               {meta}
             </span>
@@ -288,11 +289,14 @@ export function ItemListRow({
           data-slot="item-actions"
           data-stacked={stacked ? "true" : undefined}
           style={rowStyle}
-          className={
+          // A text action is never narrower than a comfortable target, so a
+          // two-character label ("停用") does not shrink to a chip.
+          className={cn(
+            "**:data-[slot=button]:not-data-[size^=icon]:min-w-20",
             stacked
-              ? "col-start-6 row-start-1 ms-3 flex items-center gap-1 justify-self-end max-sm:col-start-3 max-sm:row-start-(--item-actions-row) max-sm:ms-0 max-sm:mt-3 max-sm:justify-self-start"
-              : "col-start-6 row-start-1 ms-3 flex items-center gap-1 justify-self-end max-sm:row-span-(--item-span)"
-          }
+              ? "col-start-6 row-start-1 ms-4 flex items-center gap-2 justify-self-end max-sm:col-start-3 max-sm:row-start-(--item-actions-row) max-sm:ms-0 max-sm:mt-3 max-sm:justify-self-start"
+              : "col-start-6 row-start-1 ms-4 flex items-center gap-2 justify-self-end max-sm:row-span-(--item-span)",
+          )}
         >
           {actions}
         </div>
@@ -308,7 +312,7 @@ export function ItemListRow({
     </>
   );
   const rowClass =
-    "col-span-full grid grid-cols-subgrid items-center py-3.5 max-sm:items-start";
+    "col-span-full grid grid-cols-subgrid items-center py-3 max-sm:items-start";
   return link !== undefined ? (
     link({
       className: `${rowClass} outline-none transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring`,

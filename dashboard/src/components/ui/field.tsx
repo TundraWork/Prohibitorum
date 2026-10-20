@@ -50,7 +50,7 @@ export function FieldDescription({
 }: FieldPrimitive.Description.Props): React.ReactElement {
   return (
     <FieldPrimitive.Description
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn("text-muted-foreground text-caption", className)}
       data-slot="field-description"
       {...props}
     />
@@ -63,7 +63,7 @@ export function FieldError({
 }: FieldPrimitive.Error.Props): React.ReactElement {
   return (
     <FieldPrimitive.Error
-      className={cn("text-destructive-foreground text-sm", className)}
+      className={cn("text-destructive-foreground text-caption", className)}
       data-slot="field-error"
       {...props}
     />

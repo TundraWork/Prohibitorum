@@ -138,7 +138,7 @@ export function LoginImagesControl({
         ))}
         {!full && <li className={empty ? "col-span-full" : ""}>{addTile}</li>}
       </ul>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-muted-foreground text-caption">
         {count >= maxLoginImages ? (
           <Trans id="settings.sign-in.images.full">
             10 of 10 · remove one to add another
@@ -149,7 +149,7 @@ export function LoginImagesControl({
           </Trans>
         )}
       </p>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-muted-foreground text-caption">
         <Trans id="settings.sign-in.images.instant">
           Adding or removing an image takes effect right away, without Save.
         </Trans>

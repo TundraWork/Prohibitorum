@@ -184,7 +184,7 @@ function PasswordTotpFactors() {
       }
       action={
         !bothSet && (
-          <Button variant="outline" size="sm" onClick={openSetup}>
+          <Button variant="outline" onClick={openSetup}>
             <Trans id="security.setup.open">Set up</Trans>
           </Button>
         )
@@ -209,7 +209,6 @@ function PasswordTotpFactors() {
               <Button
                 ref={changeButton}
                 variant="outline"
-                size="sm"
                 onClick={() => setChanging(true)}
               >
                 <Trans id="security.password.change.open">Change</Trans>
@@ -226,11 +225,7 @@ function PasswordTotpFactors() {
           isSet={totpEnrolled}
           action={
             bothSet ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setReplacing(true)}
-              >
+              <Button variant="outline" onClick={() => setReplacing(true)}>
                 <Trans id="security.totp.replace.open">Replace</Trans>
               </Button>
             ) : undefined
@@ -265,7 +260,6 @@ function PasswordTotpFactors() {
               bothSet ? (
                 <Button
                   variant="outline"
-                  size="sm"
                   pending={regenerate.isPending}
                   onClick={() => setRegenerating(true)}
                 >
@@ -472,7 +466,6 @@ function TurnOffRow({
       actions={
         <Button
           variant="destructive-outline"
-          size="sm"
           disabled={lastWay}
           pending={pending}
           aria-describedby={lastWay ? reason : undefined}

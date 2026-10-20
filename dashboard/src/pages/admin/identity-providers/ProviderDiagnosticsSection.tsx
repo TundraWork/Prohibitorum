@@ -123,7 +123,6 @@ function EffectiveConfigRow({ slug }: { slug: string }) {
           pending={refresh.isPending && !open}
           onClick={() => void read()}
           variant="outline"
-          size="sm"
         >
           <Trans id="admin.federation.diagnostics.read">
             Read configuration
@@ -183,7 +182,6 @@ function ConnectionTestRow({
           pending={start.isPending && runId === undefined}
           onClick={begin}
           variant="outline"
-          size="sm"
         >
           <Trans id="admin.federation.diagnostics.start">Start a test</Trans>
           <ExternalLinkIcon aria-hidden="true" />

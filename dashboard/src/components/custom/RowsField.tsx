@@ -194,7 +194,7 @@ export function RowsField<T>({
           {label}
         </span>
         {description !== undefined && (
-          <p className="text-muted-foreground text-sm">{description}</p>
+          <p className="text-muted-foreground text-caption">{description}</p>
         )}
       </div>
 
@@ -257,7 +257,7 @@ export function RowsField<T>({
       {/* Said in the page, not in a tooltip: a disabled button takes no
           hover or focus, so the reason would otherwise be unreachable. */}
       {reasoned && (
-        <p id={reasonId} className="text-muted-foreground text-sm">
+        <p id={reasonId} className="text-muted-foreground text-caption">
           {minRowsReason}
         </p>
       )}
@@ -265,7 +265,6 @@ export function RowsField<T>({
       <div>
         <Button
           variant="outline"
-          size="sm"
           disabled={submitting || isDisabled}
           onClick={() => {
             changeRows([...field.state.value, emptyRow()]);

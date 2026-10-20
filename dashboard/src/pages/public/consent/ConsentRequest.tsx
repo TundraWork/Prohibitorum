@@ -135,7 +135,7 @@ export function ConsentRequest({
         <ScopeRows rows={rows} labelledBy={listLabelId} />
         {after}
       </div>
-      <p className="text-muted-foreground text-sm">{footnote}</p>
+      <p className="text-muted-foreground text-caption">{footnote}</p>
     </PublicStep>
   );
 }

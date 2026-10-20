@@ -37,7 +37,7 @@ const placement =
   "flex min-h-[calc(var(--app-viewport-height)-4rem)] w-full items-start justify-center px-2 sm:items-center py-4 sm:px-5";
 
 const frameStyle = cva(
-  "relative flex w-full flex-col rounded-[28px] p-1.5 max-sm:max-w-none",
+  "relative flex w-full flex-col rounded-[28px] p-1.5 max-sm:max-w-none [--stage-inset:--spacing(5)] sm:[--stage-inset:--spacing(7)]",
   {
     variants: {
       frame: {
@@ -110,13 +110,15 @@ export function PublicStage({
           <div
             ref={setStrip}
             data-slot="stage-strip"
-            className="flex items-center gap-3 px-3 pt-1.5 pb-3 empty:hidden"
+            // The strip and footer start on the card's content edge: its inset plus
+            // its 1px border.
+            className="flex items-center gap-3 px-[calc(var(--stage-inset)+1px)] pt-1.5 pb-3 empty:hidden"
           />
           <div
             data-slot="stage-card"
             style={card?.style}
             className={cn(
-              "relative flex min-w-0 flex-col rounded-[22px] border not-dark:bg-clip-padding p-7 text-card-foreground shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[21px] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)] max-sm:p-5",
+              "relative flex min-w-0 flex-col rounded-[22px] border not-dark:bg-clip-padding p-(--stage-inset) text-card-foreground shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[21px] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
               card?.className ?? "bg-card",
             )}
           >
@@ -125,7 +127,7 @@ export function PublicStage({
           <div
             ref={setFooter}
             data-slot="stage-footer"
-            className="flex min-h-12 items-center gap-3 px-4 pt-3 pb-2 text-base empty:hidden"
+            className="flex items-center gap-3 px-[calc(var(--stage-inset)+1px)] pt-3 pb-1.5 text-base empty:hidden"
           />
         </section>
         {after}

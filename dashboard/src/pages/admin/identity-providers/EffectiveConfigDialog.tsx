@@ -79,7 +79,7 @@ export function EffectiveConfigDialog({
                     message: "Copy the test callback address",
                   })}
                 />
-                <p className="text-muted-foreground text-sm">
+                <p className="text-muted-foreground text-caption">
                   <Trans id="admin.federation.diagnostics.callback.hint">
                     Register this address with the provider before running a
                     connection test.

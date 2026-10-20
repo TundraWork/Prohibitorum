@@ -147,13 +147,13 @@ export function ValueSet({
             {problem !== undefined && (
               <p
                 role="alert"
-                className="px-3 pb-2 text-destructive-foreground text-sm"
+                className="px-3 pb-2 text-destructive-foreground text-caption"
               >
                 {problem}
               </p>
             )}
             {suggestions === undefined && noSuggestionsNote !== undefined && (
-              <p className="border-t px-3 py-2.5 text-muted-foreground text-sm">
+              <p className="border-t px-3 py-2.5 text-muted-foreground text-caption">
                 {noSuggestionsNote}
               </p>
             )}

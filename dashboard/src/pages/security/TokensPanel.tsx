@@ -217,7 +217,6 @@ function TokenList() {
           <Button
             ref={createButton}
             variant="outline"
-            size="sm"
             onClick={() => setCreating(true)}
           >
             <Trans id="security.tokens.create.open">Create a token</Trans>

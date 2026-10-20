@@ -124,7 +124,6 @@ export function AppManagersSection({
               setAssigning(true);
             }}
             variant="outline"
-            size="sm"
           >
             <UserPlus />
             <Trans id="app.managers.assign">Assign a manager</Trans>

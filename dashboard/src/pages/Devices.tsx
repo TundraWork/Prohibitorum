@@ -60,7 +60,6 @@ export function Devices({ code }: { code?: string }) {
         }
         actions={
           <Button
-            size="sm"
             onClick={() => {
               setAttempt((count) => count + 1);
               setPairing(true);

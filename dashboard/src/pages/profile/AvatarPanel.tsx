@@ -137,7 +137,6 @@ function AvatarGallery() {
                 setConfirmingRemove(true);
               }}
               variant="destructive-outline"
-              size="sm"
             >
               <Trans id="profile.avatar.remove">Remove uploaded picture</Trans>
             </Button>

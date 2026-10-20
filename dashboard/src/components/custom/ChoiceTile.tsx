@@ -107,7 +107,7 @@ export function ChoiceTile({
             {description !== undefined && (
               <span
                 id={descriptionId}
-                className="font-normal text-muted-foreground text-sm"
+                className="font-normal text-muted-foreground text-caption"
               >
                 {description}
               </span>

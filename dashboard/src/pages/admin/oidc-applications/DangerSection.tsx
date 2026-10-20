@@ -103,7 +103,6 @@ export function DangerSection({ app }: { app: OidcApp }) {
                 setConfirming(app.disabled ? "enable" : "disable");
               }}
               variant="outline"
-              size="sm"
             >
               {app.disabled ? (
                 <Trans id="admin.oidc-apps.enable.action">Enable</Trans>
@@ -134,7 +133,6 @@ export function DangerSection({ app }: { app: OidcApp }) {
                 setConfirming("delete");
               }}
               variant="destructive-outline"
-              size="sm"
             >
               <Trans id="admin.oidc-apps.delete.action">Delete</Trans>
             </Button>

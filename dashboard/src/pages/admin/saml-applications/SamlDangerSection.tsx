@@ -104,7 +104,6 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
                 setConfirming(app.disabled ? "enable" : "disable");
               }}
               variant="outline"
-              size="sm"
             >
               {app.disabled ? (
                 <Trans id="admin.saml-apps.danger.enable.action">Enable</Trans>
@@ -139,7 +138,6 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
                 setConfirming("delete");
               }}
               variant="destructive-outline"
-              size="sm"
             >
               <Trans id="admin.saml-apps.danger.delete.action">Delete</Trans>
             </Button>

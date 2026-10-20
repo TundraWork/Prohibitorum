@@ -80,7 +80,6 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
                 setConfirming(true);
               }}
               variant="destructive-outline"
-              size="sm"
             >
               <Trans id="admin.group.danger.delete.action">Delete</Trans>
             </Button>
@@ -89,7 +88,7 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
           {used > 0 && (
             <p
               id={reasonId}
-              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-sm"
+              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-caption"
             >
               <TriangleAlertIcon
                 aria-hidden="true"

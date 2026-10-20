@@ -20,6 +20,16 @@
   color-scheme: light;
   --font-sans: "Cal Sans", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Paper Mono", ui-monospace, Menlo, monospace;
+  /* The content edge inside a Frame; each Frame sets its own (16px, 20px
+     from sm). This is the value outside one. */
+  --frame-inset: 1.25rem;
+}
+
+/* The console's caption role: a row's detail line, a field's hint and its
+   inline error, a step below 14px body text. */
+@theme {
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.125rem;
 }
 
 /* Native scrollbars, form controls and the canvas follow the theme class. */

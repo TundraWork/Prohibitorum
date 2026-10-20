@@ -167,7 +167,6 @@ export function ConnectionTestDialog({
                   pending={result.isFetching}
                   onClick={() => void result.refetch()}
                   variant="outline"
-                  size="sm"
                 >
                   <RefreshCwIcon aria-hidden="true" />
                   <Trans id="admin.federation.diagnostics.check-again">

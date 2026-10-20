@@ -127,7 +127,6 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
                 setConfirming(app.disabled ? "enable" : "disable");
               }}
               variant="outline"
-              size="sm"
             >
               {app.disabled ? (
                 <Trans id="admin.forward-auth-apps.enable.action">Enable</Trans>
@@ -162,7 +161,6 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
                 setConfirming("delete");
               }}
               variant="destructive-outline"
-              size="sm"
             >
               <Trans id="admin.forward-auth-apps.delete.action">Delete</Trans>
             </Button>

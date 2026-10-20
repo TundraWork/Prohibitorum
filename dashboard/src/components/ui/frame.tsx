@@ -8,7 +8,7 @@ export function Frame({
   return (
     <div
       className={cn(
-        "relative flex flex-col rounded-[22px] bg-muted/72 p-1.5 shadow-xs/5 ring-1 ring-border",
+        "relative flex flex-col rounded-[22px] bg-muted/72 p-1.5 shadow-xs/5 ring-1 ring-border [--frame-inset:--spacing(4)] sm:[--frame-inset:--spacing(5)]",
         "*:[[data-slot=frame-panel]+[data-slot=frame-panel]]:mt-1.5",
         className,
       )}
@@ -25,7 +25,7 @@ export function FramePanel({
   return (
     <div
       className={cn(
-        "relative rounded-2xl border bg-background bg-clip-padding p-6 shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
+        "relative rounded-2xl border bg-background bg-clip-padding p-(--frame-inset) shadow-xs/5 before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-2xl)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
         className,
       )}
       data-slot="frame-panel"
@@ -40,7 +40,10 @@ export function FrameHeader({
 }: React.ComponentProps<"header">): React.ReactElement {
   return (
     <header
-      className={cn("flex flex-col px-5 py-4", className)}
+      className={cn(
+        "flex flex-col px-[calc(var(--frame-inset)+1px)] py-4",
+        className,
+      )}
       data-slot="frame-panel-header"
       {...props}
     />
@@ -79,7 +82,7 @@ export function FrameFooter({
 }: React.ComponentProps<"footer">): React.ReactElement {
   return (
     <footer
-      className={cn("px-5 py-4", className)}
+      className={cn("px-[calc(var(--frame-inset)+1px)] py-4", className)}
       data-slot="frame-panel-footer"
       {...props}
     />

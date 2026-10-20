@@ -48,24 +48,14 @@ export function SavedUnsplashKey({
         </span>
         <div className="flex gap-2">
           {replacing ? (
-            <Button
-              disabled={disabled}
-              onClick={onKeep}
-              variant="outline"
-              size="sm"
-            >
+            <Button disabled={disabled} onClick={onKeep} variant="outline">
               <Trans id="settings.sign-in.unsplash.key.keep">
                 Keep the saved key
               </Trans>
             </Button>
           ) : (
             <>
-              <Button
-                disabled={disabled}
-                onClick={onReplace}
-                variant="outline"
-                size="sm"
-              >
+              <Button disabled={disabled} onClick={onReplace} variant="outline">
                 <Trans id="settings.sign-in.unsplash.key.replace">
                   Replace
                 </Trans>
@@ -76,7 +66,6 @@ export function SavedUnsplashKey({
                 aria-describedby={inUse ? reasonId : undefined}
                 onClick={() => remove.mutate()}
                 variant="destructive-outline"
-                size="sm"
               >
                 <Trans id="settings.sign-in.unsplash.key.remove">Remove</Trans>
               </Button>
@@ -85,7 +74,7 @@ export function SavedUnsplashKey({
         </div>
       </div>
       {inUse && !replacing && (
-        <p id={reasonId} className="text-muted-foreground text-sm">
+        <p id={reasonId} className="text-muted-foreground text-caption">
           <Trans id="settings.sign-in.unsplash.key.in_use">
             Switch the background to another source and save before removing the
             key.

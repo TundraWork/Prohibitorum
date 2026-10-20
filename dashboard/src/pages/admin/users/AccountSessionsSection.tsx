@@ -79,7 +79,6 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
           rows.length > 1 ? (
             <Button
               variant="destructive-outline"
-              size="sm"
               pending={revokeAll.isPending}
               onClick={() => {
                 failure.clear();

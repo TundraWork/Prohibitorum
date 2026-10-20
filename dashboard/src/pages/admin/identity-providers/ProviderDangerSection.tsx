@@ -117,7 +117,6 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
                 }
               }}
               variant="outline"
-              size="sm"
             >
               {provider.disabled ? (
                 <Trans id="admin.federation.danger.enable.action">Enable</Trans>
@@ -130,7 +129,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           }
         >
           {cannotEnable && (
-            <p className="flex items-center gap-1.5 text-pretty text-warning-foreground text-sm">
+            <p className="flex items-center gap-1.5 text-pretty text-warning-foreground text-caption">
               <TriangleAlertIcon
                 aria-hidden="true"
                 className="size-3.5 shrink-0"
@@ -161,7 +160,6 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
                 setConfirming("delete");
               }}
               variant="destructive-outline"
-              size="sm"
             >
               <Trans id="admin.federation.danger.delete.action">Delete</Trans>
             </Button>

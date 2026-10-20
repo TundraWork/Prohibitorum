@@ -37,7 +37,7 @@ export function CallbackPreview({
       <FieldsetLegend className={titled ? "font-medium text-sm" : "sr-only"}>
         <Trans id="admin.federation.callback.title">Callback addresses</Trans>
       </FieldsetLegend>
-      <p className="text-muted-foreground text-sm">
+      <p className="text-muted-foreground text-caption">
         <Trans id="admin.federation.callback.hint">
           Register these with the provider.
         </Trans>

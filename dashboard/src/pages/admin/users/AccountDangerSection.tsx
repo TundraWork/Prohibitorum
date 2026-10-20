@@ -103,7 +103,6 @@ export function AccountDangerSection({
                 setConfirming(account.disabled ? "enable" : "disable");
               }}
               variant="outline"
-              size="sm"
             >
               {account.disabled ? (
                 <Trans id="admin.user.state.enable.action">Enable</Trans>
@@ -116,7 +115,7 @@ export function AccountDangerSection({
           {blocked && (
             <p
               id={reasonId}
-              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-sm"
+              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-caption"
             >
               <TriangleAlertIcon
                 aria-hidden="true"
@@ -151,7 +150,6 @@ export function AccountDangerSection({
                 setConfirming("delete");
               }}
               variant="destructive-outline"
-              size="sm"
             >
               <Trans id="admin.user.delete.button">Delete</Trans>
             </Button>
@@ -160,7 +158,7 @@ export function AccountDangerSection({
           {isSelf && (
             <p
               id={selfReasonId}
-              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-sm"
+              className="flex items-center gap-1.5 text-pretty text-warning-foreground text-caption"
             >
               <TriangleAlertIcon
                 aria-hidden="true"

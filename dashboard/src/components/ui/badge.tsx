@@ -13,7 +13,7 @@ export const badgeVariants = cva(
     },
     variants: {
       size: {
-        default: "h-5.5 min-w-5.5 px-[calc(--spacing(1.5)-1px)] text-xs",
+        default: "h-5 min-w-5 px-[calc(--spacing(1.5)-1px)] text-xs",
         lg: "h-6.5 min-w-6.5 px-[calc(--spacing(2)-1px)] text-sm",
         sm: "h-5 min-w-5 rounded-[.25rem] px-[calc(--spacing(1)-1px)] text-xs",
       },

@@ -62,7 +62,6 @@ export function SignInPageSummary() {
       action={
         <Button
           variant="outline"
-          size="sm"
           render={<Link to="/admin/settings/sign-in-page" />}
         >
           <Trans id="settings.sign-in.edit">Edit the sign-in page</Trans>

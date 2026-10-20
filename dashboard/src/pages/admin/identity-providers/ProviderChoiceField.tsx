@@ -94,12 +94,12 @@ export function ProviderChoiceField<T extends string>({
         ))}
       </RadioGroup>
       {description !== undefined && (
-        <p id={descriptionId} className="text-muted-foreground text-sm">
+        <p id={descriptionId} className="text-muted-foreground text-caption">
           {description}
         </p>
       )}
       {showReason && (
-        <p id={reasonId} className="text-muted-foreground text-sm">
+        <p id={reasonId} className="text-muted-foreground text-caption">
           {unavailable.reason}
         </p>
       )}

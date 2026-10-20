@@ -157,7 +157,7 @@ export function OidcScopesField({
         </p>
       )}
       {invalid && (
-        <p className="text-destructive-foreground text-sm">
+        <p className="text-destructive-foreground text-caption">
           <FormMessages errors={errors} />
         </p>
       )}

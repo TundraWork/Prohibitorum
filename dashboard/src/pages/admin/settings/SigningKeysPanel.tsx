@@ -103,7 +103,6 @@ export function SigningKeysPanel() {
         action={
           <Button
             variant="outline"
-            size="sm"
             pending={generate.isPending}
             onClick={() => generate.mutate()}
           >
@@ -308,15 +307,11 @@ function KeyRow({
           </Button>
           {status === "pending" && (
             <>
-              <Button onClick={onActivate} variant="outline" size="sm">
+              <Button onClick={onActivate} variant="outline">
                 <PlayIcon aria-hidden="true" />
                 <Trans id="settings.keys.activate.action">Activate</Trans>
               </Button>
-              <Button
-                onClick={onRetire}
-                variant="destructive-outline"
-                size="sm"
-              >
+              <Button onClick={onRetire} variant="destructive-outline">
                 <Trans id="settings.keys.retire.action">Retire</Trans>
               </Button>
             </>

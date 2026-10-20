@@ -136,7 +136,6 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
               setAdding(true);
             }}
             variant="outline"
-            size="sm"
             disabled={writing}
           >
             <UserPlusIcon />
@@ -152,7 +151,7 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
         {list.error !== null && list.items.length === 0 ? (
           <div className="flex flex-col items-start gap-3 p-4">
             <InlineFailure error={list.error} />
-            <Button variant="outline" size="sm" onClick={list.refetch}>
+            <Button variant="outline" onClick={list.refetch}>
               <Trans id="admin.group.decisions.retry">Try again</Trans>
             </Button>
           </div>
@@ -177,7 +176,6 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
                   <InlineFailure error={list.error} />
                   <Button
                     variant="outline"
-                    size="sm"
                     pending={list.loadingMore}
                     onClick={list.loadMore}
                   >

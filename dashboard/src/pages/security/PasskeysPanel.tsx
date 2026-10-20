@@ -133,7 +133,6 @@ function PasskeyList() {
         action={
           <Button
             variant="outline"
-            size="sm"
             pending={add.isPending}
             onClick={() => {
               clear();

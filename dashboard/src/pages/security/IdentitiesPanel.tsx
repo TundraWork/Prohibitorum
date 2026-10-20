@@ -264,9 +264,7 @@ function LinkIdentityMenu({
 }) {
   return (
     <Menu disabled={isPending}>
-      <MenuTrigger
-        render={<Button variant="outline" size="sm" pending={isPending} />}
-      >
+      <MenuTrigger render={<Button variant="outline" pending={isPending} />}>
         <Trans id="security.identities.link.title">Link another identity</Trans>
       </MenuTrigger>
       <MenuPopup align="end">

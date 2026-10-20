@@ -192,7 +192,7 @@ export function EndpointsField() {
       )}
 
       {discovery && shown.length > 0 && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground text-caption">
           <Trans id="admin.federation.endpoints.override.note">
             The addresses entered here replace what discovery finds.
           </Trans>
@@ -231,7 +231,6 @@ export function EndpointsField() {
               render={
                 <Button
                   variant="outline"
-                  size="sm"
                   disabled={submitting || remaining.length === 0}
                 />
               }
@@ -432,7 +431,7 @@ function JwksEndpoint({
               {problem !== undefined && (
                 <p
                   id={errorId}
-                  className="mt-1.5 text-destructive-foreground text-sm"
+                  className="mt-1.5 text-destructive-foreground text-caption"
                 >
                   {i18n._(problem.message)}
                 </p>

@@ -219,7 +219,12 @@ export function DataTable<T extends RowData>({
       aria-busy={loading || undefined}
       // An empty table fits the frame so the well keeps its border and radius
       // instead of running past the edge.
-      className={isEmpty ? "w-full" : "w-max min-w-full"}
+      className={cn(
+        isEmpty ? "w-full" : "w-max min-w-full",
+        // The outer cells start on the frame's content edge, like a list row
+        // or a Section band; header cells sit outside the body's 1px border.
+        "[&_td:first-child]:ps-(--frame-inset) [&_td:last-child]:pe-(--frame-inset) [&_th:first-child]:ps-[calc(var(--frame-inset)+1px)] [&_th:last-child]:pe-[calc(var(--frame-inset)+1px)]",
+      )}
     >
       {/* Below sm the labels of an empty table would only crowd the message and
           be clipped, so they stay for assistive technology alone. */}
@@ -480,12 +485,7 @@ function LoadMoreSentinel({
   }, [rowCount]);
   return (
     <div ref={ref} className="flex justify-center py-3">
-      <Button
-        variant="outline"
-        size="sm"
-        pending={loading}
-        onClick={onLoadMore}
-      >
+      <Button variant="outline" pending={loading} onClick={onLoadMore}>
         <Trans id="list.load-more">Load more</Trans>
       </Button>
     </div>

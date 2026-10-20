@@ -86,7 +86,7 @@ export function GroupMatchesFrame({
     return (
       <Section {...heading}>
         <InlineFailure error={error} />
-        <Button variant="outline" size="sm" onClick={list.refetch}>
+        <Button variant="outline" onClick={list.refetch}>
           <Trans id="admin.group.matches.retry">Try again</Trans>
         </Button>
       </Section>
@@ -122,14 +122,14 @@ export function GroupMatchesFrame({
         </span>
       </div>
       {error !== null && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground text-caption">
           <Trans id="admin.group.matches.stale">
             The latest check failed, so this may be out of date.
           </Trans>
         </p>
       )}
       {count === 0 ? (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-muted-foreground text-caption">
           <Trans id="admin.group.matches.none">
             No account matches the saved rule.
           </Trans>
