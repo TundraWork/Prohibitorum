@@ -1198,42 +1198,22 @@ func addUpstreamIDPCommands(root *cobra.Command) {
 				log.Fatalf("--slug is required")
 			}
 			if !dYes {
-				log.Fatalf("refusing to delete upstream IdP %q without --yes", dSlug)
+				_, conn := mustOpenDB(ctx)
+				plan, err := planUpstreamIDPDeleteOutput(ctx, conn, dSlug)
+				conn.Close()
+				if err != nil {
+					log.Fatalf("upstream-idp delete: %v", err)
+				}
+				log.Fatalf("%s\nRefusing to delete without --yes; re-run with --yes to proceed.", plan)
 			}
-			q, conn := mustOpenDB(ctx)
+			_, conn := mustOpenDB(ctx)
 			defer conn.Close()
 
-			row, err := q.GetUpstreamIDPBySlugAny(ctx, dSlug)
+			summary, err := runUpstreamIDPDelete(ctx, conn, dSlug)
 			if err != nil {
-				if errors.Is(err, pgx.ErrNoRows) {
-					log.Fatalf("upstream-idp delete: IdP %q not found", dSlug)
-				}
-				log.Fatalf("upstream-idp delete: lookup: %v", err)
-			}
-			// The provider and the identity:<slug> scopes granted for it go
-			// together, so a later provider with the same slug inherits nothing.
-			tx, err := conn.Begin(ctx)
-			if err != nil {
-				log.Fatalf("upstream-idp delete: begin: %v", err)
-			}
-			defer tx.Rollback(ctx) //nolint:errcheck
-			qtx := q.WithTx(tx)
-			if err := qtx.DeleteUpstreamIDP(ctx, row.ID); err != nil {
 				log.Fatalf("upstream-idp delete: %v", err)
 			}
-			identityScope := oidc.IdentityScopePrefix + row.Slug
-			clients, err := qtx.RemoveScopeFromOIDCClients(ctx, identityScope)
-			if err != nil {
-				log.Fatalf("upstream-idp delete: remove client scope: %v", err)
-			}
-			consents, err := qtx.RemoveScopeFromConsents(ctx, identityScope)
-			if err != nil {
-				log.Fatalf("upstream-idp delete: remove consent scope: %v", err)
-			}
-			if err := tx.Commit(ctx); err != nil {
-				log.Fatalf("upstream-idp delete: commit: %v", err)
-			}
-			fmt.Printf("Deleted upstream IdP %q (id=%d); removed %s from %d client(s) and %d consent(s)\n", dSlug, row.ID, identityScope, clients, consents)
+			fmt.Println(summary)
 		},
 	}
 	deleteUpstreamCmd.Flags().StringVar(&dSlug, "slug", "", "Slug of the IdP to delete (required).")

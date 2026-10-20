@@ -287,8 +287,11 @@ func TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-
 	s := writeFixServer(base)
+	// The audit row must count distinct accounts (2), not identity rows (3):
+	// one account holds two subjects at this provider.
+	aw := &captureAuditWriter{}
+	s.Audit = aw
 
 	// The provider's remembered connection-test outcome lives in the KV store;
 	// deleting the provider must take it too.
@@ -327,6 +330,22 @@ func TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres(t *testing.T) {
 		t.Errorf("latest connection test survived the provider delete: err=%v", err)
 	}
 
+	if len(aw.events) != 1 {
+		t.Fatalf("audit events after delete = %d, want 1", len(aw.events))
+	}
+	detail := aw.events[0].Detail
+	if got := detail["unlinked_accounts"]; got != 2 {
+		t.Errorf("audit unlinked_accounts = %v, want 2 distinct accounts", got)
+	}
+	if got := detail["removed_client_scopes"]; got != int64(1) {
+		t.Errorf("audit removed_client_scopes = %v, want 1", got)
+	}
+	if got := detail["removed_consent_scopes"]; got != int64(1) {
+		t.Errorf("audit removed_consent_scopes = %v, want 1", got)
+	}
+	if got := detail["deleted_pending_invitations"]; got != int32(0) {
+		t.Errorf("audit deleted_pending_invitations = %v, want 0", got)
+	}
 	var providerCount, identityCount int
 	if err := base.pool.QueryRow(ctx, `SELECT COUNT(*) FROM upstream_idp WHERE id = $1`, providerID).Scan(&providerCount); err != nil {
 		t.Fatal(err)

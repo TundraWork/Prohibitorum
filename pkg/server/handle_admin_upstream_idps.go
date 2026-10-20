@@ -20,7 +20,6 @@ import (
 	"prohibitorum/pkg/federation"
 	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 	"prohibitorum/pkg/pagination"
-	oidc "prohibitorum/pkg/protocol/oidc"
 )
 
 const providerConfigLimit = 8 * 1024
@@ -604,66 +603,13 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	row, err := s.queries.GetUpstreamIDPBySlugAny(r.Context(), body.Slug)
+	summary, err := DeleteUpstreamIDPWithDependents(r.Context(), s.dbPool, body.Slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			writeAuthErr(w, authn.ErrUpstreamIDPNotFound())
 			return
 		}
-		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: lookup: %w", err))
-		return
-	}
-
-	// The provider and its identities go together. account_identity carries a
-	// RESTRICT foreign key, so deleting the provider first fails with a 500 as
-	// soon as one account is linked; both deletes belong in one transaction so a
-	// failure part-way leaves neither gone.
-	tx, err := s.dbPool.Begin(r.Context())
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: begin tx: %w", err))
-		return
-	}
-	defer tx.Rollback(r.Context()) //nolint:errcheck
-	qtx := s.queries.WithTx(tx)
-
-	// Pending invitations whose verified snapshot points here die with the
-	// provider (the snapshot FK cascades). Counted before the delete so the
-	// audit row records what disappeared.
-	pendingRows, err := qtx.CountPendingInvitationsByUpstreamIDP(r.Context())
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: count pending invitations: %w", err))
-		return
-	}
-	var deletedInvitations int32
-	for _, pending := range pendingRows {
-		if pending.UpstreamIdpID.Valid && pending.UpstreamIdpID.Int64 == row.ID {
-			deletedInvitations = pending.PendingInvitations
-		}
-	}
-	unlinkedAccounts, err := qtx.DeleteAccountIdentitiesByUpstreamIDP(r.Context(), row.ID)
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: delete identities: %w", err))
-		return
-	}
-	if err := qtx.DeleteUpstreamIDP(r.Context(), row.ID); err != nil {
-		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: delete: %w", err))
-		return
-	}
-	// A provider created later with the same slug must not inherit what
-	// applications and users allowed for this one.
-	identityScope := oidc.IdentityScopePrefix + row.Slug
-	clientsChanged, err := qtx.RemoveScopeFromOIDCClients(r.Context(), identityScope)
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: remove client scope: %w", err))
-		return
-	}
-	consentsChanged, err := qtx.RemoveScopeFromConsents(r.Context(), identityScope)
-	if err != nil {
-		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: remove consent scope: %w", err))
-		return
-	}
-	if err := tx.Commit(r.Context()); err != nil {
-		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: commit: %w", err))
+		writeAuthErr(w, fmt.Errorf("handleDeleteIdentityProvider: %w", err))
 		return
 	}
 
@@ -672,7 +618,7 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 	_ = s.queries.DeleteEntityIcon(r.Context(), db.DeleteEntityIconParams{OwnerKind: "upstream_idp", OwnerID: body.Slug})
 	// Nor is the remembered connection-test outcome, which lives in the KV store.
 	if s.kvStore != nil {
-		s.oidcDiagnostics().ForgetLatest(r.Context(), row.ID)
+		s.oidcDiagnostics().ForgetLatest(r.Context(), summary.ProviderID)
 	}
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: sessionAccountID(r.Context()), Factor: audit.FactorUpstreamIDP,
@@ -682,13 +628,13 @@ func (s *Server) handleDeleteIdentityProviderHTTP(w http.ResponseWriter, r *http
 			// How many accounts lost their link to this provider. The account
 			// rows themselves survive; this is what tells an operator how many
 			// people just lost a sign-in method.
-			"unlinked_accounts": len(unlinkedAccounts),
+			"unlinked_accounts": summary.UnlinkedAccounts,
 			// Applications and consents that lost its identity:<slug> scope.
-			"removed_client_scopes":  clientsChanged,
-			"removed_consent_scopes": consentsChanged,
+			"removed_client_scopes":  summary.RemovedClientScopes,
+			"removed_consent_scopes": summary.RemovedConsentScopes,
 			// How many pending invitations were deleted with the provider:
 			// their verified snapshot pointed at it.
-			"deleted_pending_invitations": deletedInvitations,
+			"deleted_pending_invitations": summary.DeletedPendingInvitations,
 		},
 	})
 	w.WriteHeader(http.StatusNoContent)
