@@ -1,10 +1,10 @@
 -- name: ListAccountEmails :many
--- Primary first, the rest by creation time. verified_by_username joins the
--- admin who asserted the address (verified_via='admin') so admin views can
--- show provenance without a second query.
+-- Primary first, the rest by creation time. verified_provider and
+-- verified_by_username resolve provenance (upstream display name, asserting
+-- admin) so views can show it without a second query.
 SELECT ae.id, ae.account_id, ae.address, ae.verified_at, ae.verified_via,
-       ae.verified_by_idp_id, ae.created_at,
-       (a.primary_email_id = ae.id) AS is_primary,
+       ae.verified_by_idp_id, ae.verified_by_admin_id, ae.created_at,
+       COALESCE(a.primary_email_id = ae.id, false)::boolean AS is_primary,
        idp.display_name AS verified_provider,
        admin.username AS verified_by_username
 FROM account a
@@ -15,7 +15,7 @@ WHERE a.id = $1
 ORDER BY is_primary DESC, ae.created_at, ae.id;
 
 -- name: GetAccountEmail :one
-SELECT ae.*, (a.primary_email_id = ae.id) AS is_primary
+SELECT ae.*, COALESCE(a.primary_email_id = ae.id, false)::boolean AS is_primary
 FROM account_email ae
 JOIN account a ON a.id = ae.account_id
 WHERE ae.id = $1 AND ae.account_id = $2;
@@ -61,7 +61,7 @@ UPDATE account SET primary_email_id = $2, updated_at = now() WHERE id = $1;
 UPDATE account SET primary_email_id = NULL, updated_at = now() WHERE id = $1;
 
 -- name: GetAccountEmailByAddress :one
-SELECT ae.*, (a.primary_email_id = ae.id) AS is_primary
+SELECT ae.*, COALESCE(a.primary_email_id = ae.id, false)::boolean AS is_primary
 FROM account_email ae
 JOIN account a ON a.id = ae.account_id
 WHERE ae.account_id = $1 AND lower(ae.address) = lower($2);

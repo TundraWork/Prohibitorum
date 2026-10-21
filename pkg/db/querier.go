@@ -201,9 +201,9 @@ type Querier interface {
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
 	IsOIDCClientManager(ctx context.Context, arg IsOIDCClientManagerParams) (bool, error)
 	IsSAMLSPManager(ctx context.Context, arg IsSAMLSPManagerParams) (bool, error)
-	// Primary first, the rest by creation time. verified_by_username joins the
-	// admin who asserted the address (verified_via='admin') so admin views can
-	// show provenance without a second query.
+	// Primary first, the rest by creation time. verified_provider and
+	// verified_by_username resolve provenance (upstream display name, asserting
+	// admin) so views can show it without a second query.
 	ListAccountEmails(ctx context.Context, id int32) ([]ListAccountEmailsRow, error)
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error)
 	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)

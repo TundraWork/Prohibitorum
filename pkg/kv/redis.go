@@ -74,6 +74,11 @@ type RedisStore struct {
 	client *redis.Client
 }
 
+// RedisClient exposes the underlying go-redis client. It exists so other
+// subsystems (e.g. the mail send-rate limiter) can reuse the same Redis
+// connection pool instead of dialing their own.
+func (r *RedisStore) RedisClient() *redis.Client { return r.client }
+
 // RedisConfig carries the connection parameters for NewRedisStore. Addr is a
 // host:port (e.g. "localhost:6379"); Username/Password supply Redis AUTH (ACL
 // or legacy), and TLS enables an encrypted channel. Username/Password empty and

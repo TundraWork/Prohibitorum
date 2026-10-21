@@ -68,7 +68,7 @@ func (q *Queries) DeleteAccountEmail(ctx context.Context, arg DeleteAccountEmail
 }
 
 const getAccountEmail = `-- name: GetAccountEmail :one
-SELECT ae.id, ae.account_id, ae.address, ae.verified_at, ae.verified_via, ae.verified_by_idp_id, ae.verified_by_admin_id, ae.created_at, (a.primary_email_id = ae.id) AS is_primary
+SELECT ae.id, ae.account_id, ae.address, ae.verified_at, ae.verified_via, ae.verified_by_idp_id, ae.verified_by_admin_id, ae.created_at, COALESCE(a.primary_email_id = ae.id, false)::boolean AS is_primary
 FROM account_email ae
 JOIN account a ON a.id = ae.account_id
 WHERE ae.id = $1 AND ae.account_id = $2
@@ -109,7 +109,7 @@ func (q *Queries) GetAccountEmail(ctx context.Context, arg GetAccountEmailParams
 }
 
 const getAccountEmailByAddress = `-- name: GetAccountEmailByAddress :one
-SELECT ae.id, ae.account_id, ae.address, ae.verified_at, ae.verified_via, ae.verified_by_idp_id, ae.verified_by_admin_id, ae.created_at, (a.primary_email_id = ae.id) AS is_primary
+SELECT ae.id, ae.account_id, ae.address, ae.verified_at, ae.verified_via, ae.verified_by_idp_id, ae.verified_by_admin_id, ae.created_at, COALESCE(a.primary_email_id = ae.id, false)::boolean AS is_primary
 FROM account_email ae
 JOIN account a ON a.id = ae.account_id
 WHERE ae.account_id = $1 AND lower(ae.address) = lower($2)
@@ -233,8 +233,8 @@ func (q *Queries) InsertAccountEmailVerified(ctx context.Context, arg InsertAcco
 
 const listAccountEmails = `-- name: ListAccountEmails :many
 SELECT ae.id, ae.account_id, ae.address, ae.verified_at, ae.verified_via,
-       ae.verified_by_idp_id, ae.created_at,
-       (a.primary_email_id = ae.id) AS is_primary,
+       ae.verified_by_idp_id, ae.verified_by_admin_id, ae.created_at,
+       COALESCE(a.primary_email_id = ae.id, false)::boolean AS is_primary,
        idp.display_name AS verified_provider,
        admin.username AS verified_by_username
 FROM account a
@@ -252,15 +252,16 @@ type ListAccountEmailsRow struct {
 	VerifiedAt         pgtype.Timestamptz `json:"verifiedAt"`
 	VerifiedVia        pgtype.Text        `json:"verifiedVia"`
 	VerifiedByIdpID    pgtype.Int8        `json:"verifiedByIdpId"`
+	VerifiedByAdminID  pgtype.Int8        `json:"verifiedByAdminId"`
 	CreatedAt          pgtype.Timestamptz `json:"createdAt"`
 	IsPrimary          bool               `json:"isPrimary"`
 	VerifiedProvider   pgtype.Text        `json:"verifiedProvider"`
 	VerifiedByUsername pgtype.Text        `json:"verifiedByUsername"`
 }
 
-// Primary first, the rest by creation time. verified_by_username joins the
-// admin who asserted the address (verified_via='admin') so admin views can
-// show provenance without a second query.
+// Primary first, the rest by creation time. verified_provider and
+// verified_by_username resolve provenance (upstream display name, asserting
+// admin) so views can show it without a second query.
 func (q *Queries) ListAccountEmails(ctx context.Context, id int32) ([]ListAccountEmailsRow, error) {
 	rows, err := q.db.Query(ctx, listAccountEmails, id)
 	if err != nil {
@@ -277,6 +278,7 @@ func (q *Queries) ListAccountEmails(ctx context.Context, id int32) ([]ListAccoun
 			&i.VerifiedAt,
 			&i.VerifiedVia,
 			&i.VerifiedByIdpID,
+			&i.VerifiedByAdminID,
 			&i.CreatedAt,
 			&i.IsPrimary,
 			&i.VerifiedProvider,
