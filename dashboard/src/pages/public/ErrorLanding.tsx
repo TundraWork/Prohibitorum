@@ -33,11 +33,13 @@ export function ErrorLandingPage() {
     federationName: search.federationName,
     instance,
   });
-  const app = search.app;
   const ref = search.ref;
   // A failure on the way to an application names it as the sign-in page
   // did, icon and all, when the address it started from says which one.
+  // The name in the link is only a fallback for a denial whose address
+  // names nothing the server can resolve.
   const application = useReturnToApplication(search.return_to);
+  const app = application?.label ?? search.app;
   // Two failures carry the address the flow started from, because running it
   // again is the one remedy: a transient authorize failure, and a denial an
   // administrator can lift while the user waits. Only an address the denial

@@ -76,6 +76,7 @@ func (s *Server) handleConsentContextHTTP(w http.ResponseWriter, r *http.Request
 			ClientID:    client.ClientID,
 			DisplayName: client.DisplayName,
 			LogoURI:     consentClientIcon(r.Context(), q, client),
+			Host:        hostOf(ticket.RedirectURI),
 			PolicyURI:   textOrEmpty(client.PolicyUri),
 			TosURI:      textOrEmpty(client.TosUri),
 		},
@@ -211,7 +212,6 @@ func unionScopes(a, b []string) []string {
 	}
 	return out
 }
-
 
 // consentClientIcon is the icon the consent page draws for the client: its
 // uploaded icon, else its registered logo_uri. A query set that cannot read

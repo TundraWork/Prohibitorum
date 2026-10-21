@@ -104,7 +104,7 @@ func TestRequireIdentityRequestRead(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if out.Client.DisplayName != "Team wiki" || out.RedirectURI != "https://rp.example/after" || out.Mismatch || out.Satisfied ||
+	if out.Client.DisplayName != "Team wiki" || out.Client.Host != "rp.example" || out.RedirectURI != "https://rp.example/after" || out.Mismatch || out.Satisfied ||
 		out.EntryURL != tickets["t-1"].Entry {
 		t.Fatalf("request = %+v", out)
 	}

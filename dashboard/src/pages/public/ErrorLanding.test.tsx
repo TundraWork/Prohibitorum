@@ -269,7 +269,7 @@ describe("the error landing page", () => {
     const router = await open("/error?error=server_error", false);
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(
-      await screen.findByRole("heading", { name: /^Sign in with / }),
+      await screen.findByRole("heading", { name: /^Sign in to / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
   });
@@ -304,5 +304,23 @@ describe("the error landing page", () => {
     expect(read?.url.searchParams.get("return_to")).toBe(
       `${window.location.origin}/oauth/authorize?client_id=wiki`,
     );
+  });
+
+  it("names a denied application by its registered name over the one in the link", async () => {
+    fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/forward-auth/login-context": () =>
+        Response.json({ application: { label: "Wiki" } }),
+    });
+    renderApp(
+      `/error?error=access_denied&reason=app_access_denied&app=Spoofed&return_to=${encodeURIComponent("/oauth/authorize?client_id=wiki")}`,
+      queryClient,
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "You don't have access to Wiki",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText(/Spoofed/)).not.toBeInTheDocument();
   });
 });

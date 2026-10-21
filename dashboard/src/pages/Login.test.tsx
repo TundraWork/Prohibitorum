@@ -687,12 +687,53 @@ describe("the application the sign-in link targets", () => {
     });
   });
 
+  it("signs in to the instance itself when the link goes to no application", async () => {
+    at(`/login?return_to=${encodeURIComponent("/security")}`);
+    const fetch = contextFetch(200, { application: { label: "Wiki" } });
+    vi.stubGlobal("fetch", fetch);
+    mount();
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to Test instance" }),
+    ).toBeVisible();
+    expect(
+      fetch.mock.calls.some(([input]) =>
+        (input as Request).url.includes("/login-context"),
+      ),
+    ).toBe(false);
+  });
+
+  it("signs in with the instance from the first paint of an application link", async () => {
+    at(
+      `/login?return_to=${encodeURIComponent(
+        `${window.location.origin}/oauth/authorize?client_id=wiki`,
+      )}`,
+    );
+    // The context read never answers, yet the heading already says where
+    // the sign-in is going.
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn<typeof globalThis.fetch>()
+        .mockImplementation((input) =>
+          new URL((input as Request).url).pathname.endsWith("/login-context")
+            ? new Promise(() => {})
+            : Promise.resolve(Response.json({})),
+        ),
+    );
+    mount();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Sign in with Test instance",
+      }),
+    ).toBeVisible();
+  });
+
   it("asks only while a return_to is present", async () => {
     at("/login");
     const fetch = contextFetch(200, { application: { label: "Wiki" } });
     vi.stubGlobal("fetch", fetch);
     mount();
-    await screen.findByRole("heading", { name: "Sign in with Test instance" });
+    await screen.findByRole("heading", { name: "Sign in to Test instance" });
     expect(
       document.querySelector('[data-slot="stage-strip"]'),
     ).toBeEmptyDOMElement();

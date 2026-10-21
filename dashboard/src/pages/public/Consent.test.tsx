@@ -26,6 +26,7 @@ function request(overrides: Partial<ConsentRequest> = {}): ConsentRequest {
       displayName: "Wiki",
       policyUri: "https://wiki.example/privacy",
       tosUri: "https://wiki.example/terms",
+      host: "wiki.example",
     },
     account: { displayName: "Alice" },
     scopes: ["openid", "profile", "email", "wiki:write"],
@@ -101,7 +102,7 @@ describe("OIDC consent", () => {
     expect(screen.queryByText(/Already allowed/)).not.toBeInTheDocument();
     expect(
       document.querySelector('[data-slot="stage-strip"]'),
-    ).toHaveTextContent("Asking for accessWiki");
+    ).toHaveTextContent("Asking for accessWikiwiki.example");
   });
 
   it("names the provider of an identity scope, and shows an unknown one by its slug", async () => {
@@ -319,7 +320,7 @@ describe("OIDC consent", () => {
     });
     const router = renderApp(address, queryClient);
     expect(
-      await screen.findByRole("heading", { name: /^Sign in with / }),
+      await screen.findByRole("heading", { name: /^Sign in to / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
     expect(

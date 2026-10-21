@@ -619,6 +619,8 @@ type RequireIdentityRequest struct {
 type RequireIdentityClient struct {
 	DisplayName string `json:"displayName"`
 	IconURL     string `json:"iconUrl,omitempty"`
+	// Host is the host of the request's redirect_uri.
+	Host string `json:"host,omitempty"`
 }
 
 type RequireIdentityProvider struct {
@@ -633,6 +635,9 @@ type ConsentClient struct {
 	LogoURI     string `json:"logoUri,omitempty"`
 	PolicyURI   string `json:"policyUri,omitempty"`
 	TosURI      string `json:"tosUri,omitempty"`
+	// Host is the host of the request's redirect_uri, where the reader goes
+	// back to.
+	Host string `json:"host,omitempty"`
 }
 
 type ConsentUser struct {

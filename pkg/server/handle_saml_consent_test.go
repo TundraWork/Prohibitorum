@@ -126,6 +126,9 @@ func TestSAMLConsentContext_HappyPath(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
+	if out.SP.Host != "sf.example" {
+		t.Errorf("SP.Host: want sf.example (the ACS host), got %q", out.SP.Host)
+	}
 	if out.SP.DisplayName != "Salesforce" {
 		t.Errorf("SP.DisplayName: want Salesforce, got %q", out.SP.DisplayName)
 	}

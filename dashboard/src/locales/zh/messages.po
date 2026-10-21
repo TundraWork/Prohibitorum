@@ -8031,6 +8031,11 @@ msgid "federation_flow.title.login"
 msgstr "通过 {provider} 登录"
 
 #. js-lingui-explicit-id
+#: src/components/custom/LoginShell.tsx
+msgid "login.title.instance_direct"
+msgstr "登录 {instance}"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.no_session"
 msgstr "请登录后继续。"

@@ -125,7 +125,7 @@ describe("the sign-in page preview", () => {
     const page = await pageDocument();
     expect(page.querySelector('[data-slot="stage-card"]')).not.toBeNull();
     expect(page.querySelector("header")).not.toBeNull();
-    expect(page.body).toHaveTextContent("Sign in with Test instance");
+    expect(page.body).toHaveTextContent("Sign in to Test instance");
     expect(page.body).toHaveTextContent("Sign in with a passkey");
     expect(page.body).toHaveTextContent("or with your password");
     expect(page.body).toHaveTextContent("or continue with");

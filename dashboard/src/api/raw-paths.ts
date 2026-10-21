@@ -246,7 +246,8 @@ export interface ConsentAccount {
  * from one of its listed providers, as the in-between page shows it.
  */
 export interface RequireIdentityRequest {
-  client: { displayName: string; iconUrl?: string };
+  /** `host` is the host of the request's redirect_uri. */
+  client: { displayName: string; iconUrl?: string; host?: string };
   /** Where the application wants the browser back, without parameters. */
   redirectUri: string;
   /** The request's own address, to return to after signing in again. */
@@ -266,6 +267,8 @@ export interface ConsentRequest {
     logoUri?: string;
     policyUri?: string;
     tosUri?: string;
+    /** The host of the request's redirect_uri, where the reader goes back to. */
+    host?: string;
   };
   account: ConsentAccount;
   scopes: string[];
@@ -277,7 +280,8 @@ export interface ConsentRequest {
 
 /** `GET /saml-consent`: the SAML sign-in waiting on the signed-in account. */
 export interface SamlConsentRequest {
-  sp: { id: string; displayName: string; logoUri?: string };
+  /** `host` is the host of the ACS URL the assertion is posted to. */
+  sp: { id: string; displayName: string; logoUri?: string; host?: string };
   account: ConsentAccount;
   /** Labels of the attributes the service will receive. */
   attributes: string[];

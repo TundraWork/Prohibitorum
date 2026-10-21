@@ -140,7 +140,7 @@ describe("the account a first federated sign-in prepared", () => {
       await screen.findByRole("button", { name: "This isn't me" }),
     );
     expect(
-      await screen.findByRole("heading", { name: /^Sign in with / }),
+      await screen.findByRole("heading", { name: /^Sign in to / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
     expect(api.sent("POST", `${confirmPath}/decline`)).toHaveLength(1);

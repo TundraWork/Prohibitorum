@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -89,4 +90,15 @@ func (s *Server) loginApplicationView(ctx context.Context, ref *federation.AppRe
 		view.IconURL = &icon
 	}
 	return view
+}
+
+// hostOf is the host of an application address the server already validated
+// (a redirect_uri, an ACS URL), for the public pages to show beside the
+// application's name; "" when it has none.
+func hostOf(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }

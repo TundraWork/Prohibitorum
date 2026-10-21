@@ -52,13 +52,20 @@ export function useLoginContext() {
   } catch (error) {
     linkError = describeError(error);
   }
-  const application = useReturnToApplication(linkError ? undefined : returnTo);
+  const target = linkError ? undefined : returnTo;
+  const application = useReturnToApplication(target);
   return {
     config,
     bootstrapped: status.bootstrapped,
     returnTo,
     linkError,
     application,
+    // Whether the sign-in continues to an application at all, known from the
+    // link alone so the heading does not change when the application's name
+    // arrives.
+    forApplication:
+      target !== undefined &&
+      loginContextTarget(target, window.location.origin) !== undefined,
   };
 }
 
@@ -141,7 +148,8 @@ export function LoginShell({
   children: ReactNode;
 }) {
   const { t } = useLingui();
-  const { config, bootstrapped, linkError, application } = useLoginContext();
+  const { config, bootstrapped, linkError, application, forApplication } =
+    useLoginContext();
   const { name: instance } = useInstanceBranding();
   const label = application?.label;
   return (
@@ -230,7 +238,15 @@ export function LoginShell({
             complete ? (
               <Trans id="login.complete">Authenticator reset complete</Trans>
             ) : step === "password" ? (
-              <Trans id="login.title.instance">Sign in with {instance}</Trans>
+              forApplication ? (
+                <Trans id="login.title.instance">Sign in with {instance}</Trans>
+              ) : (
+                // Opened on its own, the page signs the reader in to the
+                // instance itself, not with it to somewhere else.
+                <Trans id="login.title.instance_direct">
+                  Sign in to {instance}
+                </Trans>
+              )
             ) : (
               <Trans id="login.factor.account">Signing in as {username}</Trans>
             )

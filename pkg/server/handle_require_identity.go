@@ -81,6 +81,7 @@ func (s *Server) handleRequireIdentityRequestHTTP(w http.ResponseWriter, r *http
 		Client: contract.RequireIdentityClient{
 			DisplayName: client.DisplayName,
 			IconURL:     uploadedIconOr(ctx, q, "oidc_client", client.ClientID, textOrEmpty(client.LogoUri)),
+			Host:        hostOf(ticket.RedirectURI),
 		},
 		RedirectURI: ticket.RedirectURI,
 		EntryURL:    ticket.Entry,
@@ -115,8 +116,6 @@ func (s *Server) handleRequireIdentityRequestHTTP(w http.ResponseWriter, r *http
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// uploadedIconOr is the uploaded icon's URL, or fallback when there is
-// none. A failed lookup only costs the icon.
 // entityIconEtags reads an entity's uploaded icon version.
 type entityIconEtags interface {
 	GetEntityIconEtag(ctx context.Context, arg db.GetEntityIconEtagParams) (string, error)
@@ -124,7 +123,7 @@ type entityIconEtags interface {
 
 // uploadedIconOr is an application's uploaded icon URL, or fallback (its
 // registered logo_uri) when it has none: the order every public page draws
-// an application's icon in.
+// an application's icon in. A failed lookup only costs the icon.
 func uploadedIconOr(ctx context.Context, q entityIconEtags, kind, id, fallback string) string {
 	etag, err := q.GetEntityIconEtag(ctx, db.GetEntityIconEtagParams{OwnerKind: kind, OwnerID: id})
 	if err != nil || etag == "" {
