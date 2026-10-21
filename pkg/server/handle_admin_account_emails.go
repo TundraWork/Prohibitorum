@@ -112,6 +112,11 @@ func (s *Server) handleAddAccountEmail(ctx context.Context, in *addAccountEmailI
 	if err != nil {
 		return nil, mapAdminEmailRuleError(err)
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("handleAddAccountEmail: commit: %w", err)
+	}
+	// Reload after the commit: the outer pool now sees the row, and the
+	// response carries the same provenance the list endpoint would.
 	rows, err := s.queries.ListAccountEmails(ctx, in.ID)
 	if err != nil {
 		return nil, fmt.Errorf("handleAddAccountEmail: reload: %w", err)
@@ -121,9 +126,6 @@ func (s *Server) handleAddAccountEmail(ctx context.Context, in *addAccountEmailI
 		if r.ID == row.ID {
 			view = adminEmailView(r)
 		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("handleAddAccountEmail: commit: %w", err)
 	}
 
 	detail, actorID := accountEmailAuditDetail(sess, &row.ID, row.Address, audit.EventRegister)
@@ -182,6 +184,10 @@ func (s *Server) handleVerifyAccountEmail(ctx context.Context, in *verifyAccount
 	if err != nil {
 		return nil, mapAdminEmailRuleError(err)
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("handleVerifyAccountEmail: commit: %w", err)
+	}
+	// Reload after the commit so the response carries full provenance.
 	rows, err := s.queries.ListAccountEmails(ctx, in.ID)
 	if err != nil {
 		return nil, fmt.Errorf("handleVerifyAccountEmail: reload: %w", err)
@@ -191,9 +197,6 @@ func (s *Server) handleVerifyAccountEmail(ctx context.Context, in *verifyAccount
 		if r.ID == row.ID {
 			view = adminEmailView(r)
 		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("handleVerifyAccountEmail: commit: %w", err)
 	}
 
 	detail, actorID := accountEmailAuditDetail(sess, &row.ID, row.Address, audit.EventVerified)

@@ -2652,9 +2652,9 @@ func main() {
 	}
 	log.Printf("  auto-provisioned signing key kid=%s; /oauth/jwks has 1 key ✓", signingKID)
 
-	step(fmt.Sprintf("oidc %d/%d — oidc-client create (confidential, openid+profile+offline_access)", 2, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — oidc-client create (confidential, openid+profile+email+offline_access)", 2, nOIDC))
 	rpSecret, err := createOIDCClient(*baseURL, rpClientID, rpRedirectURI, rpPostLogout,
-		[]string{"openid", "profile", "offline_access"})
+		[]string{"openid", "profile", "email", "offline_access"})
 	if err != nil {
 		log.Fatalf("oidc-client create: %v", err)
 	}
@@ -2671,7 +2671,7 @@ func main() {
 		"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
 		url.QueryEscape(rpClientID),
 		url.QueryEscape(rpRedirectURI),
-		url.QueryEscape("openid profile offline_access"),
+		url.QueryEscape("openid profile email offline_access"),
 		url.QueryEscape(authState),
 		url.QueryEscape(authNonce),
 		url.QueryEscape(challenge),
