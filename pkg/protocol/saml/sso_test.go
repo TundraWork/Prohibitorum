@@ -94,6 +94,10 @@ func (f *fakeSAMLAuthorizer) EvaluateSAML(_ context.Context, _ int32, _ int64) (
 // fail-closed path of the app-policy access gate.
 var errStubPredicate = errors.New("saml: injected predicate error")
 
+func (f *fakeSSOQueries) GetAccountPrimaryEmail(_ context.Context, _ int32) (string, error) {
+	return "", pgx.ErrNoRows
+}
+
 func (f *fakeSSOQueries) GetSAMLSPByEntityID(_ context.Context, entityID string) (db.SamlSp, error) {
 	if f.spErr != nil {
 		return db.SamlSp{}, f.spErr
