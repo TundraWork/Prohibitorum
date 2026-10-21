@@ -154,10 +154,13 @@ func (s *Server) handleOIDCTestStartHTTP(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleOIDCTestCallbackHTTP(w http.ResponseWriter, r *http.Request) {
 	diagnosticHeaders(w)
 	// An implicit-flow response arrives with its parameters in the fragment;
-	// see handleFederationCallbackHTTP.
+	// see handleFederationCallbackHTTP. Only a provider configured for an
+	// implicit response gets the relay page.
 	if r.URL.RawQuery == "" {
-		writeFragmentRelay(w)
-		return
+		if provider, err := s.oidcDiagnosticProvider(r); err == nil && (federationoidc.Definition{}).RelaysFragment(provider) {
+			writeFragmentRelay(w)
+			return
+		}
 	}
 	q, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {

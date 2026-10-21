@@ -250,6 +250,7 @@ func (serviceDefinition) Descriptor() Descriptor                       { return 
 func (serviceDefinition) ValidateConfig(json.RawMessage) error         { return nil }
 func (serviceDefinition) ValidateSecret(json.RawMessage, []byte) error { return nil }
 func (d serviceDefinition) Ready(Provider) bool                        { return d.ready }
+func (serviceDefinition) RelaysFragment(Provider) bool                 { return false }
 
 func newServiceHarness(t *testing.T) (*Service, *serviceFakeAdapter, *serviceFakeResolver, kv.Store) {
 	t.Helper()
@@ -2264,6 +2265,7 @@ func (d namedServiceDefinition) Descriptor() Descriptor                     { re
 func (namedServiceDefinition) ValidateConfig(json.RawMessage) error         { return nil }
 func (namedServiceDefinition) ValidateSecret(json.RawMessage, []byte) error { return nil }
 func (d namedServiceDefinition) Ready(Provider) bool                        { return d.ready }
+func (namedServiceDefinition) RelaysFragment(Provider) bool                 { return false }
 
 // newNamedServiceHarness builds a service over one enabled provider named
 // "Corporate SSO". The loader is returned by pointer so a test can disable or

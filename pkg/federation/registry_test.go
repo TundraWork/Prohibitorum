@@ -17,6 +17,7 @@ func (d fakeDefinition) Descriptor() Descriptor                { return d.descri
 func (d fakeDefinition) ValidateConfig(json.RawMessage) error  { return nil }
 func (d fakeDefinition) ValidateSecret(json.RawMessage, []byte) error            { return nil }
 func (d fakeDefinition) Ready(Provider) bool                    { return true }
+func (fakeDefinition) RelaysFragment(Provider) bool             { return false }
 
 type fakeAdapter struct{ protocol string }
 

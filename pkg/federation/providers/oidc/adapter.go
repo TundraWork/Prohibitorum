@@ -53,6 +53,21 @@ func (d Definition) Ready(provider federationcore.Provider) bool {
 	return config.TokenAuthMethod == "none" || (provider.Secret != nil && (provider.SecretStatus == "configured" || provider.SecretStatus == "valid"))
 }
 
+// RelaysFragment mirrors what Begin snapshots: an implicit response type puts
+// the whole authorization response in the fragment, every other setting
+// (including a snapshot written before responseType existed) answers in the
+// query.
+func (Definition) RelaysFragment(provider federationcore.Provider) bool {
+	if provider.Protocol != Protocol {
+		return false
+	}
+	config, err := decodeConfig(provider.Config)
+	if err != nil {
+		return false
+	}
+	return ResolvedConfig{ResponseType: config.responseType()}.implicitFlow()
+}
+
 type clientAPI interface {
 	Issuer() string
 	TokenEndpoint() string

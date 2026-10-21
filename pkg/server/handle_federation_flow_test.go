@@ -45,6 +45,7 @@ func (localFlowDefinition) Descriptor() federation.Descriptor {
 }
 func (localFlowDefinition) ValidateConfig(json.RawMessage) error         { return nil }
 func (localFlowDefinition) ValidateSecret(json.RawMessage, []byte) error { return nil }
+func (localFlowDefinition) RelaysFragment(federation.Provider) bool      { return false }
 func (d localFlowDefinition) Ready(provider federation.Provider) bool {
 	return d.ready && provider.SecretStatus == "valid"
 }

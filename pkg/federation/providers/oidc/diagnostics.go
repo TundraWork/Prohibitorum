@@ -96,8 +96,8 @@ type diagnosticFlow struct {
 	Code         string          `json:"code,omitempty"`
 	Issuer       string          `json:"issuer,omitempty"`
 	// CallbackIDToken holds the front-channel id_token of an implicit-flow
-	// callback (public client) until Complete consumes it. The code-flow
-	// fields above stay empty there.
+	// callback (public client) until Complete consumes it; a code-flow
+	// callback never stores one, even if the query carries one.
 	CallbackIDToken string `json:"callbackIdToken,omitempty"`
 	// CallbackAccessToken holds the id_token token response's front-channel
 	// access token until Complete consumes it, so the connection test can
@@ -266,9 +266,15 @@ func (d *Diagnostics) Callback(ctx context.Context, id, slug, browser, code, ups
 		flow.Status = "failed"
 		clearDiagnosticSecrets(&flow)
 	} else {
-		// Adapter.Advance checks iss, exactly as it does for login.
+		// Adapter.Advance checks iss, exactly as it does for login. The
+		// front-channel id_token is a credential only an implicit snapshot
+		// will consume; on the code flow Advance exchanges the code and
+		// never reads it, so it is not stored.
 		flow.Status = "ready"
-		flow.Code, flow.Issuer, flow.CallbackIDToken, flow.CallbackAccessToken = code, issuer, idToken, accessToken
+		flow.Code, flow.Issuer = code, issuer
+		if implicit {
+			flow.CallbackIDToken, flow.CallbackAccessToken = idToken, accessToken
+		}
 	}
 	ok, err := d.replace(ctx, id, raw, flow)
 	if err != nil {

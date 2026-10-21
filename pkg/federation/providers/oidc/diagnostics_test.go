@@ -432,6 +432,89 @@ func TestDiagnosticsImplicitTokenFlowForPublicClient(t *testing.T) {
 	}
 }
 
+// TestDiagnosticsCallbackDropsIDTokenOnCodeFlow pins that a code-flow
+// connection test never stores the callback's id_token or access_token, even
+// when the query carries them: only an implicit snapshot consumes a
+// front-channel token, so only one is retained between callback and Complete.
+func TestDiagnosticsCallbackDropsIDTokenOnCodeFlow(t *testing.T) {
+	h := newDiagnosticHarness(t)
+	s := h.start(t)
+	code, iss := authorize(t, s.AuthorizationURL)
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "", iss, "eyJhbbcgiOiJIUzI1NiJ9.eyJzdWIiOiJpbmplY3RlZCJ9.c2ln", "injected-access-token", "request-callback"); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := h.service.store.Get(context.Background(), diagnosticKey(s.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var flow diagnosticFlow
+	if err := json.Unmarshal([]byte(stored), &flow); err != nil {
+		t.Fatal(err)
+	}
+	if flow.CallbackIDToken != "" || flow.CallbackAccessToken != "" {
+		t.Fatalf("code-flow record stored front-channel tokens: id_token=%q access_token=%q", flow.CallbackIDToken, flow.CallbackAccessToken)
+	}
+	if strings.Contains(stored, "eyJhbbcgiOiJIUzI1NiJ9") || strings.Contains(stored, "injected-access-token") {
+		t.Fatal("code-flow record retains a raw front-channel token")
+	}
+	// Complete still succeeds through the code exchange, which never read
+	// the injected tokens.
+	result, err := h.service.Complete(context.Background(), s.ID, h.provider, h.browser, h.actor, "request-complete")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != "succeeded" || h.tokenCalls.Load() != 1 {
+		t.Fatalf("result=%+v tokenCalls=%d, want the code exchange", result, h.tokenCalls.Load())
+	}
+}
+
+// TestDiagnosticsSnapshotWithoutResponseTypeStaysOnCodeFlow pins the default
+// against the snapshot read path: a diagnostic flow started before the
+// response-type setting existed has no responseType in its resolved snapshot,
+// and its Callback must treat the front-channel id_token as an injected
+// parameter — storing the code, never the id_token. This is the mutation
+// implicitFlow() → ResponseType != "code" would flip: an empty snapshot
+// responseType would read as implicit and keep the id_token.
+func TestDiagnosticsSnapshotWithoutResponseTypeStaysOnCodeFlow(t *testing.T) {
+	h := newDiagnosticHarness(t)
+	s := h.start(t)
+	raw, err := h.service.store.Get(context.Background(), diagnosticKey(s.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var flow diagnosticFlow
+	if err := json.Unmarshal([]byte(raw), &flow); err != nil {
+		t.Fatal(err)
+	}
+	if flow.Resolved.ResponseType != responseTypeCode {
+		t.Fatalf("harness snapshot responseType = %q, want a code-flow harness", flow.Resolved.ResponseType)
+	}
+	// Rewrite the record exactly as a pre-setting deployment stored it.
+	flow.Resolved.ResponseType = ""
+	rewritten, err := json.Marshal(flow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.service.store.Set(context.Background(), diagnosticKey(s.ID), string(rewritten)); err != nil {
+		t.Fatal(err)
+	}
+	code, iss := authorize(t, s.AuthorizationURL)
+	if err := h.service.Callback(context.Background(), s.ID, h.provider.Slug, h.browser, code, "", "", iss, "eyJhbbcgiOiJIUzI1NiJ9.eyJzdWIiOiJpbmplY3RlZCJ9.c2ln", "", "request-callback"); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := h.service.store.Get(context.Background(), diagnosticKey(s.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var after diagnosticFlow
+	if err := json.Unmarshal([]byte(stored), &after); err != nil {
+		t.Fatal(err)
+	}
+	if after.Status != "ready" || after.Code != code || after.CallbackIDToken != "" {
+		t.Fatalf("snapshot without responseType: status=%q code=%q callbackIDToken=%q, want the code flow", after.Status, after.Code, after.CallbackIDToken)
+	}
+}
+
 // TestDiagnosticsImplicitTokenRejectsBadAtHash fails the connection test when
 // the fragment's access token does not match the id_token's at_hash: the
 // id_token stage reports access_token_hash and userinfo never runs.
