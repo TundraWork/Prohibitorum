@@ -266,4 +266,34 @@ describe("ItemList", () => {
     expect(beside).not.toHaveAttribute("data-stacked");
     expect(stacked?.style.getPropertyValue("--item-actions-row")).toBe("3");
   });
+
+  it("draws no footer for a false or null footer, as `cond && <Button />` yields", () => {
+    const { container, rerender } = render(
+      <ItemList label="Keys" empty={null} footer={false}>
+        <ItemListRow key="a" title="Key" />
+      </ItemList>,
+    );
+    const panel = container.querySelector("[data-slot='frame-panel']");
+    // The list is the panel's only child, so `divide-y` draws no rule under it.
+    expect(panel?.children).toHaveLength(1);
+
+    rerender(
+      <ItemList label="Keys" empty={null} footer={null}>
+        <ItemListRow key="a" title="Key" />
+      </ItemList>,
+    );
+    expect(panel?.children).toHaveLength(1);
+
+    rerender(
+      <ItemList
+        label="Keys"
+        empty={null}
+        footer={<button type="button">More</button>}
+      >
+        <ItemListRow key="a" title="Key" />
+      </ItemList>,
+    );
+    expect(panel?.children).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "More" })).toBeInTheDocument();
+  });
 });
