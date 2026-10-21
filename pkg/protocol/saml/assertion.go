@@ -259,7 +259,10 @@ func (i *IdP) issueAssertion(w http.ResponseWriter, r *http.Request, account db.
 		i.errorPage(w, r, "server_error", "subject_id", err)
 		return
 	}
-	attrs, err := projectAttributes(account, sp.AttributeMap, i.baseURL(), groupSlugs)
+	// The primary address feeds the "email" attribute source (PHB-148);
+	// read it before projecting, like groupSlugs.
+	primaryEmail, _ := i.queries.GetAccountPrimaryEmail(ctx, account.ID)
+	attrs, err := projectAttributes(account, primaryEmail, sp.AttributeMap, i.baseURL(), groupSlugs)
 	if err != nil {
 		i.errorPage(w, r, "server_error", "project_attributes", err)
 		return

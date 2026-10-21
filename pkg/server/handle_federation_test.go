@@ -79,6 +79,9 @@ type fakeFedQueries struct {
 	accountByIDResults map[int32]db.Account
 	accountByUsername  map[string]db.Account
 	primaryEmails      map[int32]string
+	emailRows          map[int64]db.AccountEmail
+	emailPrimary       map[int32]int64
+	nextEmailID        int64
 	usernameErr        error
 	nextAccountID      int32
 	insertedAccounts   []db.Account
@@ -122,6 +125,8 @@ func newFakeFedQueries() *fakeFedQueries {
 		identityErr:        pgx.ErrNoRows,
 		accountByIDResults: map[int32]db.Account{},
 		primaryEmails:      map[int32]string{},
+		emailRows:          map[int64]db.AccountEmail{},
+		emailPrimary:       map[int32]int64{},
 		accountByUsername:  map[string]db.Account{},
 		usernameErr:        pgx.ErrNoRows,
 		nextAccountID:      100,
@@ -181,6 +186,142 @@ func (f *fakeFedQueries) seedPrimary(accountID int32, address string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.primaryEmails[accountID] = address
+}
+
+// ----- email write surface (PHB-148 absorption) -----
+
+func (f *fakeFedQueries) GetAccountByIDForUpdate(ctx context.Context, id int32) (db.Account, error) {
+	return f.GetAccountByID(ctx, id)
+}
+
+func (f *fakeFedQueries) CountAccountEmails(_ context.Context, accountID int32) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var n int64
+	for _, row := range f.emailRows {
+		if row.AccountID == accountID {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeFedQueries) emailRowView(row db.AccountEmail) db.GetAccountEmailByAddressRow {
+	return db.GetAccountEmailByAddressRow{
+		ID: row.ID, AccountID: row.AccountID, Address: row.Address,
+		VerifiedAt: row.VerifiedAt, VerifiedVia: row.VerifiedVia,
+		VerifiedByIdpID: row.VerifiedByIdpID, VerifiedByAdminID: row.VerifiedByAdminID,
+		CreatedAt: row.CreatedAt, IsPrimary: f.emailPrimary[row.AccountID] == row.ID,
+	}
+}
+
+func (f *fakeFedQueries) GetAccountEmailByAddress(_ context.Context, arg db.GetAccountEmailByAddressParams) (db.GetAccountEmailByAddressRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, row := range f.emailRows {
+		if row.AccountID == arg.AccountID && strings.EqualFold(row.Address, arg.Lower) {
+			return f.emailRowView(row), nil
+		}
+	}
+	return db.GetAccountEmailByAddressRow{}, pgx.ErrNoRows
+}
+
+func (f *fakeFedQueries) InsertAccountEmail(_ context.Context, arg db.InsertAccountEmailParams) (db.AccountEmail, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextEmailID++
+	row := db.AccountEmail{ID: f.nextEmailID, AccountID: arg.AccountID, Address: arg.Address, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}}
+	f.emailRows[row.ID] = row
+	return row, nil
+}
+
+func (f *fakeFedQueries) InsertAccountEmailVerified(_ context.Context, arg db.InsertAccountEmailVerifiedParams) (db.AccountEmail, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextEmailID++
+	now := pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	row := db.AccountEmail{ID: f.nextEmailID, AccountID: arg.AccountID, Address: arg.Address, VerifiedAt: now, VerifiedVia: arg.VerifiedVia, VerifiedByIdpID: arg.VerifiedByIdpID, VerifiedByAdminID: arg.VerifiedByAdminID, CreatedAt: now}
+	f.emailRows[row.ID] = row
+	return row, nil
+}
+
+func (f *fakeFedQueries) MarkAccountEmailVerified(_ context.Context, arg db.MarkAccountEmailVerifiedParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	row, ok := f.emailRows[arg.ID]
+	if !ok || row.AccountID != arg.AccountID || row.VerifiedAt.Valid {
+		return 0, nil
+	}
+	row.VerifiedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	row.VerifiedVia = arg.VerifiedVia
+	row.VerifiedByIdpID = arg.VerifiedByIdpID
+	row.VerifiedByAdminID = arg.VerifiedByAdminID
+	f.emailRows[arg.ID] = row
+	return 1, nil
+}
+
+func (f *fakeFedQueries) DeleteAccountEmail(_ context.Context, arg db.DeleteAccountEmailParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	row, ok := f.emailRows[arg.ID]
+	if !ok || row.AccountID != arg.AccountID {
+		return 0, nil
+	}
+	delete(f.emailRows, arg.ID)
+	return 1, nil
+}
+
+func (f *fakeFedQueries) GetAccountEmail(_ context.Context, arg db.GetAccountEmailParams) (db.GetAccountEmailRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	row, ok := f.emailRows[arg.ID]
+	if !ok || row.AccountID != arg.AccountID {
+		return db.GetAccountEmailRow{}, pgx.ErrNoRows
+	}
+	view := f.emailRowView(row)
+	return db.GetAccountEmailRow{
+		ID: view.ID, AccountID: view.AccountID, Address: view.Address,
+		VerifiedAt: view.VerifiedAt, VerifiedVia: view.VerifiedVia,
+		VerifiedByIdpID: view.VerifiedByIdpID, VerifiedByAdminID: view.VerifiedByAdminID,
+		CreatedAt: view.CreatedAt, IsPrimary: view.IsPrimary,
+	}, nil
+}
+
+func (f *fakeFedQueries) SetAccountPrimaryEmail(_ context.Context, arg db.SetAccountPrimaryEmailParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.emailPrimary[arg.ID] = arg.PrimaryEmailID.Int64
+	return nil
+}
+
+func (f *fakeFedQueries) ClearAccountPrimaryEmail(_ context.Context, id int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.emailPrimary, id)
+	return nil
+}
+
+func (f *fakeFedQueries) PickFallbackPrimary(_ context.Context, arg db.PickFallbackPrimaryParams) (db.PickFallbackPrimaryRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, row := range f.emailRows {
+		if row.AccountID == arg.AccountID && row.ID != arg.ID && row.VerifiedAt.Valid {
+			return db.PickFallbackPrimaryRow{ID: row.ID, Address: row.Address}, nil
+		}
+	}
+	return db.PickFallbackPrimaryRow{}, pgx.ErrNoRows
+}
+
+func (f *fakeFedQueries) CountVerifiedAccountEmailsByAddress(_ context.Context, arg db.CountVerifiedAccountEmailsByAddressParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var n int64
+	for _, row := range f.emailRows {
+		if row.AccountID != arg.AccountID && row.VerifiedAt.Valid && strings.EqualFold(row.Address, arg.Lower) {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func (f *fakeFedQueries) GetAccountByUsername(_ context.Context, u string) (db.Account, error) {

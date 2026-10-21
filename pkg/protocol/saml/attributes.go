@@ -44,6 +44,8 @@ type samlAttr struct {
 //
 // Source resolution:
 //   - "username"          -> [a.Username]
+//   - "email"             -> the account's primary address (PHB-148),
+//     omitted when the account has no primary.
 //   - "attributes.<key>"  -> a.Attributes (JSONB) decoded to map[string]any,
 //     then the value at <key>. Multi:true coerces a JSON array to one value
 //     per element; Multi:false takes a single scalar (or the first element of
@@ -57,7 +59,7 @@ type samlAttr struct {
 //
 // A nil/empty mapJSON yields an empty slice and no error. An error is returned
 // only when mapJSON is not a valid JSON array.
-func projectAttributes(a db.Account, mapJSON []byte, origin string, groups []string) ([]samlAttr, error) {
+func projectAttributes(a db.Account, primaryEmail string, mapJSON []byte, origin string, groups []string) ([]samlAttr, error) {
 	if len(mapJSON) == 0 {
 		return nil, nil
 	}
@@ -101,6 +103,15 @@ func projectAttributes(a db.Account, mapJSON []byte, origin string, groups []str
 			}
 			if len(vals) > 0 {
 				out = append(out, samlAttr{Name: e.Name, NameFormat: e.NameFormat, FriendlyName: e.FriendlyName, Values: vals})
+			}
+			continue
+		}
+
+		// email special rule (PHB-148): the account's primary address,
+		// omitted when there is none. Non-primary addresses never appear.
+		if e.Source == "email" {
+			if primaryEmail != "" {
+				out = append(out, samlAttr{Name: e.Name, NameFormat: e.NameFormat, FriendlyName: e.FriendlyName, Values: []string{primaryEmail}})
 			}
 			continue
 		}

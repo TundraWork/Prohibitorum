@@ -36,6 +36,8 @@ type confirmFedQueries interface {
 	GetAccountByID(ctx context.Context, id int32) (db.Account, error)
 	GetUpstreamIDPBySlug(ctx context.Context, slug string) (db.UpstreamIdp, error)
 	ConfirmAccountIdentity(ctx context.Context, id int64) error
+	// GetAccountPrimaryEmail feeds the confirm page's email line (PHB-148).
+	GetAccountPrimaryEmail(ctx context.Context, id int32) (string, error)
 }
 
 func (s *Server) confirmFedQ() confirmFedQueries {
@@ -182,7 +184,7 @@ func splitConfirmCookie(v string) (token, antiForgery string) {
 // primaryEmail returns the account's primary address, "" when none; the
 // welcome page shows it so the user knows what applications will receive.
 func (s *Server) primaryEmail(ctx context.Context, accountID int32) string {
-	addr, err := s.queries.GetAccountPrimaryEmail(ctx, accountID)
+	addr, err := s.confirmFedQ().GetAccountPrimaryEmail(ctx, accountID)
 	if err != nil {
 		return ""
 	}

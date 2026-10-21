@@ -105,9 +105,9 @@ func TestDeleteUpstreamIDPCLIWithLinkedAccountPostgres(t *testing.T) {
 
 	var accountID int32
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO account (username, display_name, webauthn_user_handle, email)
-		VALUES ($1, 'CLI Delete Account', $2, $3) RETURNING id`,
-		slug+"_acct", append([]byte(suffix), 0x01), slug+"@cli-del.test").Scan(&accountID); err != nil {
+		INSERT INTO account (username, display_name, webauthn_user_handle)
+		VALUES ($1, 'CLI Delete Account', $2) RETURNING id`,
+		slug+"_acct", append([]byte(suffix), 0x01)).Scan(&accountID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -235,9 +235,9 @@ func TestDeleteUpstreamIDPCLIRollsBackOnFailurePostgres(t *testing.T) {
 	}
 	var accountID int32
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO account (username, display_name, webauthn_user_handle, email)
-		VALUES ($1, 'Rollback Account', $2, $3) RETURNING id`,
-		slug+"_acct", append([]byte(suffix), 0x02), slug+"@cli-rb.test").Scan(&accountID); err != nil {
+		INSERT INTO account (username, display_name, webauthn_user_handle)
+		VALUES ($1, 'Rollback Account', $2) RETURNING id`,
+		slug+"_acct", append([]byte(suffix), 0x02)).Scan(&accountID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
