@@ -43,7 +43,7 @@ msgstr "{0, plural, other {显示 # 个已退役的密钥}}"
 #. placeholder {0}: nextPrimary.address
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.delete.fallback"
-msgstr "{address} 将成为新的主邮箱。"
+msgstr "{0} 将成为新的主邮箱。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
@@ -309,7 +309,7 @@ msgstr "90 天"
 #. placeholder {0}: address?.address
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.verify.description"
-msgstr "已向 {address} 发送 6 位验证码，15 分钟内有效。"
+msgstr "已向 {0} 发送 6 位验证码，15 分钟内有效。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -856,12 +856,12 @@ msgstr "<0/>添加"
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.added"
-msgstr "添加于 {when}"
+msgstr "添加于 <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.added"
-msgstr "添加于 {when}"
+msgstr "添加于 <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountPasskeysSection.tsx
@@ -1408,7 +1408,7 @@ msgstr "至少满足以下一个条件"
 #. placeholder {0}: data.limit
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.cap"
-msgstr "最多 {limit} 个地址，删除一个后才能再添加"
+msgstr "最多 {0} 个地址，删除一个后才能再添加"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
@@ -2451,7 +2451,7 @@ msgstr "确认密码"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.assert.title"
-msgstr "确认 {address} 属于该用户？"
+msgstr "确认这个地址属于该用户？"
 
 #. js-lingui-explicit-id
 #: src/lib/scopes.ts
@@ -5417,12 +5417,12 @@ msgstr "设为主邮箱"
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.primary.title"
-msgstr "把 {address} 设为主邮箱？"
+msgstr "把这个地址设为主邮箱？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.primary.title"
-msgstr "把 {address} 设为主邮箱？"
+msgstr "把这个地址设为主邮箱？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
@@ -7281,12 +7281,12 @@ msgstr "移除授权？"
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.delete.title"
-msgstr "删除 {address}？"
+msgstr "删除这个地址？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.delete.title"
-msgstr "删除 {address}？"
+msgstr "删除这个地址？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
@@ -7604,7 +7604,7 @@ msgstr "重新发送"
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.resend_cooldown"
-msgstr "{seconds} 秒后可重新发送"
+msgstr "{cooldown} 秒后可重新发送"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -11093,37 +11093,37 @@ msgstr "已验证 {address}。应用会看到这个地址。"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.verified_by_named"
-msgstr "由 {admin} 确认"
+msgstr "{when} 由 {operator} 确认"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.verified_by_provider"
-msgstr "由 {provider} 确认"
+msgstr "{when} 由 {provider} 确认"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.verified_by_provider"
-msgstr "由 {provider} 确认"
+msgstr "{when} 由 {provider} 确认"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.verified_by_admin"
-msgstr "由管理员确认"
+msgstr "{when} 由管理员确认"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.verified_by_admin"
-msgstr "由管理员确认"
+msgstr "{when} 由管理员确认"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.verified_by_code"
-msgstr "通过验证码"
+msgstr "{when} 通过验证码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.verified_by_code"
-msgstr "通过验证码"
+msgstr "{when} 通过验证码"
 
 #. js-lingui-explicit-id
 #. placeholder {0}: verified.displayName
