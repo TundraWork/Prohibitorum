@@ -44,26 +44,35 @@ export function PublicScene({
         background={shown}
         readable={readablePictures}
       />
-      <AppToolbar
-        surface={appearance.capsules}
-        showThemeSelect={appearance.theme === "switchable"}
+      {/* The toolbar and the stage share one region, centred and capped in
+          width, so on a very wide screen the card's left or right sits under
+          the capsules rather than at the window's far edge. The background
+          stays full-bleed behind it. */}
+      <div
+        data-slot="public-region"
+        className="mx-auto w-full max-w-(--public-region)"
       >
-        <InstanceIdentity />
-      </AppToolbar>
-      <PublicStage
-        frame={appearance.background.source === "none" ? "plain" : "frosted"}
-        card={cardSurfaceStyle(appearance.card)}
-        position={appearance.cardPosition}
-        after={
-          hasCredit && (
-            <div className="flex w-full min-w-0 justify-center lg:hidden">
-              {credit}
-            </div>
-          )
-        }
-      >
-        {children}
-      </PublicStage>
+        <AppToolbar
+          surface={appearance.capsules}
+          showThemeSelect={appearance.theme === "switchable"}
+        >
+          <InstanceIdentity />
+        </AppToolbar>
+        <PublicStage
+          frame={appearance.background.source === "none" ? "plain" : "frosted"}
+          card={cardSurfaceStyle(appearance.card)}
+          position={appearance.cardPosition}
+          after={
+            hasCredit && (
+              <div className="flex w-full min-w-0 justify-center lg:hidden">
+                {credit}
+              </div>
+            )
+          }
+        >
+          {children}
+        </PublicStage>
+      </div>
       {hasCredit && (
         <div
           className={publicCreditPlacement({

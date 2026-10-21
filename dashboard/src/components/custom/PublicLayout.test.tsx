@@ -313,6 +313,11 @@ it("centres the stage and offers the theme control by default", async () => {
   const banner = await mount();
   const main = screen.getByRole("main");
   expect(main).toHaveAttribute("data-position", "center");
+  // The toolbar and the stage share one capped, centred region, so a very
+  // wide screen keeps the card under the capsules.
+  const region = main.closest('[data-slot="public-region"]');
+  expect(region).toHaveClass("mx-auto", "max-w-(--public-region)");
+  expect(region).toContainElement(banner);
   expect(within(banner).getByRole("button", { name: "Theme" })).toBeVisible();
 });
 
@@ -323,13 +328,13 @@ it("puts the stage on the left from lg and the credit at the bottom right", asyn
     appearance.cardPosition = "left";
   });
   await mount();
-  const main = screen.getByRole("main");
-  expect(main).toHaveAttribute("data-position", "left");
-  // Centred in the left half, clear of the window's edge on a wide screen.
-  expect(main).toHaveClass("lg:grid-cols-2", "lg:*:col-start-1");
+  expect(screen.getByRole("main")).toHaveAttribute("data-position", "left");
   const credit = await wideCredit();
-  expect(credit).toHaveClass("right-5", "max-w-[calc(50vw-2.75rem)]");
-  expect(credit).not.toHaveClass("left-5");
+  expect(credit).toHaveClass(
+    "right-(--public-inset)",
+    "max-w-[calc(min(100vw,var(--public-region))-34rem)]",
+  );
+  expect(credit).not.toHaveClass("left-(--public-inset)");
 });
 
 it("puts the stage on the right from lg and the credit at the bottom left", async () => {
@@ -339,12 +344,13 @@ it("puts the stage on the right from lg and the credit at the bottom left", asyn
     appearance.cardPosition = "right";
   });
   await mount();
-  const main = screen.getByRole("main");
-  expect(main).toHaveAttribute("data-position", "right");
-  expect(main).toHaveClass("lg:grid-cols-2", "lg:*:col-start-2");
+  expect(screen.getByRole("main")).toHaveAttribute("data-position", "right");
   const credit = await wideCredit();
-  expect(credit).toHaveClass("left-5", "max-w-[calc(50vw-2.75rem)]");
-  expect(credit).not.toHaveClass("right-5");
+  expect(credit).toHaveClass(
+    "left-(--public-inset)",
+    "max-w-[calc(min(100vw,var(--public-region))-34rem)]",
+  );
+  expect(credit).not.toHaveClass("right-(--public-inset)");
 });
 
 it("frames the stage plain over the page's own background and frosted over a picture", async () => {
