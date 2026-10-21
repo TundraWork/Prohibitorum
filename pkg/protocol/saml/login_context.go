@@ -22,8 +22,8 @@ type LoginApplication struct {
 // LoginContext resolves the application the sign-in page shows for a
 // return_to URL that points at this IdP's SAML endpoints: /saml/sso (the
 // SP-initiated bounce carries the AuthnRequest in the query for the redirect
-// binding — the POST binding re-POSTs the form, so its return_to is a POST
-// target the GET context endpoint cannot replay) or /saml/sso/init.
+// binding, and the key of its kept form for the POST binding) or
+// /saml/sso/init.
 //
 // Like the OIDC forward-auth context this is a strictly read-only view over
 // registered configuration: it re-runs the AuthnRequest parse (including the
@@ -34,7 +34,19 @@ type LoginApplication struct {
 func (i *IdP) LoginContext(ctx context.Context, u *url.URL) (app LoginApplication, ok bool, err error) {
 	switch u.EscapedPath() {
 	case "/saml/sso":
-		req, perr := i.parseAuthnRequest(ctx, &http.Request{Method: http.MethodGet, URL: u})
+		request := &http.Request{Method: http.MethodGet, URL: u}
+		// A POST-binding request waiting on the sign-in is named from its
+		// kept form, read without being spent.
+		if replay, isKept, kerr := i.postContinueRequest(ctx, request.WithContext(ctx)); isKept {
+			if kerr != nil {
+				if errors.Is(kerr, ErrMissingSAMLRequest) {
+					return LoginApplication{}, false, nil
+				}
+				return LoginApplication{}, false, kerr
+			}
+			request = replay
+		}
+		req, perr := i.parseAuthnRequest(ctx, request)
 		if perr != nil || req.SP.Disabled {
 			return LoginApplication{}, false, nil
 		}

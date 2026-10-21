@@ -234,7 +234,7 @@ intake, and signed metadata.
 - OIDC introspection requires a confidential client: a public (`none`-auth) client → `invalid_client` (401) per RFC 7662 §2.1. Public clients may still revoke their own tokens (RFC 7009).
 - SAML `ForceAuthn`: triggers the same re-auth bounce + single-use nonce; the assertion's `AuthnInstant` reflects the fresh `auth_time`. `ForceAuthn` + `IsPassive` → `NoPassive`, no assertion (IsPassive wins, OASIS normative).
 - SAML `NameIDPolicy/@Format`: a concrete requested format the IdP can't produce → `InvalidNameIDPolicy`, no assertion; `unspecified`/absent/matching → a normal assertion.
-- SAML POST-binding AuthnRequest: `POST /saml/sso` accepts an enveloped-signed AuthnRequest verified against the registered SP key; the POST SSO binding is re-advertised in metadata.
+- SAML POST-binding AuthnRequest: `POST /saml/sso` accepts an enveloped-signed AuthnRequest verified against the registered SP key; the POST SSO binding is re-advertised in metadata. A request that has to wait for a sign-in (no session, or `ForceAuthn`) keeps its posted form in KV for 10 minutes and the sign-in returns to `GET /saml/sso?post=<key>`, which replays it as the same POST with every check run again.
 - SAML signed metadata: the `EntityDescriptor` is signed and carries `validUntil` + `cacheDuration` from `configx.SAML.MetadataValidity`; fails open to unsigned if no active signing key.
 - SAML IdP-initiated SSO: `GET /saml/sso/init?sp=<entity_id>&RelayState=<deep-link>` emits an unsolicited Response (no `InResponseTo`) to the SP's default ACS, gated by per-SP `allow_idp_initiated` (default false; non-opted-in → 403); `RelayState` passed through verbatim; rate-limited per-account + per-SP. `saml-sp create --allow-idp-initiated` opts an SP in.
 
@@ -254,7 +254,6 @@ Schema: `saml_sp.allow_idp_initiated boolean NOT NULL DEFAULT false`;
 ### Known limitations
 
 - A SLO POST LogoutRequest with a non-SHA256/non-SHA1 sig alg maps to 500 instead of 400 (still rejects).
-- `ForceAuthn` + POST-binding AuthnRequest fails safe with an error (the login bounce rebuilds `return_to` from the query string, which lacks the POST body).
 - `oidc-client create --public` requires a `--post-logout-redirect-uri` (the public path otherwise violates a NOT NULL constraint).
 
 Not implemented: assertion/NameID encryption; front-channel multi-SP SLO propagation.

@@ -88,6 +88,16 @@ type autoPostData struct {
 func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// A sign-in that interrupted an HTTP-POST request comes back as GET with
+	// the key its form was kept under; replay it as the POST the SP sent.
+	if replay, ok, perr := i.postContinueRequest(ctx, r); ok {
+		if perr != nil {
+			i.ssoParseError(w, r, perr)
+			return
+		}
+		r = replay
+	}
+
 	// Bound the POST body before any form parse (N7). GET carries the request
 	// in the (already-DEFLATE-capped) query string.
 	if r.Method == http.MethodPost {
@@ -133,11 +143,16 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
 			return
 		}
-		// Send the user to the login page; on success they return to this exact
-		// SSO URL and the flow re-runs and issues. This is NOT an SP redirect,
-		// so use a plain redirect to our own login.
-		fullSSOURL := i.baseURL() + r.URL.RequestURI()
-		loginURL := i.baseURL() + "/login?return_to=" + url.QueryEscape(fullSSOURL)
+		// Send the user to the login page; on success they return to this
+		// SSO request and the flow re-runs and issues: the same URL for the
+		// redirect binding, the kept form's key for the POST binding. This is
+		// NOT an SP redirect, so use a plain redirect to our own login.
+		returnTo, rerr := i.ssoReturnURL(ctx, r)
+		if rerr != nil {
+			i.errorPage(w, r, "server_error", "post_request_keep", rerr)
+			return
+		}
+		loginURL := i.baseURL() + "/login?return_to=" + url.QueryEscape(returnTo)
 		http.Redirect(w, r, loginURL, http.StatusFound)
 		return
 	}
@@ -272,8 +287,19 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// normalizing %2f→%2F — would break verification). Only add/replace
 			// the reauth nonce (base64url, URL-safe → needs no escaping); drop any
 			// stale reauth so a re-bounce can't carry a spent one.
+			rawQuery := r.URL.RawQuery
+			if r.Method == http.MethodPost && r.URL.Query().Get(postContinueParam) == "" {
+				// The POST binding's request is in the body: keep its form and
+				// come back with the key instead.
+				key, kerr := i.keepPostRequest(ctx, r)
+				if kerr != nil {
+					i.errorPage(w, r, "server_error", "post_request_keep", kerr)
+					return
+				}
+				rawQuery = postContinueParam + "=" + key
+			}
 			kept := make([]string, 0)
-			for _, p := range strings.Split(r.URL.RawQuery, "&") {
+			for _, p := range strings.Split(rawQuery, "&") {
 				if p != "" && !strings.HasPrefix(p, "reauth=") {
 					kept = append(kept, p)
 				}
