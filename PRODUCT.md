@@ -68,7 +68,9 @@ web dashboard. It serves a single small organization.
 - Deployment uses PostgreSQL and either a Redis-compatible store or the
   in-process memory driver. Build and development commands are in `TOOLING.md`.
 - Recovery uses recovery codes or admin-issued enrollment; there is no email
-  channel. A provider with sign-in off verifies identity only — for an
+  recovery channel. Mail, when an SMTP relay is configured, only delivers
+  address-verification codes; an email address is never a way back into an
+  account. A provider with sign-in off verifies identity only — for an
   invitation or a linked account — and never directly signs a member in;
   VRChat starts with sign-in off, and an administrator may turn it on.
 - English and Chinese locale entries stay in sync. The dashboard supports

@@ -58,6 +58,20 @@ Known operational caveats:
 | Composition rules (uppercase / digit / symbol) | ❌ explicitly forbidden | NIST §3.1.1.2 — do not add |
 | No email channel for reset; admin enrollment-token only | ✅ design | enrollment intent `reset` |
 
+## Account emails (PHB-148)
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Verification code is 6 digits from `crypto/rand`, 15-minute TTL, max 5 attempts, hashed at rest in KV | ✅ | `pkg/account/email/codes.go`; consumed via `CompareAndDelete` (single winner) |
+| Send limits: 60s per-address cooldown, 10/hour per account, 5/hour per address (cross-account), 5/min per admin for test mails | ✅ | `pkg/account/email/limits.go` (ulule/limiter, memory or shared-Redis store) |
+| **No rate-limit key contains an IP** | ✅ | keys are account id, email id, lower(address), admin id only |
+| Primary must be verified and belongs to its account (composite FK) | ✅ | write layer `SetPrimary`; `account_primary_email_fk`; migration test |
+| Verified addresses unique across accounts; unverified copies coexist | ✅ | partial unique index `account_email_verified_address_uidx`; migration test |
+| Verification of an address another account holds reveals nothing (`email_unavailable`) | ✅ | `mapEmailRuleError`; handler tests assert no details |
+| All email mutations audited (`factor=email`: register/revoke/verification_sent/verified/primary_changed/fail), codes never in audit | ✅ | `pkg/server/handle_me_emails.go`, `handle_admin_account_emails.go`, federation `absorbUpstream` |
+| Mail is only verification codes + admin test mail; never a session/credential channel | ✅ | `pkg/mail` has no other callers; docs updated |
+| Address syntax RFC 5322 (`net/mail`), domain via IDNA `Lookup`, 254-byte cap | ✅ | `ValidateAddress`; no custom syntax rules |
+
 ## TOTP (RFC 6238 / RFC 4226)
 
 | Item | Status | Notes / source |

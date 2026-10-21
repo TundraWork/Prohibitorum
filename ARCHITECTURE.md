@@ -6,7 +6,7 @@ A single-tenant identity provider for a small org. It owns the account directory
 
 **Is:**
 - A single-tenant IdP for a small org. Owns the account directory, runs WebAuthn / password+TOTP ceremonies, federates sign-in through OIDC and Steam, and uses VRChat proof to start authoritative local-credential ceremonies.
-- A first-party service. No email channel; recovery is initiated by an admin-issued enrollment or a verified, already-linked VRChat profile.
+- A first-party service. Mail is used only to verify account email addresses (an optional SMTP relay); it is never an account-recovery channel — recovery is initiated by an admin-issued enrollment or a verified, already-linked VRChat profile.
 - The source of truth for "who is this user, are they disabled, what attributes do we know about them?"
 
 **Is not:**
@@ -344,7 +344,8 @@ SAML IdP flow:
 
 **Postgres** — durable identity state. The current schema and migrations in `db/migrations` are authoritative.
 
-- `account` — id, username, display_name, webauthn_user_handle, role, attributes jsonb, disabled, timestamps.
+- `account` — id, username, display_name, webauthn_user_handle, role, attributes jsonb, disabled, timestamps, primary_email_id (→ account_email).
+- `account_email` — account_id, address, verified_at, verified_via (`code`/`admin`/`upstream`), verified_by_idp_id, verified_by_admin_id, created_at. Unique `(account_id, lower(address))`; verified addresses unique per `lower(address)` across accounts (partial index); at most one primary per account via `account.primary_email_id` with a composite FK keeping it inside the owning account.
 - `session` — id, account_id, auth_time, amr text[], acr, upstream_idp_id, created_at, revoked_at. Doubles as the source of OIDC `sid` claim.
 - `webauthn_credential` — credential_id, public_key, cose_alg, user_handle, sign_count, transports, AAGUID, attestation_type, backup_eligible / backup_state, uv_initialized, nickname, last_used_at, clone_warning_at.
 - `password_credential` — account_id PK, hash (PHC), password_changed_at.
@@ -368,6 +369,7 @@ SAML IdP flow:
 - `session:<acct>:<token>` → `SessionData` (sliding-refresh metadata).
 - `webauthn_ceremony:{login,enroll,add,sudo}:<token>` → go-webauthn `SessionData`.
 - `pairing:id:<id>` / `pairing:code:<code>` → device pairing state.
+- `email-code:<emailID>` → verification-code record (hash, attempts) with 15-minute TTL; `email-code:cooldown|account|address:*` and `email-test:admin:*` rate-limit keys (never keyed by IP).
 - `oidc:code:<random>` → `AuthCodeData` (account_id, client_id, scope, nonce, code_challenge, redirect_uri, consumed_at).
 - `oidc:refresh:<random>` → `RefreshTokenData` (account_id, client_id, scope, family, rotated_from).
 - `oidc:fed:state:<random>` → upstream-OIDC RP state with snapshotted `expected_iss` + `expected_token_endpoint`, nonce, code_verifier, return_to.
