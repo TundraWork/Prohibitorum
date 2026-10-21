@@ -10,6 +10,7 @@ import type {
   FederationFlow,
   FederationFlowIntent,
   FederationFlowStep,
+  LoginApplication,
 } from "@/api/raw-paths";
 
 /**
@@ -310,6 +311,9 @@ export function readFederationFlow(raw: unknown): FederationFlow {
     throw invalid();
   }
   if (step === "proof" && !proofUrl) throw invalid();
+  // The application only labels the page, so one that does not read as one
+  // is left out rather than failing the flow.
+  const application = readLoginApplication(raw.application);
   return {
     provider: {
       slug: provider.slug,
@@ -322,5 +326,26 @@ export function readFederationFlow(raw: unknown): FederationFlow {
     ...(proofUrl ? { proofUrl } : {}),
     requiresLocalUsername: raw.requiresLocalUsername,
     expiresAt: raw.expiresAt,
+    ...(application ? { application } : {}),
+  };
+}
+
+/** An application as the server names it, or undefined when it is not one. */
+export function readLoginApplication(
+  raw: unknown,
+): LoginApplication | undefined {
+  if (
+    !isRecord(raw) ||
+    typeof raw.label !== "string" ||
+    raw.label === "" ||
+    !optionalString(raw.host) ||
+    !optionalString(raw.iconUrl)
+  ) {
+    return undefined;
+  }
+  return {
+    label: raw.label,
+    ...(raw.host ? { host: raw.host } : {}),
+    ...(raw.iconUrl ? { iconUrl: raw.iconUrl } : {}),
   };
 }

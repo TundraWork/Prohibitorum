@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadDocument } from "@/app/load-document";
@@ -269,8 +269,58 @@ describe("the error landing page", () => {
     const router = await open("/error?error=server_error", false);
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(
-      await screen.findByRole("heading", { name: /^Sign in with / }),
+      await screen.findByRole("heading", { name: /^Sign in to / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
+  });
+
+  it("names the application, icon and all, when the link it started from does", async () => {
+    const api = fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/forward-auth/login-context": () =>
+        Response.json({
+          application: {
+            label: "Wiki",
+            host: "wiki.example.test",
+            iconUrl: "/icon/oidc_client/wiki?v=abcd1234",
+          },
+        }),
+    });
+    renderApp(
+      `/error?error=federation_state_invalid&return_to=${encodeURIComponent("/oauth/authorize?client_id=wiki")}`,
+      queryClient,
+    );
+    await screen.findByRole("heading", { level: 1 });
+    const strip = await waitFor(() => {
+      const element = document.querySelector('[data-slot="stage-strip"]');
+      expect(element).toHaveTextContent("Wiki");
+      return element as HTMLElement;
+    });
+    expect(strip).toHaveTextContent("wiki.example.test");
+    const [read] = api.sent(
+      "GET",
+      "/api/prohibitorum/forward-auth/login-context",
+    );
+    expect(read?.url.searchParams.get("return_to")).toBe(
+      `${window.location.origin}/oauth/authorize?client_id=wiki`,
+    );
+  });
+
+  it("names a denied application by its registered name over the one in the link", async () => {
+    fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/forward-auth/login-context": () =>
+        Response.json({ application: { label: "Wiki" } }),
+    });
+    renderApp(
+      `/error?error=access_denied&reason=app_access_denied&app=Spoofed&return_to=${encodeURIComponent("/oauth/authorize?client_id=wiki")}`,
+      queryClient,
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "You don't have access to Wiki",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText(/Spoofed/)).not.toBeInTheDocument();
   });
 });

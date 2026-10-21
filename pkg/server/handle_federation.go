@@ -186,7 +186,14 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 		// HandleCallback returns structured *authn.AuthError for every
 		// expected failure (federation_state_invalid, bad_credentials,
 		// email_not_verified, username_collision, …). Redirect to /error
-		// instead of JSON — this is a full-page browser-navigated flow.
+		// instead of JSON — this is a full-page browser-navigated flow. The
+		// flow's validated return_to rides along, so the error page can name
+		// the application and offer the way back to it.
+		var callbackErr *federation.CallbackError
+		if errors.As(err, &callbackErr) {
+			redirectAuthErrToErrorReturn(w, r, err, callbackErr.ReturnTo)
+			return
+		}
 		redirectAuthErrToError(w, r, err)
 		return
 	}
@@ -260,7 +267,7 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	if !result.Confirmed {
 		token, antiForgery, err := s.federationService.CreateConfirmGrant(
 			r.Context(), result.AccountID, result.IdentityID, result.ProviderID,
-			result.ProviderSlug, result.ReturnTo, result.AMR, result.OfferLocalSignin, result.Remember,
+			result.ProviderSlug, result.ReturnTo, result.App, result.AMR, result.OfferLocalSignin, result.Remember,
 		)
 		if err != nil {
 			s.writeFederationCompletionError(w, r, err, mode)

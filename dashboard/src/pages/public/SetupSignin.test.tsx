@@ -77,7 +77,7 @@ describe("adding a sign-in after a first federated one", () => {
     setupApi([identity(1, "GitLab")], null);
     const router = renderApp(address, queryClient);
     expect(
-      await screen.findByRole("heading", { name: /^Sign in with / }),
+      await screen.findByRole("heading", { name: /^Sign in to / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
   });

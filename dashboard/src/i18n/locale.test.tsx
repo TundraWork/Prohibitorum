@@ -96,9 +96,7 @@ describe("language preference", () => {
     const { localeBeforeMount } = await mountApplication();
 
     expect(localeBeforeMount).toBe("en");
-    expect(
-      screen.getByRole("heading", { name: /^Sign in with / }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^Sign in to / })).toBeVisible();
     expect(screen.getByRole("button", { name: /Language/ })).toBeVisible();
   });
 
@@ -113,9 +111,7 @@ describe("language preference", () => {
       await screen.findByRole("menuitemradio", { name: "中文" }),
     );
 
-    expect(
-      screen.getByRole("heading", { name: /^使用 .* 登录$/ }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^登录 / })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "用户名" })).toHaveValue(
       "Unsubmitted edit",
     );
@@ -130,9 +126,7 @@ describe("language preference", () => {
     vi.resetModules();
     const reloaded = await mountApplication();
     expect(reloaded.localeBeforeMount).toBe("zh-CN");
-    expect(
-      screen.getByRole("heading", { name: /^使用 .* 登录$/ }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^登录 / })).toBeVisible();
     expect(window.location.href).toBe(originalUrl);
   });
 
@@ -154,9 +148,7 @@ describe("language preference", () => {
       );
     });
 
-    expect(
-      screen.getByRole("heading", { name: /^使用 .* 登录$/ }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^登录 / })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "用户名" })).toHaveValue(
       "Still editing",
     );
@@ -170,8 +162,6 @@ describe("language preference", () => {
     const { localeBeforeMount } = await mountApplication();
 
     expect(localeBeforeMount).toBe("en");
-    expect(
-      screen.getByRole("heading", { name: /^Sign in with / }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: /^Sign in to / })).toBeVisible();
   });
 });

@@ -246,7 +246,8 @@ export interface ConsentAccount {
  * from one of its listed providers, as the in-between page shows it.
  */
 export interface RequireIdentityRequest {
-  client: { displayName: string; iconUrl?: string };
+  /** `host` is the host of the request's redirect_uri. */
+  client: { displayName: string; iconUrl?: string; host?: string };
   /** Where the application wants the browser back, without parameters. */
   redirectUri: string;
   /** The request's own address, to return to after signing in again. */
@@ -266,6 +267,8 @@ export interface ConsentRequest {
     logoUri?: string;
     policyUri?: string;
     tosUri?: string;
+    /** The host of the request's redirect_uri, where the reader goes back to. */
+    host?: string;
   };
   account: ConsentAccount;
   scopes: string[];
@@ -277,7 +280,8 @@ export interface ConsentRequest {
 
 /** `GET /saml-consent`: the SAML sign-in waiting on the signed-in account. */
 export interface SamlConsentRequest {
-  sp: { id: string; displayName: string; logoUri?: string };
+  /** `host` is the host of the ACS URL the assertion is posted to. */
+  sp: { id: string; displayName: string; logoUri?: string; host?: string };
   account: ConsentAccount;
   /** Labels of the attributes the service will receive. */
   attributes: string[];
@@ -288,9 +292,19 @@ export interface ConsentDecision {
   redirect: string;
 }
 
+/**
+ * The registered application a sign-in continues to: its name, the host the
+ * reader goes back to, and its uploaded icon.
+ */
+export interface LoginApplication {
+  label: string;
+  host?: string;
+  iconUrl?: string;
+}
+
 /** `GET /forward-auth/login-context`: the application a sign-in link targets. */
 export interface LoginContext {
-  application: { label: string; host?: string; iconUrl?: string } | null;
+  application: LoginApplication | null;
 }
 
 type SessionView = components["schemas"]["SessionView"];
@@ -323,6 +337,10 @@ export interface FederationConfirm {
   username: string;
   email: string;
   avatarUrl?: string;
+  /** The application the sign-in continues to, when it names one. */
+  application?: LoginApplication;
+  /** Where the sign-in continues, for the way back to the sign-in page. */
+  returnTo: string;
 }
 
 /** `POST /auth/federation/-/confirm`: where to go, and whether to offer a local sign-in. */
@@ -346,6 +364,8 @@ export interface FederationFlow {
   proofUrl?: string;
   requiresLocalUsername: boolean;
   expiresAt: string;
+  /** The application the sign-in continues to, when it names one. */
+  application?: LoginApplication;
 }
 
 /** The part of the OIDC discovery document the console reads. */

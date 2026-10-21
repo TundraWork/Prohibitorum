@@ -76,6 +76,7 @@ export function RequireIdentityPage() {
     <AppStrip
       lead={<Trans id="require-identity.strip.lead">Requested by</Trans>}
       name={app}
+      host={request.client.host}
       iconUrl={request.client.iconUrl}
     />
   );

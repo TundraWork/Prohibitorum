@@ -12,6 +12,8 @@ type SAMLConsentSP struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName"`
 	LogoURI     string `json:"logoUri,omitempty"`
+	// Host is the host of the ACS URL the assertion is posted to.
+	Host string `json:"host,omitempty"`
 }
 
 // SAMLConsentDecision is the POST body. Decision is "approve" or "decline".

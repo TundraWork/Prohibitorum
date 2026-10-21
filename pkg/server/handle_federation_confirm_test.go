@@ -179,7 +179,7 @@ func seedConfirmGrant(t *testing.T, h *fedTestHarness) confirmFixture {
 	// h.idp is already seeded under slug "mockop" by the harness.
 
 	token, anti, err := h.s.federationService.CreateConfirmGrant(
-		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil, false, false,
+		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil, nil, false, false,
 	)
 	if err != nil {
 		t.Fatalf("CreateConfirmGrant: %v", err)
@@ -200,7 +200,7 @@ func seedConfirmGrantRemember(t *testing.T, h *fedTestHarness, remember bool) co
 	const identityID int64 = 654
 	h.q.accountByIDResults[accountID] = db.Account{ID: accountID, Username: "newbie"}
 	token, anti, err := h.s.federationService.CreateConfirmGrant(
-		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil, false, remember,
+		context.Background(), accountID, identityID, h.idp.ID, h.idp.Slug, "/me", nil, nil, false, remember,
 	)
 	if err != nil {
 		t.Fatalf("CreateConfirmGrant: %v", err)

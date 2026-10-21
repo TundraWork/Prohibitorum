@@ -16,6 +16,7 @@ import {
 } from "@/api/queries";
 import type { FederationConfirm } from "@/api/raw-paths";
 import { followRedirect } from "@/app/redirect";
+import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
@@ -56,7 +57,12 @@ export function WelcomePage() {
         }
       } else {
         await decline.mutateAsync();
-        await navigate({ to: "/login" });
+        // Back to the sign-in that was under way, so it still names the
+        // application the reader was going to.
+        await navigate({
+          to: "/login",
+          search: account.returnTo ? { return_to: account.returnTo } : {},
+        });
       }
     } catch {
       // The toast has reported it; the buttons come back.
@@ -65,8 +71,19 @@ export function WelcomePage() {
   };
 
   const idp = account.idpDisplayName;
+  const application = account.application;
   return (
     <PublicStep
+      strip={
+        application && (
+          <AppStrip
+            lead={<Trans id="login.signing_in_to">You're signing in to</Trans>}
+            name={application.label}
+            host={application.host}
+            iconUrl={application.iconUrl}
+          />
+        )
+      }
       title={<Trans id="welcome.title">Is this your account?</Trans>}
       description={
         <Trans id="welcome.description">
