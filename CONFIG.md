@@ -24,6 +24,20 @@
 | `PROHIBITORUM_KV_REDIS_PASSWORD` | `""` | Redis password. |
 | `PROHIBITORUM_KV_REDIS_TLS` | `false` | Connect to Redis over TLS. |
 
+## SMTP (outbound mail)
+
+Mail is used only for address-verification codes and the admin test mail; it is never an account-recovery channel. Leaving `host` empty disables delivery entirely — users can still add addresses, but verification then needs an admin assertion.
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_SMTP_HOST` | `""` (disabled) | SMTP server hostname. Empty means no outbound mail. |
+| `PROHIBITORUM_SMTP_PORT` | `587` | SMTP port. |
+| `PROHIBITORUM_SMTP_SECURITY` | `starttls` | `starttls` (mandatory upgrade on a plain port), `tls` (implicit TLS, usually port 465), or `none` (plaintext; only for a trusted internal relay). |
+| `PROHIBITORUM_SMTP_USERNAME` | `""` | SMTP AUTH username; empty skips authentication. |
+| `PROHIBITORUM_SMTP_PASSWORD` | `""` | SMTP AUTH password. |
+| `PROHIBITORUM_SMTP_FROM` | — (**required with `host`**) | Envelope sender; must be a bare address (`no-reply@example.com`). Boot fails when `host` is set without a valid `from`. |
+| `PROHIBITORUM_SMTP_TIMEOUT` | `15s` | Per-send dial+dialog timeout. Sends are synchronous within the request. |
+
 ## OIDC OP
 
 | Variable | Default | Meaning |

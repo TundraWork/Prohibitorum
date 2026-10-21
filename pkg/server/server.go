@@ -42,6 +42,7 @@ import (
 	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
+	"prohibitorum/pkg/mail"
 	"prohibitorum/pkg/pagination"
 	oidcop "prohibitorum/pkg/protocol/oidc"
 	samlidp "prohibitorum/pkg/protocol/saml"
@@ -61,7 +62,9 @@ type Server struct {
 	sessionStore           *sessstore.SessionStore
 	pairingStore           *pairing.PairingStore
 	rateLimiter            *authn.RateLimiter
-	webauthn               *webauthn.WebAuthn
+	// mailSender delivers outbound verification and test mail; tests replace
+	// it with a recording fake. Production builds it from config.SMTP.
+	mailSender mail.Sender
 	oidcOP                 *oidcop.Provider
 	samlIdP                *samlidp.IdP
 	passwordStore          *password.Store
@@ -383,7 +386,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 
 	rateLimiter := authn.NewRateLimiter()
 	accessService := appaccess.NewService(queries)
-
+	mailSender := mail.NewSMTPSender(config.SMTP)
 	s := &Server{
 		queries:               queries,
 		dbPool:                conn,
@@ -393,8 +396,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		webUIHandler:          webui.Handler(config.Branding.InstanceName),
 		kvStore:               kvStore,
 		sessionStore:          sessionStore,
-		pairingStore:          pairing.NewPairingStore(kvStore),
 		rateLimiter:           rateLimiter,
+		mailSender:            mailSender,
 		webauthn:              wa,
 		oidcOP:                oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP, accessService),
 		samlIdP:               samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP, accessService),
