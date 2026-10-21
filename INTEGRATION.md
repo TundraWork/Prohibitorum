@@ -223,6 +223,8 @@ Actual responses (including errors and 429s) carry `Access-Control-Allow-Origin:
 
 The management API under `/api/prohibitorum` is **not** CORS-open: it authenticates by session cookie, so cross-origin writes are refused with `403 cross_origin_request` (see `api.md`). Pages on the Prohibitorum origin itself (and any configured `public_origin`) and non-browser clients (CLI, PAT, server-to-server) are unaffected; pages on other sites, including sibling subdomains, are refused.
 
+Unknown paths under machine-facing roots (`/oauth/`, `/oidc/`, `/saml/`, `/api/`, `/avatar/`, `/.well-known/`, `/branding/`, `/icon/`, `/verify/`) answer `404` as plain text — never the dashboard's HTML shell — so a client probing an endpoint Prohibitorum does not implement (Grafana fetches `{userinfo}/emails` when the userinfo response carries no `email`) sees a real 404 instead of an HTML body that fails to parse as JSON. Every other unknown path serves the dashboard shell for client-side routing.
+
 ---
 
 ## Pattern B — Cookie + Introspection

@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -433,7 +434,6 @@ func NewServer(ctx context.Context) (*Server, error) {
 		return ""
 	})
 	s.registerOperations()
-	s.router.NotFound(s.webUIHandler.ServeHTTP)
 	logx.WithContext(ctx).Info("registered operations")
 	return s, nil
 }
@@ -459,6 +459,28 @@ func newRouteTable(publicOrigins []string, oidcQueries db.Querier) (*chi.Mux, *S
 	registerSecurityScheme(s.api, sessstore.SessionCookieName)
 	s.registerOperations()
 	return router, s
+}
+
+// machinePathGuard wraps the SPA fallback so machine-facing path prefixes
+// answer a plain 404 instead of the HTML shell. An RP probing a sibling of a
+// registered endpoint (Grafana fetches {userinfo}/emails when the userinfo
+// response carries no email) otherwise parses index.html as JSON and reports
+// a decode error far from the real cause. Only paths no route matched reach
+// this handler, so a registered endpoint keeps its own response untouched.
+func machinePathGuard(spa http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		for _, prefix := range []string{
+			"/oauth/", "/oidc/", "/saml/", "/api/", "/avatar/", "/.well-known/",
+			"/branding/", "/icon/", "/verify/",
+		} {
+			if p == prefix[:len(prefix)-1] || strings.HasPrefix(p, prefix) {
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+		}
+		spa.ServeHTTP(w, r)
+	}
 }
 
 // NewHuma returns a bare huma.API for the openapi subcommand to emit specs
@@ -899,4 +921,9 @@ func (s *Server) registerOperations() {
 	s.router.Get("/saml/sso/resume", s.samlIdP.HandleConsentResume)
 	s.router.Get("/saml/slo", s.samlIdP.HandleSLO)
 	s.router.Post("/saml/slo", s.samlIdP.HandleSLO)
+
+	// The SPA fallback is the router's NotFound: registered routes above keep
+	// their own responses, and machinePathGuard keeps unknown machine-facing
+	// paths from answering HTML.
+	s.router.NotFound(machinePathGuard(s.webUIHandler))
 }

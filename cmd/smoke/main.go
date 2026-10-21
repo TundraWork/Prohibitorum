@@ -63,7 +63,7 @@ import (
 // steps locally (e.g. "oidc 1/18"); a local denominator stays correct when a
 // later arc is added, unlike a single global counter.
 const (
-	nCore       = 54
+	nCore       = 55
 	nFederation = 39
 	nOIDC       = 18
 	nSAML       = 15
@@ -167,7 +167,24 @@ func main() {
 	}
 	log.Printf("  /, /sessions, /credentials, /admin/accounts, /enroll/<token> all serve the SPA shell ✓")
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/logout", 7, nCore))
+	step(fmt.Sprintf("core %d/%d — machine prefixes 404, not SPA", 7, nCore))
+	for _, p := range []string{"/oauth/userinfo/emails", "/api/prohibitorum/nope", "/saml/sso/nope"} {
+		resp, err := http.Get(*baseURL + p)
+		if err != nil {
+			log.Fatalf("machine-path GET %s: %v", p, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			log.Fatalf("machine-path GET %s: status %d (want 404)", p, resp.StatusCode)
+		}
+		if strings.Contains(string(body), `id="root"`) {
+			log.Fatalf("machine-path GET %s: body is the SPA shell (want plain 404)", p)
+		}
+	}
+	log.Printf("  unknown /oauth, /api, /saml paths → plain 404 ✓")
+
+	step(fmt.Sprintf("core %d/%d — POST /auth/logout", 8, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout: %v", err)
 	}
@@ -176,21 +193,21 @@ func main() {
 	}
 	log.Printf("  session revoked; /me returns 401 as expected")
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/login/begin", 8, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /auth/login/begin", 9, nCore))
 	assertion, err := c.beginLogin()
 	if err != nil {
 		log.Fatalf("login/begin: %v", err)
 	}
 	log.Printf("  challenge len=%d rpId=%s", len(assertion.Challenge), assertion.RPID)
 
-	step(fmt.Sprintf("core %d/%d — signing assertion with virtual authenticator", 9, nCore))
+	step(fmt.Sprintf("core %d/%d — signing assertion with virtual authenticator", 10, nCore))
 	signed, err := auth.signAssertion(assertion.Challenge, *baseURL)
 	if err != nil {
 		log.Fatalf("sign assertion: %v", err)
 	}
 	log.Printf("  signature len=%d (ASN.1 DER)", len(signed.signature))
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/login/complete", 10, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /auth/login/complete", 11, nCore))
 	loginResp, err := c.completeLoginRaw(auth, signed, "")
 	if err != nil {
 		log.Fatalf("login/complete: %v", err)
@@ -256,7 +273,7 @@ func main() {
 	}
 	log.Printf("  remember login cookie Max-Age=%ds ✓", secs)
 
-	step(fmt.Sprintf("core %d/%d — GET /me (post-login)", 11, nCore))
+	step(fmt.Sprintf("core %d/%d — GET /me (post-login)", 12, nCore))
 	me2, err := c.getMe()
 	if err != nil {
 		log.Fatalf("get me (post-login): %v", err)
@@ -271,7 +288,7 @@ func main() {
 
 	// --- Passkey autofill (PHB-98): conditional mediation + unknown credential ---
 
-	step(fmt.Sprintf("core %d/%d — autofill login (mediation=conditional) alongside a pending button login", 12, nCore))
+	step(fmt.Sprintf("core %d/%d — autofill login (mediation=conditional) alongside a pending button login", 13, nCore))
 	cAuto, err := newClient(*baseURL)
 	if err != nil {
 		log.Fatalf("autofill client: %v", err)
@@ -312,7 +329,7 @@ func main() {
 	}
 	log.Printf("  timeouts 300000/60000; conditional challenge completed with the button ceremony pending ✓")
 
-	step(fmt.Sprintf("core %d/%d — login/begin with an unknown mediation returns 400", 13, nCore))
+	step(fmt.Sprintf("core %d/%d — login/begin with an unknown mediation returns 400", 14, nCore))
 	bogusResp, err := cAuto.postJSONRaw("/api/prohibitorum/auth/login/begin?mediation=bogus", nil)
 	if err != nil {
 		log.Fatalf("bogus mediation login/begin: %v", err)
@@ -322,7 +339,7 @@ func main() {
 	}
 	log.Printf("  400 bad_request ✓")
 
-	step(fmt.Sprintf("core %d/%d — passkey this site does not hold returns login_credential_unknown", 14, nCore))
+	step(fmt.Sprintf("core %d/%d — passkey this site does not hold returns login_credential_unknown", 15, nCore))
 	stray, err := newAuthenticator(auth.rpID)
 	if err != nil {
 		log.Fatalf("stray authenticator: %v", err)
@@ -350,7 +367,7 @@ func main() {
 
 	// --- Phase 2: RevokeBySessionID + add-second-credential coverage ---
 
-	step(fmt.Sprintf("core %d/%d — second client B begins login with the same authenticator", 15, nCore))
+	step(fmt.Sprintf("core %d/%d — second client B begins login with the same authenticator", 16, nCore))
 	cB, err := newClient(*baseURL)
 	if err != nil {
 		log.Fatalf("client B: %v", err)
@@ -364,7 +381,7 @@ func main() {
 		log.Fatalf("B sign: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — B completes login; both A and B now hold sessions", 16, nCore))
+	step(fmt.Sprintf("core %d/%d — B completes login; both A and B now hold sessions", 17, nCore))
 	if err := cB.completeLogin(auth, signedB); err != nil {
 		log.Fatalf("B login/complete: %v", err)
 	}
@@ -377,7 +394,7 @@ func main() {
 	}
 	log.Printf("  B logged in as id=%d (same account as A)", meB.ID)
 
-	step(fmt.Sprintf("core %d/%d — A lists /me/sessions; expect 2 (current + B's)", 17, nCore))
+	step(fmt.Sprintf("core %d/%d — A lists /me/sessions; expect 2 (current + B's)", 18, nCore))
 	sessions, err := c.listMySessions()
 	if err != nil {
 		log.Fatalf("list sessions: %v", err)
@@ -396,19 +413,19 @@ func main() {
 	}
 	log.Printf("  found B's session id=%s", otherID)
 
-	step(fmt.Sprintf("core %d/%d — A revokes B's session via /me/sessions/revoke", 18, nCore))
+	step(fmt.Sprintf("core %d/%d — A revokes B's session via /me/sessions/revoke", 19, nCore))
 	if err := c.revokeSession(otherID); err != nil {
 		log.Fatalf("revoke session: %v", err)
 	}
 	log.Printf("  revoke succeeded")
 
-	step(fmt.Sprintf("core %d/%d — B's /me should now return 401", 19, nCore))
+	step(fmt.Sprintf("core %d/%d — B's /me should now return 401", 20, nCore))
 	if _, err := cB.getMe(); err == nil {
 		log.Fatalf("B /me succeeded after revocation; expected 401")
 	}
 	log.Printf("  B is denied, RevokeBySessionID confirmed")
 
-	step(fmt.Sprintf("core %d/%d — A adds a second passkey via /me/credentials/register/{begin,complete}", 20, nCore))
+	step(fmt.Sprintf("core %d/%d — A adds a second passkey via /me/credentials/register/{begin,complete}", 21, nCore))
 	// Adding a passkey is fresh-sudo gated; prime the sudo window first —
 	// /register/begin consumes a slot within the window, /complete then
 	// rides the ceremony stash. Without this the begin returns 401 sudo_required.
@@ -432,7 +449,7 @@ func main() {
 	}
 	log.Printf("  second credential registered (advertises ES256 -7)")
 
-	step(fmt.Sprintf("core %d/%d — A lists /me/credentials; expect 2", 21, nCore))
+	step(fmt.Sprintf("core %d/%d — A lists /me/credentials; expect 2", 22, nCore))
 	creds, err := c.listMyCredentials()
 	if err != nil {
 		log.Fatalf("list credentials: %v", err)
@@ -458,13 +475,13 @@ func main() {
 
 	const password = "smoke-pw-correct-horse-battery-staple"
 
-	step(fmt.Sprintf("core %d/%d — sudo via webauthn before local password + TOTP setup", 22, nCore))
+	step(fmt.Sprintf("core %d/%d — sudo via webauthn before local password + TOTP setup", 23, nCore))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 		log.Fatalf("sudo webauthn (pre password-totp setup): %v", err)
 	}
 	log.Printf("  sudo grant acquired (webauthn)")
 
-	step(fmt.Sprintf("core %d/%d — POST /me/password-totp/verify with a client-generated secret", 23, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /me/password-totp/verify with a client-generated secret", 24, nCore))
 	secret, secretBase32, err := newTOTPSecret()
 	if err != nil {
 		log.Fatalf("generate initial TOTP secret: %v", err)
@@ -486,7 +503,7 @@ func main() {
 	recoveryCodes := setupVerify.RecoveryCodes
 	log.Printf("  password, confirmed TOTP and %d recovery codes committed atomically", len(recoveryCodes))
 
-	step(fmt.Sprintf("core %d/%d — DB assert: password, confirmed TOTP and recovery codes exist", 24, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: password, confirmed TOTP and recovery codes exist", 25, nCore))
 	if err := verifyPasswordCredential(me2.ID); err != nil {
 		log.Fatalf("password DB assert: %v", err)
 	}
@@ -494,7 +511,7 @@ func main() {
 		log.Fatalf("totp DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — invalid /me/totp/verify preserves the active factors", 25, nCore))
+	step(fmt.Sprintf("core %d/%d — invalid /me/totp/verify preserves the active factors", 26, nCore))
 	oldSecret := append([]byte(nil), secret...)
 	oldRecoveryCodes := append([]string(nil), recoveryCodes...)
 	_, rejectedSecretBase32, err := newTOTPSecret()
@@ -532,7 +549,7 @@ func main() {
 	}
 	log.Printf("  invalid candidate changed neither the active TOTP nor recovery codes ✓")
 
-	step(fmt.Sprintf("core %d/%d — successful /me/totp/verify atomically replaces TOTP and recovery codes", 26, nCore))
+	step(fmt.Sprintf("core %d/%d — successful /me/totp/verify atomically replaces TOTP and recovery codes", 27, nCore))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 		log.Fatalf("sudo webauthn (pre totp reset): %v", err)
 	}
@@ -601,25 +618,25 @@ func main() {
 	totpStep = time.Now().Unix() / 30
 	log.Printf("  completed reset activated the new TOTP and recovery codes; old material is rejected ✓")
 
-	step(fmt.Sprintf("core %d/%d — DB assert: reset left one confirmed TOTP and 10 recovery codes", 27, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: reset left one confirmed TOTP and 10 recovery codes", 28, nCore))
 	if err := verifyTOTPConfirmed(me2.ID); err != nil {
 		log.Fatalf("completed totp reset DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop A's webauthn session)", 28, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop A's webauthn session)", 29, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout pre-password-login: %v", err)
 	}
 	log.Printf("  logged out")
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/password/begin {username, password}", 29, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /auth/password/begin {username, password}", 30, nCore))
 	partialToken, err := c.passwordBegin(*username, password)
 	if err != nil {
 		log.Fatalf("password/begin: %v", err)
 	}
 	log.Printf("  partial_session_token len=%d", len(partialToken))
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/totp/verify {partial_session_token, current code}", 30, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /auth/totp/verify {partial_session_token, current code}", 31, nCore))
 	// RFC 6238 §5.2 replay protection: last_step from the earlier TOTP verify is still set, so
 	// wait across the period boundary before the next successful TOTP verify.
 	totpStep = waitForNextTOTPStep(totpStep)
@@ -629,7 +646,7 @@ func main() {
 	}
 	log.Printf("  session cookie issued via password+TOTP (step=%d)", totpStep)
 
-	step(fmt.Sprintf("core %d/%d — GET /me round-trips post-password+TOTP login", 31, nCore))
+	step(fmt.Sprintf("core %d/%d — GET /me round-trips post-password+TOTP login", 32, nCore))
 	mePT, err := c.getMe()
 	if err != nil {
 		log.Fatalf("GET /me post-pwd+totp: %v", err)
@@ -639,7 +656,7 @@ func main() {
 	}
 	log.Printf("  /me id=%d (same account)", mePT.ID)
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop pwd+totp session)", 32, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop pwd+totp session)", 33, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout pre-recovery-ceremony: %v", err)
 	}
@@ -647,7 +664,7 @@ func main() {
 	// Recovery codes can complete login directly or atomically replace the
 	// authenticator. Every HTTP attempt consumes its partial-session token.
 
-	step(fmt.Sprintf("core %d/%d — recovery code login without resetting the authenticator", 33, nCore))
+	step(fmt.Sprintf("core %d/%d — recovery code login without resetting the authenticator", 34, nCore))
 	directPartial, err := c.passwordBegin(*username, password)
 	if err != nil {
 		log.Fatalf("password/begin for direct recovery: %v", err)
@@ -664,7 +681,7 @@ func main() {
 	}
 	log.Printf("  recovery code issued a session without replacement (redirect=%q)", directRecovery.Redirect)
 
-	step(fmt.Sprintf("core %d/%d — DB assert: direct recovery consumed one code and preserved TOTP", 34, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: direct recovery consumed one code and preserved TOTP", 35, nCore))
 	if err := verifyRecoveryCodeUsed(me2.ID, 1, 0); err != nil {
 		log.Fatalf("direct recovery code DB assert: %v", err)
 	}
@@ -672,7 +689,7 @@ func main() {
 		log.Fatalf("direct recovery changed TOTP: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — invalid atomic recovery reset returns 401", 35, nCore))
+	step(fmt.Sprintf("core %d/%d — invalid atomic recovery reset returns 401", 36, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout after direct recovery: %v", err)
 	}
@@ -700,7 +717,7 @@ func main() {
 		log.Fatalf("failed recovery reset: want 401, got %d — %s", resp.StatusCode, firstN(string(failedResetBody), 300))
 	}
 
-	step(fmt.Sprintf("core %d/%d — failed recovery reset preserves the active TOTP", 36, nCore))
+	step(fmt.Sprintf("core %d/%d — failed recovery reset preserves the active TOTP", 37, nCore))
 	preservedRecoveryClient, err := newClient(*baseURL)
 	if err != nil {
 		log.Fatalf("preserved recovery client: %v", err)
@@ -717,7 +734,7 @@ func main() {
 	}
 	log.Printf("  rejected replacement left the current authenticator usable ✓")
 
-	step(fmt.Sprintf("core %d/%d — successful recovery reset submits code, secret and TOTP together", 37, nCore))
+	step(fmt.Sprintf("core %d/%d — successful recovery reset submits code, secret and TOTP together", 38, nCore))
 	resetPartial, err := c.passwordBegin(*username, password)
 	if err != nil {
 		log.Fatalf("password/begin for recovery reset: %v", err)
@@ -747,12 +764,12 @@ func main() {
 	totpStep = time.Now().Unix() / 30
 	log.Printf("  authenticator and recovery codes replaced atomically; session issued ✓")
 
-	step(fmt.Sprintf("core %d/%d — DB assert: recovery reset left one confirmed TOTP and 10 codes", 38, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: recovery reset left one confirmed TOTP and 10 codes", 39, nCore))
 	if err := verifyTOTPConfirmed(me2.ID); err != nil {
 		log.Fatalf("post-recovery-reset DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — old recovery code replay is rejected", 39, nCore))
+	step(fmt.Sprintf("core %d/%d — old recovery code replay is rejected", 40, nCore))
 	replayClient, err := newClient(*baseURL)
 	if err != nil {
 		log.Fatalf("recovery replay client: %v", err)
@@ -775,7 +792,7 @@ func main() {
 		log.Fatalf("old recovery replay: want 401, got %d — %s", resp.StatusCode, firstN(string(replayBody), 300))
 	}
 
-	step(fmt.Sprintf("core %d/%d — GET /me round-trips post-recovery-reset", 40, nCore))
+	step(fmt.Sprintf("core %d/%d — GET /me round-trips post-recovery-reset", 41, nCore))
 	mePT2, err := c.getMe()
 	if err != nil {
 		log.Fatalf("GET /me post-recovery: %v", err)
@@ -785,12 +802,12 @@ func main() {
 	}
 	log.Printf("  /me id=%d (account intact post-recovery)", mePT2.ID)
 
-	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop recovery session)", 41, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /auth/logout (drop recovery session)", 42, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout post-recovery: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — re-login via webauthn for the throttle observation phase", 42, nCore))
+	step(fmt.Sprintf("core %d/%d — re-login via webauthn for the throttle observation phase", 43, nCore))
 	relogin, err := c.beginLogin()
 	if err != nil {
 		log.Fatalf("relogin/begin: %v", err)
@@ -804,7 +821,7 @@ func main() {
 	}
 	log.Printf("  webauthn session restored for sudo-throttle observation")
 
-	step(fmt.Sprintf("core %d/%d — drive wrong TOTP codes via /me/sudo password_totp until 429", 43, nCore))
+	step(fmt.Sprintf("core %d/%d — drive wrong TOTP codes via /me/sudo password_totp until 429", 44, nCore))
 	attempts, retryAfter, err := driveTOTPLockout(c, password)
 	if err != nil {
 		log.Fatalf("drive totp lockout: %v", err)
@@ -812,12 +829,12 @@ func main() {
 	log.Printf("  observed 429 after %d wrong attempts; Retry-After=%s",
 		attempts, retryAfter)
 
-	step(fmt.Sprintf("core %d/%d — DB assert: auth_throttle row for (account, 'totp') failed_attempts>=3, locked", 44, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: auth_throttle row for (account, 'totp') failed_attempts>=3, locked", 45, nCore))
 	if err := verifyThrottleLocked(me2.ID, "totp"); err != nil {
 		log.Fatalf("throttle DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — HARNESS ONLY: DELETE auth_throttle row + fresh login to reset per-session sudo rate limit", 45, nCore))
+	step(fmt.Sprintf("core %d/%d — HARNESS ONLY: DELETE auth_throttle row + fresh login to reset per-session sudo rate limit", 46, nCore))
 	if err := resetThrottle(me2.ID, "totp"); err != nil {
 		log.Fatalf("reset throttle: %v", err)
 	}
@@ -840,7 +857,7 @@ func main() {
 	}
 	log.Printf("  auth_throttle reset + fresh webauthn session (sudo budget reset)")
 
-	step(fmt.Sprintf("core %d/%d — sudo via password_totp (/me/sudo/begin + /me/sudo/complete)", 46, nCore))
+	step(fmt.Sprintf("core %d/%d — sudo via password_totp (/me/sudo/begin + /me/sudo/complete)", 47, nCore))
 	// Wait past the period boundary from the earlier successful TOTP verify so the
 	// next code we send hasn't been seen by last_step.
 	totpStep = waitForNextTOTPStep(totpStep)
@@ -849,7 +866,7 @@ func main() {
 	}
 	log.Printf("  sudo grant acquired (password_totp; step=%d)", totpStep)
 
-	step(fmt.Sprintf("core %d/%d — POST /me/recovery-codes/regenerate (consumes sudo, mints fresh codes)", 47, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /me/recovery-codes/regenerate (consumes sudo, mints fresh codes)", 48, nCore))
 	var regen struct {
 		RecoveryCodes []string `json:"recovery_codes"`
 	}
@@ -863,37 +880,37 @@ func main() {
 	recoveryCodes = regen.RecoveryCodes
 	log.Printf("  regenerated %d recovery codes (old set invalidated)", len(recoveryCodes))
 
-	step(fmt.Sprintf("core %d/%d — POST /me/sudo/methods (recovery_code must NOT appear post-hardening)", 48, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /me/sudo/methods (recovery_code must NOT appear post-hardening)", 49, nCore))
 	if err := verifySudoMethodsNoRecoveryCode(c); err != nil {
 		log.Fatalf("sudo methods invariant: %v", err)
 	}
 	log.Printf("  /me/sudo/methods correctly omits recovery_code")
 
-	step(fmt.Sprintf("core %d/%d — POST /me/sudo/begin {method:recovery_code} must 400 sudo_method_unavailable", 49, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /me/sudo/begin {method:recovery_code} must 400 sudo_method_unavailable", 50, nCore))
 	if err := verifySudoBeginRejectsRecoveryCode(c); err != nil {
 		log.Fatalf("sudo begin recovery_code rejection: %v", err)
 	}
 	log.Printf("  /me/sudo/begin rejects recovery_code with sudo_method_unavailable")
 
-	step(fmt.Sprintf("core %d/%d — sudo via webauthn (priming the destructive revoke)", 50, nCore))
+	step(fmt.Sprintf("core %d/%d — sudo via webauthn (priming the destructive revoke)", 51, nCore))
 	if err := sudoWebAuthn(c, auth, *baseURL); err != nil {
 		log.Fatalf("sudo webauthn (pre revoke): %v", err)
 	}
 	log.Printf("  sudo grant acquired (webauthn)")
 
-	step(fmt.Sprintf("core %d/%d — POST /me/auth/revoke-password-totp (destructive)", 51, nCore))
+	step(fmt.Sprintf("core %d/%d — POST /me/auth/revoke-password-totp (destructive)", 52, nCore))
 	if err := c.postJSON("/api/prohibitorum/me/auth/revoke-password-totp",
 		map[string]any{}, nil); err != nil {
 		log.Fatalf("revoke-password-totp: %v", err)
 	}
 	log.Printf("  fallback factors revoked (204)")
 
-	step(fmt.Sprintf("core %d/%d — DB assert: password_credential / totp_credential / recovery_code all empty", 52, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: password_credential / totp_credential / recovery_code all empty", 53, nCore))
 	if err := verifyFactorsEmpty(me2.ID); err != nil {
 		log.Fatalf("post-revoke DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("core %d/%d — logout then POST /auth/password/begin must now 401", 53, nCore))
+	step(fmt.Sprintf("core %d/%d — logout then POST /auth/password/begin must now 401", 54, nCore))
 	if err := c.logout(); err != nil {
 		log.Fatalf("logout post-revoke: %v", err)
 	}
@@ -902,7 +919,7 @@ func main() {
 	}
 	log.Printf("  /auth/password/begin returns 401 as expected")
 
-	step(fmt.Sprintf("core %d/%d — DB assert: credential_event covers the credential lifecycle", 54, nCore))
+	step(fmt.Sprintf("core %d/%d — DB assert: credential_event covers the credential lifecycle", 55, nCore))
 	if err := verifyCoreAuditEvents(me2.ID); err != nil {
 		log.Fatalf("audit DB assert: %v", err)
 	}
