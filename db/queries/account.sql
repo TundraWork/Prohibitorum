@@ -7,17 +7,14 @@ SELECT * FROM account WHERE id = $1 FOR UPDATE;
 -- name: GetAccountByUsername :one
 SELECT * FROM account WHERE username = $1;
 
--- name: CountVerifiedAccountsByEmail :one
-SELECT count(*) FROM account
-WHERE email_verified = true AND email IS NOT NULL AND lower(email) = lower($1);
 
 -- name: GetAccountByWebauthnUserHandle :one
 SELECT * FROM account WHERE webauthn_user_handle = $1;
 
 -- name: InsertAccount :one
 INSERT INTO account (
-  username, display_name, webauthn_user_handle, role, attributes, disabled, email, email_verified
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+  username, display_name, webauthn_user_handle, role, attributes, disabled
+) VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: HasAnyActiveAdmin :one
@@ -27,6 +24,7 @@ SELECT EXISTS(SELECT 1 FROM account WHERE role = 'admin' AND NOT disabled) AS ha
 SELECT
   a.*,
   (SELECT MAX(c.last_used_at) FROM webauthn_credential c WHERE c.account_id = a.id)::timestamptz AS last_sign_in_at,
+  pe.address AS primary_email,
   COALESCE((
     SELECT jsonb_agg(
       jsonb_build_object(
@@ -93,6 +91,7 @@ SELECT
       )
   ), '[]'::jsonb)::text AS matching_identities
 FROM account a
+LEFT JOIN account_email pe ON pe.id = a.primary_email_id
 WHERE (
     sqlc.narg('q')::text IS NULL
     OR a.id IN (
@@ -100,9 +99,12 @@ WHERE (
       FROM account searched
       WHERE (
         searched.username || E'\n' ||
-        searched.display_name || E'\n' ||
-        COALESCE(searched.email, '')
+        searched.display_name
       ) ILIKE '%' || sqlc.narg('q')::text || '%'
+      UNION
+      SELECT ae.account_id
+      FROM account_email ae
+      WHERE ae.address ILIKE '%' || sqlc.narg('q')::text || '%'
       UNION
       SELECT ai.account_id
       FROM account_identity ai
@@ -164,18 +166,11 @@ LIMIT sqlc.arg('limit');
 -- name: UpdateAccount :one
 UPDATE account SET
   display_name = $2, role = $3, attributes = $4, disabled = $5,
-  email = $6, email_verified = $7,
   updated_at = now()
 WHERE id = $1
 RETURNING *;
-
 -- name: SetAccountDisabled :one
 UPDATE account SET disabled = $2, updated_at = now() WHERE id = $1 RETURNING *;
-
--- name: UpdateAccountEmail :exec
--- Refreshes an account's email from a verified upstream on re-login (federation
--- claim drift), keeping it in lockstep with account_identity.upstream_email.
-UPDATE account SET email = $2, email_verified = $3, updated_at = now() WHERE id = $1;
 
 -- name: DeleteAccountByID :exec
 DELETE FROM account WHERE id = $1;

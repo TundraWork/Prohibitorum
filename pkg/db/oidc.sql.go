@@ -35,7 +35,7 @@ func (q *Queries) DemoteActiveSigningKey(ctx context.Context, retireAfter pgtype
 }
 
 const getAccountByOIDCSubject = `-- name: GetAccountByOIDCSubject :one
-SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, email, email_verified, avatar_content_type, avatar_etag, avatar_source, avatar_selected_at, preferences FROM account WHERE oidc_subject = $1
+SELECT id, username, display_name, webauthn_user_handle, oidc_subject, role, attributes, disabled, created_at, updated_at, avatar_content_type, avatar_etag, avatar_source, avatar_selected_at, primary_email_id, preferences FROM account WHERE oidc_subject = $1
 `
 
 func (q *Queries) GetAccountByOIDCSubject(ctx context.Context, oidcSubject pgtype.UUID) (Account, error) {
@@ -52,12 +52,11 @@ func (q *Queries) GetAccountByOIDCSubject(ctx context.Context, oidcSubject pgtyp
 		&i.Disabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Email,
-		&i.EmailVerified,
 		&i.AvatarContentType,
 		&i.AvatarEtag,
 		&i.AvatarSource,
 		&i.AvatarSelectedAt,
+		&i.PrimaryEmailID,
 		&i.Preferences,
 	)
 	return i, err
