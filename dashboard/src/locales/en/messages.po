@@ -9273,6 +9273,11 @@ msgid "error.unsplash_key_in_use"
 msgstr "The sign-in page still uses Unsplash. Switch the background to another source and save before removing the key."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_request_expired"
+msgstr "The sign-in took too long and the app's request has expired. Go back to the app and sign in again."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.reversed"
 msgstr "The start date is after the end date"

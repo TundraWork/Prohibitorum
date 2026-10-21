@@ -330,7 +330,7 @@ SAML IdP flow:
 
 1. The SP sends an AuthnRequest to `/saml/sso` (Redirect or POST binding).
 2. If signature required, Prohibitorum verifies against the SP's `saml_sp_key` certs.
-3. If no session exists, the browser is redirected to `/login`, then back to `/saml/sso`.
+3. If no session exists, the browser is redirected to `/login`, then back to `/saml/sso`: the same URL for the Redirect binding, and `/saml/sso?post=<key>` for the POST binding, whose posted form is kept briefly in KV and replayed as the same POST.
 4. Before an assertion is built, the shared live policy check authorizes the account for that exact SP.
 5. A successful request produces a signed Response targeted only to the selected ACS URL and renders the HTTP-POST self-submitting form.
 

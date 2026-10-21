@@ -494,7 +494,9 @@ five-minute lifetime.
   when the name is empty — a registered host the caller already sent, so the
   fallback discloses no other registered address.
 - SAML: the return_to may be /saml/sso (the AuthnRequest is re-parsed,
-  signature included, without consuming its single-use ID) or /saml/sso/init
+  signature included, without consuming its single-use ID; a POST-binding
+  request waiting on the sign-in is read from its kept form through
+  `?post=<key>`) or /saml/sso/init
   (sp must name a registered, enabled SP opted into IdP-initiated SSO). The
   label is the SP's display name, or its entity_id when the name is empty.
 

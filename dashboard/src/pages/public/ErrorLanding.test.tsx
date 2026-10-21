@@ -323,4 +323,13 @@ describe("the error landing page", () => {
     ).toBeVisible();
     expect(screen.queryByText(/Spoofed/)).not.toBeInTheDocument();
   });
+
+  it("says a sign-in that took too long has to start again from the app", async () => {
+    await open("/error?error=saml_request_expired&ref=abcd1234");
+    expect(
+      screen.getByText(
+        "The sign-in took too long and the app's request has expired. Go back to the app and sign in again.",
+      ),
+    ).toBeVisible();
+  });
 });
