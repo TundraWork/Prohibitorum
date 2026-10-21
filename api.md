@@ -506,6 +506,19 @@ returns 400 bad_request. Storage failures return 503 database_unavailable or
 kv_unavailable. Errors contain no input URL or credential. Login remains
 available when this optional explanation cannot load.
 
+A sign-in through an upstream provider names the same application on the
+pages after the upstream. The federation login resolves its return_to by the
+rules above once, when the flow begins, and keeps a reference to the
+registration (a gateway state lives five minutes, an upstream sign-in may take
+longer). `GET /api/prohibitorum/auth/federation/-/flows/{flow}` and
+`GET /api/prohibitorum/auth/federation/-/confirm` then carry
+`"application":{"label","host","iconUrl"}`, read from the registration's
+current name and icon and omitted when the flow names none or the application
+has since been disabled or removed. The confirm view also carries `returnTo`,
+the validated path the sign-in continues to, so declining hands the sign-in
+page its application back. A failed upstream callback redirects to `/error`
+with the flow's `return_to`, which the page resolves through this endpoint.
+
 ## Forward-auth verify endpoint
 
 | Method | Path | Gate | Notes |

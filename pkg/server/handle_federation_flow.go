@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/url"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/federation"
 	sessstore "prohibitorum/pkg/session"
 )
@@ -24,6 +26,9 @@ type federationFlowView struct {
 	ProofURL              string    `json:"proofUrl,omitempty"`
 	RequiresLocalUsername bool      `json:"requiresLocalUsername"`
 	ExpiresAt             time.Time `json:"expiresAt"`
+	// Application is the application the sign-in continues to, when the
+	// flow's return_to names one.
+	Application *contract.LoginApplicationView `json:"application,omitempty"`
 }
 
 type federationFlowPrepareBody struct {
@@ -58,7 +63,7 @@ func (s *Server) handleFederationFlowPrepareHTTP(w http.ResponseWriter, r *http.
 		writeAuthErr(w, err)
 		return
 	}
-	wire, err := projectFederationFlow(view)
+	wire, err := s.projectFederationFlow(r.Context(), view)
 	if err != nil {
 		writeAuthErr(w, err)
 		return
@@ -94,7 +99,7 @@ func (s *Server) readFederationFlow(r *http.Request) (*federationFlowView, error
 	if err != nil {
 		return nil, err
 	}
-	return projectFederationFlow(view)
+	return s.projectFederationFlow(r.Context(), view)
 }
 
 func (s *Server) localFederationAdvanceRequest(r *http.Request) federation.AdvanceRequest {
@@ -109,6 +114,17 @@ func (s *Server) localFederationAdvanceRequest(r *http.Request) federation.Advan
 		request.SessionID = session.Data.SessionID
 	}
 	return request
+}
+
+// projectFederationFlow is the flow's wire view with the application the
+// sign-in continues to.
+func (s *Server) projectFederationFlow(ctx context.Context, source *federation.FlowView) (*federationFlowView, error) {
+	view, err := projectFederationFlow(source)
+	if err != nil {
+		return nil, err
+	}
+	view.Application = s.loginApplicationView(ctx, source.App)
+	return view, nil
 }
 
 func projectFederationFlow(source *federation.FlowView) (*federationFlowView, error) {

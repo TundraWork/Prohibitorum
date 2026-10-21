@@ -21,7 +21,7 @@ it("sends an anonymous reader to sign in and back to the console page they opene
   fakeApi(publicApi(null));
   const router = renderApp("/security?tab=x", queryClient);
   expect(
-    await screen.findByRole("heading", { name: /^Sign in with / }),
+    await screen.findByRole("heading", { name: /^Sign in to / }),
   ).toBeVisible();
   expect(router.state.location.pathname).toBe("/login");
   expect(router.state.location.searchStr).toBe(

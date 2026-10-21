@@ -619,6 +619,8 @@ type RequireIdentityRequest struct {
 type RequireIdentityClient struct {
 	DisplayName string `json:"displayName"`
 	IconURL     string `json:"iconUrl,omitempty"`
+	// Host is the host of the request's redirect_uri.
+	Host string `json:"host,omitempty"`
 }
 
 type RequireIdentityProvider struct {
@@ -633,6 +635,9 @@ type ConsentClient struct {
 	LogoURI     string `json:"logoUri,omitempty"`
 	PolicyURI   string `json:"policyUri,omitempty"`
 	TosURI      string `json:"tosUri,omitempty"`
+	// Host is the host of the request's redirect_uri, where the reader goes
+	// back to.
+	Host string `json:"host,omitempty"`
 }
 
 type ConsentUser struct {
@@ -679,6 +684,21 @@ type FederationConfirmView struct {
 	Username       string  `json:"username"`
 	Email          string  `json:"email"`
 	AvatarURL      *string `json:"avatarUrl,omitempty"`
+	// Application is the application the sign-in continues to, when the
+	// grant's return_to names one.
+	Application *LoginApplicationView `json:"application,omitempty"`
+	// ReturnTo is where the sign-in continues: the path "This isn't me" hands
+	// back to the sign-in page so the application is not lost.
+	ReturnTo string `json:"returnTo"`
+}
+
+// LoginApplicationView is the registered application a sign-in continues to,
+// as the public pages draw it: its label, the host the user returns to, and
+// its uploaded icon.
+type LoginApplicationView struct {
+	Label   string  `json:"label"`
+	Host    string  `json:"host,omitempty"`
+	IconURL *string `json:"iconUrl,omitempty"`
 }
 
 // SigningKeyView is the admin-facing projection of a signing_key row.

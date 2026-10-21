@@ -34,7 +34,7 @@ export function ConsentRequest({
   onDecide,
   switchAccountTo,
 }: {
-  app: { displayName: string; logoUri?: string };
+  app: { displayName: string; logoUri?: string; host?: string };
   title: ReactNode;
   account: ConsentAccount;
   /** Introduces the rows; the list is named after it. */
@@ -78,6 +78,7 @@ export function ConsentRequest({
         <AppStrip
           lead={<Trans id="consent.strip.lead">Asking for access</Trans>}
           name={app.displayName}
+          host={app.host}
           iconUrl={app.logoUri}
         />
       }

@@ -8031,6 +8031,11 @@ msgid "federation_flow.title.login"
 msgstr "Sign in through {provider}"
 
 #. js-lingui-explicit-id
+#: src/components/custom/LoginShell.tsx
+msgid "login.title.instance_direct"
+msgstr "Sign in to {instance}"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.no_session"
 msgstr "Sign in to continue."
@@ -10962,7 +10967,10 @@ msgstr "You're signing in through {idp} for the first time, and {instance} has p
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
+#: src/pages/public/consent/ConsentExpired.tsx
 #: src/pages/public/ErrorLanding.tsx
+#: src/pages/public/FederationFlow.tsx
+#: src/pages/public/Welcome.tsx
 msgid "login.signing_in_to"
 msgstr "You're signing in to"
 

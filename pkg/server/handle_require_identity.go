@@ -80,7 +80,8 @@ func (s *Server) handleRequireIdentityRequestHTTP(w http.ResponseWriter, r *http
 	out := contract.RequireIdentityRequest{
 		Client: contract.RequireIdentityClient{
 			DisplayName: client.DisplayName,
-			IconURL:     requireIdentityIconURL(ctx, q, "oidc_client", client.ClientID, textOrEmpty(client.LogoUri)),
+			IconURL:     uploadedIconOr(ctx, q, "oidc_client", client.ClientID, textOrEmpty(client.LogoUri)),
+			Host:        hostOf(ticket.RedirectURI),
 		},
 		RedirectURI: ticket.RedirectURI,
 		EntryURL:    ticket.Entry,
@@ -98,7 +99,7 @@ func (s *Server) handleRequireIdentityRequestHTTP(w http.ResponseWriter, r *http
 		}
 		out.Providers = append(out.Providers, contract.RequireIdentityProvider{
 			Slug: provider.Slug, DisplayName: provider.DisplayName,
-			IconURL: requireIdentityIconURL(ctx, q, "upstream_idp", provider.Slug, ""),
+			IconURL: uploadedIconOr(ctx, q, "upstream_idp", provider.Slug, ""),
 		})
 	}
 	if !ticket.Mismatch {
@@ -115,9 +116,15 @@ func (s *Server) handleRequireIdentityRequestHTTP(w http.ResponseWriter, r *http
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// requireIdentityIconURL is the uploaded icon's URL, or fallback when there is
-// none. A failed lookup only costs the icon.
-func requireIdentityIconURL(ctx context.Context, q requireIdentityQueries, kind, id, fallback string) string {
+// entityIconEtags reads an entity's uploaded icon version.
+type entityIconEtags interface {
+	GetEntityIconEtag(ctx context.Context, arg db.GetEntityIconEtagParams) (string, error)
+}
+
+// uploadedIconOr is an application's uploaded icon URL, or fallback (its
+// registered logo_uri) when it has none: the order every public page draws
+// an application's icon in. A failed lookup only costs the icon.
+func uploadedIconOr(ctx context.Context, q entityIconEtags, kind, id, fallback string) string {
 	etag, err := q.GetEntityIconEtag(ctx, db.GetEntityIconEtagParams{OwnerKind: kind, OwnerID: id})
 	if err != nil || etag == "" {
 		return fallback

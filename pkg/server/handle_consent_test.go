@@ -193,6 +193,10 @@ func TestConsentContext_FirstTime(t *testing.T) {
 	if len(out.AlreadyGranted) != 0 {
 		t.Errorf("AlreadyGranted: want empty, got %v", out.AlreadyGranted)
 	}
+	// The strip names the host the reader goes back to, as the sign-in page does.
+	if out.Client.Host != "rp" {
+		t.Errorf("Client.Host: want rp (the redirect_uri's host), got %q", out.Client.Host)
+	}
 }
 
 func TestUnionScopes(t *testing.T) {

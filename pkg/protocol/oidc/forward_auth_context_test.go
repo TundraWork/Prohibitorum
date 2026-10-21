@@ -471,3 +471,33 @@ func TestForwardAuthContext_StorageFailure(t *testing.T) {
 		})
 	}
 }
+
+// ResolveLoginApplication reports which registration it named, so a flow can
+// keep a reference to it: the client_id for forward-auth and ordinary OIDC,
+// the SP row id for SAML.
+func TestResolveLoginApplication_NamesRegistration(t *testing.T) {
+	p, q, _, u := contextFixture(t)
+	ctx := context.Background()
+	fa, err := p.ResolveLoginApplication(ctx, u.String())
+	if err != nil || fa == nil || fa.Kind != "oidc_client" || fa.ID != "svc" || fa.Host != "app.example:8443" {
+		t.Fatalf("forward-auth = %+v, %v", fa, err)
+	}
+
+	q.client = db.OidcClient{ClientID: "svc", DisplayName: "Wiki", RedirectUris: []string{"https://wiki.example/cb"}}
+	ordinary, err := p.ResolveLoginApplication(ctx, ordinaryAuthorizeURL("https://wiki.example/cb"))
+	if err != nil || ordinary == nil || ordinary.Kind != "oidc_client" || ordinary.ID != "svc" || ordinary.Host != "wiki.example" {
+		t.Fatalf("ordinary = %+v, %v", ordinary, err)
+	}
+
+	p.samlContext = func(context.Context, *url.URL) (SAMLApplication, bool, error) {
+		return SAMLApplication{Label: "SP", SPID: 7}, true, nil
+	}
+	sp, err := p.ResolveLoginApplication(ctx, testIssuer+"/saml/sso/init?sp=x")
+	if err != nil || sp == nil || sp.Kind != "saml_sp" || sp.ID != "7" {
+		t.Fatalf("saml = %+v, %v", sp, err)
+	}
+
+	if _, err := p.ResolveLoginApplication(ctx, "https://elsewhere.example/oauth/authorize"); !IsLoginContextBadRequest(err) {
+		t.Fatalf("foreign origin: err = %v, want a bad request", err)
+	}
+}

@@ -26,6 +26,7 @@ function account(
     displayName: "Alice Liddell",
     username: "alice",
     email: "alice@example.com",
+    returnTo: "/",
     ...overrides,
   };
 }
@@ -139,7 +140,7 @@ describe("the account a first federated sign-in prepared", () => {
       await screen.findByRole("button", { name: "This isn't me" }),
     );
     expect(
-      await screen.findByRole("heading", { name: /^Sign in with / }),
+      await screen.findByRole("heading", { name: /^Sign in to / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
     expect(api.sent("POST", `${confirmPath}/decline`)).toHaveLength(1);
@@ -158,5 +159,38 @@ describe("the account a first federated sign-in prepared", () => {
     expect(
       screen.getByRole("button", { name: "Back to sign-in" }),
     ).toBeVisible();
+  });
+
+  it("names the application the sign-in continues to", async () => {
+    welcomeApi(
+      account({
+        application: {
+          label: "Wiki",
+          host: "wiki.example.test",
+          iconUrl: "/icon/oidc_client/wiki?v=abcd1234",
+        },
+      }),
+    );
+    renderApp("/welcome", queryClient);
+    await screen.findByRole("heading", { name: "Is this your account?" });
+    const strip = document.querySelector('[data-slot="stage-strip"]');
+    expect(strip).toHaveTextContent("You're signing in to");
+    expect(strip).toHaveTextContent("Wiki");
+    expect(strip).toHaveTextContent("wiki.example.test");
+  });
+
+  it("keeps the application when the account is turned down", async () => {
+    const returnTo = "/oauth/authorize?client_id=wiki";
+    const api = welcomeApi(account({ returnTo }));
+    api.routes[`POST ${confirmPath}/decline`] = () =>
+      new Response(null, { status: 204 });
+    const user = userEvent.setup();
+    const router = renderApp("/welcome", queryClient);
+    await user.click(
+      await screen.findByRole("button", { name: "This isn't me" }),
+    );
+    await screen.findByRole("heading", { name: /^Sign in with / });
+    expect(router.state.location.pathname).toBe("/login");
+    expect(router.state.location.search).toEqual({ return_to: returnTo });
   });
 });

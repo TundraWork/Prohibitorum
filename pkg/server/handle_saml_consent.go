@@ -44,14 +44,12 @@ func (s *Server) handleSAMLConsentContextHTTP(w http.ResponseWriter, r *http.Req
 	}
 	q := s.getSAMLConsentQueries()
 	id := strconv.FormatInt(ticket.SPID, 10)
-	var logo string
-	if etag, e := q.GetEntityIconEtag(r.Context(), db.GetEntityIconEtagParams{OwnerKind: "saml_sp", OwnerID: id}); e == nil {
-		if u := entityIconURLPtr("saml_sp", id, etag); u != nil {
-			logo = *u
-		}
-	}
 	out := contract.SAMLConsentContext{
-		SP:         contract.SAMLConsentSP{ID: id, DisplayName: ticket.DisplayName, LogoURI: logo},
+		SP: contract.SAMLConsentSP{
+			ID: id, DisplayName: ticket.DisplayName,
+			LogoURI: uploadedIconOr(r.Context(), q, "saml_sp", id, ""),
+			Host:    hostOf(ticket.ACSURL),
+		},
 		Account:    s.consentUser(sess.Account),
 		Attributes: ticket.Attributes,
 	}
