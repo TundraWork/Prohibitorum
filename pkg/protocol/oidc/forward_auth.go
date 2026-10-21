@@ -301,7 +301,7 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 					if renewed {
 						http.SetCookie(w, faCookie(secure, c.Value))
 					}
-					writeIdentityHeaders(w, remoteUser, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs())
+					writeIdentityHeaders(w, remoteUser, acct.DisplayName, p.accountEmail(ctx, acct.ID), decision.ExposedGroupSlugs())
 					w.WriteHeader(http.StatusOK)
 					return
 				}
@@ -472,14 +472,15 @@ func hostOf(r *http.Request) string {
 	return r.Host
 }
 
-// accountEmail returns the account email string if set and valid, else "".
-// db.Account.Email is pgtype.Text (confirmed from pkg/protocol/oidc/claims.go
-// emailClaims, which reads a.Email.String and a.Email.Valid).
-func accountEmail(a db.Account) string {
-	if a.Email.Valid {
-		return a.Email.String
+// accountEmail returns the account's primary address, "" when none. The
+// Remote-Email header is still written either way (an empty value), matching
+// the pre-PHB-148 behavior of an account with no email.
+func (p *Provider) accountEmail(ctx context.Context, accountID int32) string {
+	addr, err := p.queries.GetAccountPrimaryEmail(ctx, accountID)
+	if err != nil {
+		return ""
 	}
-	return ""
+	return addr
 }
 
 // verifyForwardAuthPAT authenticates a forward-auth request by Personal Access
@@ -576,7 +577,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	writeIdentityHeaders(w, remoteUser, acct.DisplayName, accountEmail(acct), decision.ExposedGroupSlugs())
+	writeIdentityHeaders(w, remoteUser, acct.DisplayName, p.accountEmail(ctx, acct.ID), decision.ExposedGroupSlugs())
 	_ = p.queries.TouchPATLastUsed(ctx, row.ID)
 	w.WriteHeader(http.StatusOK)
 }

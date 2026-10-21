@@ -127,8 +127,10 @@ type fakeFAQueries struct {
 	patLookups int
 	patTouches int
 	// patGrants lists "patID/clientID" pairs PATGrantsApp reports as granted.
-	patGrants  map[string]bool
-	emailCount *int64
+	patGrants map[string]bool
+	// primaryEmail / primaryErr drive GetAccountPrimaryEmail.
+	primaryEmail *string
+	primaryErr   error
 	// Captured params for RegisterForwardAuthApp tests.
 	insertParams   *db.InsertOIDCClientParams
 	faConfigParams *db.SetForwardAuthConfigParams
@@ -151,14 +153,16 @@ func (f *fakeFAQueries) GetAccountByID(_ context.Context, _ int32) (db.Account, 
 	return f.acct, nil
 }
 
-func (f *fakeFAQueries) CountVerifiedAccountsByEmail(_ context.Context, email string) (int64, error) {
-	if f.emailCount != nil {
-		return *f.emailCount, nil
+// GetAccountPrimaryEmail returns the fake's primary (or ErrNoRows when
+// primaryErr set / none), standing in for the real query.
+func (f *fakeFAQueries) GetAccountPrimaryEmail(_ context.Context, _ int32) (string, error) {
+	if f.primaryEmail != nil {
+		return *f.primaryEmail, nil
 	}
-	if f.acct.EmailVerified && f.acct.Email.Valid && strings.EqualFold(f.acct.Email.String, email) {
-		return 1, nil
+	if f.primaryErr != nil {
+		return "", f.primaryErr
 	}
-	return 0, nil
+	return "", pgx.ErrNoRows
 }
 
 func (f *fakeFAQueries) GetPATByTokenHash(_ context.Context, _ []byte) (db.PersonalAccessToken, error) {
@@ -346,7 +350,6 @@ func TestForwardAuthVerify_ValidCookie_200WithHeaders(t *testing.T) {
 			ID:          42,
 			Username:    "alice",
 			DisplayName: "Alice",
-			Email:       pgtype.Text{String: "alice@x", Valid: true},
 		},
 		groups: []string{"admins"},
 	}
@@ -384,10 +387,12 @@ func TestForwardAuthVerify_ValidCookie_200WithHeaders(t *testing.T) {
 
 func TestForwardAuthVerify_SessionUsesConfiguredRemoteUser(t *testing.T) {
 	ctx := context.Background()
+	primary := "alice@example.test"
 	q := &fakeFAQueries{
-		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", PrincipalSource: PrincipalSourceVerifiedEmail},
-		authorized: true,
-		acct:       db.Account{ID: 42, Username: "alice", Email: pgtype.Text{String: "alice@example.test", Valid: true}, EmailVerified: true},
+		faClient:     db.GetForwardAuthClientByHostRow{ClientID: "svc", PrincipalSource: PrincipalSourceVerifiedEmail},
+		authorized:   true,
+		acct:         db.Account{ID: 42, Username: "alice"},
+		primaryEmail: &primary,
 	}
 	p, store := newFAProvider(q)
 	token, err := mintFASession(ctx, store, faSession{AccountID: 42, ClientID: "svc"}, time.Hour)
@@ -915,13 +920,12 @@ func TestForwardAuthVerify_PAT_GrantedApp_200(t *testing.T) {
 }
 
 func TestForwardAuthVerify_PATUnavailablePrincipalFailsWithoutIdentityHeadersOrTouch(t *testing.T) {
-	count := int64(2)
 	q := &fakeFAQueries{
 		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc", PrincipalSource: PrincipalSourceVerifiedEmail},
 		authorized: true,
-		acct:       db.Account{ID: 42, Username: "alice", Email: pgtype.Text{String: "shared@example.test", Valid: true}, EmailVerified: true},
+		acct:       db.Account{ID: 42, Username: "alice"},
 		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, Access: "all_apps"},
-		emailCount: &count,
+		primaryErr: pgx.ErrNoRows,
 	}
 	p, _ := newFAProvider(q)
 	rec := httptest.NewRecorder()

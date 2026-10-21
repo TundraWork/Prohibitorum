@@ -59,8 +59,6 @@ func (q *accountUpdateTestTx) UpdateAccount(_ context.Context, arg db.UpdateAcco
 	updated.Role = arg.Role
 	updated.Attributes = arg.Attributes
 	updated.Disabled = arg.Disabled
-	updated.Email = arg.Email
-	updated.EmailVerified = arg.EmailVerified
 	return updated, nil
 }
 

@@ -176,7 +176,6 @@ type EnrollmentGrant struct {
 	ExpiresAt time.Time
 }
 
-
 type CompletionResult struct {
 	Intent       Intent
 	Enrollment   *EnrollmentGrant

@@ -50,7 +50,6 @@ type listAccountPageIn struct {
 	PageInput
 }
 
-
 // ---------------------------------------------------------------------------
 // Cursor key helpers — encode/decode the keyset tuple as []string for the
 // pagination.CursorPayload.Keys field.
@@ -245,4 +244,3 @@ func (s *Server) handleListAccountTokens(ctx context.Context, in *listAccountPag
 	}
 	return &accountTokensPageOut{Body: buildPage(views, nextCursor)}, nil
 }
-

@@ -196,6 +196,9 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
 	}
+	// The email block carries the primary address; read it once for claims
+	// and aliases.
+	primaryEmail, _ := p.queries.GetAccountPrimaryEmail(ctx, acct.ID)
 	aliases, err := decodeClaimAliases(client.ClaimAliases)
 	if err != nil {
 		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "internal error")
@@ -206,5 +209,5 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "internal error")
 		return
 	}
-	_ = json.NewEncoder(w).Encode(projectedUserinfoClaims(acct, currentSubject, scope, avatarOrigin, groups, identities, aliases))
+	_ = json.NewEncoder(w).Encode(projectedUserinfoClaims(acct, currentSubject, primaryEmail, scope, avatarOrigin, groups, identities, aliases))
 }

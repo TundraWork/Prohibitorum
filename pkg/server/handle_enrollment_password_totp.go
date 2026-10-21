@@ -124,7 +124,6 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		return
 	}
 
-
 	tx, err := s.beginEnrollmentTx(r.Context())
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: begin tx: %w", err))

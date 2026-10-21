@@ -69,7 +69,7 @@ func (s *Server) handleFederationConfirmGet(w http.ResponseWriter, r *http.Reque
 		IDPDisplayName: idp.DisplayName,
 		DisplayName:    acct.DisplayName,
 		Username:       acct.Username,
-		Email:          acct.Email.String,
+		Email:          s.primaryEmail(r.Context(), acct.ID),
 		Application:    s.loginApplicationView(r.Context(), grant.App),
 		ReturnTo:       grant.ReturnTo,
 	}
@@ -177,4 +177,14 @@ func splitConfirmCookie(v string) (token, antiForgery string) {
 		return v[:i], v[i+1:]
 	}
 	return v, ""
+}
+
+// primaryEmail returns the account's primary address, "" when none; the
+// welcome page shows it so the user knows what applications will receive.
+func (s *Server) primaryEmail(ctx context.Context, accountID int32) string {
+	addr, err := s.queries.GetAccountPrimaryEmail(ctx, accountID)
+	if err != nil {
+		return ""
+	}
+	return addr
 }

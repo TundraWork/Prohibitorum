@@ -259,7 +259,11 @@ func TestForwardAuthContext_SingleClientLoad(t *testing.T) {
 		set  func(q *contextQueries, v url.Values)
 	}{
 		{"unknown client", func(_ *contextQueries, v url.Values) { v.Set("client_id", "nobody") }},
-		{"ordinary request", func(_ *contextQueries, v url.Values) { v.Del("state"); v.Del("code_challenge"); v.Del("code_challenge_method") }},
+		{"ordinary request", func(_ *contextQueries, v url.Values) {
+			v.Del("state")
+			v.Del("code_challenge")
+			v.Del("code_challenge_method")
+		}},
 		{"not forward-auth bound", func(q *contextQueries, _ url.Values) { q.client.ForwardAuthEnabled = false }},
 		{"disabled client", func(q *contextQueries, _ url.Values) { q.client.Disabled = true }},
 		{"valid forward-auth", func(_ *contextQueries, _ url.Values) {}},

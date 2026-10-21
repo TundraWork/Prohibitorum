@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	acctpkg "prohibitorum/pkg/account"
+	"prohibitorum/pkg/account/email"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	inviteenrollment "prohibitorum/pkg/credential/enrollment"
@@ -34,13 +35,27 @@ type ModesQueries interface {
 	InsertAccountIdentity(ctx context.Context, arg db.InsertAccountIdentityParams) (db.AccountIdentity, error)
 	ConfirmAccountIdentity(ctx context.Context, id int64) error
 	UpdateAccountDisplayName(ctx context.Context, arg db.UpdateAccountDisplayNameParams) error
-	UpdateAccountEmail(ctx context.Context, arg db.UpdateAccountEmailParams) error
 	UpdateAccountIdentityVerifiedData(ctx context.Context, arg db.UpdateAccountIdentityVerifiedDataParams) error
 	ConsumeInviteEnrollment(ctx context.Context, token string) (db.Enrollment, error)
 	LockInviteEnrollmentForUpdate(ctx context.Context, token string) (db.Enrollment, error)
 	AttachInviteIdentity(ctx context.Context, arg db.AttachInviteIdentityParams) (db.Enrollment, error)
 	GetEnrollmentByToken(ctx context.Context, token string) (db.Enrollment, error)
 	ApplyInvitationGroups(ctx context.Context, arg db.ApplyInvitationGroupsParams) ([]int32, error)
+	// Email-write surface for absorbing verified upstream addresses into
+	// account_email (PHB-148). AbsorbUpstream takes this whole block.
+	GetAccountByIDForUpdate(ctx context.Context, id int32) (db.Account, error)
+	CountAccountEmails(ctx context.Context, accountID int32) (int64, error)
+	GetAccountEmailByAddress(ctx context.Context, arg db.GetAccountEmailByAddressParams) (db.GetAccountEmailByAddressRow, error)
+	InsertAccountEmail(ctx context.Context, arg db.InsertAccountEmailParams) (db.AccountEmail, error)
+	InsertAccountEmailVerified(ctx context.Context, arg db.InsertAccountEmailVerifiedParams) (db.AccountEmail, error)
+	MarkAccountEmailVerified(ctx context.Context, arg db.MarkAccountEmailVerifiedParams) (int64, error)
+	DeleteAccountEmail(ctx context.Context, arg db.DeleteAccountEmailParams) (int64, error)
+	GetAccountEmail(ctx context.Context, arg db.GetAccountEmailParams) (db.GetAccountEmailRow, error)
+	SetAccountPrimaryEmail(ctx context.Context, arg db.SetAccountPrimaryEmailParams) error
+	ClearAccountPrimaryEmail(ctx context.Context, id int32) error
+	PickFallbackPrimary(ctx context.Context, arg db.PickFallbackPrimaryParams) (db.PickFallbackPrimaryRow, error)
+	CountVerifiedAccountEmailsByAddress(ctx context.Context, arg db.CountVerifiedAccountEmailsByAddressParams) (int64, error)
+	GetAccountPrimaryEmail(ctx context.Context, id int32) (string, error)
 }
 
 // ResolveOutcome is the result of identity resolution.
@@ -209,7 +224,7 @@ func resolveExisting(
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
 	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
-		if err := syncClaims(ctx, qtx, idp, stored, identity, upstreamData); err != nil {
+		if err := syncClaims(ctx, qtx, txAudit, idp, stored, identity, upstreamData); err != nil {
 			if ae := authn.AsAuthError(err); ae != nil && ae.Code == "bad_credentials" {
 				audit.RecordOrLog(ctx, w, audit.Record{
 					AccountID: new(stored.AccountID),
@@ -299,7 +314,7 @@ func applyAutoProvision(
 				})
 				return ResolveOutcome{}, authn.ErrFederationStateInvalid()
 			}
-			if err := syncClaims(ctx, qtx, idp, &finalIdentity, identity, upstreamData); err != nil {
+			if err := syncClaims(ctx, qtx, txAudit, idp, &finalIdentity, identity, upstreamData); err != nil {
 				if ae := authn.AsAuthError(err); ae != nil && ae.Code == "bad_credentials" {
 					audit.RecordOrLog(ctx, w, audit.Record{
 						AccountID: new(finalIdentity.AccountID),
@@ -384,10 +399,6 @@ func applyAutoProvision(
 			Role:               "user",
 			Attributes:         []byte("{}"),
 			Disabled:           false,
-			// Seed the account email from the upstream (T3.2); email_verified
-			// only when an address is present AND the OP asserted it verified.
-			Email:         pgtype.Text{String: email, Valid: email != ""},
-			EmailVerified: email != "" && identity.EmailVerified,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -402,6 +413,11 @@ func applyAutoProvision(
 				return ResolveOutcome{}, authn.ErrUsernameCollision()
 			}
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account: %w", err)
+		}
+		// PHB-148: a verified upstream address becomes an account_email row
+		// (and the first one primary) right after the insert, same tx.
+		if email != "" && identity.EmailVerified {
+			absorbUpstream(ctx, qtx, w, idp, identity, acct.ID, email)
 		}
 
 		ident, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
@@ -612,8 +628,6 @@ func applyInviteProvision(
 			Role:               role,
 			Attributes:         attrs,
 			Disabled:           false,
-			Email:              pgtype.Text{String: email, Valid: email != ""},
-			EmailVerified:      email != "" && identity.EmailVerified,
 		})
 		if err != nil {
 			if isUniqueViolation(err) {
@@ -630,6 +644,11 @@ func applyInviteProvision(
 				return ResolveOutcome{}, authn.ErrUsernameCollision()
 			}
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account: %w", err)
+		}
+		// PHB-148: same as auto-provision — verified upstream email goes to
+		// account_email, not the (now removed) account column.
+		if email != "" && identity.EmailVerified {
+			absorbUpstream(ctx, qtx, w, idp, identity, acct.ID, email)
 		}
 
 		ident, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
@@ -851,7 +870,8 @@ func applyNoProvision(
 func syncClaims(
 	ctx context.Context,
 	q ModesQueries,
-	_ *resolverProvider,
+	w audit.Writer,
+	idp *resolverProvider,
 	stored *db.AccountIdentity,
 	identity *VerifiedIdentity,
 	upstreamData []byte,
@@ -859,7 +879,6 @@ func syncClaims(
 	displayName := identity.DisplayName
 	email := identityEmail(identity)
 	newEmail := pgtype.Text{String: email, Valid: email != ""}
-	newVerified := newEmail.Valid && identity.EmailVerified
 
 	acct, err := q.GetAccountByID(ctx, stored.AccountID)
 	if err != nil {
@@ -876,14 +895,13 @@ func syncClaims(
 			return fmt.Errorf("federation: update account display name: %w", err)
 		}
 	}
-	if acct.Email.String != newEmail.String || acct.Email.Valid != newEmail.Valid || acct.EmailVerified != newVerified {
-		if err := q.UpdateAccountEmail(ctx, db.UpdateAccountEmailParams{
-			ID:            stored.AccountID,
-			Email:         newEmail,
-			EmailVerified: newVerified,
-		}); err != nil {
-			return fmt.Errorf("federation: update account email: %w", err)
-		}
+	// PHB-148: a verified upstream address is absorbed into account_email
+	// (new row, or an unverified row flipped, never demoting a verified
+	// one); an unverified upstream email only lands on the identity row
+	// below. Nothing ever removes or downgrades existing addresses, so a
+	// Steam login without an email claim no longer clears anything.
+	if email != "" && identity.EmailVerified {
+		absorbUpstream(ctx, q, w, idp, identity, stored.AccountID, email)
 	}
 	if err := q.UpdateAccountIdentityVerifiedData(ctx, db.UpdateAccountIdentityVerifiedDataParams{
 		ID:            stored.ID,
@@ -893,6 +911,42 @@ func syncClaims(
 		return fmt.Errorf("federation: update account identity data: %w", err)
 	}
 	return nil
+}
+
+// absorbUpstream folds a verified upstream address into the account's
+// address list and audits the outcome (failures included). It never blocks
+// the sign-in: a taken address or a full list is a skip, not an error.
+func absorbUpstream(ctx context.Context, q ModesQueries, w audit.Writer, idp *resolverProvider, identity *VerifiedIdentity, accountID int32, address string) {
+	outcome, _, err := email.AbsorbUpstream(ctx, q, accountID, address, idp.ID)
+	if err != nil {
+		audit.RecordOrLog(ctx, w, audit.Record{
+			AccountID: &accountID,
+			Factor:    audit.FactorEmail,
+			Event:     audit.EventFail,
+			Detail: map[string]any{
+				"address": address, "reason": "absorb_error",
+				"idp_slug": idp.Slug, "error": err.Error(),
+			},
+		})
+		return
+	}
+	switch outcome {
+	case email.AbsorbAdded, email.AbsorbVerified:
+		detail := map[string]any{"address": address, "via": "upstream", "idp_slug": idp.Slug}
+		audit.RecordOrLog(ctx, w, audit.Record{
+			AccountID: &accountID, Factor: audit.FactorEmail, Event: audit.EventVerified,
+			CredentialRef: nil, Detail: detail,
+		})
+	case email.AbsorbSkipTaken, email.AbsorbSkipFull, email.AbsorbSkipInvalid:
+		audit.RecordOrLog(ctx, w, audit.Record{
+			AccountID: &accountID,
+			Factor:    audit.FactorEmail,
+			Event:     audit.EventFail,
+			Detail: map[string]any{
+				"address": address, "reason": string(outcome), "idp_slug": idp.Slug,
+			},
+		})
+	}
 }
 
 type ResolveContext struct {

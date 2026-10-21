@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/db"
@@ -12,11 +14,15 @@ import (
 
 type identityProjectionQueries struct {
 	db.Querier
-	verifiedEmailCount int64
+	primary    string
+	primaryErr error
 }
 
-func (q identityProjectionQueries) CountVerifiedAccountsByEmail(context.Context, string) (int64, error) {
-	return q.verifiedEmailCount, nil
+func (q identityProjectionQueries) GetAccountPrimaryEmail(context.Context, int32) (string, error) {
+	if q.primaryErr != nil {
+		return "", q.primaryErr
+	}
+	return q.primary, nil
 }
 
 func projectionAccount(t *testing.T) db.Account {
@@ -27,7 +33,6 @@ func projectionAccount(t *testing.T) db.Account {
 	}
 	return db.Account{
 		ID: 7, OidcSubject: subject, Username: "alice", DisplayName: "Alice",
-		Email: pgtype.Text{String: "Alice@example.test", Valid: true}, EmailVerified: true,
 	}
 }
 
@@ -39,11 +44,11 @@ func TestResolvePrincipalSources(t *testing.T) {
 	}{
 		{name: "stable subject", source: PrincipalSourceSub, want: testSubject},
 		{name: "username", source: PrincipalSourceUsername, want: "alice"},
-		{name: "unique verified email", source: PrincipalSourceVerifiedEmail, want: "Alice@example.test", count: 1},
+		{name: "primary email", source: PrincipalSourceVerifiedEmail, want: "Alice@example.test"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolvePrincipal(context.Background(), identityProjectionQueries{verifiedEmailCount: tc.count}, account, tc.source)
+			got, err := resolvePrincipal(context.Background(), identityProjectionQueries{primary: "Alice@example.test"}, account, tc.source)
 			if err != nil || got != tc.want {
 				t.Fatalf("resolvePrincipal() = %q, %v; want %q, nil", got, err, tc.want)
 			}
@@ -52,22 +57,18 @@ func TestResolvePrincipalSources(t *testing.T) {
 }
 
 func TestResolvePrincipalVerifiedEmailFailsClosed(t *testing.T) {
+	// No primary (ErrNoRows from the query) → unavailable; blank primary →
+	// unavailable.
 	for _, tc := range []struct {
-		name     string
-		verified bool
-		count    int64
+		name    string
+		queries identityProjectionQueries
 	}{
-		{name: "unverified", count: 1},
-		{name: "missing", verified: true},
-		{name: "ambiguous", verified: true, count: 2},
+		{name: "no primary row", queries: identityProjectionQueries{primaryErr: pgx.ErrNoRows}},
+		{name: "blank primary", queries: identityProjectionQueries{primary: "   "}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			account := projectionAccount(t)
-			account.EmailVerified = tc.verified
-			if tc.name == "missing" {
-				account.Email = pgtype.Text{}
-			}
-			_, err := resolvePrincipal(context.Background(), identityProjectionQueries{verifiedEmailCount: tc.count}, account, PrincipalSourceVerifiedEmail)
+			_, err := resolvePrincipal(context.Background(), tc.queries, account, PrincipalSourceVerifiedEmail)
 			if !errors.Is(err, errPrincipalUnavailable) {
 				t.Fatalf("error = %v, want principal unavailable", err)
 			}
@@ -78,7 +79,7 @@ func TestResolvePrincipalVerifiedEmailFailsClosed(t *testing.T) {
 func TestApplyClaimAliasesUsesScopedPreOverwriteSnapshot(t *testing.T) {
 	account := projectionAccount(t)
 	claims := map[string]any{"name": "custom name", "preferred_username": "custom handle"}
-	applyClaimAliases(claims, account, []string{"profile", "email"}, "https://issuer.example", map[string]string{
+	applyClaimAliases(claims, account, "Alice@example.test", []string{"profile", "email"}, "https://issuer.example", map[string]string{
 		"name":    "preferred_username",
 		"handle":  "preferred_username",
 		"contact": "email",
@@ -88,7 +89,7 @@ func TestApplyClaimAliasesUsesScopedPreOverwriteSnapshot(t *testing.T) {
 	}
 
 	withoutScopes := map[string]any{}
-	applyClaimAliases(withoutScopes, account, []string{"openid"}, "https://issuer.example", map[string]string{"handle": "preferred_username", "contact": "email"})
+	applyClaimAliases(withoutScopes, account, "Alice@example.test", []string{"openid"}, "https://issuer.example", map[string]string{"handle": "preferred_username", "contact": "email"})
 	if len(withoutScopes) != 0 {
 		t.Fatalf("aliases escaped source scopes: %#v", withoutScopes)
 	}

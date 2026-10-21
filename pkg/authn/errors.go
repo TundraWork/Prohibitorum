@@ -117,6 +117,22 @@ func init() {
 		{Code: "wallpaper_not_configured", Status: http.StatusNotFound, LocaleKey: "errors.wallpaper_not_configured", DiagnosticKind: "resource"},
 		{Code: "wallpaper_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.wallpaper_unavailable", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
 		{Code: "invalid_group_rule", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_group_rule", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"path": {}, "reason": {}}},
+		// PHB-148 local account emails. email_unavailable deliberately says
+		// nothing about who holds the address; email_taken is the admin-only
+		// variant that admits a conflict exists.
+		{Code: "email_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.email_invalid", DiagnosticKind: "validation"},
+		{Code: "email_limit_reached", Status: http.StatusConflict, LocaleKey: "errors.email_limit_reached", DiagnosticKind: "policy"},
+		{Code: "email_exists", Status: http.StatusConflict, LocaleKey: "errors.email_exists", DiagnosticKind: "validation"},
+		{Code: "email_unavailable", Status: http.StatusConflict, LocaleKey: "errors.email_unavailable", DiagnosticKind: "policy"},
+		{Code: "email_taken", Status: http.StatusConflict, LocaleKey: "errors.email_taken", DiagnosticKind: "policy"},
+		{Code: "email_not_verified_for_primary", Status: http.StatusConflict, LocaleKey: "errors.email_not_verified_for_primary", DiagnosticKind: "policy"},
+		{Code: "email_primary_undeletable", Status: http.StatusConflict, LocaleKey: "errors.email_primary_undeletable", DiagnosticKind: "policy"},
+		{Code: "email_code_invalid", Status: http.StatusUnprocessableEntity, LocaleKey: "errors.email_code_invalid", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"attemptsRemaining": {}}},
+		{Code: "email_code_expired", Status: http.StatusGone, LocaleKey: "errors.email_code_expired", DiagnosticKind: "validation", Recovery: "retry"},
+		{Code: "email_already_verified", Status: http.StatusConflict, LocaleKey: "errors.email_already_verified", DiagnosticKind: "validation"},
+		{Code: "email_delivery_unavailable", Status: http.StatusConflict, LocaleKey: "errors.email_delivery_unavailable", DiagnosticKind: "system"},
+		{Code: "email_delivery_failed", Status: http.StatusBadGateway, LocaleKey: "errors.email_delivery_failed", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
+		{Code: "email_not_found", Status: http.StatusNotFound, LocaleKey: "errors.email_not_found", DiagnosticKind: "resource"},
 	}
 	if err := weberr.Register(defs); err != nil {
 		panic(fmt.Sprintf("authn: failed to register error definitions: %v", err))
@@ -809,6 +825,65 @@ func ErrInvalidGroupRule(path, reason string) *AuthError {
 		Message: "Invalid application group rule.",
 		Details: map[string]any{"path": path, "reason": reason},
 	}
+}
+
+// ----- PHB-148 email errors -------------------------------------------------
+
+func ErrEmailInvalid() *AuthError {
+	return newErr(http.StatusUnprocessableEntity, "email_invalid", "邮箱地址格式不正确")
+}
+
+func ErrEmailLimitReached() *AuthError {
+	return newErr(http.StatusConflict, "email_limit_reached", "邮箱地址数量已达上限")
+}
+
+func ErrEmailExists() *AuthError {
+	return newErr(http.StatusConflict, "email_exists", "这个邮箱地址已经在列表里")
+}
+
+func ErrEmailUnavailable() *AuthError {
+	return newErr(http.StatusConflict, "email_unavailable", "这个地址无法使用")
+}
+
+func ErrEmailTaken() *AuthError {
+	return newErr(http.StatusConflict, "email_taken", "这个地址已被另一个账户验证")
+}
+
+func ErrEmailNotVerifiedForPrimary() *AuthError {
+	return newErr(http.StatusConflict, "email_not_verified_for_primary", "只有已验证的地址可以设为主邮箱")
+}
+
+func ErrEmailPrimaryUndeletable() *AuthError {
+	return newErr(http.StatusConflict, "email_primary_undeletable", "主邮箱不能删除，请先把别的地址设为主邮箱")
+}
+
+func ErrEmailCodeInvalid(attemptsRemaining int) *AuthError {
+	return &AuthError{
+		Status:  http.StatusUnprocessableEntity,
+		Code:    "email_code_invalid",
+		Message: "验证码不对",
+		Details: map[string]any{"attemptsRemaining": attemptsRemaining},
+	}
+}
+
+func ErrEmailCodeExpired() *AuthError {
+	return newErr(http.StatusGone, "email_code_expired", "验证码已失效，请重新发送")
+}
+
+func ErrEmailAlreadyVerified() *AuthError {
+	return newErr(http.StatusConflict, "email_already_verified", "这个地址已经验证过了")
+}
+
+func ErrEmailDeliveryUnavailable() *AuthError {
+	return newErr(http.StatusConflict, "email_delivery_unavailable", "本站没有开启邮件发送")
+}
+
+func ErrEmailDeliveryFailed() *AuthError {
+	return newErr(http.StatusBadGateway, "email_delivery_failed", "邮件没有发出去，请稍后重试")
+}
+
+func ErrEmailNotFound() *AuthError {
+	return newErr(http.StatusNotFound, "email_not_found", "没有这个邮箱地址")
 }
 
 // AsAuthError unwraps an error chain and returns the embedded *AuthError if any,

@@ -78,8 +78,7 @@ type AccountView struct {
 	OIDCSubject        string                `json:"oidcSubject"`
 	Username           string                `json:"username"`
 	DisplayName        string                `json:"displayName"`
-	Email              *string               `json:"email,omitempty"`
-	EmailVerified      bool                  `json:"emailVerified"`
+	PrimaryEmail       *string               `json:"primaryEmail,omitempty"`
 	Role               string                `json:"role"`
 	Attributes         map[string]any        `json:"attributes,omitempty"`
 	Disabled           bool                  `json:"disabled"`

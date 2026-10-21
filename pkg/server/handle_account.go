@@ -100,8 +100,7 @@ func accountViewFromRow(r *db.ListAccountsRow, origin string) contract.AccountVi
 		OIDCSubject:        r.OidcSubject.String(),
 		Username:           r.Username,
 		DisplayName:        r.DisplayName,
-		Email:              textPtr(r.Email),
-		EmailVerified:      r.EmailVerified,
+		PrimaryEmail:       textPtr(r.PrimaryEmail),
 		Role:               r.Role,
 		Attributes:         decodeAttributes(r.Attributes),
 		Disabled:           r.Disabled,
@@ -127,8 +126,7 @@ func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time, origin strin
 		OIDCSubject:        a.OidcSubject.String(),
 		Username:           a.Username,
 		DisplayName:        a.DisplayName,
-		Email:              textPtr(a.Email),
-		EmailVerified:      a.EmailVerified,
+		PrimaryEmail:       nil,
 		Role:               a.Role,
 		Attributes:         decodeAttributes(a.Attributes),
 		Disabled:           a.Disabled,
@@ -319,10 +317,6 @@ type updateAccountIn struct {
 		Role        string         `json:"role"`
 		Attributes  map[string]any `json:"attributes,omitempty"`
 		Disabled    bool           `json:"disabled"`
-		// Email is a pointer so "omitted" (nil → preserve the current value,
-		// including a federation-verified address) is distinguishable from
-		// "set to empty" (clear it). An admin-supplied email is unverified.
-		Email *string `json:"email,omitempty"`
 	}
 }
 
@@ -422,25 +416,12 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 
 	attrs := encodeAttributes(in.Body.Attributes)
 
-	// Email: preserve the current value (incl. a federation-verified address)
-	// unless the admin explicitly supplies one; a manual set is unverified, and
-	// an empty string clears it. (T3.2)
-	email := current.Email
-	emailVerified := current.EmailVerified
-	if in.Body.Email != nil {
-		v := strings.TrimSpace(*in.Body.Email)
-		email = pgtype.Text{String: v, Valid: v != ""}
-		emailVerified = false
-	}
-
 	updated, err := q.UpdateAccount(ctx, db.UpdateAccountParams{
-		ID:            in.ID,
-		DisplayName:   in.Body.DisplayName,
-		Role:          in.Body.Role,
-		Attributes:    attrs,
-		Disabled:      in.Body.Disabled,
-		Email:         email,
-		EmailVerified: emailVerified,
+		ID:          in.ID,
+		DisplayName: in.Body.DisplayName,
+		Role:        in.Body.Role,
+		Attributes:  attrs,
+		Disabled:    in.Body.Disabled,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("handleUpdateAccount: update: %w", err)
@@ -460,12 +441,6 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 	}
 	if current.Disabled != updated.Disabled {
 		changes["disabled"] = []bool{current.Disabled, updated.Disabled}
-	}
-	if current.Email.String != updated.Email.String || current.Email.Valid != updated.Email.Valid {
-		changes["email"] = []*string{textPtr(current.Email), textPtr(updated.Email)}
-	}
-	if current.EmailVerified != updated.EmailVerified {
-		changes["emailVerified"] = []bool{current.EmailVerified, updated.EmailVerified}
 	}
 	currentAttrs := decodeAttributes(current.Attributes)
 	updatedAttrs := decodeAttributes(updated.Attributes)

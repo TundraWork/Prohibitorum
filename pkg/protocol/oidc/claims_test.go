@@ -105,12 +105,12 @@ func baseInput() idTokenInput {
 // under other scopes, and omitted entirely for an account with no email.
 func TestClaimsEmailScope(t *testing.T) {
 	a := testAccount(t)
-	a.Email = pgtype.Text{String: "alice@example.com", Valid: true}
-	a.EmailVerified = true
+	const primary = "alice@example.com"
 
 	// id_token WITH email scope → both claims present.
 	in := baseInput()
 	in.Scope = []string{"openid", "email"}
+	in.PrimaryEmail = primary
 	c := idTokenClaims(a, in)
 	if c["email"] != "alice@example.com" {
 		t.Errorf("email claim = %v, want alice@example.com", c["email"])
@@ -126,7 +126,8 @@ func TestClaimsEmailScope(t *testing.T) {
 		t.Error("email claim leaked without the email scope")
 	}
 
-	// email scope but NO email on the account → omitted (not emitted empty).
+	// email scope but NO primary on the account → omitted (not emitted empty).
+	in = baseInput()
 	in.Scope = []string{"openid", "email"}
 	c = idTokenClaims(testAccount(t), in)
 	if _, ok := c["email"]; ok {
@@ -134,11 +135,11 @@ func TestClaimsEmailScope(t *testing.T) {
 	}
 
 	// userinfo parity.
-	u := userinfoClaims(a, []string{"openid", "email"}, "", nil)
+	u := userinfoClaims(a, primary, []string{"openid", "email"}, "", nil)
 	if u["email"] != "alice@example.com" || u["email_verified"] != true {
 		t.Errorf("userinfo email block = %v/%v, want alice@example.com/true", u["email"], u["email_verified"])
 	}
-	if _, ok := userinfoClaims(a, []string{"openid"}, "", nil)["email"]; ok {
+	if _, ok := userinfoClaims(a, primary, []string{"openid"}, "", nil)["email"]; ok {
 		t.Error("userinfo leaked email without the email scope")
 	}
 }
@@ -271,7 +272,7 @@ func TestClaimsIDTokenOmitsAttributesWhenEmpty(t *testing.T) {
 
 func TestClaimsUserinfoWithProfile(t *testing.T) {
 	a := testAccount(t)
-	c := userinfoClaims(a, []string{"openid", "profile"}, "", nil)
+	c := userinfoClaims(a, "", []string{"openid", "profile"}, "", nil)
 
 	if c["sub"] != subjectOf(a) {
 		t.Fatalf("sub = %v, want %v", c["sub"], subjectOf(a))
@@ -306,7 +307,7 @@ func TestClaimsUserinfoWithProfile(t *testing.T) {
 
 func TestClaimsUserinfoWithoutProfile(t *testing.T) {
 	a := testAccount(t)
-	c := userinfoClaims(a, []string{"openid"}, "", nil)
+	c := userinfoClaims(a, "", []string{"openid"}, "", nil)
 
 	if c["sub"] != subjectOf(a) {
 		t.Fatalf("sub = %v, want %v", c["sub"], subjectOf(a))
@@ -393,7 +394,7 @@ func TestClaimsGroupsScope(t *testing.T) {
 	// --- userinfo ---
 
 	// groups scope + non-empty → present.
-	u := userinfoClaims(a, []string{"openid", "groups"}, "", []string{"gamma"})
+	u := userinfoClaims(a, "", []string{"openid", "groups"}, "", []string{"gamma"})
 	ugs, ok := u["groups"].([]string)
 	if !ok {
 		t.Fatalf("userinfo groups type = %T, want []string", u["groups"])
@@ -403,7 +404,7 @@ func TestClaimsGroupsScope(t *testing.T) {
 	}
 
 	// groups scope + nil → non-nil empty slice.
-	u = userinfoClaims(a, []string{"openid", "groups"}, "", nil)
+	u = userinfoClaims(a, "", []string{"openid", "groups"}, "", nil)
 	ugs, ok = u["groups"].([]string)
 	if !ok {
 		t.Fatalf("userinfo groups (nil) type = %T, want []string", u["groups"])
@@ -416,7 +417,7 @@ func TestClaimsGroupsScope(t *testing.T) {
 	}
 
 	// no groups scope → absent.
-	u = userinfoClaims(a, []string{"openid", "profile"}, "", []string{"gamma"})
+	u = userinfoClaims(a, "", []string{"openid", "profile"}, "", []string{"gamma"})
 	if _, ok := u["groups"]; ok {
 		t.Error("userinfo groups present without the groups scope")
 	}
@@ -436,7 +437,7 @@ func TestIDTokenPictureUsesAvatarOrigin(t *testing.T) {
 		AvatarEtag:  pgtype.Text{String: "deadbeefcafe", Valid: true},
 	}
 	in := baseInput()
-	in.Issuer = "https://sso.internal"        // issuer may differ from public origin
+	in.Issuer = "https://sso.internal"           // issuer may differ from public origin
 	in.AvatarOrigin = "https://auth.example.com" // public origin where /avatar is served
 	in.Scope = []string{"openid", "profile"}
 

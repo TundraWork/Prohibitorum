@@ -441,19 +441,19 @@ func TestScreenDialControl_AllowsPublicBlocksPrivate(t *testing.T) {
 	blocked := []string{
 		"127.0.0.1:443",
 		"169.254.169.254:80",
-		"10.0.0.1:443",      // private — must be blocked in production
-		"172.16.0.1:443",    // private
-		"192.168.1.1:443",   // private
-		"[fc00::1]:443",     // ULA private
-		"[::1]:443",         // loopback v6
-		"[fe80::1]:443",     // link-local v6
-		"[ff02::1]:443",     // multicast v6
-		"224.0.0.1:443",     // multicast v4
-		"0.0.0.0:443",       // unspecified
-		"100.64.0.1:443",    // CGNAT
-		"240.0.0.1:443",     // reserved
-		"192.0.2.1:443",     // documentation
-		"198.18.0.1:443",    // benchmark
+		"10.0.0.1:443",           // private — must be blocked in production
+		"172.16.0.1:443",         // private
+		"192.168.1.1:443",        // private
+		"[fc00::1]:443",          // ULA private
+		"[::1]:443",              // loopback v6
+		"[fe80::1]:443",          // link-local v6
+		"[ff02::1]:443",          // multicast v6
+		"224.0.0.1:443",          // multicast v4
+		"0.0.0.0:443",            // unspecified
+		"100.64.0.1:443",         // CGNAT
+		"240.0.0.1:443",          // reserved
+		"192.0.2.1:443",          // documentation
+		"198.18.0.1:443",         // benchmark
 		"[::ffff:127.0.0.1]:443", // v4-mapped loopback
 		"[::ffff:10.0.0.1]:443",  // v4-mapped private — blocked in production
 	}
@@ -477,9 +477,9 @@ func TestScreenDialControl_PrivateModePermitsRFC1918ULA(t *testing.T) {
 		"192.168.1.1:443",
 		"[fc00::1]:443",
 		"[fd12:3456:789a::1]:443",
-		"127.0.0.1:443",   // loopback permitted in private mode
-		"[::1]:443",       // loopback v6 permitted in private mode
-		"8.8.8.8:443",     // public still allowed
+		"127.0.0.1:443", // loopback permitted in private mode
+		"[::1]:443",     // loopback v6 permitted in private mode
+		"8.8.8.8:443",   // public still allowed
 	}
 	for _, addr := range allowed {
 		if err := screen("tcp", addr, nil); err != nil {
@@ -686,13 +686,13 @@ func TestHardenedClient_BlocksPublicToPrivateRedirect(t *testing.T) {
 	// reachable. The redirect target is resolved through the steering
 	// resolver and blocked at the dial screen.
 	dialer := &net.Dialer{
-		Timeout:   5 * time.Second,
-		Control:   screenDialControl(true),
+		Timeout: 5 * time.Second,
+		Control: screenDialControl(true),
 	}
 	transport := &http.Transport{
-		DialContext:           screenedDialContext(true, res, dialer.DialContext),
-		TLSHandshakeTimeout:   5 * time.Second,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+		DialContext:         screenedDialContext(true, res, dialer.DialContext),
+		TLSHandshakeTimeout: 5 * time.Second,
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client{
 		Transport: cappingTransport{base: transport, max: maxFederationResponseBytes},

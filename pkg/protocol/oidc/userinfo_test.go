@@ -43,6 +43,7 @@ type fakeEndpointQueries struct {
 	db.Querier
 	clients     map[string]db.OidcClient
 	byID        map[int32]db.Account
+	primary     map[int32]string
 	bySubject   map[string]db.Account
 	revokedJTIs map[string]bool
 	inserted    []db.InsertRevokedJTIParams
@@ -83,14 +84,12 @@ func (f *fakeEndpointQueries) GetOIDCClientAny(_ context.Context, clientID strin
 	return c, nil
 }
 
-func (f *fakeEndpointQueries) CountVerifiedAccountsByEmail(_ context.Context, email string) (int64, error) {
-	var count int64
-	for _, account := range f.byID {
-		if account.EmailVerified && account.Email.Valid && strings.EqualFold(account.Email.String, email) {
-			count++
-		}
+func (f *fakeEndpointQueries) GetAccountPrimaryEmail(_ context.Context, id int32) (string, error) {
+	primary, ok := f.primary[id]
+	if !ok || primary == "" {
+		return "", pgx.ErrNoRows
 	}
-	return count, nil
+	return primary, nil
 }
 
 func (f *fakeEndpointQueries) GetAccountByID(_ context.Context, id int32) (db.Account, error) {
@@ -147,6 +146,7 @@ func newEndpointHarness(t *testing.T) *endpointHarness {
 			testClientID: confidentialClient(t, testClientID, testSecret, "client_secret"),
 		},
 		byID:        map[int32]db.Account{7: acct},
+		primary:     map[int32]string{7: "alice@example.test"},
 		bySubject:   map[string]db.Account{testSubject: acct},
 		revokedJTIs: map[string]bool{},
 	}

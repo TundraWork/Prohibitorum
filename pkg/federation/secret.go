@@ -22,25 +22,33 @@ func NewSecretStore(deks map[int][]byte) *SecretStore {
 
 func (s *SecretStore) SealProviderSecret(plaintext []byte, providerID int64, keyVersion int32) (*SealedSecret, error) {
 	dek, err := s.key(keyVersion)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return SealProviderSecret(dek, plaintext, providerID, keyVersion)
 }
 
 func (s *SecretStore) OpenProviderSecret(secret SealedSecret, providerID int64) ([]byte, error) {
 	dek, err := s.key(secret.KeyVersion)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return OpenProviderSecret(dek, secret, providerID)
 }
 
 func (s *SecretStore) SealTemporary(plaintext []byte, providerID int64, keyVersion int32, challenge string) (*SealedSecret, error) {
 	dek, err := s.key(keyVersion)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return SealTemporary(dek, plaintext, providerID, keyVersion, challenge)
 }
 
 func (s *SecretStore) OpenTemporary(secret SealedSecret, providerID int64, challenge string) ([]byte, error) {
 	dek, err := s.key(secret.KeyVersion)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return OpenTemporary(dek, secret, providerID, challenge)
 }
 
@@ -104,15 +112,21 @@ func temporaryAAD(providerID int64, keyVersion int32, challenge string) []byte {
 
 func sealSecret(dek, plaintext []byte, keyVersion int32, aad []byte) (*SealedSecret, error) {
 	aead, err := newGCM(dek)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	nonce := make([]byte, aead.NonceSize())
-	if _, err := rand.Read(nonce); err != nil { return nil, err }
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
 	return &SealedSecret{Ciphertext: aead.Seal(nil, nonce, plaintext, aad), Nonce: nonce, KeyVersion: keyVersion}, nil
 }
 
 func openSecret(dek []byte, secret SealedSecret, aad []byte) ([]byte, error) {
 	aead, err := newGCM(dek)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return aead.Open(nil, secret.Nonce, secret.Ciphertext, aad)
 }
 
@@ -121,6 +135,8 @@ func newGCM(dek []byte) (cipher.AEAD, error) {
 		return nil, fmt.Errorf("federation: DEK must be 32 bytes (AES-256), got %d", len(dek))
 	}
 	block, err := aes.NewCipher(dek)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return cipher.NewGCM(block)
 }

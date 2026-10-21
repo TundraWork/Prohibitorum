@@ -168,6 +168,12 @@ func AdminAdd(ctx context.Context, q Queries, accountID int32, address string, v
 		if err := q.SetAccountPrimaryEmail(ctx, db.SetAccountPrimaryEmailParams{ID: accountID, PrimaryEmailID: pgInt8(row.ID)}); err != nil {
 			return db.AccountEmail{}, fmt.Errorf("email: set primary: %w", err)
 		}
+		return row, nil
+	}
+	// Same auto-primary rule as every other verification path: an account
+	// with no primary gets its first verified address.
+	if err := ensurePrimaryWhenEmpty(ctx, q, accountID, row.ID); err != nil {
+		return db.AccountEmail{}, fmt.Errorf("email: set primary: %w", err)
 	}
 	return row, nil
 }
@@ -193,6 +199,11 @@ func adminVerifyExisting(ctx context.Context, q Queries, accountID int32, emailI
 		if err := q.SetAccountPrimaryEmail(ctx, db.SetAccountPrimaryEmailParams{ID: accountID, PrimaryEmailID: pgInt8(emailID)}); err != nil {
 			return fmt.Errorf("email: set primary: %w", err)
 		}
+		return nil
+	}
+	// Same auto-primary rule as every other verification path.
+	if err := ensurePrimaryWhenEmpty(ctx, q, accountID, emailID); err != nil {
+		return fmt.Errorf("email: set primary: %w", err)
 	}
 	return nil
 }

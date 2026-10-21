@@ -70,6 +70,7 @@ func writeSigningKeyJSON(w http.ResponseWriter, status int, v contract.SigningKe
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
 }
+
 // ----- GET /signing-keys (typed, role-only) ----------------------------------
 
 type listSigningKeysIn struct {

@@ -36,6 +36,8 @@ type fakeTokenQueries struct {
 	// an id present here resolves to pgx.ErrNoRows (revoked/absent). Empty by
 	// default so every session reads as live and existing tests are unaffected.
 	revokedSessions map[string]bool
+	// primary maps account id → primary address; absent → ErrNoRows.
+	primary map[int32]string
 	// deniedClients holds client IDs the bound account is NOT authorized for, used
 	// to exercise the RBAC re-check at refresh. Empty by default → authorized, so
 	// existing refresh tests keep passing. authzErr forces a predicate error.
@@ -65,6 +67,14 @@ func (f *fakeTokenQueries) GetAccountByID(_ context.Context, id int32) (db.Accou
 		return db.Account{}, pgx.ErrNoRows
 	}
 	return a, nil
+}
+
+func (f *fakeTokenQueries) GetAccountPrimaryEmail(_ context.Context, id int32) (string, error) {
+	primary, ok := f.primary[id]
+	if !ok || primary == "" {
+		return "", pgx.ErrNoRows
+	}
+	return primary, nil
 }
 
 // tokenHarness wires a Provider with a working signing key, a fake query layer
@@ -104,6 +114,7 @@ func newTokenHarness(t *testing.T) *tokenHarness {
 			testClientID: confidentialClient(t, testClientID, testSecret, "client_secret"),
 		},
 		accounts: map[int32]db.Account{42: acct},
+		primary:  map[int32]string{42: "alice@example.test"},
 	}
 	access := &fakeOIDCAuthorizer{evaluate: func(_ context.Context, _ int32, clientID string) (appaccess.Decision, error) {
 		if q.authzErr != nil {

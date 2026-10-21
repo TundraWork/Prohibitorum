@@ -94,9 +94,10 @@ func decodeClaimAliases(raw []byte) (map[string]string, error) {
 }
 
 // resolvePrincipal computes the configured public identifier from current
-// account data. Email comparison is case-insensitive, matching the way email
-// ownership is checked elsewhere while preserving the stored spelling in the
-// emitted value.
+// account data. The verified_email source is the account's primary address:
+// the verified-uniqueness index guarantees no other account holds it, so the
+// historical uniqueness count is gone. Changing the primary changes what
+// email-keyed applications see as the subject.
 func resolvePrincipal(ctx context.Context, q db.Querier, account db.Account, source string) (string, error) {
 	switch source {
 	case PrincipalSourceSub:
@@ -108,14 +109,9 @@ func resolvePrincipal(ctx context.Context, q db.Querier, account db.Account, sou
 			return username, nil
 		}
 	case PrincipalSourceVerifiedEmail:
-		if account.EmailVerified && account.Email.Valid && strings.TrimSpace(account.Email.String) != "" {
-			count, err := q.CountVerifiedAccountsByEmail(ctx, account.Email.String)
-			if err != nil {
-				return "", err
-			}
-			if count == 1 {
-				return account.Email.String, nil
-			}
+		primary, err := q.GetAccountPrimaryEmail(ctx, account.ID)
+		if err == nil && strings.TrimSpace(primary) != "" {
+			return primary, nil
 		}
 	default:
 		return "", fmt.Errorf("oidc: invalid principal source %q", source)
@@ -123,7 +119,7 @@ func resolvePrincipal(ctx context.Context, q db.Querier, account db.Account, sou
 	return "", errPrincipalUnavailable
 }
 
-func claimAliasSnapshot(account db.Account, scope []string, origin string) map[string]any {
+func claimAliasSnapshot(account db.Account, primaryEmail string, scope []string, origin string) map[string]any {
 	values := map[string]any{}
 	if hasScope(scope, "profile") {
 		profile := profileClaims(account, origin)
@@ -134,15 +130,15 @@ func claimAliasSnapshot(account db.Account, scope []string, origin string) map[s
 		}
 	}
 	if hasScope(scope, "email") {
-		if value, ok := emailClaims(account)["email"]; ok {
+		if value, ok := emailClaims(primaryEmail)["email"]; ok {
 			values["email"] = value
 		}
 	}
 	return values
 }
 
-func applyClaimAliases(claims map[string]any, account db.Account, scope []string, origin string, aliases map[string]string) {
-	values := claimAliasSnapshot(account, scope, origin)
+func applyClaimAliases(claims map[string]any, account db.Account, primaryEmail string, scope []string, origin string, aliases map[string]string) {
+	values := claimAliasSnapshot(account, primaryEmail, scope, origin)
 	for name, source := range aliases {
 		if value, ok := values[source]; ok {
 			claims[name] = value

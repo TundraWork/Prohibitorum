@@ -91,6 +91,7 @@ type idTokenInput struct {
 	AMR          []string                   // authentication methods, e.g. ["webauthn"]
 	AccessToken  string                     // to compute at_hash; at_hash omitted if ""
 	Scope        []string                   // granted scopes; gates the profile block
+	PrimaryEmail string                     // primary address; "" → email claims omitted
 	Groups       []string                   // exposed group slugs; emitted only when "groups" scope granted
 	Identities   map[string][]identityClaim // emitted when any identity:<slug> scope was granted (nil otherwise)
 	IssuedAt     time.Time
@@ -141,7 +142,7 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 		}
 	}
 	if hasScope(in.Scope, "email") {
-		for k, v := range emailClaims(a) {
+		for k, v := range emailClaims(in.PrimaryEmail) {
 			c[k] = v
 		}
 	}
@@ -151,7 +152,7 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 	if in.Identities != nil {
 		c["identities"] = in.Identities
 	}
-	applyClaimAliases(c, a, in.Scope, in.AvatarOrigin, in.ClaimAliases)
+	applyClaimAliases(c, a, in.PrimaryEmail, in.Scope, in.AvatarOrigin, in.ClaimAliases)
 
 	return c
 }
@@ -163,13 +164,13 @@ func idTokenClaims(a db.Account, in idTokenInput) map[string]any {
 // (cfg.PublicOrigins[0]); it is forwarded to profileClaims to build the
 // picture URL. groups is the caller-supplied list of exposed group slugs
 // (nil when the groups scope was not granted).
-func userinfoClaims(a db.Account, scope []string, origin string, groups []string) map[string]any {
-	return projectedUserinfoClaims(a, subjectOf(a), scope, origin, groups, nil, nil)
+func userinfoClaims(a db.Account, primaryEmail string, scope []string, origin string, groups []string) map[string]any {
+	return projectedUserinfoClaims(a, subjectOf(a), primaryEmail, scope, origin, groups, nil, nil)
 }
 
 // projectedUserinfoClaims adds identities when it is non-nil, i.e. when an
 // identity:<slug> scope was granted.
-func projectedUserinfoClaims(a db.Account, subject string, scope []string, origin string, groups []string, identities map[string][]identityClaim, aliases map[string]string) map[string]any {
+func projectedUserinfoClaims(a db.Account, subject string, primaryEmail string, scope []string, origin string, groups []string, identities map[string][]identityClaim, aliases map[string]string) map[string]any {
 	c := map[string]any{
 		"sub": subject,
 	}
@@ -179,7 +180,7 @@ func projectedUserinfoClaims(a db.Account, subject string, scope []string, origi
 		}
 	}
 	if hasScope(scope, "email") {
-		for k, v := range emailClaims(a) {
+		for k, v := range emailClaims(primaryEmail) {
 			c[k] = v
 		}
 	}
@@ -189,7 +190,7 @@ func projectedUserinfoClaims(a db.Account, subject string, scope []string, origi
 	if identities != nil {
 		c["identities"] = identities
 	}
-	applyClaimAliases(c, a, scope, origin, aliases)
+	applyClaimAliases(c, a, primaryEmail, scope, origin, aliases)
 	return c
 }
 
@@ -202,16 +203,17 @@ func nonNilSlugs(s []string) []string {
 }
 
 // emailClaims returns the OIDC `email` / `email_verified` claim block (Core
-// §5.4), gated on the `email` scope by the caller. Returns nil when the account
-// has no email on file (so both claims are omitted rather than emitted empty);
-// ranging over a nil map is a no-op. email_verified reflects whether the address
-// was asserted by a verified upstream vs set manually.
-func emailClaims(a db.Account) map[string]any {
-	if !a.Email.Valid || a.Email.String == "" {
+// §5.4), gated on the `email` scope by the caller. primary is the account's
+// primary address ("" when none); a primary is verified by construction, so
+// email_verified is always true when the block is emitted. No primary →
+// both claims omitted rather than emitted empty; ranging over a nil map is
+// a no-op.
+func emailClaims(primary string) map[string]any {
+	if primary == "" {
 		return nil
 	}
 	return map[string]any{
-		"email":          a.Email.String,
-		"email_verified": a.EmailVerified,
+		"email":          primary,
+		"email_verified": true,
 	}
 }

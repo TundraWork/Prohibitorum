@@ -78,6 +78,7 @@ type fakeFedQueries struct {
 	// account
 	accountByIDResults map[int32]db.Account
 	accountByUsername  map[string]db.Account
+	primaryEmails      map[int32]string
 	usernameErr        error
 	nextAccountID      int32
 	insertedAccounts   []db.Account
@@ -120,6 +121,7 @@ func newFakeFedQueries() *fakeFedQueries {
 		idpBySlug:          map[string]db.UpstreamIdp{},
 		identityErr:        pgx.ErrNoRows,
 		accountByIDResults: map[int32]db.Account{},
+		primaryEmails:      map[int32]string{},
 		accountByUsername:  map[string]db.Account{},
 		usernameErr:        pgx.ErrNoRows,
 		nextAccountID:      100,
@@ -163,6 +165,22 @@ func (f *fakeFedQueries) GetAccountByID(_ context.Context, id int32) (db.Account
 		return a, nil
 	}
 	return db.Account{}, pgx.ErrNoRows
+}
+
+func (f *fakeFedQueries) GetAccountPrimaryEmail(_ context.Context, id int32) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if primary, ok := f.primaryEmails[id]; ok && primary != "" {
+		return primary, nil
+	}
+	return "", pgx.ErrNoRows
+}
+
+// seedPrimary records the account's primary address for views that read it.
+func (f *fakeFedQueries) seedPrimary(accountID int32, address string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.primaryEmails[accountID] = address
 }
 
 func (f *fakeFedQueries) GetAccountByUsername(_ context.Context, u string) (db.Account, error) {
@@ -221,10 +239,6 @@ func (f *fakeFedQueries) UpdateAccountDisplayName(_ context.Context, _ db.Update
 }
 
 func (f *fakeFedQueries) UpdateAccountIdentityVerifiedData(_ context.Context, _ db.UpdateAccountIdentityVerifiedDataParams) error {
-	return nil
-}
-
-func (f *fakeFedQueries) UpdateAccountEmail(_ context.Context, _ db.UpdateAccountEmailParams) error {
 	return nil
 }
 

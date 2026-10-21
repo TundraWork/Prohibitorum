@@ -51,6 +51,7 @@ func writeOIDCError(w http.ResponseWriter, r *http.Request, status int, code, de
 		"error_description": desc,
 	})
 }
+
 // writeInvalidClient renders a 401 invalid_client per RFC 6749 §5.2, including
 // the WWW-Authenticate challenge when the caller used HTTP Basic auth. The
 // check is on the header's presence, not its validity, so a caller whose Basic

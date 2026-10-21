@@ -93,6 +93,15 @@ var droppedSudoRoutes = []sudoRoute{
 	// Instance settings
 	{method: "PUT", path: "/api/prohibitorum/admin/settings", body: `{"instanceName":"x"}`},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/maintenance", body: `{"maintenanceMode":true}`},
+
+	// PHB-148 account emails — admin assertions, primary change, removal and
+	// the mail settings/test send are ordinary admin maintenance, never sudo.
+	{method: "POST", path: "/api/prohibitorum/accounts/1/emails", body: `{"address":"a@b.example"}`, noBodyControls: true},
+	{method: "POST", path: "/api/prohibitorum/accounts/1/emails/2/verify", body: ``},
+	{method: "POST", path: "/api/prohibitorum/accounts/1/emails/2/primary", body: ``},
+	{method: "DELETE", path: "/api/prohibitorum/accounts/1/emails/2", body: ``},
+	{method: "GET", path: "/api/prohibitorum/admin/settings/mail", body: ``},
+	{method: "POST", path: "/api/prohibitorum/admin/settings/mail/test", body: `{"to":"a@b.example"}`, noBodyControls: true},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/icon", body: `x`, noBodyControls: true},
 	{method: "DELETE", path: "/api/prohibitorum/admin/settings/icon", body: ``},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/login-appearance", body: `{}`},

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -61,8 +62,13 @@ type fakeModesQueries struct {
 	displayNameCalls  []db.UpdateAccountDisplayNameParams
 	identityDataCalls []db.UpdateAccountIdentityVerifiedDataParams
 	identityUpdateErr error
-	accountEmailCalls []db.UpdateAccountEmailParams
 
+	// account_email state (PHB-148 absorption): rows by id, primary pointer
+	// per account, next email id, and the addresses absorbed from upstreams.
+	emailRows         map[int64]db.AccountEmail
+	emailPrimary      map[int32]int64
+	nextEmailID       int64
+	absorbedAddresses []string
 	// Enrollment state for invite_only tests. consumeEnrollmentResult is
 	// returned on every ConsumeEnrollment call when consumeEnrollmentErr
 	// is nil; consumedTokens records the tokens actually consumed so
@@ -87,6 +93,8 @@ func newFakeModesQueries() *fakeModesQueries {
 	return &fakeModesQueries{
 		accountByIDResults: map[int32]db.Account{},
 		accountByUsername:  map[string]db.Account{},
+		emailRows:          map[int64]db.AccountEmail{},
+		emailPrimary:       map[int32]int64{},
 		nextAccountID:      100,
 		nextIdentityID:     200,
 		// default: identity lookup returns ErrNoRows (first-sight path)
@@ -197,13 +205,6 @@ func (f *fakeModesQueries) UpdateAccountIdentityVerifiedData(_ context.Context, 
 	return f.identityUpdateErr
 }
 
-func (f *fakeModesQueries) UpdateAccountEmail(_ context.Context, arg db.UpdateAccountEmailParams) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.accountEmailCalls = append(f.accountEmailCalls, arg)
-	return nil
-}
-
 func (f *fakeModesQueries) ConsumeEnrollment(_ context.Context, token string) (db.Enrollment, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -253,6 +254,169 @@ func (f *fakeModesQueries) AttachInviteIdentity(_ context.Context, arg db.Attach
 		return db.Enrollment{}, f.attachErr
 	}
 	return f.enrollmentByToken, nil
+}
+
+func (f *fakeModesQueries) getAccountEmailLocked(id int64, accountID int32) (db.GetAccountEmailRow, error) {
+	row, ok := f.emailRows[id]
+	if !ok || row.AccountID != accountID {
+		return db.GetAccountEmailRow{}, pgx.ErrNoRows
+	}
+	return db.GetAccountEmailRow{
+		ID: row.ID, AccountID: row.AccountID, Address: row.Address,
+		VerifiedAt: row.VerifiedAt, VerifiedVia: row.VerifiedVia,
+		VerifiedByIdpID: row.VerifiedByIdpID, VerifiedByAdminID: row.VerifiedByAdminID,
+		CreatedAt: row.CreatedAt, IsPrimary: f.emailPrimary[accountID] == id,
+	}, nil
+}
+
+func (f *fakeModesQueries) GetAccountByIDForUpdate(ctx context.Context, id int32) (db.Account, error) {
+	return f.GetAccountByID(ctx, id)
+}
+
+func (f *fakeModesQueries) CountAccountEmails(_ context.Context, accountID int32) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var n int64
+	for _, row := range f.emailRows {
+		if row.AccountID == accountID {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeModesQueries) GetAccountEmailByAddress(_ context.Context, arg db.GetAccountEmailByAddressParams) (db.GetAccountEmailByAddressRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, row := range f.emailRows {
+		if row.AccountID == arg.AccountID && strings.EqualFold(row.Address, arg.Lower) {
+			return db.GetAccountEmailByAddressRow{
+				ID: row.ID, AccountID: row.AccountID, Address: row.Address,
+				VerifiedAt: row.VerifiedAt, VerifiedVia: row.VerifiedVia,
+				VerifiedByIdpID: row.VerifiedByIdpID, VerifiedByAdminID: row.VerifiedByAdminID,
+				CreatedAt: row.CreatedAt, IsPrimary: f.emailPrimary[arg.AccountID] == row.ID,
+			}, nil
+		}
+	}
+	return db.GetAccountEmailByAddressRow{}, pgx.ErrNoRows
+}
+
+func (f *fakeModesQueries) InsertAccountEmail(_ context.Context, arg db.InsertAccountEmailParams) (db.AccountEmail, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextEmailID++
+	row := db.AccountEmail{ID: f.nextEmailID, AccountID: arg.AccountID, Address: arg.Address, CreatedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true}}
+	f.emailRows[row.ID] = row
+	return row, nil
+}
+
+func (f *fakeModesQueries) InsertAccountEmailVerified(_ context.Context, arg db.InsertAccountEmailVerifiedParams) (db.AccountEmail, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextEmailID++
+	now := pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	row := db.AccountEmail{ID: f.nextEmailID, AccountID: arg.AccountID, Address: arg.Address, VerifiedAt: now, VerifiedVia: arg.VerifiedVia, VerifiedByIdpID: arg.VerifiedByIdpID, VerifiedByAdminID: arg.VerifiedByAdminID, CreatedAt: now}
+	f.emailRows[row.ID] = row
+	f.absorbedAddresses = append(f.absorbedAddresses, row.Address)
+	return row, nil
+}
+
+func (f *fakeModesQueries) MarkAccountEmailVerified(_ context.Context, arg db.MarkAccountEmailVerifiedParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	row, ok := f.emailRows[arg.ID]
+	if !ok || row.AccountID != arg.AccountID || row.VerifiedAt.Valid {
+		return 0, nil
+	}
+	row.VerifiedAt = pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	row.VerifiedVia = arg.VerifiedVia
+	row.VerifiedByIdpID = arg.VerifiedByIdpID
+	row.VerifiedByAdminID = arg.VerifiedByAdminID
+	f.emailRows[arg.ID] = row
+	return 1, nil
+}
+
+func (f *fakeModesQueries) DeleteAccountEmail(_ context.Context, arg db.DeleteAccountEmailParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	row, ok := f.emailRows[arg.ID]
+	if !ok || row.AccountID != arg.AccountID {
+		return 0, nil
+	}
+	delete(f.emailRows, arg.ID)
+	return 1, nil
+}
+
+func (f *fakeModesQueries) GetAccountEmail(_ context.Context, arg db.GetAccountEmailParams) (db.GetAccountEmailRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.getAccountEmailLocked(arg.ID, arg.AccountID)
+}
+
+func (f *fakeModesQueries) SetAccountPrimaryEmail(_ context.Context, arg db.SetAccountPrimaryEmailParams) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.emailPrimary[arg.ID] = arg.PrimaryEmailID.Int64
+	return nil
+}
+
+func (f *fakeModesQueries) ClearAccountPrimaryEmail(_ context.Context, id int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.emailPrimary, id)
+	return nil
+}
+
+func (f *fakeModesQueries) PickFallbackPrimary(_ context.Context, arg db.PickFallbackPrimaryParams) (db.PickFallbackPrimaryRow, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, row := range f.emailRows {
+		if row.AccountID == arg.AccountID && row.ID != arg.ID && row.VerifiedAt.Valid {
+			return db.PickFallbackPrimaryRow{ID: row.ID, Address: row.Address}, nil
+		}
+	}
+	return db.PickFallbackPrimaryRow{}, pgx.ErrNoRows
+}
+
+func (f *fakeModesQueries) CountVerifiedAccountEmailsByAddress(_ context.Context, arg db.CountVerifiedAccountEmailsByAddressParams) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var n int64
+	for _, row := range f.emailRows {
+		if row.AccountID != arg.AccountID && row.VerifiedAt.Valid && strings.EqualFold(row.Address, arg.Lower) {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeModesQueries) GetAccountPrimaryEmail(_ context.Context, id int32) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	primaryID, ok := f.emailPrimary[id]
+	if !ok {
+		return "", pgx.ErrNoRows
+	}
+	row, ok := f.emailRows[primaryID]
+	if !ok {
+		return "", pgx.ErrNoRows
+	}
+	return row.Address, nil
+}
+
+// seedVerifiedPrimary installs one verified address as the account's
+// primary, for tests that need a pre-existing email state.
+func (f *fakeModesQueries) seedVerifiedPrimary(accountID int32, address string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextEmailID++
+	now := pgtype.Timestamptz{Time: time.Now(), Valid: true}
+	row := db.AccountEmail{
+		ID: f.nextEmailID, AccountID: accountID, Address: address,
+		VerifiedAt: now, VerifiedVia: pgtype.Text{String: "upstream", Valid: true}, CreatedAt: now,
+	}
+	f.emailRows[row.ID] = row
+	f.emailPrimary[accountID] = row.ID
 }
 
 func (f *fakeModesQueries) ApplyInvitationGroups(_ context.Context, arg db.ApplyInvitationGroupsParams) ([]int32, error) {
@@ -443,13 +607,18 @@ func TestApplyAutoProvision_HappyPath(t *testing.T) {
 	}
 
 	recs := a.snapshot()
-	if len(recs) != 2 {
-		t.Fatalf("want 2 audit records, got %d (%+v)", len(recs), recs)
+	// The verified upstream address adds an email/verified row before the
+	// federation pair (PHB-148 absorption).
+	if len(recs) != 3 {
+		t.Fatalf("want 3 audit records, got %d (%+v)", len(recs), recs)
 	}
-	if recs[0].Event != audit.EventRegister || recs[1].Event != audit.EventUse {
-		t.Fatalf("want register+use, got %s+%s", recs[0].Event, recs[1].Event)
+	if recs[0].Factor != audit.FactorEmail || recs[0].Event != audit.EventVerified {
+		t.Fatalf("want email/verified first, got %+v", recs[0])
 	}
-	for _, r := range recs {
+	if recs[1].Event != audit.EventRegister || recs[2].Event != audit.EventUse {
+		t.Fatalf("want register+use, got %s+%s", recs[1].Event, recs[2].Event)
+	}
+	for _, r := range recs[1:] {
 		if r.Factor != audit.FactorFederationOIDC {
 			t.Fatalf("factor: want federation_oidc, got %q", r.Factor)
 		}
@@ -1179,11 +1348,13 @@ func TestResolve_ExistingIdentitySyncsClaims(t *testing.T) {
 	}
 
 	recs := a.snapshot()
-	if len(recs) != 1 || recs[0].Event != audit.EventUse {
-		t.Fatalf("want 1 use row, got %+v", recs)
+	// PHB-148: first login with a verified upstream address absorbs it (an
+	// email/verified row) before the federation use row.
+	if len(recs) != 2 || recs[1].Event != audit.EventUse {
+		t.Fatalf("want email-verified + use rows, got %+v", recs)
 	}
-	if recs[0].AccountID == nil || *recs[0].AccountID != 50 {
-		t.Fatalf("audit account_id: want 50, got %v", recs[0].AccountID)
+	if recs[1].AccountID == nil || *recs[1].AccountID != 50 {
+		t.Fatalf("audit account_id: want 50, got %v", recs[1].AccountID)
 	}
 }
 
@@ -1248,12 +1419,11 @@ func TestResolve_IdentityDataUpdateFailureRejectsResolution(t *testing.T) {
 		ConfirmedAt:   pgtype.Timestamptz{Time: time.Unix(1, 0), Valid: true},
 	}
 	q.accountByIDResults[50] = db.Account{
-		ID:            50,
-		Username:      "alice",
-		DisplayName:   "Alice Example",
-		Email:         pgtype.Text{String: "alice@example.com", Valid: true},
-		EmailVerified: true,
+		ID:          50,
+		Username:    "alice",
+		DisplayName: "Alice Example",
 	}
+	q.seedVerifiedPrimary(50, "alice@example.com")
 	q.identityUpdateErr = errors.New("identity update failed")
 	a := &recordingAudit{}
 
@@ -1552,8 +1722,8 @@ func TestResolverResolveIdentityRejectsDisabledExistingAccount(t *testing.T) {
 	if ae := authn.AsAuthError(err); ae == nil || ae.Code != "bad_credentials" {
 		t.Fatalf("ResolveIdentity error = %v, want bad_credentials", err)
 	}
-	if len(q.displayNameCalls) != 0 || len(q.identityDataCalls) != 0 || len(q.accountEmailCalls) != 0 {
-		t.Fatalf("disabled account claims were mutated: display=%+v identityData=%+v accountEmail=%+v", q.displayNameCalls, q.identityDataCalls, q.accountEmailCalls)
+	if len(q.displayNameCalls) != 0 || len(q.identityDataCalls) != 0 {
+		t.Fatalf("disabled account claims were mutated: display=%+v identityData=%+v", q.displayNameCalls, q.identityDataCalls)
 	}
 }
 
@@ -2175,10 +2345,13 @@ func TestResolverAuthoritativeExistingIdentityAuditParity(t *testing.T) {
 				t.Fatalf("public error = %v, want %s", err, test.wantCode)
 			}
 			records := a.snapshot()
-			if len(records) != 1 {
+			// Absorption (when the upstream email is verified) adds an
+			// email/verified row first; the federation record under test is
+			// the last one.
+			if len(records) < 1 {
 				t.Fatalf("audit records = %+v", records)
 			}
-			record := records[0]
+			record := records[len(records)-1]
 			if record.Event != test.wantEvent || record.AccountID == nil || *record.AccountID != test.wantAccount {
 				t.Fatalf("audit record = %+v", record)
 			}
