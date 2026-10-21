@@ -404,6 +404,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		config:                config,
 		webUIHandler:          webui.Handler(config.Branding.InstanceName),
 		kvStore:               kvStore,
+		sessionStore:          sessionStore,
 		pairingStore:          pairing.NewPairingStore(kvStore),
 		rateLimiter:           rateLimiter,
 		mailSender:            mailSender,
