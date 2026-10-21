@@ -68,6 +68,9 @@ func TestCreateManagedApplicationGroupReturns201AndRowsPostgres(t *testing.T) {
 	base := newWriteFixFixture(t)
 	ctx := context.Background()
 	suffix := writeFixSuffix(t)
+	oidcSlug := "oidc-created-" + suffix
+	samlSlug := "saml-created-" + suffix
+	createdIDs := make([]int32, 0, 2)
 
 	clientID := "group-create-" + suffix
 	if _, err := base.pool.Exec(ctx, `
@@ -82,8 +85,16 @@ func TestCreateManagedApplicationGroupReturns201AndRowsPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_, _ = base.pool.Exec(context.Background(), `DELETE FROM oidc_client WHERE client_id = $1`, clientID)
-		_, _ = base.pool.Exec(context.Background(), `DELETE FROM saml_sp WHERE id = $1`, samlSPID)
+		cleanupCtx := context.Background()
+		_, _ = base.pool.Exec(cleanupCtx, `DELETE FROM oidc_client WHERE client_id = $1`, clientID)
+		_, _ = base.pool.Exec(cleanupCtx, `DELETE FROM saml_sp WHERE id = $1`, samlSPID)
+		// The app deletes cascade to the link tables only; user_group rows
+		// must go on their own. Delete by the created ids when the response
+		// carried them, and by slug as well so a failure that never got an
+		// id (the exact PHB-134 regression: rows written, empty answer)
+		// still leaves nothing behind.
+		_, _ = base.pool.Exec(cleanupCtx, `DELETE FROM user_group WHERE id = ANY($1::int[])`, createdIDs)
+		_, _ = base.pool.Exec(cleanupCtx, `DELETE FROM user_group WHERE slug = ANY($1::text[])`, []string{oidcSlug, samlSlug})
 	})
 
 	s := writeFixServer(base)
@@ -96,6 +107,7 @@ func TestCreateManagedApplicationGroupReturns201AndRowsPostgres(t *testing.T) {
 		s.handleCreateManagedApplicationGroupHTTP(rr, req)
 
 		view := createAppGroupResponseBody(t, rr)
+		createdIDs = append(createdIDs, view.ID)
 		if view.Kind != "manual" || view.Slug != "oidc-created-"+suffix || view.DisplayName != "OIDC Created" || view.Description != "via endpoint" {
 			t.Fatalf("response body = %#v", view)
 		}
@@ -119,6 +131,7 @@ func TestCreateManagedApplicationGroupReturns201AndRowsPostgres(t *testing.T) {
 		s.handleCreateManagedApplicationGroupHTTP(rr, req)
 
 		view := createAppGroupResponseBody(t, rr)
+		createdIDs = append(createdIDs, view.ID)
 		if view.Kind != "manual" || view.Slug != "saml-created-"+suffix || view.DisplayName != "SAML Created" {
 			t.Fatalf("response body = %#v", view)
 		}
@@ -159,6 +172,8 @@ func TestCreateSAMLAppGroupReturnsCreatedRowPostgres(t *testing.T) {
 	base := newWriteFixFixture(t)
 	ctx := context.Background()
 	suffix := writeFixSuffix(t)
+	slug := "query-saml-" + suffix
+	var groupID int32
 
 	var samlSPID int64
 	if err := base.pool.QueryRow(ctx, `
@@ -167,13 +182,18 @@ func TestCreateSAMLAppGroupReturnsCreatedRowPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_, _ = base.pool.Exec(context.Background(), `DELETE FROM saml_sp WHERE id = $1`, samlSPID)
+		cleanupCtx := context.Background()
+		_, _ = base.pool.Exec(cleanupCtx, `DELETE FROM saml_sp WHERE id = $1`, samlSPID)
+		// Same rest-restricted situation as the handler test: the group row
+		// outlives the app delete, and a reverted query never yields an id.
+		_, _ = base.pool.Exec(cleanupCtx, `DELETE FROM user_group WHERE id = $1`, groupID)
+		_, _ = base.pool.Exec(cleanupCtx, `DELETE FROM user_group WHERE slug = $1`, slug)
 	})
 
 	q := db.New(base.pool)
 	created, err := q.CreateSAMLAppGroup(ctx, db.CreateSAMLAppGroupParams{
 		Kind:                "manual",
-		Slug:                "query-saml-" + suffix,
+		Slug:                slug,
 		DisplayName:         "Query SAML Group",
 		Description:         pgtype.Text{String: "direct query", Valid: true},
 		ExposedToDownstream: true,
@@ -182,13 +202,14 @@ func TestCreateSAMLAppGroupReturnsCreatedRowPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSAMLAppGroup: %v — the query returned no row for the group it just inserted", err)
 	}
-	if created.ID == 0 || created.Kind != "manual" || created.Slug != "query-saml-"+suffix ||
+	groupID = created.ID
+	if created.ID == 0 || created.Kind != "manual" || created.Slug != slug ||
 		created.DisplayName != "Query SAML Group" || !created.Description.Valid || created.Description.String != "direct query" ||
 		!created.ExposedToDownstream || !created.CreatedAt.Valid || !created.UpdatedAt.Valid {
 		t.Fatalf("returned row = %#v", created)
 	}
 
-	assertStoredAppGroup(t, base, created.ID, "manual", "query-saml-"+suffix, "Query SAML Group")
+	assertStoredAppGroup(t, base, created.ID, "manual", slug, "Query SAML Group")
 	var linked int
 	if err := base.pool.QueryRow(ctx, `
 		SELECT count(*) FROM saml_sp_group WHERE saml_sp_id = $1 AND group_id = $2`, samlSPID, created.ID).Scan(&linked); err != nil {
