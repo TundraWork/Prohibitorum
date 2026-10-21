@@ -3,7 +3,7 @@ import type { components } from "@/api/generated/schema";
 export type Account = components["schemas"]["AccountView"];
 
 /**
- * An enabled, ordinary account with a verified address, as the single-account
+ * An enabled, ordinary account with a primary address, as the single-account
  * read returns it: without a last sign-in, which only list rows carry.
  */
 export function accountFixture(overrides: Partial<Account> = {}): Account {
@@ -11,8 +11,7 @@ export function accountFixture(overrides: Partial<Account> = {}): Account {
     id: 2,
     username: "bob",
     displayName: "Bob Stone",
-    email: "bob@example.test",
-    emailVerified: true,
+    primaryEmail: "bob@example.test",
     oidcSubject: "00000000-0000-4000-8000-000000000002",
     role: "user",
     disabled: false,

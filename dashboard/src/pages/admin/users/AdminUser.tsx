@@ -10,6 +10,7 @@ import {
 } from "@/components/custom/ObjectHeader";
 import { RelativeTime } from "@/components/custom/RelativeTime";
 import { AccountDangerSection } from "@/pages/admin/users/AccountDangerSection";
+import { AccountEmailsSection } from "@/pages/admin/users/AccountEmailsSection";
 import { AccountIdentitiesSection } from "@/pages/admin/users/AccountIdentitiesSection";
 import { AccountPasskeysSection } from "@/pages/admin/users/AccountPasskeysSection";
 import { AccountProfileSection } from "@/pages/admin/users/AccountProfileSection";
@@ -96,6 +97,7 @@ export function AdminUser() {
       }
     >
       <AccountProfileSection account={account} />
+      <AccountEmailsSection accountId={account.id} />
       {/* The anchor an old `?tab=access` link lands on: the first of the four. */}
       <div
         id="access"

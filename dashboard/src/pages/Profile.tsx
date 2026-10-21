@@ -4,11 +4,13 @@ import { PageHeader } from "@/components/custom/PageHeader";
 import { AccountPanel } from "@/pages/profile/AccountPanel";
 import { AppearancePanel } from "@/pages/profile/AppearancePanel";
 import { AvatarPanel } from "@/pages/profile/AvatarPanel";
+import { EmailsPanel } from "@/pages/profile/EmailsPanel";
 
 /**
  * The account's own page: the picture it shows, then its name and
- * identifiers, then how the pages look, as stacked sections rather than tabs.
- * Each is short, and a reader who came to change one often looks at another.
+ * identifiers, then its email addresses, then how the pages look, as stacked
+ * sections rather than tabs. Each is short, and a reader who came to change
+ * one often looks at another.
  *
  * Each panel draws its own `Section`, as on the Security page; this file owns
  * only their order.
@@ -20,12 +22,13 @@ export function Profile() {
         title={<Trans id="profile.page.title">Profile</Trans>}
         description={
           <Trans id="profile.page.description">
-            The picture and name shown wherever you sign in.
+            The picture, name and email address shown wherever you sign in.
           </Trans>
         }
       />
       <AvatarPanel />
       <AccountPanel />
+      <EmailsPanel />
       <AppearancePanel />
     </PageBody>
   );

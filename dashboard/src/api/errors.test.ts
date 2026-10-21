@@ -160,6 +160,25 @@ describe("the enrollment and public federation codes", () => {
   });
 });
 
+describe("the local email address codes", () => {
+  it.each([
+    "email_invalid",
+    "email_limit_reached",
+    "email_exists",
+    "email_unavailable",
+    "email_taken",
+    "email_not_verified_for_primary",
+    "email_primary_undeletable",
+    "email_code_invalid",
+    "email_code_expired",
+    "email_already_verified",
+    "email_delivery_unavailable",
+    "email_delivery_failed",
+  ])("describes %s in its own words", (code) => {
+    expect(describeError(refused(code)).id).toBe(`error.${code}`);
+  });
+});
+
 describe("describeErrorLanding", () => {
   const instance = "Test instance";
 

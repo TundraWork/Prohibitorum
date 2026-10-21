@@ -52,6 +52,7 @@ type Provider = components["schemas"]["FederationProvider"];
 type EnrollmentPreview = components["schemas"]["EnrollmentPreview"];
 type Factors = components["schemas"]["MeFactorsView"];
 type Account = components["schemas"]["AccountView"];
+type EmailAddress = components["schemas"]["EmailAddressView"];
 type Invitation = components["schemas"]["InvitationView"];
 type IdentityProvider = components["schemas"]["IdentityProviderView"];
 type AuditEvent = components["schemas"]["AuditEventView"];
@@ -1109,8 +1110,11 @@ function accountAt(index: number, config: MockConfig): Account {
         }
       : {}),
     disabled,
-    email: `mock-user-${id}@example.com`,
-    emailVerified: index % 3 !== 2,
+    // The primary address the projections carry: the seeded admin account has
+    // one, the seeded member has one, every other generated row none.
+    ...(primaryEmailAddress(id) !== undefined
+      ? { primaryEmail: primaryEmailAddress(id) }
+      : {}),
     oidcSubject: `mock-oidc-${id}`,
     avatarUrl: mockAvatarUrl,
     createdAt: iso(-day * (index + 30)),
@@ -1126,6 +1130,272 @@ function accounts(config: MockConfig): Account[] {
     { length: clampAdminCount(config.admin.accounts) },
     (_, index) => accountAt(index, config),
   );
+}
+
+/* ------------------------------------------------------ account emails -- */
+
+/** The per-account address cap, as the server enforces it. */
+const emailLimit = 10;
+
+/** How long a verification code lasts, and how often one may be resent. */
+const codeResendAfterSeconds = 60;
+const codeExpiresInSeconds = 900;
+
+/** The wrong guesses a code allows before it must be resent. */
+const codeMaxAttempts = 5;
+
+/** The mock's fixed verification code, so a walkthrough never needs a mailbox. */
+const mockEmailCode = "000000";
+
+type StoredEmail = EmailAddress & { accountId: number };
+
+/** The seeded rows, in the order the server lists them: primary, then oldest. */
+const seededEmails: StoredEmail[] = [
+  {
+    accountId: 1,
+    id: 11,
+    address: "admin@example.com",
+    verified: true,
+    verifiedVia: "code",
+    primary: true,
+    createdAt: iso(-day * 40),
+    verifiedAt: iso(-day * 39),
+  },
+  {
+    accountId: 1,
+    id: 12,
+    address: "team@example.com",
+    verified: true,
+    verifiedVia: "upstream",
+    verifiedProvider: "Example IdP 1",
+    primary: false,
+    createdAt: iso(-day * 20),
+    verifiedAt: iso(-day * 20),
+  },
+  {
+    accountId: 1,
+    id: 13,
+    address: "spare@example.com",
+    verified: false,
+    primary: false,
+    createdAt: iso(-day * 2),
+  },
+  {
+    accountId: 2,
+    id: 21,
+    address: "member@example.com",
+    verified: true,
+    verifiedVia: "code",
+    primary: true,
+    createdAt: iso(-day * 15),
+    verifiedAt: iso(-day * 14),
+  },
+];
+
+/** The addresses a walkthrough has added or changed, kept between requests. */
+const edits: {
+  added: StoredEmail[];
+  removed: number[];
+  /** Row overrides keyed by id: verification, primary, provenance. */
+  changed: Map<number, Partial<StoredEmail>>;
+} = { added: [], removed: [], changed: new Map() };
+
+/** The next id a create hands out, past every seeded row's. */
+let nextEmailId = 100;
+
+/** Every live row of one account: the seeds less the removals, plus the adds. */
+function accountEmailRows(accountId: number): StoredEmail[] {
+  const live = [...seededEmails, ...edits.added].filter(
+    (row) => row.accountId === accountId && !edits.removed.includes(row.id),
+  );
+  const rows = live.map((row) => ({
+    ...row,
+    ...(edits.changed.get(row.id) ?? {}),
+  }));
+  return rows.sort((a, b) => {
+    if (a.primary !== b.primary) return a.primary ? -1 : 1;
+    if (a.createdAt !== b.createdAt) {
+      return a.createdAt < b.createdAt ? -1 : 1;
+    }
+    return a.id - b.id;
+  });
+}
+
+/** The address the projections carry, once the account has a primary. */
+function primaryEmailAddress(accountId: number): string | undefined {
+  return accountEmailRows(accountId).find((row) => row.primary)?.address;
+}
+
+/** The self-service view, which leaves out the admin-only `verifiedBy`. */
+function emailView(row: StoredEmail): EmailAddress {
+  const { accountId: _account, verifiedBy: _by, ...view } = row;
+  return view;
+}
+
+/**
+ * The admin view: an admin-asserted row names the asserting admin, whether
+ * the stored row carried the username or left it to be resolved on read.
+ */
+function adminEmailView(row: StoredEmail, config: MockConfig): EmailAddress {
+  return row.verifiedVia === "admin"
+    ? {
+        ...emailView(row),
+        verifiedBy: row.verifiedBy ?? config.session.username,
+      }
+    : emailView(row);
+}
+
+/** A light stand-in for the server's parse: one @, a dot in the domain. */
+function validAddress(address: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.trim());
+}
+
+/**
+ * Whether the address is taken: by any live row for the self-service reads,
+ * or by another account's verified row where the server's partial unique
+ * index would reject the write.
+ */
+function emailTaken(
+  address: string,
+  accountId: number,
+  verifiedOnly: boolean,
+): boolean {
+  const lower = address.trim().toLowerCase();
+  const live = [...seededEmails, ...edits.added].filter(
+    (row) => !edits.removed.includes(row.id) && row.accountId !== accountId,
+  );
+  return live.some(
+    (row) =>
+      row.address.toLowerCase() === lower &&
+      (!verifiedOnly || row.verified === true),
+  );
+}
+
+/** The `/me/emails` reply: the rows, whether codes can be sent, and the cap. */
+function myEmailsOut(config: MockConfig, accountId: number) {
+  return {
+    emails: accountEmailRows(accountId).map(emailView),
+    deliveryAvailable: config.instance.smtpConfigured,
+    limit: emailLimit,
+  };
+}
+
+/** The admin list reply, which names the asserting admin per verified row. */
+function adminEmailsOut(config: MockConfig, accountId: number) {
+  return {
+    emails: accountEmailRows(accountId).map((row) =>
+      adminEmailView(row, config),
+    ),
+    limit: emailLimit,
+  };
+}
+
+/**
+ * The address id a `/me/emails/{id}/<noun>` or `.../emails/{emailId}/<noun>`
+ * path names: the segment before the trailing noun. A bare
+ * `/me/emails/{id}` delete ends in the id itself, so both positions are read.
+ */
+function emailIdInPath(request: MockRequest): number {
+  const segments = new URL(request.url).pathname.split("/");
+  // `/emails/{id}/<noun>` ends in the noun; a bare `/emails/{id}` delete in
+  // the id, so the position the noun would occupy is `emails` and the tail
+  // is the id instead.
+  const beforeNoun = segments.at(-2) ?? "";
+  return /^\d+$/.test(beforeNoun) ? Number(beforeNoun) : pathTail(request);
+}
+
+/** The account segment of `/accounts/{id}/emails...`, wherever the path ends. */
+function accountSegment(request: MockRequest): number {
+  const account = new URL(request.url).pathname.match(
+    /\/accounts\/(\d+)(?:\/|$)/,
+  )?.[1];
+  return account === undefined ? 0 : Number(account);
+}
+
+/**
+ * Returns the address store to its seeds, so one walkthrough's writes (or one
+ * test's) do not leak into the next reader. The seeds themselves never change.
+ */
+export function resetMockEmails(): void {
+  edits.added = [];
+  edits.removed = [];
+  edits.changed.clear();
+  issuedCodes.clear();
+  guessedCodes.clear();
+  lastTestMailAt = 0;
+}
+
+/** The rows a code has been issued for; rows already guessed wrong once. */
+const issuedCodes = new Set<number>();
+const guessedCodes = new Set<number>();
+/** The last test mail, so a second one inside a minute is rate-limited. */
+let lastTestMailAt = 0;
+
+function emailError(
+  status: number,
+  code: string,
+  details?: Record<string, unknown>,
+): MockReply {
+  return { kind: "error", status, code, ...(details ? { details } : {}) };
+}
+
+/**
+ * Marks a row verified and, when the account has no other primary, takes the
+ * pointer over — the rule every verification path on the server shares.
+ */
+function markVerified(
+  row: StoredEmail,
+  via: StoredEmail["verifiedVia"],
+  extras: Partial<StoredEmail> = {},
+): void {
+  edits.changed.set(row.id, {
+    verified: true,
+    verifiedAt: iso(0),
+    verifiedVia: via,
+    ...edits.changed.get(row.id),
+    ...extras,
+  });
+  if (!accountEmailRows(row.accountId).some((other) => other.primary)) {
+    setPrimary(row.id, row.accountId);
+  }
+}
+
+/** Moves the account's primary pointer to the row `emailId` names. */
+function setPrimary(emailId: number, accountId: number): void {
+  for (const other of accountEmailRows(accountId)) {
+    if (other.primary && other.id !== emailId) {
+      edits.changed.set(other.id, {
+        ...edits.changed.get(other.id),
+        primary: false,
+      });
+    }
+  }
+  edits.changed.set(emailId, {
+    ...edits.changed.get(emailId),
+    primary: true,
+  });
+}
+
+/** Adds a row to the store, in the shape the next list read returns. */
+function addEmailRow(
+  accountId: number,
+  address: string,
+  verified: boolean,
+  primary: boolean,
+): StoredEmail {
+  const row: StoredEmail = {
+    accountId,
+    id: nextEmailId,
+    address: address.trim(),
+    verified,
+    ...(verified ? { verifiedAt: iso(0), verifiedVia: "admin" as const } : {}),
+    primary,
+    createdAt: iso(0),
+  };
+  nextEmailId += 1;
+  edits.added.push(row);
+  if (primary) setPrimary(row.id, accountId);
+  return row;
 }
 
 /** A User-Agent no browser parser names, long enough to need cutting. */
@@ -2005,6 +2275,11 @@ function readReply(
       );
     case "/api/prohibitorum/me/avatar":
       return guarded(config, () => json(myAvatarView(config)));
+    // The panel is always the seeded administrator, whose address list holds
+    // all three verification shapes: a code-verified primary, an upstream
+    // secondary and an unverified spare.
+    case "/api/prohibitorum/me/emails":
+      return guarded(config, () => json(myEmailsOut(config, 1)));
     case "/api/prohibitorum/auth/federation":
       return json(providerList(config));
     case "/api/prohibitorum/me/sudo/methods":
@@ -2115,6 +2390,17 @@ function readReply(
           items: accountTokens(id - 1, config.admin.accountAccess),
           nextCursor: "",
         }),
+      );
+    }
+    // The seeded member (account 2) holds the member's shape — one verified
+    // primary — and accounts past the seeds hold none, so the admin page's
+    // empty state is one click away.
+    case "/api/prohibitorum/accounts/{id}/emails": {
+      const id = accountIdInPath(request);
+      return guarded(config, () =>
+        id >= 1 && id <= clampAdminCount(config.admin.accounts)
+          ? json(adminEmailsOut(config, id))
+          : emailError(404, "account_not_found"),
       );
     }
     case "/api/prohibitorum/invitations": {
@@ -2471,6 +2757,22 @@ function readReply(
             .filter((line) => line !== ""),
         }),
       );
+    // The settings panel's mail rows; an unconfigured server answers with
+    // the flag alone, as the handler does.
+    case "/api/prohibitorum/admin/settings/mail":
+      return guarded(config, () =>
+        json(
+          config.instance.smtpConfigured
+            ? {
+                configured: true,
+                host: "smtp.example.test",
+                port: 587,
+                security: "starttls",
+                from: "no-reply@example.com",
+              }
+            : { configured: false },
+        ),
+      );
 
     case "/api/prohibitorum/groups/{groupId}/explain/{accountId}": {
       const accountId = pathTail(request);
@@ -2539,6 +2841,230 @@ function decrement(value: number): number {
 
 function recoveryCodesReply(effect: MockEffect): MockReply {
   return json({ recovery_codes: freshRecoveryCodes() }, effect);
+}
+
+/* ------------------------------------------------------ email writes -- */
+
+function writeAddMyEmail(body: unknown): MockReply {
+  const address = stringField(body, "address") ?? "";
+  if (!validAddress(address)) return emailError(422, "email_invalid");
+  const rows = accountEmailRows(1);
+  if (rows.length >= emailLimit) {
+    return emailError(409, "email_limit_reached");
+  }
+  if (
+    rows.some(
+      (row) => row.address.toLowerCase() === address.trim().toLowerCase(),
+    )
+  ) {
+    return emailError(409, "email_exists");
+  }
+  if (emailTaken(address, 1, true)) {
+    return emailError(409, "email_unavailable");
+  }
+  return {
+    kind: "json",
+    status: 201,
+    body: emailView(addEmailRow(1, address, false, false)),
+  };
+}
+
+function writeDeleteMyEmail(
+  request: MockRequest,
+  accountId: number,
+): MockReply {
+  const row = accountEmailRows(accountId).find(
+    (candidate) => candidate.id === emailIdInPath(request),
+  );
+  if (row === undefined) return emailError(404, "email_not_found");
+  if (row.primary) return emailError(409, "email_primary_undeletable");
+  edits.removed.push(row.id);
+  return empty(204);
+}
+
+function writeSendMyEmailCode(
+  request: MockRequest,
+  config: MockConfig,
+): MockReply {
+  const row = accountEmailRows(1).find(
+    (candidate) => candidate.id === emailIdInPath(request),
+  );
+  if (row === undefined) return emailError(404, "email_not_found");
+  if (row.verified) return emailError(409, "email_already_verified");
+  if (!config.instance.smtpConfigured) {
+    return emailError(409, "email_delivery_unavailable");
+  }
+  issuedCodes.add(row.id);
+  guessedCodes.delete(row.id);
+  return {
+    kind: "json",
+    status: 202,
+    body: {
+      resendAfterSeconds: codeResendAfterSeconds,
+      expiresInSeconds: codeExpiresInSeconds,
+    },
+  };
+}
+
+function writeVerifyMyEmail(request: MockRequest, body: unknown): MockReply {
+  const row = accountEmailRows(1).find(
+    (candidate) => candidate.id === emailIdInPath(request),
+  );
+  if (row === undefined) return emailError(404, "email_not_found");
+  if (row.verified) return emailError(409, "email_already_verified");
+  const code = stringField(body, "code") ?? "";
+  if (!issuedCodes.has(row.id)) return emailError(410, "email_code_expired");
+  if (code !== mockEmailCode && !guessedCodes.has(row.id)) {
+    // The first wrong guess records the code — any later code passes — but
+    // still answers as the server's per-attempt failure does.
+    if (/^\d{6}$/.test(code)) guessedCodes.add(row.id);
+    return emailError(422, "email_code_invalid", {
+      attemptsRemaining: codeMaxAttempts - 1,
+    });
+  }
+  markVerified(row, "code");
+  issuedCodes.delete(row.id);
+  guessedCodes.delete(row.id);
+  return json({
+    ...emailView(row),
+    verified: true,
+    verifiedVia: "code",
+    verifiedAt: iso(0),
+    primary: true,
+  });
+}
+
+function writeSetMyEmailPrimary(
+  request: MockRequest,
+  config: MockConfig,
+): MockReply {
+  const row = accountEmailRows(1).find(
+    (candidate) => candidate.id === emailIdInPath(request),
+  );
+  if (row === undefined) return emailError(404, "email_not_found");
+  if (!row.verified) {
+    return emailError(409, "email_not_verified_for_primary");
+  }
+  setPrimary(row.id, 1);
+  return json(myEmailsOut(config, 1));
+}
+
+function writeAddAccountEmail(
+  request: MockRequest,
+  body: unknown,
+  config: MockConfig,
+): MockReply {
+  const accountId = accountSegment(request);
+  if (accountId < 1 || accountId > clampAdminCount(config.admin.accounts)) {
+    return emailError(404, "account_not_found");
+  }
+  const address = stringField(body, "address") ?? "";
+  const verified = booleanField(body, "verified") === true;
+  const primary = booleanField(body, "primary") === true;
+  if (primary && !verified) {
+    return emailError(409, "email_not_verified_for_primary");
+  }
+  if (!validAddress(address)) return emailError(422, "email_invalid");
+  const rows = accountEmailRows(accountId);
+  if (rows.length >= emailLimit) {
+    return emailError(409, "email_limit_reached");
+  }
+  if (
+    rows.some(
+      (row) => row.address.toLowerCase() === address.trim().toLowerCase(),
+    )
+  ) {
+    return emailError(409, "email_exists");
+  }
+  if (verified && emailTaken(address, accountId, true)) {
+    return emailError(409, "email_taken");
+  }
+  // An admin-asserted address carries the asserting admin's username and, as
+  // every verification path does, takes an empty primary pointer over.
+  const withBy: StoredEmail = {
+    ...addEmailRow(accountId, address, verified, primary),
+    ...(verified
+      ? {
+          verifiedAt: iso(0),
+          verifiedVia: "admin" as const,
+          verifiedBy: config.session.username,
+        }
+      : {}),
+  };
+  edits.added[edits.added.length - 1] = withBy;
+  const wasEmptyPrimary = !rows.some((other) => other.primary);
+  if (verified && !primary && wasEmptyPrimary) {
+    setPrimary(withBy.id, accountId);
+  }
+  const takesPrimary = primary || (verified && wasEmptyPrimary);
+  // The admin view names the asserting admin whether or not the stored row
+  // carried it, as the server's join resolves it on read.
+  const replied: StoredEmail = takesPrimary
+    ? { ...withBy, primary: true }
+    : withBy;
+  return {
+    kind: "json",
+    status: 201,
+    body: verified
+      ? { ...emailView(replied), verifiedBy: config.session.username }
+      : emailView(replied),
+  };
+}
+
+function writeVerifyAccountEmail(
+  request: MockRequest,
+  config: MockConfig,
+): MockReply {
+  const accountId = accountSegment(request);
+  const row = accountEmailRows(accountId).find(
+    (candidate) => candidate.id === emailIdInPath(request),
+  );
+  if (row === undefined) return emailError(404, "email_not_found");
+  if (row.verified) return emailError(409, "email_already_verified");
+  markVerified(row, "admin", { verifiedBy: config.session.username });
+  return json(
+    adminEmailView({ ...row, verified: true, verifiedAt: iso(0) }, config),
+  );
+}
+
+function writeSetAccountEmailPrimary(
+  request: MockRequest,
+  config: MockConfig,
+): MockReply {
+  const accountId = accountSegment(request);
+  const row = accountEmailRows(accountId).find(
+    (candidate) => candidate.id === emailIdInPath(request),
+  );
+  if (row === undefined) return emailError(404, "email_not_found");
+  if (!row.verified) {
+    return emailError(409, "email_not_verified_for_primary");
+  }
+  setPrimary(row.id, accountId);
+  return json(adminEmailsOut(config, accountId));
+}
+
+function writeDeleteAccountEmail(
+  request: MockRequest,
+  config: MockConfig,
+): MockReply {
+  const accountId = accountSegment(request);
+  if (accountId < 1 || accountId > clampAdminCount(config.admin.accounts)) {
+    return emailError(404, "account_not_found");
+  }
+  const row = accountEmailRows(accountId).find(
+    (candidate) => candidate.id === emailIdInPath(request),
+  );
+  if (row === undefined) return emailError(404, "email_not_found");
+  edits.removed.push(row.id);
+  if (row.primary) {
+    // The earliest-verified remaining address takes over, or the account is
+    // left without one.
+    const fallback = accountEmailRows(accountId).find(
+      (other) => other.verified,
+    );
+    if (fallback !== undefined) setPrimary(fallback.id, accountId);
+  }
+  return empty(204);
 }
 
 function writeReply(
@@ -2798,6 +3324,28 @@ function writeReply(
       }
       return undefined;
 
+    // The self-service address list. The seeded rows and everything a
+    // walkthrough has written live in the module-level store, so the reads
+    // that follow agree with each write.
+    case "/api/prohibitorum/me/emails": {
+      if (method !== "POST") return undefined;
+      return guarded(config, () => writeAddMyEmail(body));
+    }
+
+    case "/api/prohibitorum/me/emails/{id}": {
+      if (method !== "DELETE") return undefined;
+      return guarded(config, () => writeDeleteMyEmail(request, 1));
+    }
+
+    case "/api/prohibitorum/me/emails/{id}/send-code":
+      return guarded(config, () => writeSendMyEmailCode(request, config));
+
+    case "/api/prohibitorum/me/emails/{id}/verify":
+      return guarded(config, () => writeVerifyMyEmail(request, body));
+
+    case "/api/prohibitorum/me/emails/{id}/primary":
+      return guarded(config, () => writeSetMyEmailPrimary(request, config));
+
     case "/api/prohibitorum/me/sudo/begin":
       // A passkey assertion cannot come from a fabricated challenge, so only
       // the password-and-code method is answerable here; the passkey method
@@ -2863,6 +3411,26 @@ function writeReply(
 
     case "/api/prohibitorum/accounts/{id}/sessions/revoke":
       return empty();
+
+    // The admin address list, one account at a time: the id in the path is
+    // the account's, the trailing one the address row's.
+    case "/api/prohibitorum/accounts/{id}/emails": {
+      if (method !== "POST") return undefined;
+      return guarded(config, () => writeAddAccountEmail(request, body, config));
+    }
+
+    case "/api/prohibitorum/accounts/{id}/emails/{emailId}": {
+      if (method !== "DELETE") return undefined;
+      return guarded(config, () => writeDeleteAccountEmail(request, config));
+    }
+
+    case "/api/prohibitorum/accounts/{id}/emails/{emailId}/verify":
+      return guarded(config, () => writeVerifyAccountEmail(request, config));
+
+    case "/api/prohibitorum/accounts/{id}/emails/{emailId}/primary":
+      return guarded(config, () =>
+        writeSetAccountEmailPrimary(request, config),
+      );
 
     case "/api/prohibitorum/accounts/revoke-sessions":
       return json({ revoked: 1 });
@@ -3078,6 +3646,31 @@ function writeReply(
           ? proxies.filter((line) => typeof line === "string").join("\n")
           : "";
       });
+    }
+
+    // A test mail: refused without a server, refused again inside the rate
+    // limit, and a recipient named "fail" stands for one the server rejects.
+    case "/api/prohibitorum/admin/settings/mail/test": {
+      const to = stringField(body, "to") ?? "";
+      if (!validAddress(to)) return emailError(422, "email_invalid");
+      if (!config.instance.smtpConfigured) {
+        return emailError(409, "email_delivery_unavailable");
+      }
+      // The limiter counts only a send the server accepted the recipient
+      // for: a rejected one never reaches it.
+      if (to.includes("fail")) {
+        return emailError(502, "email_delivery_failed");
+      }
+      const now = Date.now();
+      if (now - lastTestMailAt < 60_000) {
+        return emailError(429, "rate_limited", {
+          retryAfterSeconds: Math.ceil(
+            (60_000 - (now - lastTestMailAt)) / 1000,
+          ),
+        });
+      }
+      lastTestMailAt = now;
+      return json({ sent: true });
     }
 
     /* ----------------------------------------------------- signing keys -- */

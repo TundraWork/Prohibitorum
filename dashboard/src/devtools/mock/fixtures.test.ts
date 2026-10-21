@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { isValidRecoveryCode } from "@/api/auth";
 import { readEnrollmentPreview } from "@/api/enrollment";
 import { readFederationFlow } from "@/api/federation";
@@ -17,7 +17,11 @@ import type {
   SamlConsentRequest,
   Wallpaper,
 } from "@/api/raw-paths";
-import { buildMockReply, type MockReply } from "@/devtools/mock/fixtures";
+import {
+  buildMockReply,
+  type MockReply,
+  resetMockEmails,
+} from "@/devtools/mock/fixtures";
 import {
   defaultMockConfig,
   type MockConfig,
@@ -2257,5 +2261,412 @@ describe("mocked pairing of a new device", () => {
     const left = Date.parse(start(current).expiresAt) - Date.now();
     expect(left).toBeGreaterThan(19_000);
     expect(left).toBeLessThanOrEqual(20_000);
+  });
+});
+
+describe("mocked account emails", () => {
+  type Email = components["schemas"]["EmailAddressView"];
+  type AccountRow = Record<string, unknown>;
+  const meEmails = "/api/prohibitorum/me/emails";
+
+  // The address rows live in the fixtures module, shared by every test in
+  // this file; resetting them keeps each test's writes out of the next one's
+  // reads the way a fresh store would.
+  beforeEach(() => {
+    resetMockEmails();
+  });
+
+  /**
+   * One request against an email path, with every `{placeholder}` filled from
+   * a map: the account segment and the address segment are different fields,
+   * and one number cannot stand for both.
+   */
+  const at = (
+    schemaPath: string,
+    ids: Record<string, number | string>,
+    current: MockConfig,
+    method = "POST",
+    body?: unknown,
+  ): MockReply | undefined =>
+    buildMockReply(
+      {
+        method,
+        schemaPath,
+        url: `http://localhost${schemaPath.replace(
+          /\{(\w+)\}/g,
+          (whole, key: string) => String(ids[key] ?? whole),
+        )}`,
+        ...(body === undefined ? {} : { body }),
+      },
+      current,
+    );
+
+  const rowsOf = (reply: MockReply | undefined): Email[] =>
+    (bodyOf(reply) as { emails: Email[] }).emails ?? [];
+
+  it("seeds the admin with a code-verified primary, an upstream secondary and an unverified spare", () => {
+    const rows = rowsOf(read(meEmails, config()));
+    expect(rows.map((row) => row.address)).toEqual([
+      "admin@example.com",
+      "team@example.com",
+      "spare@example.com",
+    ]);
+    expect(rows[0]).toMatchObject({
+      verified: true,
+      verifiedVia: "code",
+      primary: true,
+    });
+    expect(rows[1]).toMatchObject({
+      verified: true,
+      verifiedVia: "upstream",
+      verifiedProvider: "Example IdP 1",
+      primary: false,
+    });
+    expect(rows[2]).toMatchObject({
+      verified: false,
+      primary: false,
+    });
+    expect("verifiedAt" in (rows[2] ?? {})).toBe(false);
+    expect(bodyOf(read(meEmails, config()))).toMatchObject({
+      deliveryAvailable: true,
+      limit: 10,
+    });
+  });
+
+  it("gives the member one verified primary and further accounts none", () => {
+    const listAt = (id: number) =>
+      rowsOf(
+        read(
+          "/api/prohibitorum/accounts/{id}/emails",
+          config(),
+          `http://localhost/api/prohibitorum/accounts/${id}/emails`,
+        ),
+      );
+    expect(listAt(2).map((row) => row.address)).toEqual(["member@example.com"]);
+    expect(listAt(2)[0]).toMatchObject({ primary: true, verified: true });
+    expect(listAt(3)).toEqual([]);
+    expect(
+      read(
+        "/api/prohibitorum/accounts/{id}/emails",
+        config(),
+        "http://localhost/api/prohibitorum/accounts/99/emails",
+      ),
+    ).toMatchObject({ kind: "error", status: 404, code: "account_not_found" });
+  });
+
+  it("carries the primary address into the account rows the directory lists", () => {
+    expect(
+      bodyOf(
+        read(
+          "/api/prohibitorum/accounts/{id}",
+          config(),
+          "http://localhost/api/prohibitorum/accounts/1",
+        ),
+      ),
+    ).toMatchObject({ primaryEmail: "admin@example.com" });
+    const third = bodyOf(
+      read(
+        "/api/prohibitorum/accounts/{id}",
+        config(),
+        "http://localhost/api/prohibitorum/accounts/3",
+      ),
+    ) as AccountRow;
+    expect("primaryEmail" in third).toBe(false);
+  });
+
+  it("answers the self-service list with no_session while signed out", () => {
+    expect(
+      read(
+        meEmails,
+        config((draft) => {
+          draft.session.signedIn = false;
+        }),
+      ),
+    ).toEqual({ kind: "error", status: 401, code: "no_session" });
+  });
+
+  it("adds an address, sends a code, and verifies it with the mock's code", () => {
+    const current = writes();
+    const added = call("POST", meEmails, current, {
+      address: "new@example.com",
+    });
+    expect(added).toMatchObject({ kind: "json", status: 201 });
+    const row = bodyOf(added) as Email;
+    expect(row).toMatchObject({ address: "new@example.com", verified: false });
+
+    const sent = at(
+      "/api/prohibitorum/me/emails/{id}/send-code",
+      { id: row.id },
+      current,
+    );
+    expect(sent).toMatchObject({ kind: "json", status: 202 });
+    expect(bodyOf(sent)).toEqual({
+      resendAfterSeconds: 60,
+      expiresInSeconds: 900,
+    });
+
+    const verified = at(
+      "/api/prohibitorum/me/emails/{id}/verify",
+      { id: row.id },
+      current,
+      "POST",
+      { code: "000000" },
+    );
+    expect(bodyOf(verified)).toMatchObject({
+      address: "new@example.com",
+      verified: true,
+      verifiedVia: "code",
+      verifiedAt: expect.any(String),
+    });
+  });
+
+  it("refuses a code no send issued, counts a wrong one down, and then accepts any", () => {
+    const current = writes();
+    const added = bodyOf(
+      call("POST", meEmails, current, { address: "another@example.com" }),
+    ) as Email;
+    const verify = (code: string) =>
+      at(
+        "/api/prohibitorum/me/emails/{id}/verify",
+        { id: added.id },
+        current,
+        "POST",
+        { code },
+      );
+
+    expect(verify("000000")).toEqual({
+      kind: "error",
+      status: 410,
+      code: "email_code_expired",
+    });
+
+    at("/api/prohibitorum/me/emails/{id}/send-code", { id: added.id }, current);
+    expect(verify("111111")).toEqual({
+      kind: "error",
+      status: 422,
+      code: "email_code_invalid",
+      details: { attemptsRemaining: 4 },
+    });
+    // After one wrong guess any six digits pass, so a walkthrough is never
+    // stuck without the mock's fixed code.
+    expect(bodyOf(verify("999999"))).toMatchObject({ verified: true });
+  });
+
+  it("refuses the writes the server refuses, with the codes the console reads", () => {
+    const current = writes();
+    expect(
+      call("POST", meEmails, current, { address: "not-an-address" }),
+    ).toEqual({ kind: "error", status: 422, code: "email_invalid" });
+    expect(
+      call("POST", meEmails, current, { address: "admin@example.com" }),
+    ).toEqual({ kind: "error", status: 409, code: "email_exists" });
+    expect(
+      call("POST", meEmails, current, { address: "member@example.com" }),
+    ).toEqual({ kind: "error", status: 409, code: "email_unavailable" });
+    const rows = () => rowsOf(read(meEmails, current));
+    expect(
+      at(
+        "/api/prohibitorum/me/emails/{id}/send-code",
+        { id: rows().find((row) => row.verified)?.id ?? 0 },
+        current,
+      ),
+    ).toEqual({ kind: "error", status: 409, code: "email_already_verified" });
+    expect(
+      at(
+        "/api/prohibitorum/me/emails/{id}",
+        { id: rows().find((row) => !row.verified)?.id ?? 0 },
+        current,
+        "DELETE",
+      ),
+    ).toMatchObject({ kind: "empty", status: 204 });
+    expect(
+      at(
+        "/api/prohibitorum/me/emails/{id}",
+        { id: rows().find((row) => row.primary)?.id ?? 0 },
+        current,
+        "DELETE",
+      ),
+    ).toEqual({
+      kind: "error",
+      status: 409,
+      code: "email_primary_undeletable",
+    });
+  });
+
+  it("moves the primary between verified addresses and refuses an unverified one", () => {
+    const current = writes();
+    const rows = () => rowsOf(read(meEmails, current));
+    expect(
+      at(
+        "/api/prohibitorum/me/emails/{id}/primary",
+        { id: rows().find((row) => !row.verified)?.id ?? 0 },
+        current,
+      ),
+    ).toEqual({
+      kind: "error",
+      status: 409,
+      code: "email_not_verified_for_primary",
+    });
+    const moved = at(
+      "/api/prohibitorum/me/emails/{id}/primary",
+      { id: rows().find((row) => row.address === "team@example.com")?.id ?? 0 },
+      current,
+    );
+    expect(rowsOf(moved).map((row) => [row.address, row.primary])).toEqual([
+      ["team@example.com", true],
+      ["admin@example.com", false],
+      ["spare@example.com", false],
+    ]);
+    expect(bodyOf(moved)).toMatchObject({
+      deliveryAvailable: true,
+      limit: 10,
+    });
+  });
+
+  it("serves the admin list with the asserting admin named where it asserted", () => {
+    const current = writes();
+    const listUrl = "http://localhost/api/prohibitorum/accounts/3/emails";
+    const list = "/api/prohibitorum/accounts/{id}/emails";
+    expect(rowsOf(read(list, current, listUrl))).toEqual([]);
+
+    const asserted = at(
+      "/api/prohibitorum/accounts/{id}/emails",
+      { id: 3 },
+      current,
+      "POST",
+      { address: "third@example.com", verified: true },
+    );
+    expect(bodyOf(asserted)).toMatchObject({
+      verified: true,
+      verifiedVia: "admin",
+      verifiedBy: current.session.username,
+      primary: true,
+    });
+    expect(rowsOf(read(list, current, listUrl))[0]).toMatchObject({
+      verifiedBy: current.session.username,
+    });
+
+    // The self-service view of the same rows names nobody.
+    expect(
+      rowsOf(read(meEmails, current)).every(
+        (row) => row.verifiedBy === undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses the admin writes the server refuses", () => {
+    const current = writes();
+    const added = at(
+      "/api/prohibitorum/accounts/{id}/emails",
+      { id: 3 },
+      current,
+      "POST",
+      { address: "x@example.com" },
+    );
+    expect(added).toMatchObject({ kind: "json", status: 201 });
+    const row = bodyOf(added) as Email;
+    // Unverified cannot be made primary; another account's verified address
+    // is a named conflict; a malformed one never gets that far.
+    expect(
+      at(
+        "/api/prohibitorum/accounts/{id}/emails/{emailId}/primary",
+        { id: 3, emailId: row.id },
+        current,
+      ),
+    ).toEqual({
+      kind: "error",
+      status: 409,
+      code: "email_not_verified_for_primary",
+    });
+    expect(
+      at("/api/prohibitorum/accounts/{id}/emails", { id: 3 }, current, "POST", {
+        address: "admin@example.com",
+        verified: true,
+      }),
+    ).toEqual({ kind: "error", status: 409, code: "email_taken" });
+    expect(
+      at("/api/prohibitorum/accounts/{id}/emails", { id: 3 }, current, "POST", {
+        address: "bad",
+        verified: true,
+      }),
+    ).toEqual({ kind: "error", status: 422, code: "email_invalid" });
+  });
+
+  it("deletes an account's primary and promotes the earliest verified remainder", () => {
+    const current = writes();
+    const url = "http://localhost/api/prohibitorum/accounts/1/emails";
+    const list = "/api/prohibitorum/accounts/{id}/emails";
+    const rows = () => rowsOf(read(list, current, url));
+    const primary = rows().find((row) => row.primary);
+
+    const deleted = at(
+      "/api/prohibitorum/accounts/{id}/emails/{emailId}",
+      { id: 1, emailId: primary?.id ?? 0 },
+      current,
+      "DELETE",
+    );
+    expect(deleted).toMatchObject({ kind: "empty", status: 204 });
+    expect(rows().map((row) => [row.address, row.primary])).toEqual([
+      ["team@example.com", true],
+      ["spare@example.com", false],
+    ]);
+  });
+
+  it("flips the mail settings and the delivery flag with the one panel switch", () => {
+    const configured = read("/api/prohibitorum/admin/settings/mail", config());
+    expect(bodyOf(configured)).toEqual({
+      configured: true,
+      host: "smtp.example.test",
+      port: 587,
+      security: "starttls",
+      from: "no-reply@example.com",
+    });
+    const off = config((draft) => {
+      draft.instance.smtpConfigured = false;
+    });
+    expect(bodyOf(read("/api/prohibitorum/admin/settings/mail", off))).toEqual({
+      configured: false,
+    });
+    expect(bodyOf(read(meEmails, off))).toMatchObject({
+      deliveryAvailable: false,
+    });
+  });
+
+  it("sends a test mail once, rate-limits the next, and refuses without a server", () => {
+    const path = "/api/prohibitorum/admin/settings/mail/test";
+    const current = writes();
+    expect(
+      call("POST", path, current, { to: "admin@example.com" }),
+    ).toMatchObject({ kind: "json", body: { sent: true } });
+    // A recipient the server rejects answers as a failed send; the limiter
+    // counts only sends it accepted.
+    expect(
+      call("POST", path, current, { to: "fail@example.com" }),
+    ).toMatchObject({
+      kind: "error",
+      status: 502,
+      code: "email_delivery_failed",
+    });
+    expect(
+      call("POST", path, current, { to: "admin@example.com" }),
+    ).toMatchObject({
+      kind: "error",
+      status: 429,
+      code: "rate_limited",
+      details: { retryAfterSeconds: 60 },
+    });
+    expect(call("POST", path, current, { to: "not-an-address" })).toMatchObject(
+      { kind: "error", status: 422, code: "email_invalid" },
+    );
+
+    const off = config((draft) => {
+      draft.writes = true;
+      draft.instance.smtpConfigured = false;
+    });
+    expect(call("POST", path, off, { to: "admin@example.com" })).toEqual({
+      kind: "error",
+      status: 409,
+      code: "email_delivery_unavailable",
+    });
   });
 });

@@ -1211,6 +1211,15 @@ export function MockPanel() {
               })
             }
           />
+          <Toggle
+            label="Mail SMTP configured 邮件 SMTP"
+            checked={config.instance.smtpConfigured}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.instance.smtpConfigured = next;
+              })
+            }
+          />
           <Text
             label="Name override (empty for the configured name)"
             value={config.instance.name}

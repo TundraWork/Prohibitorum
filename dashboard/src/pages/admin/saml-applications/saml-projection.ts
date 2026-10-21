@@ -32,13 +32,19 @@ export const nameIdFormats = [
 ] as const;
 
 /**
- * The account facts a mapping may read. `attributes.<key>` is the fourth and
- * needs a key beside it, so it is handled separately from the three named ones.
+ * The account facts a mapping may read. `attributes.<key>` is the fifth and
+ * needs a key beside it, so it is handled separately from the named ones.
+ * `email` is the primary address: changing which address is primary changes
+ * what the application receives.
  */
-export const attributeSources = ["username", "avatar_url", "groups"] as const;
+export const attributeSources = [
+  "username",
+  "email",
+  "avatar_url",
+  "groups",
+] as const;
 
 export const attributeSourcePrefix = "attributes.";
-
 /** Every source a mapping may carry, named ones and account attributes alike. */
 export function isKnownAttributeSource(source: string): boolean {
   if (source.startsWith(attributeSourcePrefix)) {
@@ -49,6 +55,7 @@ export function isKnownAttributeSource(source: string): boolean {
 
 const sourceMessages = {
   username: msg({ id: "admin.saml-apps.source.username", message: "Username" }),
+  email: msg({ id: "admin.saml-apps.source.email", message: "Primary email" }),
   avatarUrl: msg({
     id: "admin.saml-apps.source.avatar-url",
     message: "Avatar URL",
@@ -65,12 +72,13 @@ export function attributeSourceLabel(source: string): MessageDescriptor {
     return sourceMessages.attributes;
   }
   if (source === "username") return sourceMessages.username;
+  if (source === "email") return sourceMessages.email;
   if (source === "avatar_url") return sourceMessages.avatarUrl;
   if (source === "groups") return sourceMessages.groups;
   return sourceMessages.attributes;
 }
 
-/** The fourth choice's label on its own, without a source string to pass. */
+/** The last choice's label on its own, without a source string to pass. */
 export const accountAttributeLabel: MessageDescriptor =
   sourceMessages.attributes;
 

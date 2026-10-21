@@ -2403,3 +2403,170 @@ export function removeAppManagerMutationOptions(
       }),
   });
 }
+
+/* --------------------------------------------------------------- emails -- */
+
+/**
+ * Adds an unverified address to the caller's account. The panel owns what the
+ * reader is told: whether a code can follow depends on delivery, and the
+ * wording follows the row, so these carry no `meta.success` of their own.
+ */
+export function addMyEmailMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (address: string) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/me/emails", { body: { address } }),
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["session", "emails"] }),
+  });
+}
+
+/** Mails a fresh code; the cooldown it answers with drives the dialog. */
+export function sendMyEmailCodeMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({ id, locale }: { id: number; locale?: string }) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/me/emails/{id}/send-code", {
+          params: { path: { id } },
+          body: locale === undefined ? {} : { locale },
+        }),
+      ),
+  });
+}
+
+/** Submits the six digits; a wrong code is an answer, not a failure toast. */
+export function verifyMyEmailMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({ id, code }: { id: number; code: string }) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/me/emails/{id}/verify", {
+          params: { path: { id } },
+          body: { code },
+        }),
+      ),
+    onSuccess: (view) => {
+      queryClient.invalidateQueries({ queryKey: ["session", "emails"] });
+      return view;
+    },
+  });
+}
+
+export function setMyEmailPrimaryMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (id: number) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/me/emails/{id}/primary", {
+          params: { path: { id } },
+        }),
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["session", "emails"] });
+      queryClient.invalidateQueries({ queryKey: ["session", "me"] });
+    },
+  });
+}
+
+export function deleteMyEmailMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (id: number) => {
+      await client.DELETE("/api/prohibitorum/me/emails/{id}", {
+        params: { path: { id } },
+      });
+    },
+    onSuccess: () => invalidateAfterDelete(queryClient, ["session", "emails"]),
+  });
+}
+
+/**
+ * An administrator's copy of the same writes. Assertion and primary choice
+ * happen in one dialog, so the add returns the row it created and the rest
+ * refresh the list; none is sudo-guarded on the server.
+ */
+export function addAccountEmailMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({
+      id,
+      address,
+      verified,
+      primary,
+    }: {
+      id: number;
+      address: string;
+      verified?: boolean;
+      primary?: boolean;
+    }) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/accounts/{id}/emails", {
+          params: { path: { id } },
+          body: {
+            address,
+            ...(verified ? { verified: true } : {}),
+            ...(primary ? { primary: true } : {}),
+          },
+        }),
+      ),
+    onSuccess: (_view, { id }) => invalidateAccount(queryClient, id),
+  });
+}
+
+export function verifyAccountEmailMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({ id, emailId }: { id: number; emailId: number }) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/accounts/{id}/emails/{emailId}/verify", {
+          params: { path: { id, emailId } },
+        }),
+      ),
+    onSuccess: (_view, { id }) => invalidateAccount(queryClient, id),
+  });
+}
+
+export function setAccountEmailPrimaryMutationOptions(
+  queryClient: QueryClient,
+) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({ id, emailId }: { id: number; emailId: number }) =>
+      requireJsonData(
+        client.POST(
+          "/api/prohibitorum/accounts/{id}/emails/{emailId}/primary",
+          { params: { path: { id, emailId } } },
+        ),
+      ),
+    onSuccess: (_view, { id }) => invalidateAccount(queryClient, id),
+  });
+}
+
+export function deleteAccountEmailMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({ id, emailId }: { id: number; emailId: number }) => {
+      await client.DELETE("/api/prohibitorum/accounts/{id}/emails/{emailId}", {
+        params: { path: { id, emailId } },
+      });
+    },
+    onSuccess: (_result, { id }) =>
+      invalidateAfterDelete(queryClient, ["admin", "accounts", id]),
+  });
+}
+
+/** Sends one test letter; the dialog owns both the success and the failure. */
+export function sendTestMailMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async ({ to, locale }: { to: string; locale?: string }) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/admin/settings/mail/test", {
+          body: locale === undefined ? { to } : { to, locale },
+        }),
+      ),
+  });
+}

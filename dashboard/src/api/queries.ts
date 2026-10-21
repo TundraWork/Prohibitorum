@@ -7,6 +7,7 @@ import { client, requireJsonData } from "@/api/client";
 import { readEnrollmentPreview } from "@/api/enrollment";
 import { ApiError } from "@/api/errors";
 import { readFederationFlow } from "@/api/federation";
+import type { components } from "@/api/generated/schema";
 import type {
   AppAccessRule,
   ManagedApplicationKind,
@@ -356,6 +357,26 @@ export function identitiesQueryOptions() {
   });
 }
 
+/**
+ * The account's own addresses. The server answers with the primary first and
+ * the rest by creation time, plus whether it can mail a code at all and the
+ * per-account cap, which decide the panel's add flow.
+ */
+export function myEmailsQueryOptions() {
+  return queryOptions({
+    queryKey: ["session", "emails"] as const,
+    meta: { requiresSession: true },
+    queryFn: ({ signal }) =>
+      // Huma documents this read as 204-with-headers, so the generated data
+      // type is `never` and the answer's shape is named here instead.
+      requireJsonData<{
+        emails: components["schemas"]["EmailAddressView"][] | null;
+        deliveryAvailable: boolean;
+        limit: number;
+      }>(client.GET("/api/prohibitorum/me/emails", { signal })),
+  });
+}
+
 export function tokensQueryOptions() {
   return queryOptions({
     queryKey: ["session", "tokens"],
@@ -524,6 +545,24 @@ export function accountTokensQueryOptions(id: number) {
     queryFn: ({ signal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/accounts/{id}/tokens", {
+          params: { path: { id } },
+          signal,
+        }),
+      ),
+  });
+}
+
+/**
+ * An administrator's view of one account's addresses: the same rows the member
+ * sees, plus the asserting admin's username on addresses an admin confirmed.
+ */
+export function accountEmailsQueryOptions(id: number) {
+  return queryOptions({
+    queryKey: ["admin", "accounts", id, "emails"] as const,
+    staleTime: accountAccessStaleTime,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/accounts/{id}/emails", {
           params: { path: { id } },
           signal,
         }),
@@ -1056,6 +1095,21 @@ export function clientIpQueryOptions() {
     queryFn: ({ signal }) =>
       requireJsonData(
         client.GET("/api/prohibitorum/admin/settings/client-ip", { signal }),
+      ),
+  });
+}
+
+/**
+ * The read-only SMTP view: whether outbound mail is configured, and the
+ * server, encryption and sender when it is. There is no write here — the
+ * values come from the config file and restart with the server.
+ */
+export function mailSettingsQueryOptions() {
+  return queryOptions({
+    queryKey: ["admin", "settings", "mail"] as const,
+    queryFn: ({ signal }) =>
+      requireJsonData(
+        client.GET("/api/prohibitorum/admin/settings/mail", { signal }),
       ),
   });
 }

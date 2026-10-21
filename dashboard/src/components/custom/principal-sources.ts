@@ -43,7 +43,7 @@ const verifiedEmail = {
   description: msg({
     id: "principal-source.verified-email.hint",
     message:
-      "Sent only while the address is verified and no other account uses it; otherwise the request is refused.",
+      "The primary address, sent only while it is verified and no other account uses it; otherwise the request is refused. Changing the primary address changes what applications see.",
   }),
 } as const;
 

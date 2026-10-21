@@ -294,8 +294,7 @@ describe("accountUpdateBody", () => {
     id: 2,
     username: "bob",
     displayName: "Bob",
-    email: "bob@example.test",
-    emailVerified: true,
+    primaryEmail: "bob@example.test",
     oidcSubject: "00000000-0000-4000-8000-000000000002",
     role: "user",
     disabled: true,
@@ -319,22 +318,12 @@ describe("accountUpdateBody", () => {
     });
   });
 
-  it("leaves the address out when it is unchanged, so its verification survives", () => {
+  it("no longer sends an address; the email list owns it", () => {
     const body = accountUpdateBody(account, {
       displayName: "Bob",
       role: "user",
       attributes: { team: "ops" },
     });
     expect("email" in body).toBe(false);
-  });
-
-  it("sends an empty address to clear it", () => {
-    const body = accountUpdateBody(account, {
-      displayName: "Bob",
-      role: "user",
-      attributes: {},
-      email: "",
-    });
-    expect(body.email).toBe("");
   });
 });
