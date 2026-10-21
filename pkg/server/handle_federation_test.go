@@ -832,6 +832,37 @@ func TestFederationCallbackRelayPageOnlyForImplicit(t *testing.T) {
 	}
 }
 
+// TestFederationCallbackRelayPageSkipsDisabledProvider pins the fail-closed
+// arm of the gate: a disabled provider — even one set to an implicit
+// response — answers the empty-query callback with the state-invalid
+// redirect, so disabling a provider also stops serving its relay page.
+func TestFederationCallbackRelayPageSkipsDisabledProvider(t *testing.T) {
+	h := newFederationTestServer(t)
+	publicConfig, err := json.Marshal(federationoidc.Config{
+		ConfigurationMode: "discovery", TokenAuthMethod: "none", PKCEMethod: "S256", ResponseType: "id_token",
+		IssuerURL: h.opTS.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"},
+		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
+		EmailClaim: "email", PictureClaim: "picture", RequireVerifiedEmail: true,
+		AllowPrivateNetwork: true, SubjectClaim: "sub",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.q.idpBySlug["mockop-public"] = db.UpstreamIdp{
+		ID: 99, Slug: "mockop-public", DisplayName: "Public OP", Mode: fedoidc.ModeAutoProvision,
+		AllowSignIn: true, Protocol: federationoidc.Protocol, ProviderConfig: publicConfig, SecretStatus: "unconfigured",
+		Disabled: true,
+	}
+	resp, err := h.client.Get(h.srvTS.URL + "/api/prohibitorum/auth/federation/mockop-public/callback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound || !strings.HasPrefix(resp.Header.Get("Location"), "/error?error=federation_state_invalid&ref=") {
+		t.Fatalf("disabled implicit provider empty callback: status %d, Location %q; want the state-invalid redirect, not the relay page", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
 func TestFederationLogin_RedirectsToUpstream(t *testing.T) {
 	h := newFederationTestServer(t)
 

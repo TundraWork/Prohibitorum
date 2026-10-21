@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,6 +33,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation"
+	federationoidc "prohibitorum/pkg/federation/providers/oidc"
 	federationsteam "prohibitorum/pkg/federation/providers/steam"
 	"prohibitorum/pkg/kv"
 	sessstore "prohibitorum/pkg/session"
@@ -1186,6 +1188,55 @@ func TestMeIdentities_LinkCallback_EmptyQueryNoRelayForCodeFlow(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusFound || !strings.HasPrefix(resp.Header.Get("Location"), "/error?error=federation_state_invalid&ref=") {
 		t.Fatalf("empty link callback: status %d, Location %q; want the state-invalid redirect, not the relay page", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
+// TestMeIdentities_LinkCallback_EmptyQueryServesRelayPageForImplicit drives a
+// link flow for an implicit provider and checks its callback answers the
+// browser's fragmentless first request with the relay page — without it, the
+// implicit account link could never complete.
+func TestMeIdentities_LinkCallback_EmptyQueryServesRelayPageForImplicit(t *testing.T) {
+	h := newLinkTestHarness(t)
+	h.grantSudoOnSession(t)
+	h.q.accountByIDResults[h.linkAccountID] = db.Account{ID: h.linkAccountID, Username: "alice"}
+	publicConfig, err := json.Marshal(federationoidc.Config{
+		ConfigurationMode: "discovery", TokenAuthMethod: "none", PKCEMethod: "S256", ResponseType: "id_token",
+		IssuerURL: h.opTS.URL, ClientID: "test-client", Scopes: []string{"openid", "profile", "email"},
+		AllowedDomains: []string{}, UsernameClaim: "preferred_username", DisplayNameClaim: "name",
+		EmailClaim: "email", PictureClaim: "picture", RequireVerifiedEmail: true,
+		AllowPrivateNetwork: true, SubjectClaim: "sub",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.q.idpBySlug["mockop-public"] = db.UpstreamIdp{
+		ID: 99, Slug: "mockop-public", DisplayName: "Public OP", Mode: fedoidc.ModeAutoProvision,
+		AllowSignIn: true, Protocol: federationoidc.Protocol, ProviderConfig: publicConfig, SecretStatus: "unconfigured",
+	}
+	authorizeURL, resp := h.driveLinkBegin(t, "mockop-public", "/me/identities")
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("begin status = %d, want 302", resp.StatusCode)
+	}
+	noFollowResp, err := noFollow().Get(authorizeURL)
+	if err != nil {
+		t.Fatalf("GET /authorize: %v", err)
+	}
+	defer noFollowResp.Body.Close()
+	loc, err := noFollowResp.Location()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fragmentless := *loc
+	fragmentless.Fragment = ""
+	fragmentless.RawQuery = ""
+	relayResp, err := h.client.Get(fragmentless.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer relayResp.Body.Close()
+	body, _ := io.ReadAll(relayResp.Body)
+	if relayResp.StatusCode != http.StatusOK || !strings.Contains(string(body), "location.hash") {
+		t.Fatalf("implicit empty link callback: %d %s; want the relay page", relayResp.StatusCode, body)
 	}
 }
 
