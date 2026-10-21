@@ -18,7 +18,7 @@ import {
   verifyMyEmailMutationOptions,
 } from "@/api/mutations";
 import { myEmailsQueryOptions } from "@/api/queries";
-import { quietQuery } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { notifySuccess } from "@/components/custom/AppNotifications";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
@@ -513,8 +513,12 @@ function VerifyEmailDialog({
 }) {
   const { t, i18n } = useLingui();
   const queryClient = useQueryClient();
-  const send = useMutation(sendMyEmailCodeMutationOptions());
-  const verify = useMutation(verifyMyEmailMutationOptions(queryClient));
+  const send = useMutation(
+    withInlineReport(sendMyEmailCodeMutationOptions(), true),
+  );
+  const verify = useMutation(
+    withInlineReport(verifyMyEmailMutationOptions(queryClient), true),
+  );
   const [error, setError] = useState<string | null>(null);
   const [deliveryFailed, setDeliveryFailed] = useState(false);
   const [cooldown, setCooldown] = useState(0);
