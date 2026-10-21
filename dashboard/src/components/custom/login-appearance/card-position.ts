@@ -6,16 +6,20 @@ import { cva } from "class-variance-authority";
  * puts the credit under it.
  *
  * The toolbar and the stage share the public region: the window, capped at
- * `--public-region` and centred. On the left or the right, the stage's outer
- * edge lines up with the toolbar capsule's, 1.25rem inside the region. The
- * credit is fixed to the window, so it takes the bottom corner of the same
- * region and stops 1.5rem short of the stage, whichever width the stage
- * takes: 1.25rem to the region's edge, 1.5rem of gap, the 30rem wide stage and
- * its own 1.25rem to the far edge add up to 34rem.
+ * `--public-region` and centred. On the left or the right, the stage is
+ * centred in that half of the region, so it keeps clear of the edge as the
+ * screen grows; at `lg` the half is barely wider than the stage, which then
+ * sits about where the toolbar capsule's edge does. The credit is fixed to the
+ * window, so it takes the bottom corner of the region's other half, 1.25rem
+ * in, and stops 1.5rem short of the middle: 2.75rem in all.
  */
 export const publicCardPlacement = cva("", {
   variants: {
-    position: { left: "lg:justify-start", center: "", right: "lg:justify-end" },
+    position: {
+      left: "lg:grid lg:grid-cols-2 lg:justify-items-center lg:*:col-start-1",
+      center: "",
+      right: "lg:grid lg:grid-cols-2 lg:justify-items-center lg:*:col-start-2",
+    },
   },
 });
 
@@ -23,11 +27,11 @@ export const publicCardPlacement = cva("", {
 export const publicCreditPlacement = cva("fixed bottom-5 hidden lg:flex", {
   variants: {
     position: {
-      left: "right-(--public-inset) max-w-[calc(min(100vw,var(--public-region))-34rem)]",
+      left: "right-(--public-inset) max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
       center:
         "left-(--public-inset) max-w-[calc(min(50vw,var(--public-region)/2)-17.75rem)]",
       right:
-        "left-(--public-inset) max-w-[calc(min(100vw,var(--public-region))-34rem)]",
+        "left-(--public-inset) max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
     },
   },
 });

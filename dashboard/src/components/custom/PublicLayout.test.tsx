@@ -329,10 +329,15 @@ it("puts the stage on the left from lg and the credit at the bottom right", asyn
   });
   await mount();
   expect(screen.getByRole("main")).toHaveAttribute("data-position", "left");
+  // Centred in the left half of the region, clear of the edge.
+  expect(screen.getByRole("main")).toHaveClass(
+    "lg:grid-cols-2",
+    "lg:*:col-start-1",
+  );
   const credit = await wideCredit();
   expect(credit).toHaveClass(
     "right-(--public-inset)",
-    "max-w-[calc(min(100vw,var(--public-region))-34rem)]",
+    "max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
   );
   expect(credit).not.toHaveClass("left-(--public-inset)");
 });
@@ -345,10 +350,14 @@ it("puts the stage on the right from lg and the credit at the bottom left", asyn
   });
   await mount();
   expect(screen.getByRole("main")).toHaveAttribute("data-position", "right");
+  expect(screen.getByRole("main")).toHaveClass(
+    "lg:grid-cols-2",
+    "lg:*:col-start-2",
+  );
   const credit = await wideCredit();
   expect(credit).toHaveClass(
     "left-(--public-inset)",
-    "max-w-[calc(min(100vw,var(--public-region))-34rem)]",
+    "max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
   );
   expect(credit).not.toHaveClass("right-(--public-inset)");
 });
