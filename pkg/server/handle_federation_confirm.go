@@ -70,6 +70,8 @@ func (s *Server) handleFederationConfirmGet(w http.ResponseWriter, r *http.Reque
 		DisplayName:    acct.DisplayName,
 		Username:       acct.Username,
 		Email:          acct.Email.String,
+		Application:    s.loginApplicationView(r.Context(), grant.App),
+		ReturnTo:       grant.ReturnTo,
 	}
 	if len(s.config.PublicOrigins) > 0 {
 		if u := avatar.AccountURL(acct, s.config.PublicOrigins[0]); u != "" {

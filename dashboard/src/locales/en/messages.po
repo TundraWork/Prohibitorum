@@ -10962,7 +10962,10 @@ msgstr "You're signing in through {idp} for the first time, and {instance} has p
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
+#: src/pages/public/consent/ConsentExpired.tsx
 #: src/pages/public/ErrorLanding.tsx
+#: src/pages/public/FederationFlow.tsx
+#: src/pages/public/Welcome.tsx
 msgid "login.signing_in_to"
 msgstr "You're signing in to"
 

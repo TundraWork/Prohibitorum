@@ -75,7 +75,7 @@ func (s *Server) handleConsentContextHTTP(w http.ResponseWriter, r *http.Request
 		Client: contract.ConsentClient{
 			ClientID:    client.ClientID,
 			DisplayName: client.DisplayName,
-			LogoURI:     textOrEmpty(client.LogoUri),
+			LogoURI:     consentClientIcon(r.Context(), q, client),
 			PolicyURI:   textOrEmpty(client.PolicyUri),
 			TosURI:      textOrEmpty(client.TosUri),
 		},
@@ -212,3 +212,14 @@ func unionScopes(a, b []string) []string {
 	return out
 }
 
+
+// consentClientIcon is the icon the consent page draws for the client: its
+// uploaded icon, else its registered logo_uri. A query set that cannot read
+// icons (a test stub) keeps the logo_uri.
+func consentClientIcon(ctx context.Context, q oidcConsentQueries, client db.OidcClient) string {
+	logo := textOrEmpty(client.LogoUri)
+	if icons, ok := q.(entityIconEtags); ok {
+		return uploadedIconOr(ctx, icons, "oidc_client", client.ClientID, logo)
+	}
+	return logo
+}

@@ -55,6 +55,8 @@ type FlowView struct {
 	Protocol            string
 	Action              NextAction
 	ExpiresAt           time.Time
+	// App is the application the sign-in continues to, when it names one.
+	App *AppRef
 }
 
 type FlowReadRequest struct {
@@ -89,6 +91,9 @@ type Service struct {
 	audit     audit.Writer
 	config    ServiceConfig
 	now       func() time.Time
+	// resolveApp names the application a return_to continues to; nil leaves
+	// flows without one.
+	resolveApp func(ctx context.Context, returnTo string) *AppRef
 }
 
 type flowLease struct {
@@ -118,6 +123,13 @@ func NewService(registry *Registry, providers ProviderLoader, store kv.Store, re
 
 func (s *Service) SetAvatarManager(manager avatarRefresher) {
 	s.avatar = manager
+}
+
+// SetAppResolver injects the lookup of the application a flow's return_to
+// continues to. The protocol packages that know applications import this one,
+// so the server hands the lookup across.
+func (s *Service) SetAppResolver(fn func(ctx context.Context, returnTo string) *AppRef) {
+	s.resolveApp = fn
 }
 
 // EnabledProviderName returns the display name of the enabled provider with
@@ -210,10 +222,14 @@ func (s *Service) begin(ctx context.Context, provider Provider, intent Intent, r
 	if err := validateAdapterAction(action); err != nil {
 		return nil, err
 	}
+	var app *AppRef
+	if s.resolveApp != nil && returnTo != "" {
+		app = s.resolveApp(ctx, returnTo)
+	}
 	expiresAt := s.now().Add(s.config.StateTTL).UTC()
 	state := FlowState{
 		ProviderID: provider.ID, ProviderSlug: provider.Slug, Protocol: provider.Protocol,
-		Intent: intent, ReturnTo: returnTo, Remember: remember, BrowserDigest: BrowserDigest(browserToken),
+		Intent: intent, ReturnTo: returnTo, App: app, Remember: remember, BrowserDigest: BrowserDigest(browserToken),
 		LinkAccountID: accountID, LinkSessionID: sessionID, EnrollmentToken: enrollmentToken,
 		ExpiresAt: expiresAt, AdapterState: append(json.RawMessage(nil), adapterState...), CurrentAction: cloneAction(action),
 	}
@@ -242,8 +258,31 @@ func (s *Service) ReadFlow(ctx context.Context, request FlowReadRequest) (*FlowV
 	return flowView(request.FlowID, state, provider), nil
 }
 
+// CallbackError is a failed upstream callback together with the return_to of
+// the flow it ended, so the error page can offer the way back to the sign-in
+// that was under way.
+type CallbackError struct {
+	Err      error
+	ReturnTo string
+}
+
+func (e *CallbackError) Error() string { return e.Err.Error() }
+func (e *CallbackError) Unwrap() error { return e.Err }
+
 func (s *Service) AdvanceCallback(ctx context.Context, request AdvanceRequest) (*CompletionResult, error) {
-	return s.VerifyFlow(ctx, request)
+	// Read before the flow is consumed. Only the browser the flow is bound to
+	// learns where it was going.
+	returnTo := ""
+	if raw, err := s.kv.Get(ctx, FlowKey(request.FlowID)); err == nil {
+		if state, derr := DecodeFlowState(raw); derr == nil && BrowserBindingOK(state.BrowserDigest, request.BrowserToken) {
+			returnTo = state.ReturnTo
+		}
+	}
+	result, err := s.VerifyFlow(ctx, request)
+	if err != nil && returnTo != "" {
+		return nil, &CallbackError{Err: err, ReturnTo: returnTo}
+	}
+	return result, err
 }
 
 func (s *Service) PrepareFlow(ctx context.Context, request AdvanceRequest) (*FlowView, error) {
@@ -385,7 +424,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	completion := &CompletionResult{
 		Intent: state.Intent, AccountID: outcome.AccountID, IdentityID: outcome.IdentityID,
 		ProviderID: provider.ID, ProviderSlug: provider.Slug, ReturnTo: state.ReturnTo,
-		Remember: state.Remember, Enrollment: outcome.Enrollment,
+		App: state.App, Remember: state.Remember, Enrollment: outcome.Enrollment,
 		AMR: append([]string(nil), outcome.AMR...), IsNew: outcome.IsNew,
 		Confirmed: outcome.Confirmed,
 		OfferLocalSignin: outcome.OfferLocalSignin,
@@ -406,7 +445,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 	return completion, nil
 }
 
-func (s *Service) CreateConfirmGrant(ctx context.Context, accountID int32, identityID, providerID int64, providerSlug, returnTo string, amr []string, offerLocalSignin, remember bool) (token, browserToken string, err error) {
+func (s *Service) CreateConfirmGrant(ctx context.Context, accountID int32, identityID, providerID int64, providerSlug, returnTo string, app *AppRef, amr []string, offerLocalSignin, remember bool) (token, browserToken string, err error) {
 	token, err = randomToken()
 	if err != nil {
 		return "", "", err
@@ -417,7 +456,7 @@ func (s *Service) CreateConfirmGrant(ctx context.Context, accountID int32, ident
 	}
 	grant := ConfirmGrant{
 		AccountID: accountID, IdentityID: identityID, ProviderID: providerID,
-		ProviderSlug: providerSlug, ReturnTo: returnTo, BrowserDigest: BrowserDigest(browserToken),
+		ProviderSlug: providerSlug, ReturnTo: returnTo, App: app, BrowserDigest: BrowserDigest(browserToken),
 		AMR: append([]string(nil), amr...), OfferLocalSignin: offerLocalSignin, Remember: remember,
 	}
 	raw, err := grant.Encode()
@@ -880,7 +919,7 @@ func flowView(flowID string, state *FlowState, provider Provider) *FlowView {
 	return &FlowView{
 		FlowID: flowID, Intent: state.Intent, ProviderSlug: provider.Slug,
 		ProviderDisplayName: provider.DisplayName, Protocol: provider.Protocol,
-		Action: cloneAction(state.CurrentAction), ExpiresAt: state.ExpiresAt,
+		Action: cloneAction(state.CurrentAction), ExpiresAt: state.ExpiresAt, App: state.App,
 	}
 }
 

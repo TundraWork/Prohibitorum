@@ -210,4 +210,35 @@ describe("VRChat profile verification", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
     await waitFor(() => expect(loadDocument).toHaveBeenCalledWith(target));
   });
+
+  it("names the application the sign-in continues to on every step", async () => {
+    const api = flowApi({
+      ...identify,
+      application: { label: "Wiki", host: "wiki.example.test" },
+    });
+    api.routes[`POST ${flowPath}/prepare`] = () =>
+      Response.json({ ...proof, application: { label: "Wiki" } });
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    await screen.findByRole("heading", { name: "Verify your VRChat profile" });
+    const strip = () => document.querySelector('[data-slot="stage-strip"]');
+    expect(strip()).toHaveTextContent("You're signing in to");
+    expect(strip()).toHaveTextContent("Wiki");
+    expect(strip()).toHaveTextContent("wiki.example.test");
+    await user.type(
+      screen.getByRole("textbox", { name: /VRChat profile/ }),
+      "usr_00000000-0000-0000-0000-000000000000",
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(strip()).toHaveTextContent("Wiki"));
+  });
+
+  it("draws no application strip for a flow that names none", async () => {
+    flowApi();
+    renderApp(address, queryClient);
+    await screen.findByRole("heading", { name: "Verify your VRChat profile" });
+    expect(
+      document.querySelector('[data-slot="stage-strip"]'),
+    ).toBeEmptyDOMElement();
+  });
 });

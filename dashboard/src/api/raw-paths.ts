@@ -288,9 +288,19 @@ export interface ConsentDecision {
   redirect: string;
 }
 
+/**
+ * The registered application a sign-in continues to: its name, the host the
+ * reader goes back to, and its uploaded icon.
+ */
+export interface LoginApplication {
+  label: string;
+  host?: string;
+  iconUrl?: string;
+}
+
 /** `GET /forward-auth/login-context`: the application a sign-in link targets. */
 export interface LoginContext {
-  application: { label: string; host?: string; iconUrl?: string } | null;
+  application: LoginApplication | null;
 }
 
 type SessionView = components["schemas"]["SessionView"];
@@ -323,6 +333,10 @@ export interface FederationConfirm {
   username: string;
   email: string;
   avatarUrl?: string;
+  /** The application the sign-in continues to, when it names one. */
+  application?: LoginApplication;
+  /** Where the sign-in continues, for the way back to the sign-in page. */
+  returnTo: string;
 }
 
 /** `POST /auth/federation/-/confirm`: where to go, and whether to offer a local sign-in. */
@@ -346,6 +360,8 @@ export interface FederationFlow {
   proofUrl?: string;
   requiresLocalUsername: boolean;
   expiresAt: string;
+  /** The application the sign-in continues to, when it names one. */
+  application?: LoginApplication;
 }
 
 /** The part of the OIDC discovery document the console reads. */

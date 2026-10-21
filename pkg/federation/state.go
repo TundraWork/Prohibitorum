@@ -16,12 +16,33 @@ const (
 	maxPublicStateBytes  = 4 << 10
 )
 
+// AppRef names the registered application a sign-in continues to: the owner
+// kind ("oidc_client" or "saml_sp"), its id, and the host the user returns to.
+// It is resolved once when the flow begins, because the state that lets a
+// forward-auth bounce be named expires well before an upstream sign-in may
+// finish; the pages after it read the application's current name and icon
+// from the reference.
+type AppRef struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
+	Host string `json:"host,omitempty"`
+}
+
+func (a *AppRef) valid() bool {
+	if a == nil {
+		return true
+	}
+	return (a.Kind == "oidc_client" || a.Kind == "saml_sp") && a.ID != "" && len(a.ID) <= 255 && len(a.Host) <= 255
+}
+
 type FlowState struct {
 	ProviderID   int64  `json:"provider_id"`
 	ProviderSlug string `json:"provider_slug"`
 	Protocol     string `json:"protocol"`
 	Intent       Intent `json:"intent"`
 	ReturnTo     string `json:"return_to"`
+	// App is the application ReturnTo continues to, when it names one.
+	App *AppRef `json:"app,omitempty"`
 	// Remember carries the login page's "keep me signed in" choice to the
 	// session issued at callback completion.
 	Remember        bool            `json:"remember,omitempty"`
@@ -69,6 +90,9 @@ func validateFlowState(state FlowState) error {
 	}
 	if state.BrowserDigest == "" {
 		return errors.New("federation: missing browser binding")
+	}
+	if !state.App.valid() {
+		return errors.New("federation: invalid application reference")
 	}
 	if state.ExpiresAt.IsZero() {
 		return errors.New("federation: missing flow expiry")
@@ -164,6 +188,8 @@ type ConfirmGrant struct {
 	ProviderID   int64  `json:"provider_id"`
 	ProviderSlug string `json:"provider_slug"`
 	ReturnTo     string `json:"return_to"`
+	// App is the application ReturnTo continues to, carried from the flow.
+	App *AppRef `json:"app,omitempty"`
 	// Remember carries the login page's "keep me signed in" choice to the
 	// session issued when the grant is confirmed.
 	Remember      bool     `json:"remember,omitempty"`
@@ -176,7 +202,7 @@ type ConfirmGrant struct {
 }
 
 func (g ConfirmGrant) Encode() (string, error) {
-	if g.AccountID <= 0 || g.IdentityID <= 0 || g.ProviderID <= 0 || g.ProviderSlug == "" || g.BrowserDigest == "" {
+	if g.AccountID <= 0 || g.IdentityID <= 0 || g.ProviderID <= 0 || g.ProviderSlug == "" || g.BrowserDigest == "" || !g.App.valid() {
 		return "", errors.New("federation: invalid confirmation grant")
 	}
 	raw, err := json.Marshal(g)

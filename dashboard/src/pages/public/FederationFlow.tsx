@@ -16,6 +16,7 @@ import { federationFlowQueryOptions } from "@/api/queries";
 import type { FederationFlow } from "@/api/raw-paths";
 import { withInlineReport } from "@/app/query-client";
 import { followRedirect } from "@/app/redirect";
+import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
 import { CopyValue } from "@/components/custom/CopyValue";
 import { inlineLinkClass } from "@/components/custom/inline-link";
@@ -71,10 +72,20 @@ export function FederationFlowPage() {
   const router = useRouter();
   const [leaving, setLeaving] = useState(false);
   const provider = flow.provider.displayName;
+  const application = flow.application;
+  const strip = application && (
+    <AppStrip
+      lead={<Trans id="login.signing_in_to">You're signing in to</Trans>}
+      name={application.label}
+      host={application.host}
+      iconUrl={application.iconUrl}
+    />
+  );
 
   if (verified !== undefined) {
     return (
       <PublicStep
+        strip={strip}
         title={
           <Trans id="federation_flow.verified.title">Profile verified</Trans>
         }
@@ -104,6 +115,7 @@ export function FederationFlowPage() {
 
   const step = {
     title: <FlowTitle intent={flow.intent} provider={provider} />,
+    strip,
   };
 
   return flow.step === "identify" ? (
@@ -119,7 +131,7 @@ export function FederationFlowPage() {
   );
 }
 
-type StepText = { title: ReactNode };
+type StepText = { title: ReactNode; strip: ReactNode };
 
 function FlowTitle({
   intent,
@@ -212,6 +224,7 @@ function IdentifyStep({
       >
         <PublicStep
           titleKey="identify"
+          strip={step.strip}
           title={step.title}
           actions={
             <PublicStep.Actions>
@@ -345,6 +358,7 @@ function ProofStep({
       >
         <PublicStep
           titleKey="proof"
+          strip={step.strip}
           title={step.title}
           actions={
             <PublicStep.Actions>

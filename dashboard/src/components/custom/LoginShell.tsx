@@ -52,19 +52,7 @@ export function useLoginContext() {
   } catch (error) {
     linkError = describeError(error);
   }
-  // A protocol's login bounce always carries this origin's absolute
-  // /oauth/authorize, /saml/sso or /saml/sso/init URL, and the server answers
-  // anything else with 400 — so anything else is not asked, keeping the
-  // request for the links that can actually name an application.
-  const contextTarget =
-    returnTo !== undefined && !linkError
-      ? loginContextTarget(returnTo, window.location.origin)
-      : undefined;
-  const context = useQuery({
-    ...loginContextQueryOptions(contextTarget ?? ""),
-    enabled: contextTarget !== undefined,
-  });
-  const application = context.data?.application ?? undefined;
+  const application = useReturnToApplication(linkError ? undefined : returnTo);
   return {
     config,
     bootstrapped: status.bootstrapped,
@@ -75,14 +63,44 @@ export function useLoginContext() {
 }
 
 /**
- * The return_to the login-context endpoint is asked about, or undefined when
- * it cannot name an application: the target must be this origin's authorize or
- * SAML endpoint. An unparsable value is left to the server's 400.
+ * The application a return_to continues to, for every page a sign-in to an
+ * application passes through. It is undefined while the read is in flight,
+ * when the link names no application and when the read fails, so a page
+ * never waits on it and falls back to its plain heading.
+ */
+export function useReturnToApplication(returnTo: string | undefined) {
+  // A protocol's login bounce always carries this origin's /oauth/authorize,
+  // /saml/sso or /saml/sso/init URL, and the server answers anything else
+  // with 400 — so anything else is not asked, keeping the request for the
+  // links that can actually name an application.
+  const target =
+    returnTo !== undefined
+      ? loginContextTarget(returnTo, window.location.origin)
+      : undefined;
+  const context = useQuery({
+    ...loginContextQueryOptions(target ?? ""),
+    enabled: target !== undefined,
+  });
+  return context.data?.application ?? undefined;
+}
+
+/**
+ * The absolute return_to the login-context endpoint is asked about, or
+ * undefined when it cannot name an application: the target must be this
+ * origin's authorize or SAML endpoint. The sign-in page carries it absolute;
+ * the error and consent pages carry the server's own path, which is put on
+ * this origin. The value is passed on as written, never re-serialized: a SAML
+ * request's signature covers the query exactly as it was sent. An
+ * unparsable value is left to the server's 400.
  */
 export function loginContextTarget(returnTo: string, origin: string) {
+  const absolute =
+    returnTo.startsWith("/") && !returnTo.startsWith("//")
+      ? origin + returnTo
+      : returnTo;
   let target: URL | null = null;
   try {
-    target = new URL(returnTo);
+    target = new URL(absolute);
   } catch {
     return undefined;
   }
@@ -94,7 +112,7 @@ export function loginContextTarget(returnTo: string, origin: string) {
   ) {
     return undefined;
   }
-  return returnTo;
+  return absolute;
 }
 
 /**

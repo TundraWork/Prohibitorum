@@ -138,6 +138,9 @@ type Server struct {
 	// /welcome federation confirm endpoints without standing up *db.Queries.
 	// Nil in production — handlers fall back to s.queries.
 	confirmFedOverride confirmFedQueries
+	// loginAppOverride lets tests inject a fake loginAppQueries for the
+	// application the federation pages name; nil uses s.queries.
+	loginAppOverride loginAppQueries
 	// samlConsentOverride lets tests inject a fake samlConsentQueries for the
 	// /api/prohibitorum/saml-consent handlers without standing up *db.Queries.
 	// Nil in production — handlers fall back to s.queries.
@@ -433,6 +436,9 @@ func NewServer(ctx context.Context) (*Server, error) {
 		}
 		return ""
 	})
+	// A federated sign-in names the application its return_to continues to
+	// once, when it begins; the pages after the upstream read it from there.
+	s.federationService.SetAppResolver(s.federationAppRef)
 	s.registerOperations()
 	logx.WithContext(ctx).Info("registered operations")
 	return s, nil

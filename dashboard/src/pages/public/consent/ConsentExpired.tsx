@@ -1,7 +1,9 @@
 import { Trans } from "@lingui/react/macro";
 import { useRouter } from "@tanstack/react-router";
 import { followRedirect, sitePathOf } from "@/app/redirect";
+import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
+import { useReturnToApplication } from "@/components/custom/LoginShell";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 
@@ -27,8 +29,21 @@ export class ConsentExpiredError extends Error {
 export function ConsentExpired({ retryTo }: { retryTo: string }) {
   const router = useRouter();
   const restart = sitePathOf(retryTo);
+  const application = useReturnToApplication(retryTo || undefined);
   return (
-    <PublicStep title={<Trans id="error_page.title">Unable to continue</Trans>}>
+    <PublicStep
+      strip={
+        application && (
+          <AppStrip
+            lead={<Trans id="login.signing_in_to">You're signing in to</Trans>}
+            name={application.label}
+            host={application.host}
+            iconUrl={application.iconUrl}
+          />
+        )
+      }
+      title={<Trans id="error_page.title">Unable to continue</Trans>}
+    >
       <SurfaceAlert status="danger">
         <SurfaceAlert.Indicator />
         <SurfaceAlert.Content>

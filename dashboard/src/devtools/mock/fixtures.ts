@@ -917,6 +917,7 @@ export function federationConfirm(config: MockConfig): FederationConfirm {
     username: "alice",
     email: "alice@example.com",
     ...(config.publicFlows.welcome.avatar ? { avatarUrl: mockAvatarUrl } : {}),
+    returnTo: "/",
   };
 }
 
