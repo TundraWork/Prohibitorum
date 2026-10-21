@@ -768,6 +768,7 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/devices/pair/complete", publicReq, s.handlePairCompleteHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/devices/pair/lookup", browserReq, s.handlePairLookupHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/cancel", browserReq, s.handlePairCancelHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/approve", browserReq, s.handlePairApproveHTTP)
 
 	// /me/emails — local account addresses (PHB-148). None of these require
 	// sudo: adding, verifying, and choosing the primary is ordinary
@@ -779,6 +780,7 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationSetMyEmailPrimary, s.handleSetMyEmailPrimary, sessionReq)
 	registerOp(mgmt, contract.OperationDeleteMyEmail, s.handleDeleteMyEmail, sessionReq)
 
+	// Admin: audit events (read-only, filterable, keyset-paginated)
 	registerOp(mgmt, contract.OperationListAuditEvents, s.handleListAuditEvents, admin)
 
 	// Admin: request-diagnostic lookup (exact-ID, read-only, rate-limited,
