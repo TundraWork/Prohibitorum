@@ -13,6 +13,8 @@ beforeEach(() => {
   // frame, and each section keeps its heading while it waits.
   fakeApi({
     ...publicApi({ ...testSession, role: "admin" }),
+    "GET /api/prohibitorum/admin/settings/mail": () =>
+      Response.json({ configured: false }),
     "GET /api/prohibitorum/admin/settings/client-ip": () =>
       new Promise<Response>(() => {}),
     "GET /api/prohibitorum/signing-keys": () => new Promise<Response>(() => {}),
@@ -33,6 +35,7 @@ const sections = [
   "General",
   "Sign-in page",
   "Maintenance mode",
+  "Mail",
   "Client IP",
   "Signing keys",
 ];
@@ -51,7 +54,7 @@ describe("the settings page", () => {
     ).toBeVisible();
   });
 
-  it("draws the five sections in order", async () => {
+  it("draws the six sections in order", async () => {
     mount();
     await screen.findByRole("heading", { level: 1, name: "Settings" });
 
