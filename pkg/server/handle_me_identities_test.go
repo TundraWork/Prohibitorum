@@ -1173,6 +1173,22 @@ func TestMeIdentities_LinkCallback_NonemptyUnknownStateAuditsAccount(t *testing.
 	t.Fatalf("audit: missing account-attributed state_invalid row; events=%+v", h.q.events)
 }
 
+// TestMeIdentities_LinkCallback_EmptyQueryNoRelayForCodeFlow pins the
+// provider gate on the link callback: a code-flow provider answers the
+// empty-query hit with the state-invalid redirect, as it did before the relay
+// page existed — the relay page belongs to the implicit response types.
+func TestMeIdentities_LinkCallback_EmptyQueryNoRelayForCodeFlow(t *testing.T) {
+	h := newLinkTestHarness(t)
+	resp, err := h.client.Get(h.srvTS.URL + "/api/prohibitorum/me/identities/link/mockop/callback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusFound || !strings.HasPrefix(resp.Header.Get("Location"), "/error?error=federation_state_invalid&ref=") {
+		t.Fatalf("empty link callback: status %d, Location %q; want the state-invalid redirect, not the relay page", resp.StatusCode, resp.Header.Get("Location"))
+	}
+}
+
 func TestMeIdentities_LinkCallback_UpstreamError(t *testing.T) {
 	h := newLinkTestHarness(t)
 

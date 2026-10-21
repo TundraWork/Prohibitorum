@@ -231,6 +231,11 @@ type Definition interface {
 	ValidateConfig(json.RawMessage) error
 	ValidateSecret(json.RawMessage, []byte) error
 	Ready(Provider) bool
+	// RelaysFragment reports whether the protocol's authorization response
+	// arrives in the redirect fragment, so its callback may need the relay
+	// page. Optional: protocols that never front-channel a response (code
+	// flow, OpenID 2.0) keep the zero value.
+	RelaysFragment(Provider) bool
 }
 
 type Adapter interface {

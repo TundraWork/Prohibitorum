@@ -12,11 +12,12 @@ type fakeDefinition struct {
 	descriptor Descriptor
 }
 
-func (d fakeDefinition) Protocol() string                       { return d.protocol }
-func (d fakeDefinition) Descriptor() Descriptor                { return d.descriptor }
-func (d fakeDefinition) ValidateConfig(json.RawMessage) error  { return nil }
-func (d fakeDefinition) ValidateSecret(json.RawMessage, []byte) error            { return nil }
-func (d fakeDefinition) Ready(Provider) bool                    { return true }
+func (d fakeDefinition) Protocol() string                             { return d.protocol }
+func (d fakeDefinition) Descriptor() Descriptor                       { return d.descriptor }
+func (d fakeDefinition) ValidateConfig(json.RawMessage) error         { return nil }
+func (d fakeDefinition) ValidateSecret(json.RawMessage, []byte) error { return nil }
+func (d fakeDefinition) Ready(Provider) bool                          { return true }
+func (fakeDefinition) RelaysFragment(Provider) bool                   { return false }
 
 type fakeAdapter struct{ protocol string }
 
@@ -57,13 +58,33 @@ func TestRegistryRejectsInvalidRegistrations(t *testing.T) {
 		name string
 		fn   func(*Registry) error
 	}{
-		{"invalid protocol", func(r *Registry) error { return r.RegisterDefinition(fakeDefinition{protocol: "OIDC", descriptor: descriptor("OIDC")}) }},
+		{"invalid protocol", func(r *Registry) error {
+			return r.RegisterDefinition(fakeDefinition{protocol: "OIDC", descriptor: descriptor("OIDC")})
+		}},
 		{"empty descriptor protocol", func(r *Registry) error { return r.RegisterDefinition(fakeDefinition{protocol: "fake"}) }},
-		{"descriptor mismatch", func(r *Registry) error { return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: descriptor("other")}) }},
-		{"duplicate field", func(r *Registry) error { d := descriptor("fake"); d.SearchFields = append(d.SearchFields, d.SearchFields[0]); return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: d}) }},
-		{"empty operators", func(r *Registry) error { d := descriptor("fake"); d.SearchFields[0].Operators = nil; return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: d}) }},
-		{"duplicate operator", func(r *Registry) error { d := descriptor("fake"); d.SearchFields[0].Operators = []SearchOperator{SearchExact, SearchExact}; return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: d}) }},
-		{"unknown operator", func(r *Registry) error { d := descriptor("fake"); d.SearchFields[0].Operators = []SearchOperator{"regex"}; return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: d}) }},
+		{"descriptor mismatch", func(r *Registry) error {
+			return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: descriptor("other")})
+		}},
+		{"duplicate field", func(r *Registry) error {
+			d := descriptor("fake")
+			d.SearchFields = append(d.SearchFields, d.SearchFields[0])
+			return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: d})
+		}},
+		{"empty operators", func(r *Registry) error {
+			d := descriptor("fake")
+			d.SearchFields[0].Operators = nil
+			return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: d})
+		}},
+		{"duplicate operator", func(r *Registry) error {
+			d := descriptor("fake")
+			d.SearchFields[0].Operators = []SearchOperator{SearchExact, SearchExact}
+			return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: d})
+		}},
+		{"unknown operator", func(r *Registry) error {
+			d := descriptor("fake")
+			d.SearchFields[0].Operators = []SearchOperator{"regex"}
+			return r.RegisterDefinition(fakeDefinition{protocol: "fake", descriptor: d})
+		}},
 		{"adapter missing definition", func(r *Registry) error { return r.RegisterAdapter(fakeAdapter{protocol: "fake"}) }},
 	}
 	for _, tt := range tests {
@@ -78,27 +99,49 @@ func TestRegistryRejectsInvalidRegistrations(t *testing.T) {
 func TestRegistryRejectsDuplicatesAndProtocolMismatch(t *testing.T) {
 	r := NewRegistry()
 	d := fakeDefinition{protocol: "fake", descriptor: descriptor("fake")}
-	if err := r.RegisterDefinition(d); err != nil { t.Fatal(err) }
-	if err := r.RegisterDefinition(d); err == nil { t.Fatal("duplicate definition succeeded") }
-	if err := r.RegisterAdapter(fakeAdapter{protocol: "other"}); err == nil { t.Fatal("mismatched adapter succeeded") }
-	if err := r.RegisterAdapter(fakeAdapter{protocol: "fake"}); err != nil { t.Fatal(err) }
-	if err := r.RegisterAdapter(fakeAdapter{protocol: "fake"}); err == nil { t.Fatal("duplicate adapter succeeded") }
+	if err := r.RegisterDefinition(d); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RegisterDefinition(d); err == nil {
+		t.Fatal("duplicate definition succeeded")
+	}
+	if err := r.RegisterAdapter(fakeAdapter{protocol: "other"}); err == nil {
+		t.Fatal("mismatched adapter succeeded")
+	}
+	if err := r.RegisterAdapter(fakeAdapter{protocol: "fake"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RegisterAdapter(fakeAdapter{protocol: "fake"}); err == nil {
+		t.Fatal("duplicate adapter succeeded")
+	}
 }
 
 func TestRegistryLookupsFailClosedAndDescriptorsAreCopied(t *testing.T) {
 	r := NewRegistry()
-	if _, err := r.Definition("missing"); !errors.Is(err, ErrUnknownProtocol) { t.Fatalf("Definition error = %v", err) }
-	if _, err := r.Adapter("missing"); !errors.Is(err, ErrUnknownProtocol) { t.Fatalf("Adapter error = %v", err) }
-	if _, err := r.Descriptor("missing"); !errors.Is(err, ErrUnknownProtocol) { t.Fatalf("Descriptor error = %v", err) }
+	if _, err := r.Definition("missing"); !errors.Is(err, ErrUnknownProtocol) {
+		t.Fatalf("Definition error = %v", err)
+	}
+	if _, err := r.Adapter("missing"); !errors.Is(err, ErrUnknownProtocol) {
+		t.Fatalf("Adapter error = %v", err)
+	}
+	if _, err := r.Descriptor("missing"); !errors.Is(err, ErrUnknownProtocol) {
+		t.Fatalf("Descriptor error = %v", err)
+	}
 
 	d := fakeDefinition{protocol: "fake", descriptor: descriptor("fake")}
-	if err := r.RegisterDefinition(d); err != nil { t.Fatal(err) }
+	if err := r.RegisterDefinition(d); err != nil {
+		t.Fatal(err)
+	}
 	got, err := r.Descriptor("fake")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	got.SearchFields[0].Key = "mutated"
 	got.SearchFields[0].Operators[0] = SearchContains
 	again, err := r.Descriptor("fake")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if again.SearchFields[0].Key != "subject" || again.SearchFields[0].Operators[0] != SearchExact {
 		t.Fatalf("descriptor mutation leaked: %+v", again)
 	}

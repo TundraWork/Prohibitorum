@@ -135,6 +135,25 @@ func (s *Service) EnabledProviderName(ctx context.Context, slug string) string {
 	return provider.DisplayName
 }
 
+// ProviderRelaysFragment reports whether this provider's authorization
+// response arrives in the redirect fragment, so its callbacks may need the
+// relay page before the query carries any parameters. It fails closed —
+// unknown, disabled or unreadable providers get no relay page.
+func (s *Service) ProviderRelaysFragment(ctx context.Context, slug string) bool {
+	if slug == "" {
+		return false
+	}
+	provider, err := s.providers.BySlug(ctx, slug)
+	if err != nil || provider.Disabled {
+		return false
+	}
+	definition, err := s.registry.Definition(provider.Protocol)
+	if err != nil {
+		return false
+	}
+	return definition.RelaysFragment(provider)
+}
+
 func (s *Service) BeginPublic(ctx context.Context, providerSlug, returnTo string, remember bool) (*BeginResult, error) {
 	provider, err := s.providers.BySlug(ctx, providerSlug)
 	if err != nil {

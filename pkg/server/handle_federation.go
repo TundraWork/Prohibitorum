@@ -107,6 +107,15 @@ func (s *Server) enabledFederationName(ctx context.Context, slug string) string 
 	return s.federationService.EnabledProviderName(ctx, slug)
 }
 
+// providerRelaysFragment reports whether this provider's callbacks may need
+// the fragment relay page; false when the federation service is absent.
+func (s *Server) providerRelaysFragment(ctx context.Context, slug string) bool {
+	if s.federationService == nil {
+		return false
+	}
+	return s.federationService.ProviderRelaysFragment(ctx, slug)
+}
+
 // handleFederationCallbackHTTP serves
 // GET /api/prohibitorum/auth/federation/{slug}/callback.
 func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Request) {
@@ -143,8 +152,10 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 	// An implicit-flow response (public-client OIDC) puts every parameter in
 	// the URI fragment, which the browser never sends, so it arrives with an
 	// empty query. The relay page moves the fragment into the query and
-	// requests this URL again.
-	if r.URL.RawQuery == "" {
+	// requests this URL again. Only a provider whose saved configuration asks
+	// for an implicit response gets it: a code-flow or Steam provider keeps
+	// answering the empty query directly, as it did before the relay existed.
+	if r.URL.RawQuery == "" && s.providerRelaysFragment(r.Context(), chi.URLParam(r, "slug")) {
 		writeFragmentRelay(w)
 		return
 	}

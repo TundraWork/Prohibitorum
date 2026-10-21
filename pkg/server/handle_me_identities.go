@@ -351,8 +351,9 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 	}
 
 	// An implicit-flow response arrives with its parameters in the fragment;
-	// see handleFederationCallbackHTTP.
-	if r.URL.RawQuery == "" {
+	// see handleFederationCallbackHTTP. Only a provider whose saved
+	// configuration asks for an implicit response gets the relay page.
+	if r.URL.RawQuery == "" && s.providerRelaysFragment(r.Context(), chi.URLParam(r, "slug")) {
 		writeFragmentRelay(w)
 		return
 	}

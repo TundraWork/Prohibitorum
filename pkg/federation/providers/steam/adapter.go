@@ -40,6 +40,10 @@ func (Definition) ValidateSecret(_ json.RawMessage, secret []byte) error {
 	}
 	return nil
 }
+
+// OpenID 2.0 answers in the query, so no fragment relay applies.
+func (Definition) RelaysFragment(federationcore.Provider) bool { return false }
+
 func (d Definition) Ready(provider federationcore.Provider) bool {
 	return provider.Protocol == Protocol &&
 		provider.Secret != nil &&

@@ -778,9 +778,14 @@ func TestFederationImplicitCallbackIgnoresInjectedAccessToken(t *testing.T) {
 
 // TestFederationCallbackRelayPage pins the relay page's headers and that its
 // empty-fragment fallback ends on the error page instead of relaying again.
+// Only an implicit provider's callback serves the relay page; the code-flow
+// provider answers the empty query directly.
 func TestFederationCallbackRelayPage(t *testing.T) {
 	h := newFederationTestServer(t)
-	resp, err := h.client.Get(h.srvTS.URL + "/api/prohibitorum/auth/federation/mockop/callback")
+	loc := h.driveImplicitLogin(t, "mockop-public", "id_token")
+	fragmentless := *loc
+	fragmentless.Fragment = ""
+	resp, err := h.client.Get(fragmentless.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -797,7 +802,7 @@ func TestFederationCallbackRelayPage(t *testing.T) {
 
 	q := url.Values{}
 	q.Set("relay", "empty")
-	fallback := h.hitCallback(t, "mockop", q)
+	fallback := h.hitCallback(t, "mockop-public", q)
 	if fallback.StatusCode != http.StatusFound || !strings.HasPrefix(fallback.Header.Get("Location"), "/error?error=federation_state_invalid&ref=") {
 		t.Fatalf("empty relay: status %d, Location %q", fallback.StatusCode, fallback.Header.Get("Location"))
 	}
@@ -805,6 +810,25 @@ func TestFederationCallbackRelayPage(t *testing.T) {
 		if ev.Event == audit.EventFail {
 			t.Errorf("unexpected fail audit row on empty relay: %+v", ev)
 		}
+	}
+}
+
+// TestFederationCallbackRelayPageOnlyForImplicit pins the provider gate: a
+// code-flow provider and a Steam provider answer the empty-query callback
+// with the state-invalid redirect, as they did before the relay page existed —
+// only an implicit response type needs the fragment relayed into the query.
+func TestFederationCallbackRelayPageOnlyForImplicit(t *testing.T) {
+	h := newFederationTestServer(t)
+	steam := seedSteamProvider(t, h)
+	for _, slug := range []string{"mockop", steam.Slug} {
+		resp, err := h.client.Get(h.srvTS.URL + "/api/prohibitorum/auth/federation/" + slug + "/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusFound || !strings.HasPrefix(resp.Header.Get("Location"), "/error?error=federation_state_invalid&ref=") {
+			t.Fatalf("%s empty callback: status %d, Location %q; want the state-invalid redirect, not the relay page", slug, resp.StatusCode, resp.Header.Get("Location"))
+		}
+		_ = resp.Body.Close()
 	}
 }
 

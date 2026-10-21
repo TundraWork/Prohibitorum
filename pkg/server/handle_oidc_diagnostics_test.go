@@ -276,6 +276,49 @@ func TestOIDCDiagnosticErrorCallbackRejectsRepeatedDescription(t *testing.T) {
 	}
 }
 
+// TestOIDCDiagnosticCallbackRelayPageOnlyForImplicit pins the provider gate:
+// only a provider set to an implicit response gets the relay page on the
+// empty query; the code-flow provider keeps the pre-relay 400, and an unknown
+// slug gets no relay page either.
+func TestOIDCDiagnosticCallbackRelayPageOnlyForImplicit(t *testing.T) {
+	build := func(responseType string) *chi.Mux {
+		raw := strings.Replace(exactOIDCConfig, `"tokenAuthMethod":"discovery"`, `"tokenAuthMethod":"none"`, 1)
+		if responseType != "" {
+			raw = strings.Replace(raw, `"tokenAuthMethod":"none"`, `"tokenAuthMethod":"none","responseType":"`+responseType+`"`, 1)
+		}
+		query := &fakeProviderStateQueries{row: db.UpstreamIdp{ID: 7, Slug: "corp", Protocol: "oidc", ProviderConfig: []byte(raw), SecretStatus: "unconfigured"}}
+		s := &Server{config: &configx.Config{PublicOrigins: []string{"https://rp.example"}}, kvStore: kv.NewMemoryStore(), rateLimiter: authn.NewRateLimiter(), providerStateQueriesOverride: query}
+		router := chi.NewRouter()
+		registerOpHTTP(router, "GET", "/api/prohibitorum/auth/federation/{slug}/test/callback", contract.AuthRequirement{Kind: contract.AuthPublic}, s.handleOIDCTestCallbackHTTP)
+		return router
+	}
+	hit := func(router *chi.Mux) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest("GET", "/api/prohibitorum/auth/federation/corp/test/callback", nil))
+		return rec
+	}
+	for _, responseType := range []string{"id_token", "id_token token"} {
+		rec := hit(build(responseType))
+		if rec.Code != 200 || !strings.Contains(rec.Body.String(), "location.hash") {
+			t.Fatalf("implicit %s empty callback: %d %s; want the relay page", responseType, rec.Code, rec.Body.String())
+		}
+	}
+	// Unset keeps the code flow; an explicit "code" is the same answer.
+	for _, responseType := range []string{"", "code"} {
+		rec := hit(build(responseType))
+		if rec.Code != 400 {
+			t.Fatalf("responseType %q empty callback: %d %s; want 400, not the relay page", responseType, rec.Code, rec.Body.String())
+		}
+	}
+	query := &fakeProviderStateQueries{row: db.UpstreamIdp{Slug: "corp", Protocol: "steam"}}
+	s := &Server{config: &configx.Config{PublicOrigins: []string{"https://rp.example"}}, kvStore: kv.NewMemoryStore(), rateLimiter: authn.NewRateLimiter(), providerStateQueriesOverride: query}
+	router := chi.NewRouter()
+	registerOpHTTP(router, "GET", "/api/prohibitorum/auth/federation/{slug}/test/callback", contract.AuthRequirement{Kind: contract.AuthPublic}, s.handleOIDCTestCallbackHTTP)
+	if rec := hit(router); rec.Code == 200 || strings.Contains(rec.Body.String(), "location.hash") {
+		t.Fatalf("steam empty callback: %d %s; want no relay page", rec.Code, rec.Body.String())
+	}
+}
+
 // TestOIDCDiagnosticLatestReportsTheFinishedRun reads the remembered outcome
 // before and after a finished test, and checks that its route sits beside the
 // per-run read without shadowing it.

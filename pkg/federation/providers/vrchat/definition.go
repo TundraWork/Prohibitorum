@@ -45,6 +45,8 @@ func (Definition) ValidateSecret(_ json.RawMessage, secret []byte) error {
 	return nil
 }
 
+func (Definition) RelaysFragment(federationcore.Provider) bool { return false }
+
 func (definition Definition) Ready(provider federationcore.Provider) bool {
 	return provider.Protocol == Protocol &&
 		provider.Secret != nil &&
