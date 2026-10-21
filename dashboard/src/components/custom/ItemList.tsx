@@ -12,7 +12,10 @@ import { cn } from "@/lib/utils";
 
 type ListColumns = { actions?: boolean };
 
-/** Whether a badge or meta prop is set: `null` and `false` count as absent. */
+/**
+ * Whether a badge, meta or footer prop is set: `null` and `false` count as
+ * absent, so `cond && <Button />` draws nothing when `cond` fails.
+ */
 const given = (value: unknown) =>
   value !== undefined && value !== null && value !== false;
 
@@ -90,9 +93,7 @@ export function ItemList({
           ))}
         </ul>
       )}
-      {footer !== undefined && (
-        <div className="flex justify-center p-3">{footer}</div>
-      )}
+      {given(footer) && <div className="flex justify-center p-3">{footer}</div>}
     </FramePanel>
   );
   if (inSection) return panel;
