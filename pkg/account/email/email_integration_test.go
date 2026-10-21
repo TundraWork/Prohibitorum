@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -316,6 +317,66 @@ func TestCodes(t *testing.T) {
 	acode, _ := Issue(ctx, store, 10, 43, "w@example.com")
 	if res, _, _ := Verify(ctx, store, 10, 44, acode); res != VerifyExpired {
 		t.Errorf("cross-account verify = %v, want expired", res)
+	}
+}
+
+// TestVerifyConcurrentAttemptsGuardsTheCap reproduces the review's B1: with
+// the read-compare-then-CAS order, every concurrent submission completes its
+// comparison before the first write lands, so the five-attempt cap only holds
+// for serial callers. The invariant under attack: the number of guesses that
+// actually compare (Invalid + OK outcomes) must never exceed MaxCodeAttempts,
+// no matter how many submissions race. The CAS-first fix enforces it because
+// a submission that loses its slot never compares at all.
+func TestVerifyConcurrentAttemptsGuardsTheCap(t *testing.T) {
+	store := kv.NewMemoryStore()
+	ctx := context.Background()
+
+	for round := range 50 {
+		// A wrong guess that cannot collide with the real code: the code is
+		// six digits, this is seven, so it always misses.
+		const wrongGuess = "1111111"
+		code, err := Issue(ctx, store, 100+int64(round), 500+int32(round), "concurrent@example.com")
+		if err != nil {
+			t.Fatal(err)
+		}
+		emailID := 100 + int64(round)
+		accountID := 500 + int32(round)
+
+		// A flood of wrong guesses plus the correct code, all released at
+		// once — four times the attempt budget.
+		const flood = 4 * MaxCodeAttempts
+		start := make(chan struct{})
+		results := make(chan VerifyResult, flood+1)
+		var wg sync.WaitGroup
+		wg.Add(flood)
+		for range flood {
+			go func() {
+				defer wg.Done()
+				<-start
+				res, _, _ := Verify(ctx, store, emailID, accountID, wrongGuess)
+				results <- res
+			}()
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			res, _, _ := Verify(ctx, store, emailID, accountID, code)
+			results <- res
+		}()
+		close(start)
+		wg.Wait()
+		close(results)
+
+		compared := 0
+		for res := range results {
+			if res == VerifyInvalid || res == VerifyOK {
+				compared++
+			}
+		}
+		if compared > MaxCodeAttempts {
+			t.Fatalf("round %d: %d concurrent submissions compared their guess (cap is %d)", round, compared, MaxCodeAttempts)
+		}
 	}
 }
 

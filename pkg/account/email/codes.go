@@ -1,9 +1,12 @@
 // codes.go — six-digit verification codes stored in KV, keyed by email id.
 // The stored value is JSON {accountId, addressLower, hash, attempts}; the
-// code itself never lands in KV in the clear (hash = SHA-256(emailID:code)).
-// Attempts increment via byte-exact CAS; a successful verify consumes the
-// code via CompareAndDelete, so only one of two concurrent correct submits
-// wins.
+// code itself never lands in KV in the clear (hash = SHA-256(emailID ‖ ":"
+// ‖ code)). Every submission first claims an attempt slot through a
+// byte-exact CAS increment of attempts, and only the slot winner compares
+// its guess; a correct guess consumes the record via CompareAndDelete on the
+// post-increment value. A submission that loses the slot (a rival incremented
+// or the record vanished) never compares, so the attempt budget cannot be
+// raced past by concurrent submissions.
 package email
 
 import (
@@ -90,9 +93,12 @@ func Drop(ctx context.Context, store kv.Store, emailID int64) {
 	_ = store.Del(ctx, codeKey(emailID)) //nolint:errcheck // best-effort invalidation
 }
 
-// Verify checks a submitted code. Wrong codes cost one attempt; the record
-// is deleted at MaxCodeAttempts. attemptsRemaining is meaningful only for
-// VerifyInvalid.
+// Verify checks a submitted code. Each call must first win an attempt slot:
+// a byte-exact CAS increments Attempts, and a caller whose CAS lost (a rival
+// incremented or the record vanished) reports expired without ever comparing
+// its guess. Only the slot winner compares; a correct guess deletes the
+// post-increment record, so of N concurrent correct submissions exactly one
+// succeeds. attemptsRemaining is meaningful only for VerifyInvalid.
 func Verify(ctx context.Context, store kv.Store, emailID int64, accountID int32, code string) (VerifyResult, int, error) {
 	raw, err := store.Get(ctx, codeKey(emailID))
 	if err != nil {
@@ -108,27 +114,34 @@ func Verify(ctx context.Context, store kv.Store, emailID int64, accountID int32,
 	if rec.AccountID != accountID {
 		return VerifyExpired, 0, nil
 	}
+
+	// Claim the attempt slot BEFORE looking at the guess: the budget is
+	// spent whether or not the guess is right, and a rival that won the
+	// slot means this submission never compares at all.
+	if rec.Attempts >= MaxCodeAttempts {
+		return VerifyExpired, 0, nil
+	}
+	rec.Attempts++
+	claimed, err := json.Marshal(rec)
+	if err != nil {
+		return VerifyExpired, 0, fmt.Errorf("email: marshal code record: %w", err)
+	}
+	if ok, _ := store.CompareAndSwap(ctx, codeKey(emailID), raw, string(claimed), CodeTTL); !ok {
+		// A concurrent submission won the slot (or consumed the record).
+		return VerifyExpired, 0, nil
+	}
+
 	if subtle.ConstantTimeCompare([]byte(rec.Hash), []byte(hashCode(emailID, code))) == 1 {
-		// Consume exactly once: only the caller whose Get bytes still
+		// Consume exactly once: only the caller whose claimed bytes still
 		// match wins the delete.
-		if ok, _ := store.CompareAndDelete(ctx, codeKey(emailID), raw); !ok {
+		if ok, _ := store.CompareAndDelete(ctx, codeKey(emailID), string(claimed)); !ok {
 			return VerifyExpired, 0, nil
 		}
 		return VerifyOK, 0, nil
 	}
-	rec.Attempts++
+
 	if rec.Attempts >= MaxCodeAttempts {
-		_, _ = store.CompareAndDelete(ctx, codeKey(emailID), raw)
-		return VerifyExpired, 0, nil
-	}
-	updated, err := json.Marshal(rec)
-	if err != nil {
-		return VerifyInvalid, MaxCodeAttempts - rec.Attempts, nil
-	}
-	if ok, _ := store.CompareAndSwap(ctx, codeKey(emailID), raw, string(updated), CodeTTL); !ok {
-		// Raced another attempt; the rival's state governs and this
-		// submission still failed, so report expired rather than lie
-		// about remaining attempts.
+		_, _ = store.CompareAndDelete(ctx, codeKey(emailID), string(claimed)) //nolint:errcheck // exhausted either way
 		return VerifyExpired, 0, nil
 	}
 	return VerifyInvalid, MaxCodeAttempts - rec.Attempts, nil
