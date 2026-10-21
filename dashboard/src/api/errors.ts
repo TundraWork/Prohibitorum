@@ -701,6 +701,11 @@ const landingMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.landing.saml_request_invalid",
     message: "The app sent a sign-in request that can't be used.",
   }),
+  saml_request_expired: msg({
+    id: "error.landing.saml_request_expired",
+    message:
+      "The sign-in took too long and the app's request has expired. Go back to the app and sign in again.",
+  }),
   saml_sp_unknown: msg({
     id: "error.landing.saml_sp_unknown",
     message: "This app isn't registered with {instance}.",

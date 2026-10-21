@@ -39,7 +39,7 @@ func (i *IdP) LoginContext(ctx context.Context, u *url.URL) (app LoginApplicatio
 		// kept form, read without being spent.
 		if replay, isKept, kerr := i.postContinueRequest(ctx, request.WithContext(ctx)); isKept {
 			if kerr != nil {
-				if errors.Is(kerr, ErrMissingSAMLRequest) {
+				if errors.Is(kerr, ErrKeptRequestExpired) {
 					return LoginApplication{}, false, nil
 				}
 				return LoginApplication{}, false, kerr

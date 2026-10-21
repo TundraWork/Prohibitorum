@@ -3,6 +3,7 @@ package saml
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"html"
 	"net/http"
 	"net/http/httptest"
@@ -107,25 +108,99 @@ func TestSSOPostBindingSurvivesSignIn(t *testing.T) {
 		t.Fatalf("the SP rejects the Response to its own request: %v", err)
 	}
 
-	// The request is single-use however it arrives: replaying the key again
-	// is refused, not answered twice.
+	// The request is single-use however it arrives: once spent, its key is
+	// dropped, so following the link again ends on the expired-request page
+	// rather than being answered twice.
 	rec = httptest.NewRecorder()
 	h.idp.HandleSSO(rec, continueAt(rt, sess))
 	if samlResponseRe.MatchString(rec.Body.String()) {
 		t.Fatal("a second replay of the kept form issued another Response")
 	}
+	assertErrorRedirect(t, rec, "saml_request_expired")
 }
 
-// A key the IdP never issued, or whose form has expired, ends on the IdP's
-// own error page like any other request it cannot read.
+// A key the IdP never issued, or whose form has expired, says the sign-in
+// took too long: it is not the app's request that was wrong.
 func TestSSOPostContinueUnknownKey(t *testing.T) {
 	h := newSSOHarness(t, ssoSP())
 	rec := httptest.NewRecorder()
 	u, _ := url.Parse(testSSOURL + "?post=not-a-key")
 	h.idp.HandleSSO(rec, continueAt(u, liveSession(testAccount())))
-	if rec.Code != http.StatusFound || !strings.HasPrefix(rec.Header().Get("Location"), "/error?error=saml_request_invalid&ref=") {
-		t.Fatalf("status %d Location %q, want the saml_request_invalid error page", rec.Code, rec.Header().Get("Location"))
+	assertErrorRedirect(t, rec, "saml_request_expired")
+}
+
+// The replay runs every check again: an SP disabled, or whose signing
+// certificate was replaced, while the reader was signing in is refused.
+func TestSSOPostReplayRunsChecksAgain(t *testing.T) {
+	for name, change := range map[string]func(h *ssoHarness){
+		"SP disabled": func(h *ssoHarness) { h.q.sp.Disabled = true },
+		"signing certificate replaced": func(h *ssoHarness) {
+			_, otherCert := testSPKey(t)
+			h.q.spKeys[0].CertPem = otherCert
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newSSOHarness(t, ssoSP())
+			rec := httptest.NewRecorder()
+			h.idp.HandleSSO(rec, h.signedPost(t, "_post-recheck", nil))
+			rt := loginReturnTo(t, rec)
+			change(h)
+			rec = httptest.NewRecorder()
+			h.idp.HandleSSO(rec, continueAt(rt, liveSession(testAccount())))
+			if samlResponseRe.MatchString(rec.Body.String()) {
+				t.Fatal("the replay issued a Response after the SP changed")
+			}
+			if rec.Code != http.StatusFound || !strings.HasPrefix(rec.Header().Get("Location"), "/error?error=") {
+				t.Fatalf("status %d Location %q, want the error page", rec.Code, rec.Header().Get("Location"))
+			}
+		})
 	}
+}
+
+// Anyone can post before signing in, so what is kept is bounded: a form too
+// large to be a real request is refused rather than kept, and the same form
+// posted again reuses its entry. RelayState is not signed in the POST
+// binding, so the same request with another RelayState is another form.
+func TestSSOPostKeptFormIsBounded(t *testing.T) {
+	h := newSSOHarness(t, ssoSP())
+
+	big := httptest.NewRequest(http.MethodPost, testSSOURL, strings.NewReader(url.Values{
+		"SAMLRequest": {strings.Repeat("A", maxKeptSAMLRequest+4)},
+	}.Encode()))
+	big.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if _, err := h.idp.keepPostRequest(context.Background(), withParsedForm(t, big)); !errors.Is(err, ErrOversizeRequest) {
+		t.Fatalf("oversized form: err = %v, want ErrOversizeRequest", err)
+	}
+
+	// One captured request, posted as it is or with its RelayState swapped.
+	captured := h.signedPost(t, "_post-bounded", nil)
+	if err := captured.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
+	samlRequest := captured.PostForm.Get("SAMLRequest")
+	keyOf := func(relay string) string {
+		body := url.Values{"SAMLRequest": {samlRequest}, "RelayState": {relay}}.Encode()
+		req := httptest.NewRequest(http.MethodPost, testSSOURL, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		h.idp.HandleSSO(rec, req)
+		return loginReturnTo(t, rec).Query().Get("post")
+	}
+	first := keyOf("rs-a")
+	if again := keyOf("rs-a"); again != first {
+		t.Errorf("the same form posted again kept a second entry (%q, %q)", first, again)
+	}
+	if other := keyOf("rs-b"); other == first {
+		t.Error("a form with another RelayState reused the first form's entry")
+	}
+}
+
+func withParsedForm(t *testing.T, r *http.Request) *http.Request {
+	t.Helper()
+	if err := r.ParseForm(); err != nil {
+		t.Fatal(err)
+	}
+	return r
 }
 
 // ForceAuthn on a POST-binding request sends the reader to sign in again and

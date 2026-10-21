@@ -91,6 +91,10 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// A sign-in that interrupted an HTTP-POST request comes back as GET with
 	// the key its form was kept under; replay it as the POST the SP sent.
 	if replay, ok, perr := i.postContinueRequest(ctx, r); ok {
+		if errors.Is(perr, ErrKeptRequestExpired) {
+			i.errorPage(w, r, "saml_request_expired", "post_request_expired", perr)
+			return
+		}
 		if perr != nil {
 			i.ssoParseError(w, r, perr)
 			return
@@ -127,7 +131,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// NoPassive Response (no assertion) and auto-POST it to the ACS.
 			// Because this IS a terminal Response, consume the replay key here
 			// too — a NoPassive answer counts as the single use of this ID.
-			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
+			if cerr := i.consumeRequest(ctx, r, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
 					i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
 				} else {
@@ -148,6 +152,10 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		// redirect binding, the kept form's key for the POST binding. This is
 		// NOT an SP redirect, so use a plain redirect to our own login.
 		returnTo, rerr := i.ssoReturnURL(ctx, r)
+		if errors.Is(rerr, ErrOversizeRequest) {
+			i.ssoParseError(w, r, rerr)
+			return
+		}
 		if rerr != nil {
 			i.errorPage(w, r, "server_error", "post_request_keep", rerr)
 			return
@@ -184,7 +192,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// The SP forbade an interactive bounce. This is a terminal answer, so
 			// consume the single-use AuthnRequest ID here (mirroring the NoPassive
 			// path), then auto-POST a terminal Responder/RequestDenied Response.
-			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
+			if cerr := i.consumeRequest(ctx, r, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
 					i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
 				} else {
@@ -248,7 +256,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			// terminal NoPassive Response (no assertion). This consumes the
 			// AuthnRequest ID below only on the success path; a terminal answer
 			// here is also a single use, so consume it now.
-			if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
+			if cerr := i.consumeRequest(ctx, r, sp.EntityID, req.RequestID); cerr != nil {
 				if errors.Is(cerr, ErrReplayedRequest) {
 					i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
 				} else {
@@ -292,6 +300,10 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 				// The POST binding's request is in the body: keep its form and
 				// come back with the key instead.
 				key, kerr := i.keepPostRequest(ctx, r)
+				if errors.Is(kerr, ErrOversizeRequest) {
+					i.ssoParseError(w, r, kerr)
+					return
+				}
 				if kerr != nil {
 					i.errorPage(w, r, "server_error", "post_request_keep", kerr)
 					return
@@ -318,7 +330,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// stashed (gate-time-validated) context — NOT by re-running HandleSSO — the
 	// single-use ID is correctly spent exactly once. (Declining/expiry means the
 	// SP must send a fresh AuthnRequest, which is acceptable.)
-	if cerr := i.consumeAuthnRequestID(ctx, sp.EntityID, req.RequestID); cerr != nil {
+	if cerr := i.consumeRequest(ctx, r, sp.EntityID, req.RequestID); cerr != nil {
 		if errors.Is(cerr, ErrReplayedRequest) {
 			// Emit a saml_sp|fail audit record: the SP is known (resolved above),
 			// so this is attributable. The session exists at this point (past the

@@ -9273,6 +9273,11 @@ msgid "error.unsplash_key_in_use"
 msgstr "登录页仍在使用 Unsplash。请先把背景换成其他来源并保存，再移除 Key。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.landing.saml_request_expired"
+msgstr "登录用时太长，应用的登录请求已经过期。请回到应用重新登录。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.range.reversed"
 msgstr "开始日期晚于结束日期"
