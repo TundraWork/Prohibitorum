@@ -109,7 +109,10 @@
      toolbar, the stage and the wallpaper credit line up in. The inset is the
      region's edge plus the toolbar's own 1.25rem, measured from the window. */
   --public-region: 1920px;
-  --public-inset: max(1.25rem, calc((100vw - var(--public-region)) / 2 + 1.25rem));
+  --public-inset: max(
+    1.25rem,
+    calc((100vw - var(--public-region)) / 2 + 1.25rem)
+  );
 }
 
 body {
