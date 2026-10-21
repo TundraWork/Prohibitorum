@@ -138,6 +138,7 @@ func (i *IdP) idpMetadata(ctx context.Context) ([]byte, error) {
 	}
 	return append([]byte(xml.Header), signedBytes...), nil
 }
+
 // HandleMetadata serves the IdP metadata document over HTTP.
 func (i *IdP) HandleMetadata(w http.ResponseWriter, r *http.Request) {
 	body, err := i.idpMetadata(r.Context())
