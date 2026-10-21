@@ -6957,7 +6957,9 @@ func (c *client) postEnrollmentJSON(token, action string, body, out any) error {
 		return fmt.Errorf("%s: response read failed", label)
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("%s: unexpected HTTP status %d: %s", label, resp.StatusCode, strings.TrimSpace(string(responseBody)))
+		// The response body is deliberately absent: it may echo secret
+		// material from a misbehaving server (see the redaction test).
+		return fmt.Errorf("%s: unexpected HTTP status %d", label, resp.StatusCode)
 	}
 	if out == nil || len(responseBody) == 0 {
 		return nil
