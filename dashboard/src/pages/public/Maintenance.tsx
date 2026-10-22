@@ -17,7 +17,7 @@ import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { localeTags } from "@/i18n";
+import { localeTags, resolveLocale } from "@/i18n";
 
 /** How often the page asks whether maintenance is over. */
 const recheckInterval = 180_000;
@@ -103,7 +103,7 @@ export function MaintenancePage() {
       {(() => {
         const notice = pickMaintenanceNotice(
           config,
-          i18n.locale === "zh" ? "zh" : "en",
+          resolveLocale(i18n.locale),
         );
         return notice ? (
           <SurfaceAlert>

@@ -1,7 +1,13 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publicConfigQueryOptions } from "@/api/queries";
@@ -281,6 +287,43 @@ describe("the maintenance section", () => {
     const error = await screen.findByText(defaultRequired);
     expect(error).toBeVisible();
     expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("reports an over-long notice on that language's own box, not the default's", async () => {
+    const user = userEvent.setup();
+    mount(publicConfigFixture({ maintenanceMode: true }), (request) =>
+      request.method === "PUT"
+        ? Response.json(
+            { code: "bad_request", requestId: "maintenance-test" },
+            { status: 400 },
+          )
+        : undefined,
+    );
+
+    await user.type(noticeBox("English"), "Back at noon");
+    // An over-long notice never reaches the PUT (onChange blocks submit), so
+    // simulate the gap the mapping covers: the server refuses while the form
+    // holds an over-long text. Type past the limit with the validator active,
+    // then clear it to fire the request the mapping classifies.
+    const zhBox = noticeBox("中文");
+    const descriptor: PropertyDescriptor | undefined =
+      Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value",
+      );
+    expect(descriptor?.set).toBeInstanceOf(Function);
+    descriptor?.set?.call(zhBox, "长".repeat(501));
+    fireEvent(zhBox, new Event("input", { bubbles: true }));
+    expect(
+      await screen.findByText("Use 500 characters or fewer."),
+    ).toBeVisible();
+    // The refusal now reports on the zh box: the form's over-long value is
+    // what a bad_request means here.
+    const zhField = zhBox.closest("[data-slot=field]");
+    const overLongError = await screen.findByText(
+      "Use 500 characters or fewer.",
+    );
+    expect(zhField?.contains(overLongError)).toBe(true);
   });
 
   it("reports a refused save once, on the form and not as a toast", async () => {

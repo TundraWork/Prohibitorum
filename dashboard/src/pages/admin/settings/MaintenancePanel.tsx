@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 import type { Locale } from "@/i18n";
-import { localeNames, locales, localeTags } from "@/i18n";
+import { localeNames, locales, localeTags, resolveLocale } from "@/i18n";
 
 /** `PUT /admin/settings/maintenance` refuses a longer notice. */
 const maxNoticeLength = 500;
@@ -77,8 +77,7 @@ export function MaintenancePanel() {
   const { data: config } = useSuspenseQuery(publicConfigQueryOptions());
   const saved: MaintenanceFormValue = {
     maintenanceMode: config.maintenanceMode,
-    maintenanceDefaultLocale:
-      config.maintenanceDefaultLocale === "zh" ? "zh" : "en",
+    maintenanceDefaultLocale: resolveLocale(config.maintenanceDefaultLocale),
     maintenanceMessages: messagesFromConfig(config),
   };
   return (
@@ -108,11 +107,22 @@ function MaintenanceSection({ saved }: { saved: MaintenanceFormValue }) {
       form.reset(value);
     } catch (error) {
       if (isCancellation(error)) return;
+      // The default-required refusal belongs to the default language's box.
+      // A plain bad_request names no field; the only client-side gap that can
+      // still reach it is one over-long notice, so it lands on that language.
+      const defaultField = `maintenanceMessages.${value.maintenanceDefaultLocale}`;
+      const overLong = locales.find(
+        (locale) =>
+          [...(value.maintenanceMessages[locale] ?? "")].length >
+          maxNoticeLength,
+      );
       applyServerError(form, error, {
         locations: {},
         codes: {
-          bad_request: `maintenanceMessages.${value.maintenanceDefaultLocale}`,
-          maintenance_default_notice_required: `maintenanceMessages.${value.maintenanceDefaultLocale}`,
+          bad_request: overLong
+            ? `maintenanceMessages.${overLong}`
+            : defaultField,
+          maintenance_default_notice_required: defaultField,
         },
       });
     }
@@ -227,6 +237,9 @@ function MaintenanceSection({ saved }: { saved: MaintenanceFormValue }) {
                         ? noticeTooLong
                         : undefined,
                     onSubmit: ({ value, fieldApi }) => {
+                      // The over-long case is left to the onChange validator;
+                      // reaching the server with one is reported by the
+                      // server-error mapping in save().
                       const messages = fieldApi.form.getFieldValue(
                         "maintenanceMessages",
                       ) as Record<Locale, string>;
@@ -262,7 +275,7 @@ function MaintenanceSection({ saved }: { saved: MaintenanceFormValue }) {
                         </span>
                       }
                       description={
-                        locale === locales[0] ? (
+                        locale === defaultLocale ? (
                           <Trans id="settings.maintenance.notice.hint">
                             Shown on the sign-in page and the maintenance page
                             while maintenance mode is on. A visitor sees the

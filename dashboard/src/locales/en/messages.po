@@ -8368,7 +8368,7 @@ msgstr "Show the picture's title and copyright"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.hint"
-msgstr "Shown on the sign-in page while maintenance mode is on."
+msgstr "Shown on the sign-in page and the maintenance page while maintenance mode is on. A visitor sees the notice in their own language, or this one when theirs has none."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx

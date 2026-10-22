@@ -442,7 +442,6 @@ func ErrMaintenanceMode() *AuthError {
 	return newErr(http.StatusServiceUnavailable, "maintenance_mode", "系统正在维护中，请稍后再试")
 }
 
-
 // ErrMaintenanceDefaultNoticeRequired is returned by the maintenance settings
 // PUT when some language has a notice but the default language does not: the
 // default language is every visitor's fallback, so it must be filled in.

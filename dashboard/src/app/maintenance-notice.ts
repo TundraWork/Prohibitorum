@@ -1,5 +1,6 @@
 import type { PublicConfig } from "@/api/raw-paths";
 import type { Locale } from "@/i18n";
+import { resolveLocale } from "@/i18n";
 
 /** The notice a visitor sees, and the language it is written in. */
 export interface MaintenanceNoticeText {
@@ -22,10 +23,9 @@ export function pickMaintenanceNotice(
 ): MaintenanceNoticeText | null {
   const own = config.maintenanceMessages[locale];
   if (own) return { text: own, locale };
-  const fallback = config.maintenanceDefaultLocale;
-  const text = config.maintenanceMessages[fallback];
-  if (text && (fallback === "en" || fallback === "zh")) {
-    return { text, locale: fallback };
-  }
+  const fallback = resolveLocale(config.maintenanceDefaultLocale);
+  const text =
+    fallback === locale ? undefined : config.maintenanceMessages[fallback];
+  if (text) return { text, locale: fallback };
   return null;
 }

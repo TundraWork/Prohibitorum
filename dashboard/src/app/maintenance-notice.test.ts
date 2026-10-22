@@ -40,6 +40,12 @@ describe("pickMaintenanceNotice", () => {
   });
 
   it("ignores a default language outside the known locales", () => {
-    expect(pickMaintenanceNotice(config({ en: "Hi" }, "fr"), "zh")).toBeNull();
+    // resolveLocale maps "fr" to en; a zh visitor falls back to en's notice.
+    expect(pickMaintenanceNotice(config({ en: "Hi" }, "fr"), "zh")).toEqual({
+      text: "Hi",
+      locale: "en",
+    });
+    // No notice anywhere: nothing to show, whatever the default says.
+    expect(pickMaintenanceNotice(config({}, "fr"), "zh")).toBeNull();
   });
 });

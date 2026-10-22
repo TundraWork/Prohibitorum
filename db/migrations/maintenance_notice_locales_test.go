@@ -15,8 +15,8 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-// maintenanceNoticeSchema migrates a fresh schema to version 50, ready for the
-// caller to seed instance_settings before stepping to 51.
+// maintenanceNoticeSchema migrates a fresh schema to version 51, ready for
+// the caller to seed instance_settings before stepping to 52.
 func maintenanceNoticeSchema(t *testing.T) (context.Context, *sql.DB) {
 	t.Helper()
 	baseURL := os.Getenv("PROHIBITORUM_TEST_DATABASE_URL")
@@ -85,7 +85,7 @@ func readMaintenanceMessages(t *testing.T, ctx context.Context, conn *sql.DB) (m
 	return messages, locale
 }
 
-func TestMaintenanceNoticeMigrationMovesSavedMessage(t *testing.T) {
+func TestMaintenanceNoticeMigrationMovesSavedMessagePostgres(t *testing.T) {
 	ctx, conn := maintenanceNoticeSchema(t)
 	if _, err := conn.ExecContext(ctx,
 		"UPDATE instance_settings SET maintenance_message = $1 WHERE id = 1", "Back at 17:00 UTC"); err != nil {
@@ -107,7 +107,7 @@ func TestMaintenanceNoticeMigrationMovesSavedMessage(t *testing.T) {
 	}
 }
 
-func TestMaintenanceNoticeMigrationWithoutMessage(t *testing.T) {
+func TestMaintenanceNoticeMigrationWithoutMessagePostgres(t *testing.T) {
 	ctx, conn := maintenanceNoticeSchema(t)
 	// Both shapes an untouched row can hold: NULL, and an emptied-out note.
 	for _, setup := range []string{
@@ -133,7 +133,7 @@ func TestMaintenanceNoticeMigrationWithoutMessage(t *testing.T) {
 	}
 }
 
-func TestMaintenanceNoticeMigrationDown(t *testing.T) {
+func TestMaintenanceNoticeMigrationDownPostgres(t *testing.T) {
 	ctx, conn := maintenanceNoticeSchema(t)
 	if _, err := conn.ExecContext(ctx,
 		"UPDATE instance_settings SET maintenance_message = '回到 17:00' WHERE id = 1"); err != nil {

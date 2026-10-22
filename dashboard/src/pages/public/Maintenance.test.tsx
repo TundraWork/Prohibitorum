@@ -3,7 +3,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
-import { i18n, initializeLocale } from "@/i18n";
+import { i18n, initializeLocale, localeAtom, store } from "@/i18n";
 import {
   apiError,
   fakeApi,
@@ -138,6 +138,7 @@ describe("the maintenance page", () => {
       stopLocaleSync();
       i18n.activate("en");
       localStorage.removeItem("prohibitorum.locale");
+      store.set(localeAtom, "en");
     }
   });
 

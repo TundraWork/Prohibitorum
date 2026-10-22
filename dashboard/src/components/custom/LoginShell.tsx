@@ -17,7 +17,7 @@ import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { usePreviewQuiet } from "@/components/custom/login-preview";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { localeTags } from "@/i18n";
+import { localeTags, resolveLocale } from "@/i18n";
 
 export type LoginStep = "password" | "totp" | "recovery";
 
@@ -154,10 +154,7 @@ export function LoginShell({
     useLoginContext();
   const { name: instance } = useInstanceBranding();
   const label = application?.label;
-  const notice = pickMaintenanceNotice(
-    config,
-    i18n.locale === "zh" ? "zh" : "en",
-  );
+  const notice = pickMaintenanceNotice(config, resolveLocale(i18n.locale));
   return (
     <div className="flex flex-col gap-4">
       {config.maintenanceMode && (
