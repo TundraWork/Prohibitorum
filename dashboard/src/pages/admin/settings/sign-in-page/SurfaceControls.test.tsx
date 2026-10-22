@@ -49,19 +49,22 @@ function Surface({
   );
 }
 
-describe("the card's place and theme", () => {
-  it("offers the three places and the three themes as named choices", async () => {
+describe("the card's place, theme and default scheme", () => {
+  it("offers the three places, the three themes and every scheme as named choices", async () => {
     const user = userEvent.setup();
     const onPosition = vi.fn();
     const onTheme = vi.fn();
+    const onScheme = vi.fn();
     render(
       <I18nProvider i18n={i18n}>
         <PlacementControls
           position="center"
           theme="switchable"
+          scheme="graphite"
           disabled={false}
           onPosition={onPosition}
           onTheme={onTheme}
+          onScheme={onScheme}
         />
       </I18nProvider>,
     );
@@ -82,6 +85,15 @@ describe("the card's place and theme", () => {
     expect(onTheme).toHaveBeenCalledWith("dark");
     await user.click(screen.getByRole("radio", { name: "Always light" }));
     expect(onTheme).toHaveBeenCalledWith("light");
+
+    const scheme = screen.getByRole("combobox", {
+      name: "Default color scheme",
+    });
+    expect(scheme).toHaveTextContent("Graphite");
+    await user.click(scheme);
+    expect(await screen.findAllByRole("option")).toHaveLength(8);
+    await user.click(screen.getByRole("option", { name: "Sakura" }));
+    expect(onScheme).toHaveBeenCalledWith("sakura");
   });
 
   it("holds every choice while disabled", async () => {
@@ -92,9 +104,11 @@ describe("the card's place and theme", () => {
         <PlacementControls
           position="center"
           theme="switchable"
+          scheme="graphite"
           disabled
           onPosition={onPosition}
           onTheme={vi.fn()}
+          onScheme={vi.fn()}
         />
       </I18nProvider>,
     );

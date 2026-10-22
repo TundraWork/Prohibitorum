@@ -190,7 +190,7 @@ export function changedValues(a: unknown, b: unknown): number {
 
 /**
  * Where the changes are: the background (and a typed access key), the card's
- * place, theme and surface, and the toolbar's surface.
+ * place, theme, default scheme and surface, and the toolbar's surface.
  */
 export function changesBySection(
   saved: LoginAppearance,
@@ -204,6 +204,7 @@ export function changesBySection(
     card:
       changedValues(saved.cardPosition, draft.cardPosition) +
       changedValues(saved.theme, draft.theme) +
+      changedValues(saved.scheme, draft.scheme) +
       changedValues(saved.card, draft.card),
     toolbar: changedValues(saved.capsules, draft.capsules),
   };

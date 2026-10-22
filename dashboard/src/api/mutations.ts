@@ -420,22 +420,34 @@ export type PreferencesUpdate =
 
 /**
  * Saves preference sections to the account; sections left out stay as saved.
- * The session carries the preferences, so it is updated with the answer. A
- * success is not announced: the page already shows the choice.
+ * The session carries the preferences and the page reads them from it, so the
+ * sections are written there as the request goes, and the answer replaces
+ * them. A success is not announced: the page already shows the choice.
  */
 export function updatePreferencesMutationOptions(queryClient: QueryClient) {
+  const write = (
+    update: (
+      preferences: components["schemas"]["Preferences"],
+    ) => components["schemas"]["Preferences"],
+  ) =>
+    queryClient.setQueryData(
+      ["session", "me"],
+      (session: components["schemas"]["SessionView"] | null | undefined) =>
+        session
+          ? { ...session, preferences: update(session.preferences) }
+          : session,
+    );
   return mutationOptions({
     retry: false,
     mutationFn: async (body: PreferencesUpdate) =>
       requireJsonData(
         client.PATCH("/api/prohibitorum/me/preferences", { body }),
       ),
+    onMutate: (body) => {
+      write((preferences) => ({ ...preferences, ...body }));
+    },
     onSuccess: (preferences) => {
-      queryClient.setQueryData(
-        ["session", "me"],
-        (session: components["schemas"]["SessionView"] | null | undefined) =>
-          session ? { ...session, preferences } : session,
-      );
+      write(() => preferences);
     },
   });
 }

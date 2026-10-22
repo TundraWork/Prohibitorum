@@ -2,11 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useRef } from "react";
 import { updatePreferencesMutationOptions } from "@/api/mutations";
-import { sessionQueryOptions } from "@/api/queries";
+import { publicConfigQueryOptions, sessionQueryOptions } from "@/api/queries";
 import {
   type ColorMode,
+  forcedModeAtom,
   isColorMode,
   modeChoiceAtom,
+  resolveAppearance,
   schemeChoiceAtom,
 } from "@/lib/appearance";
 import { type ColorSchemeSlug, isColorSchemeSlug } from "@/lib/color-scheme";
@@ -31,6 +33,24 @@ export function useChosenAppearance(): {
   return {
     scheme: isColorSchemeSlug(saved?.scheme) ? saved.scheme : scheme,
     mode: isColorMode(saved?.mode) ? saved.mode : mode,
+  };
+}
+
+/**
+ * The colour scheme and mode the page shows. `known` is false while neither
+ * this browser nor the loaded instance settings name a scheme, when the one
+ * `/appearance-guard.js` applied stands.
+ */
+export function useResolvedAppearance() {
+  const chosen = useChosenAppearance();
+  const forced = useAtomValue(forcedModeAtom);
+  const { data: config } = useQuery({
+    ...publicConfigQueryOptions(),
+    enabled: false,
+  });
+  return {
+    applied: resolveAppearance(chosen, config?.loginAppearance.scheme, forced),
+    known: chosen.scheme !== null || config !== undefined,
   };
 }
 

@@ -10,13 +10,14 @@ import { cn } from "@/lib/utils";
  * background runs from the top of the window to the bottom; what it carries
  * sits on two capsules, drawn as the sign-in page's settings say (translucent
  * and frosted by default), which keep it readable on any picture. It scrolls
- * with the page, so the stage never passes underneath it. The theme control is
- * left out when the settings force a theme on the public pages.
+ * with the page, so the stage never passes underneath it. The theme button is
+ * always there; where the settings force light or dark it offers only the
+ * colour scheme.
  */
 export function AppToolbar({
   children,
   surface,
-  showThemeSelect,
+  chooseMode,
   account,
   className,
 }: {
@@ -24,7 +25,8 @@ export function AppToolbar({
   /** Classes for the bar, such as the public pages' wider edge. */
   className?: string;
   surface: LoginSurface;
-  showThemeSelect: boolean;
+  /** False where the sign-in page's settings fix light or dark. */
+  chooseMode: boolean;
   /** The signed-in account's menu, on its own capsule at the trailing end. */
   account?: ReactNode;
 }) {
@@ -41,7 +43,7 @@ export function AppToolbar({
       <div className="flex shrink-0 items-center gap-2">
         <Capsule surface={surface} className="shrink-0 gap-0.5 px-1">
           <LanguageMenu />
-          {showThemeSelect && <ThemeMenu />}
+          <ThemeMenu modes={chooseMode} />
         </Capsule>
         {account !== undefined && (
           <Capsule surface={surface} className="shrink-0 px-1">

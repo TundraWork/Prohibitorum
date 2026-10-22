@@ -56,7 +56,7 @@ export function PublicScene({
       )}
       <AppToolbar
         surface={appearance.capsules}
-        showThemeSelect={appearance.theme === "switchable"}
+        chooseMode={appearance.theme === "switchable"}
         className="h-auto px-(--public-edge) pt-(--public-edge)"
       >
         <InstanceIdentity />

@@ -8,6 +8,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { act, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createStore, Provider } from "jotai";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
@@ -450,6 +451,7 @@ it("keeps the narrow-screen credit inside the stage's column", async () => {
 });
 
 it("forces the settings' theme on the page without changing the visitor's choice", async () => {
+  const user = userEvent.setup();
   store.set(modeChoiceAtom, "light");
   withAppearance((appearance) => {
     appearance.theme = "dark";
@@ -457,10 +459,16 @@ it("forces the settings' theme on the page without changing the visitor's choice
   const banner = await mount();
   expect(document.documentElement.dataset.theme).toBe("dark");
   expect(store.get(modeChoiceAtom)).toBe("light");
-  expect(within(banner).queryByRole("button", { name: "Theme" })).toBeNull();
   expect(
     within(banner).getByRole("button", { name: "Language" }),
   ).toBeVisible();
+  // Light or dark is settled, so the theme button offers only the scheme.
+  await user.click(within(banner).getByRole("button", { name: "Theme" }));
+  expect(
+    await screen.findByRole("group", { name: "Color scheme" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("group", { name: "Light or dark" })).toBeNull();
+  await user.keyboard("{Escape}");
 
   // The test's own tree, which the app's typed routes do not know.
   await act(async () => banner.router.history.push("/console"));

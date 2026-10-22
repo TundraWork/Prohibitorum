@@ -1,16 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
 import { type ReactNode, useLayoutEffect } from "react";
-import { publicConfigQueryOptions } from "@/api/queries";
 import {
   useAccountAppearanceSync,
-  useChosenAppearance,
+  useResolvedAppearance,
 } from "@/app/use-appearance";
-import {
-  appliedAppearanceKey,
-  forcedModeAtom,
-  resolveAppearance,
-} from "@/lib/appearance";
+import { appliedAppearanceKey } from "@/lib/appearance";
 
 /**
  * What every screen needs whether or not a route drew: the colour scheme and
@@ -26,18 +19,7 @@ import {
  */
 export function AppEnvironment({ children }: { children: ReactNode }) {
   useAccountAppearanceSync();
-  const { scheme, mode } = useChosenAppearance();
-  const forced = useAtomValue(forcedModeAtom);
-  const { data: config } = useQuery({
-    ...publicConfigQueryOptions(),
-    enabled: false,
-  });
-  const known = scheme !== null || config !== undefined;
-  const applied = resolveAppearance(
-    { scheme, mode },
-    config?.loginAppearance.scheme,
-    forced,
-  );
+  const { applied, known } = useResolvedAppearance();
   useLayoutEffect(() => {
     if (!known) return;
     document.documentElement.dataset.scheme = applied.scheme;

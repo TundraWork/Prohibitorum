@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import type { ColorSchemeSlug } from "@/lib/color-scheme";
 
 export type PreviewTheme = "light" | "dark";
 
@@ -41,7 +42,8 @@ function adopt(frame: HTMLIFrameElement): HTMLElement | null {
  * own, so the page inside answers to its own width: the breakpoints that move
  * the card and the credit apply to the width chosen here, not to the
  * console's window. The frame also has its own `<html>`, which is where the
- * theme goes, so the preview shows either theme whatever the console shows.
+ * theme and the colour scheme go, so the preview shows either theme and any
+ * scheme whatever the console shows.
  *
  * The frame is inert: it is a picture of the page, not a page to use.
  */
@@ -49,6 +51,7 @@ export function PreviewDocument({
   width,
   height,
   theme,
+  scheme,
   title,
   onDocument,
   children,
@@ -56,6 +59,7 @@ export function PreviewDocument({
   width: number;
   height: number;
   theme: PreviewTheme;
+  scheme: ColorSchemeSlug;
   title: string;
   /** Told the frame's document once it is ready, and `null` when it goes. */
   onDocument?: (document: Document | null) => void;
@@ -99,8 +103,9 @@ export function PreviewDocument({
     const root = body?.ownerDocument.documentElement;
     if (!root) return;
     root.dataset.theme = theme;
+    root.dataset.scheme = scheme;
     root.classList.toggle("dark", theme === "dark");
-  }, [body, theme]);
+  }, [body, theme, scheme]);
 
   const scale = Math.min(room.width / width, room.height / height);
   return (
