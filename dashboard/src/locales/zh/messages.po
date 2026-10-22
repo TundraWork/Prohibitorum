@@ -51,16 +51,6 @@ msgid "admin.user.emails.primary_toast"
 msgstr "{address} 已成为该用户的主邮箱"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/users/AccountEmailsSection.tsx
-msgid "admin.user.emails.added_toast"
-msgstr "已将 {address} 添加到该账户"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountEmailsSection.tsx
-msgid "admin.user.emails.removed_toast"
-msgstr "已从该账户移除 {address}"
-
-#. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.primary_toast"
 msgstr "{address} 已成为主邮箱"
@@ -71,14 +61,19 @@ msgid "profile.emails.added_toast"
 msgstr "已添加 {address}，等待管理员确认"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.added_toast"
+msgstr "已将 {address} 添加到该账户"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.removed_toast"
 msgstr "已移除 {address}"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/EmailsPanel.tsx
-msgid "profile.emails.error.row_send_failed"
-msgstr "验证码没有发出去，请稍后重试。"
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.removed_toast"
+msgstr "已从该账户移除 {address}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsFrame.tsx
@@ -9014,6 +9009,11 @@ msgid "error.email_unavailable"
 msgstr "这个地址无法使用"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.error.exists"
+msgstr "这个邮箱地址已经在这个账户上。"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.error.exists"
 msgstr "这个邮箱地址已经在列表里。"
@@ -9027,16 +9027,6 @@ msgstr "这个邮箱地址已经在列表里"
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.error.taken"
 msgstr "这个地址已被另一个账户验证。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountEmailsSection.tsx
-msgid "admin.user.emails.error.limit"
-msgstr "该账户的邮箱地址数量已达上限。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountEmailsSection.tsx
-msgid "admin.user.emails.error.exists"
-msgstr "这个邮箱地址已经在这个账户上。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9129,16 +9119,6 @@ msgid "error.invitation_not_found"
 msgstr "该邀请已被吊销或已使用。"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/EmailsPanel.tsx
-msgid "profile.emails.error.invalid"
-msgstr "邮箱地址格式不正确。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/users/AccountEmailsSection.tsx
-msgid "admin.user.emails.error.invalid"
-msgstr "邮箱地址格式不正确。"
-
-#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_invalid"
 msgstr "邮箱地址格式不正确"
@@ -9227,11 +9207,6 @@ msgstr "该验证方式当前不可用，请选择其他方式。"
 #: src/pages/admin/settings/MailPanel.tsx
 msgid "settings.mail.test.rate_limited"
 msgstr "发得太频繁了，请稍后再试。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/MailPanel.tsx
-msgid "settings.mail.test.delivery_unavailable"
-msgstr "本站没有开启邮件发送。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
@@ -9337,6 +9312,11 @@ msgstr "浏览器不允许复制该链接。"
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "客户端就是按这个值配置的，无法修改。"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/EmailsPanel.tsx
+msgid "profile.emails.error.row_send_failed"
+msgstr "验证码没有发出去，请稍后重试。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
@@ -9969,6 +9949,11 @@ msgid "error.pat_invalid"
 msgstr "这个访问令牌无效，可能已过期或已被撤销。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.error.limit"
+msgstr "该账户的邮箱地址数量已达上限。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_limit_reached"
 msgstr "最多 10 个邮箱地址"
@@ -10092,6 +10077,11 @@ msgstr "这份文档会替换应用现有的所有端点和证书。如果文档
 #: src/components/custom/ImageUploadControl.tsx
 msgid "image-upload.wrong_type"
 msgstr "不支持这种文件类型。请选择上面列出的格式。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MailPanel.tsx
+msgid "settings.mail.test.delivery_unavailable"
+msgstr "本站没有开启邮件发送。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
