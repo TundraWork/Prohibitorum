@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	federationoidc "prohibitorum/pkg/federation"
 	"prohibitorum/pkg/db"
+	federationoidc "prohibitorum/pkg/federation"
 )
 
 // The three PHB-148 resolver rules the review's B6 asks for, as
@@ -97,5 +97,34 @@ func TestResolve_UnverifiedUpstreamEmailNotAbsorbed(t *testing.T) {
 	// The identity row still snapshots the unverified email, as before.
 	if len(q.identityDataCalls) != 1 || q.identityDataCalls[0].UpstreamEmail.String != "alice@example.com" {
 		t.Fatalf("identity snapshot drift: %+v", q.identityDataCalls)
+	}
+}
+
+// ruleLinkAbsorbs: an explicit link (IntentLink) with a verified upstream
+// address must absorb it into the linked account's address list. Mutant: the
+// resolveLink absorb call removed.
+func TestResolve_LinkAbsorbsVerifiedUpstreamEmail(t *testing.T) {
+	q := newFakeModesQueries()
+	q.accountByIDResults[60] = db.Account{ID: 60, Username: "linker", DisplayName: "Linker"}
+	// An existing unverified copy of the upstream address flips to verified.
+	seeded, err := q.InsertAccountEmail(context.Background(), db.InsertAccountEmailParams{AccountID: 60, Address: "alice@example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	added := seeded.ID
+
+	accountID := int32(60)
+	resolver := federationoidc.NewResolver(q, &recordingAudit{}, nil)
+	if _, err := resolver.ResolveIdentity(context.Background(), genericProvider(federationoidc.ModeAutoProvision), *goodTokens(), federationoidc.ResolveContext{
+		Intent: federationoidc.IntentLink, LinkAccountID: &accountID,
+	}); err != nil {
+		t.Fatalf("ResolveIdentity: %v", err)
+	}
+	row, ok := q.emailRows[added]
+	if !ok || !row.VerifiedAt.Valid {
+		t.Fatal("link did not absorb the verified upstream address; the existing copy must flip to verified")
+	}
+	if row.VerifiedVia.String != "upstream" {
+		t.Fatalf("absorbed via %q, want upstream", row.VerifiedVia.String)
 	}
 }

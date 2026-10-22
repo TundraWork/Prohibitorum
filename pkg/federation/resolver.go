@@ -1060,7 +1060,7 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *resolverProvider, 
 		return ResolveOutcome{}, NewFailure(FailureDomainNotAllowed, nil)
 	}
 
-	outcome, err := runProvisionTx(ctx, r.pool, r.queries, r.audit, func(qtx ModesQueries, _ audit.Writer) (ResolveOutcome, error) {
+	outcome, err := runProvisionTx(ctx, r.pool, r.queries, r.audit, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
 		_, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
 			UpstreamIss: identity.Issuer,
 			UpstreamSub: identity.Subject,
@@ -1095,6 +1095,11 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *resolverProvider, 
 			return ResolveOutcome{}, NewFailure(reason, map[string]any{
 				"iss": identity.Issuer, "sub": identity.Subject,
 			})
+		}
+		// PHB-148: an explicit link absorbs a verified upstream address too,
+		// audited through the transaction (same FK reason as provisioning).
+		if email != "" && identity.EmailVerified {
+			absorbUpstream(ctx, qtx, txAudit, provider, identity, accountID, email)
 		}
 		return ResolveOutcome{
 			AccountID: accountID, IdentityID: linked.ID, ProviderID: provider.ID,
