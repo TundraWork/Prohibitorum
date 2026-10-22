@@ -89,7 +89,7 @@ func TestFederationConfirmGetNamesApplication(t *testing.T) {
 	h := newFederationTestServer(t)
 	h.s.loginAppOverride = fakeLoginAppQueries{clients: map[string]db.OidcClient{"wiki": {ClientID: "wiki", DisplayName: "Wiki"}}}
 	const accountID int32 = 321
-	h.q.accountByIDResults[accountID] = db.Account{ID: accountID, Username: "newbie", DisplayName: "New Bie", Email: pgtype.Text{}}
+	h.q.accountByIDResults[accountID] = db.Account{ID: accountID, Username: "newbie", DisplayName: "New Bie"}
 	returnTo := "/oauth/authorize?client_id=wiki&redirect_uri=https%3A%2F%2Fwiki.test%2Fcb&response_type=code"
 	token, anti, err := h.s.federationService.CreateConfirmGrant(context.Background(), accountID, 654, h.idp.ID, h.idp.Slug,
 		returnTo, &federation.AppRef{Kind: "oidc_client", ID: "wiki", Host: "wiki.test"}, nil, false, false)

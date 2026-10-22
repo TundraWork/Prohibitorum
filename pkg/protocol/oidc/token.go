@@ -367,6 +367,8 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 	if err != nil {
 		return "", "", err
 	}
+	// The ID token's email block carries the primary address.
+	primaryEmail, _ := p.queries.GetAccountPrimaryEmail(ctx, acct.ID)
 	idClaims := idTokenClaims(acct, idTokenInput{
 		Issuer:       issuer,
 		AvatarOrigin: avatarOrigin,
@@ -374,6 +376,7 @@ func (p *Provider) mintAccessAndIDTokens(ctx context.Context, acct db.Account, c
 		Subject:      subject,
 		AccountID:    acct.ID,
 		ClaimAliases: aliases,
+		PrimaryEmail: primaryEmail,
 		Nonce:        nonce,
 		ACR:          acr,
 		SID:          sid,

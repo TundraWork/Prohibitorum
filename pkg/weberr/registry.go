@@ -71,6 +71,9 @@ type PublicError struct {
 	Code      string         `json:"code"`
 	Details   map[string]any `json:"details,omitempty"`
 	RequestID string         `json:"requestId"`
+	// RetryAfterSeconds, when > 0, makes the response writer emit a
+	// Retry-After header (rounded up). Never serialized into the body.
+	RetryAfterSeconds int `json:"-"`
 }
 
 // GetStatus returns the HTTP status for this error's registered code. This

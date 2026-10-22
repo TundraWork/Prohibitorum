@@ -56,6 +56,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prohibitorum/accounts/{id}/emails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List one account's email addresses (admin). */
+        get: operations["listAccountEmails"];
+        put?: never;
+        /** Add an address to an account, optionally asserting it verified and primary (admin). */
+        post: operations["addAccountEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/accounts/{id}/emails/{emailId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one of an account's addresses; removing the primary promotes a fallback (admin). */
+        delete: operations["deleteAccountEmail"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/accounts/{id}/emails/{emailId}/primary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make one of an account's verified addresses the primary (admin). */
+        post: operations["setAccountEmailPrimary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/accounts/{id}/emails/{emailId}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assert one of an account's addresses as verified (admin). */
+        post: operations["verifyAccountEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prohibitorum/accounts/{id}/identities": {
         parameters: {
             query?: never;
@@ -152,6 +221,40 @@ export interface paths {
         put?: never;
         /** Kick all active sessions for an account. */
         post: operations["revokeAccountSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/admin/settings/mail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report the instance's outbound-mail configuration (no credentials). */
+        get: operations["getMailSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/admin/settings/mail/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test mail through the configured relay (admin). */
+        post: operations["sendTestMail"];
         delete?: never;
         options?: never;
         head?: never;
@@ -449,6 +552,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prohibitorum/me/emails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the caller's email addresses. */
+        get: operations["listMyEmails"];
+        put?: never;
+        /** Add an unverified email address to the caller's account. */
+        post: operations["addMyEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/me/emails/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one of the caller's addresses (not the primary). */
+        delete: operations["deleteMyEmail"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/me/emails/{id}/primary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make one of the caller's verified addresses the primary. */
+        post: operations["setMyEmailPrimary"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/me/emails/{id}/send-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mail a verification code for one of the caller's addresses. */
+        post: operations["sendMyEmailCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/me/emails/{id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify one of the caller's addresses with the mailed code. */
+        post: operations["verifyMyEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prohibitorum/me/factors": {
         parameters: {
             query?: never;
@@ -659,6 +848,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountEmailsView: {
+            emails: components["schemas"]["EmailAddressView"][] | null;
+            /** Format: int64 */
+            limit: number;
+        };
         AccountIdentityView: {
             data: {
                 [key: string]: string;
@@ -682,18 +876,25 @@ export interface components {
             createdAt: string;
             disabled: boolean;
             displayName: string;
-            email?: string;
-            emailVerified: boolean;
             /** Format: int32 */
             id: number;
             /** Format: date-time */
             lastSignInAt?: string;
             matchingIdentities: components["schemas"]["AccountIdentityView"][] | null;
             oidcSubject: string;
+            primaryEmail?: string;
             role: string;
             /** Format: date-time */
             updatedAt: string;
             username: string;
+        };
+        AddAccountEmailInBody: {
+            address: string;
+            primary?: boolean;
+            verified?: boolean;
+        };
+        AddMyEmailInBody: {
+            address: string;
         };
         AppearancePreferences: {
             /** @description light, dark or system, or null when not chosen. */
@@ -767,6 +968,20 @@ export interface components {
         DeleteMyCredentialInBody: {
             /** Format: int32 */
             id: number;
+        };
+        EmailAddressView: {
+            address: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: int64 */
+            id: number;
+            primary: boolean;
+            verified: boolean;
+            /** Format: date-time */
+            verifiedAt?: string;
+            verifiedBy?: string;
+            verifiedProvider?: string;
+            verifiedVia?: string;
         };
         EnrollmentPreview: {
             allowedMethods: string[] | null;
@@ -880,6 +1095,14 @@ export interface components {
             name: string;
             requireConsent?: boolean;
         };
+        MailSettingsView: {
+            configured: boolean;
+            from?: string;
+            host?: string;
+            /** Format: int64 */
+            port?: number;
+            security?: string;
+        };
         MeFactorsView: {
             /** Format: int64 */
             passkeyCount: number;
@@ -896,6 +1119,12 @@ export interface components {
         MyAvatarView: {
             activeSource: string;
             sources: components["schemas"]["MyAvatarSourceView"][] | null;
+        };
+        MyEmailsView: {
+            deliveryAvailable: boolean;
+            emails: components["schemas"]["EmailAddressView"][] | null;
+            /** Format: int64 */
+            limit: number;
         };
         MyForwardAuthApp: {
             clientId: string;
@@ -1064,6 +1293,22 @@ export interface components {
             notAfter?: string;
             use: string;
         };
+        SendMyEmailCodeInBody: {
+            locale?: string;
+        };
+        SendMyEmailCodeOutBody: {
+            /** Format: int64 */
+            expiresInSeconds: number;
+            /** Format: int64 */
+            resendAfterSeconds: number;
+        };
+        SendTestMailInBody: {
+            locale?: string;
+            to: string;
+        };
+        SendTestMailOutBody: {
+            sent: boolean;
+        };
         SessionListItem: {
             /** Format: date-time */
             expiresAt: string;
@@ -1109,12 +1354,14 @@ export interface components {
             };
             disabled: boolean;
             displayName: string;
-            email?: string;
             role: string;
             username?: string;
         };
         UpdateMeInBody: {
             displayName: string;
+        };
+        VerifyMyEmailInBody: {
+            code: string;
         };
     };
     responses: never;
@@ -1253,6 +1500,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PageCredentialView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    listAccountEmails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountEmailsView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    addAccountEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddAccountEmailInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailAddressView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    deleteAccountEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                emailId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    setAccountEmailPrimary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                emailId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    Emails?: components["schemas"]["EmailAddressView"];
+                    Limit?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    verifyAccountEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                emailId: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailAddressView"];
                 };
             };
             /** @description Error */
@@ -1453,6 +1860,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RevokeAccountSessionsOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    getMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailSettingsView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    sendTestMail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendTestMailInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendTestMailOutBody"];
                 };
             };
             /** @description Error */
@@ -2057,6 +2526,198 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    listMyEmails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyEmailsView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    addMyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddMyEmailInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailAddressView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    deleteMyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    setMyEmailPrimary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyEmailsView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    sendMyEmailCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendMyEmailCodeInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendMyEmailCodeOutBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    verifyMyEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyMyEmailInBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailAddressView"];
+                };
             };
             /** @description Error */
             default: {

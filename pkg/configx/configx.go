@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	netmail "net/mail"
 	"net/url"
 	"os"
 	"reflect"
@@ -44,6 +45,7 @@ type Config struct {
 	Auth               AuthConfig         `mapstructure:"auth"`
 	Branding           BrandingConfig     `mapstructure:"branding"`
 	ForwardAuth        ForwardAuthConfig  `mapstructure:"forward_auth"`
+	SMTP               SMTPConfig         `mapstructure:"smtp"`
 
 	// DataEncryptionKeys is the versioned AES-256 key set used to encrypt
 	// sensitive credential material (TOTP secrets today, additional fields
@@ -91,13 +93,13 @@ type KVConfig struct {
 // should be the public-facing origin (e.g. https://auth.example.com)
 // and is embedded in every signed token + the discovery doc.
 type OIDCConfig struct {
-	Issuer                       string        `mapstructure:"issuer"`
-	AccessTokenTTL               time.Duration `mapstructure:"access_token_ttl"`
-	IDTokenTTL                   time.Duration `mapstructure:"id_token_ttl"`
-	RefreshTokenTTL              time.Duration `mapstructure:"refresh_token_ttl"`
-	RefreshTokenInactivityTTL    time.Duration `mapstructure:"refresh_token_inactivity_ttl"`
-	RefreshTokenAbsoluteTTL      time.Duration `mapstructure:"refresh_token_absolute_ttl"`
-	AuthorizationCodeTTL         time.Duration `mapstructure:"authorization_code_ttl"`
+	Issuer                    string        `mapstructure:"issuer"`
+	AccessTokenTTL            time.Duration `mapstructure:"access_token_ttl"`
+	IDTokenTTL                time.Duration `mapstructure:"id_token_ttl"`
+	RefreshTokenTTL           time.Duration `mapstructure:"refresh_token_ttl"`
+	RefreshTokenInactivityTTL time.Duration `mapstructure:"refresh_token_inactivity_ttl"`
+	RefreshTokenAbsoluteTTL   time.Duration `mapstructure:"refresh_token_absolute_ttl"`
+	AuthorizationCodeTTL      time.Duration `mapstructure:"authorization_code_ttl"`
 	// JWKSCacheMaxAge sets the Cache-Control max-age on the JWKS
 	// (/oauth/jwks) and discovery responses — the hint RPs use to decide how
 	// long to cache the signing keys. Kept short so a signing-key rotation
@@ -171,6 +173,22 @@ type ForwardAuthConfig struct {
 	SessionTTL time.Duration `mapstructure:"session_ttl"`
 }
 
+// SMTPConfig configures outbound mail for address-verification codes (and
+// the admin test mail). Host empty disables delivery entirely — the server
+// then rejects code sends with email_delivery_unavailable instead of
+// pretending to send. Security selects the transport: "starttls" (implicit
+// upgrade on a plain port), "tls" (implicit TLS from the first byte), or
+// "none" (only for a trusted internal relay).
+type SMTPConfig struct {
+	Host     string        `mapstructure:"host"`
+	Port     int           `mapstructure:"port"`
+	Security string        `mapstructure:"security"`
+	Username string        `mapstructure:"username"`
+	Password string        `mapstructure:"password"`
+	From     string        `mapstructure:"from"`
+	Timeout  time.Duration `mapstructure:"timeout"`
+}
+
 // PasswordHashParams parameterises argon2id. The cryptographic invariants
 // (memory ≥ 64 MiB, parallelism ≥ 1, etc.) are enforced at use time.
 type PasswordHashParams struct {
@@ -216,8 +234,8 @@ func Parse() (*Config, error) {
 	// families. Inactivity slides forward on each rotation but never past the
 	// absolute deadline; absolute is fixed at issue time and never extended.
 	// Defaults: 30d inactivity / 90d absolute (OAuth 2.0 Security BCP §4.12.2).
-	viper.SetDefault("oidc.refresh_token_inactivity_ttl", 720*time.Hour)  // 30d
-	viper.SetDefault("oidc.refresh_token_absolute_ttl", 2160*time.Hour)    // 90d
+	viper.SetDefault("oidc.refresh_token_inactivity_ttl", 720*time.Hour) // 30d
+	viper.SetDefault("oidc.refresh_token_absolute_ttl", 2160*time.Hour)  // 90d
 	// 5m matches the historical hardcoded JWKS Cache-Control; kept short so a
 	// signing-key rotation reaches RPs quickly.
 	viper.SetDefault("oidc.jwks_cache_max_age", 5*time.Minute)
@@ -284,6 +302,12 @@ func Parse() (*Config, error) {
 	viper.SetDefault("branding.instance_name", "")
 	viper.SetDefault("branding.icon_path", "")
 
+	// SMTP defaults — STARTTLS on the submission port, 15s dial+dialog cap.
+	// From is required when host is set; validated below.
+	viper.SetDefault("smtp.port", 587)
+	viper.SetDefault("smtp.security", "starttls")
+	viper.SetDefault("smtp.timeout", 15*time.Second)
+
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	bindEnvs(Config{})
 	_ = viper.Unmarshal(&config)
@@ -339,6 +363,10 @@ func Parse() (*Config, error) {
 
 	if config.ForwardAuth.SessionTTL <= 0 {
 		config.ForwardAuth.SessionTTL = time.Hour
+	}
+
+	if err := validateSMTP(config.SMTP); err != nil {
+		return nil, err
 	}
 
 	if config.SessionRememberTTL <= 0 {
@@ -441,6 +469,34 @@ func validateRefreshTTLs(oidc OIDCConfig) error {
 	if oidc.RefreshTokenAbsoluteTTL < oidc.RefreshTokenInactivityTTL {
 		return fmt.Errorf("oidc.refresh_token_absolute_ttl (%v) must be >= oidc.refresh_token_inactivity_ttl (%v)",
 			oidc.RefreshTokenAbsoluteTTL, oidc.RefreshTokenInactivityTTL)
+	}
+	return nil
+}
+
+// validateSMTP rejects an SMTP section that names a host but cannot send:
+// the From address must parse as a bare RFC 5322 address, security must be
+// one of the three transports, and the timeout must be positive. An empty
+// host (mail disabled) passes untouched.
+func validateSMTP(smtp SMTPConfig) error {
+	if smtp.Host == "" {
+		return nil
+	}
+	if smtp.From == "" {
+		return errors.New("config: smtp.from is required when smtp.host is set")
+	}
+	if addr, err := netmail.ParseAddress(smtp.From); err != nil || addr.Name != "" {
+		return fmt.Errorf("config: smtp.from must be a bare email address, got %q", smtp.From)
+	}
+	switch smtp.Security {
+	case "starttls", "tls", "none":
+	default:
+		return fmt.Errorf("config: smtp.security must be starttls, tls, or none, got %q", smtp.Security)
+	}
+	if smtp.Port <= 0 || smtp.Port > 65535 {
+		return fmt.Errorf("config: smtp.port must be 1-65535, got %d", smtp.Port)
+	}
+	if smtp.Timeout <= 0 {
+		return fmt.Errorf("config: smtp.timeout must be positive, got %s", smtp.Timeout)
 	}
 	return nil
 }

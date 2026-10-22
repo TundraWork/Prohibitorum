@@ -25,7 +25,7 @@ import (
 // NOTE: the generic contract.Page exists for typed Huma I/O. Raw chi handlers
 // that return pagination.Page[T] produce the identical JSON shape.
 type Page[T any] struct {
-	Items      []T   `json:"items"`
+	Items      []T    `json:"items"`
 	NextCursor string `json:"nextCursor"`
 }
 

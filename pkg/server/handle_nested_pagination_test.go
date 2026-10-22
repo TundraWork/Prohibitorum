@@ -264,7 +264,6 @@ func (f *fakeNestedQ) GetAccountByID(_ context.Context, id int32) (db.Account, e
 	return db.Account{ID: id}, nil
 }
 
-
 func (f *fakeNestedQ) ListCredentialsByAccountPage(_ context.Context, arg db.ListCredentialsByAccountPageParams) ([]db.WebauthnCredential, error) {
 	out := f.creds
 	if int32(len(out)) > arg.RowLimit {
@@ -310,13 +309,13 @@ func TestHandleListAccountCredentials_PageShape(t *testing.T) {
 	}
 	fakeQ := &fakeNestedQ{creds: creds}
 	s := &Server{
-		cursorCodec: testCodec(),
+		cursorCodec:           testCodec(),
 		nestedQueriesOverride: fakeQ,
-		Audit:       noopAuditWriter{},
+		Audit:                 noopAuditWriter{},
 	}
 
 	out, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
-		ID: 42,
+		ID:        42,
 		PageInput: PageInput{Limit: 50},
 	})
 	if err != nil {
@@ -343,13 +342,13 @@ func TestHandleListAccountCredentials_ParentNotFound404(t *testing.T) {
 
 	fakeQ := &fakeNestedQ{accountMissing: true}
 	s := &Server{
-		cursorCodec: testCodec(),
+		cursorCodec:           testCodec(),
 		nestedQueriesOverride: fakeQ,
-		Audit:       noopAuditWriter{},
+		Audit:                 noopAuditWriter{},
 	}
 
 	_, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
-		ID: 999,
+		ID:        999,
 		PageInput: PageInput{Limit: 50},
 	})
 	if err == nil {
@@ -374,14 +373,14 @@ func TestHandleListAccountCredentials_LimitClamp(t *testing.T) {
 	}
 	fakeQ := &fakeNestedQ{creds: creds}
 	s := &Server{
-		cursorCodec: testCodec(),
+		cursorCodec:           testCodec(),
 		nestedQueriesOverride: fakeQ,
-		Audit:       noopAuditWriter{},
+		Audit:                 noopAuditWriter{},
 	}
 
 	// Request limit=2 with 3 items → should get 2 items + nextCursor.
 	out, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
-		ID: 42,
+		ID:        42,
 		PageInput: PageInput{Limit: 2},
 	})
 	if err != nil {
@@ -408,14 +407,14 @@ func TestHandleListAccountCredentials_ExactPageBoundary(t *testing.T) {
 	}
 	fakeQ := &fakeNestedQ{creds: creds}
 	s := &Server{
-		cursorCodec: testCodec(),
+		cursorCodec:           testCodec(),
 		nestedQueriesOverride: fakeQ,
-		Audit:       noopAuditWriter{},
+		Audit:                 noopAuditWriter{},
 	}
 
 	// Request limit=2 with exactly 2 items → no nextCursor.
 	out, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
-		ID: 42,
+		ID:        42,
 		PageInput: PageInput{Limit: 2},
 	})
 	if err != nil {
@@ -457,15 +456,15 @@ func TestHandleListAccountCredentials_CursorParentIDMismatch(t *testing.T) {
 
 	fakeQ := &fakeNestedQ{creds: creds, accountMissing: true}
 	s := &Server{
-		cursorCodec: codec,
+		cursorCodec:           codec,
 		nestedQueriesOverride: fakeQ,
-		Audit:       noopAuditWriter{},
+		Audit:                 noopAuditWriter{},
 	}
 
 	// Use the cursor (bound to accountId=42) against account 99 — the
 	// account-existence check fires first and returns 404.
 	_, err = s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
-		ID: 99,
+		ID:        99,
 		PageInput: PageInput{Cursor: cursor, Limit: 10},
 	})
 	if err == nil {
@@ -478,13 +477,13 @@ func TestHandleListAccountCredentials_EmptyResultShape(t *testing.T) {
 
 	fakeQ := &fakeNestedQ{}
 	s := &Server{
-		cursorCodec: testCodec(),
+		cursorCodec:           testCodec(),
 		nestedQueriesOverride: fakeQ,
-		Audit:       noopAuditWriter{},
+		Audit:                 noopAuditWriter{},
 	}
 
 	out, err := s.handleListAccountCredentials(context.Background(), &listAccountPageIn{
-		ID: 42,
+		ID:        42,
 		PageInput: PageInput{Limit: 50},
 	})
 	if err != nil {
@@ -501,7 +500,6 @@ func TestHandleListAccountCredentials_EmptyResultShape(t *testing.T) {
 		t.Errorf("nextCursor should be empty, got %q", out.Body.NextCursor)
 	}
 }
-
 
 // ---------------------------------------------------------------------------
 // Account sessions handler — page shape via KV
@@ -529,7 +527,7 @@ func TestHandleListAccountSessions_PageShape(t *testing.T) {
 	}
 
 	out, err := s.handleListAccountSessions(ctx, &listAccountPageIn{
-		ID: 42,
+		ID:        42,
 		PageInput: PageInput{Limit: 2},
 	})
 	if err != nil {
@@ -558,7 +556,7 @@ func TestHandleListAccountSessions_ParentNotFound404(t *testing.T) {
 	}
 
 	_, err := s.handleListAccountSessions(context.Background(), &listAccountPageIn{
-		ID: 999,
+		ID:        999,
 		PageInput: PageInput{Limit: 50},
 	})
 	if err == nil {
@@ -592,7 +590,7 @@ func TestHandleListAccountTokens_PageShape(t *testing.T) {
 
 	// Limit=2 with 3 items → 2 items + nextCursor.
 	out, err := s.handleListAccountTokens(context.Background(), &listAccountPageIn{
-		ID: 42,
+		ID:        42,
 		PageInput: PageInput{Limit: 2},
 	})
 	if err != nil {
@@ -617,7 +615,7 @@ func TestHandleListAccountTokens_ParentNotFound404(t *testing.T) {
 	}
 
 	_, err := s.handleListAccountTokens(context.Background(), &listAccountPageIn{
-		ID: 999,
+		ID:        999,
 		PageInput: PageInput{Limit: 50},
 	})
 	if err == nil {
@@ -628,5 +626,3 @@ func TestHandleListAccountTokens_ParentNotFound404(t *testing.T) {
 		t.Fatalf("want 404, got %v", err)
 	}
 }
-
-

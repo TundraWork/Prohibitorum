@@ -2,7 +2,7 @@ import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckIcon, CircleAlertIcon, UserIcon } from "lucide-react";
+import { UserIcon } from "lucide-react";
 import { ApiError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import { updateAccountMutationOptions } from "@/api/mutations";
@@ -70,21 +70,19 @@ function formatAttributes(attributes?: Record<string, unknown>): string {
 function profileValues(account: Account) {
   return {
     displayName: account.displayName,
-    email: account.email ?? "",
     role: account.role,
     attributes: formatAttributes(account.attributes),
   };
 }
 
 /**
- * The account's name, address, role and attributes, with the OIDC subject
- * applications know it by. One save covers the four fields.
+ * The account's name, role and attributes, with the OIDC subject applications
+ * know it by. One save covers the three fields; its addresses moved to their
+ * own section below this one.
  *
  * The write replaces the record, so the attributes box always submits the full
- * map and the address is sent only when it changed (the server marks any
- * address it is given as unverified). A change of role is the consequential
- * save: the footer says what it gives or takes away, and the write asks for the
- * identity check.
+ * map. A change of role is the consequential save: the footer says what it
+ * gives or takes away, and the write asks for the identity check.
  */
 export function AccountProfileSection({ account }: { account: Account }) {
   const { t } = useLingui();
@@ -111,12 +109,10 @@ export function AccountProfileSection({ account }: { account: Account }) {
         }));
         return;
       }
-      const email = value.email.trim();
       const body = accountUpdateBody(account, {
         displayName: value.displayName.trim(),
         role: value.role,
         attributes: attributes.value,
-        ...(email === (account.email ?? "") ? {} : { email }),
       });
       try {
         const saved = await update.mutateAsync({
@@ -144,7 +140,6 @@ export function AccountProfileSection({ account }: { account: Account }) {
         applyServerError(form, error, {
           locations: {
             displayName: "displayName",
-            email: "email",
             attributes: "attributes",
           },
           codes: { invalid_role: "role" },
@@ -156,10 +151,6 @@ export function AccountProfileSection({ account }: { account: Account }) {
   const dirty = useStore(form.store, (state) => !state.isDefaultValue);
   const submitting = useStore(form.store, (state) => state.isSubmitting);
   const role = useStore(form.store, (state) => state.values.role);
-  const emailUnchanged = useStore(
-    form.store,
-    (state) => state.values.email.trim() === (account.email ?? ""),
-  );
   const roleChanged = role !== account.role;
   const title = t({ id: "admin.user.profile.title", message: "Profile" });
 
@@ -174,8 +165,8 @@ export function AccountProfileSection({ account }: { account: Account }) {
           title={title}
           description={
             <Trans id="admin.user.profile.description">
-              The name, address and role of the account, and the attributes
-              applications can read.
+              The name and role of the account, and the attributes applications
+              can read.
             </Trans>
           }
           dirty={dirty}
@@ -229,26 +220,6 @@ export function AccountProfileSection({ account }: { account: Account }) {
                   label={
                     <Trans id="admin.user.displayName">Display name</Trans>
                   }
-                  autoComplete="off"
-                />
-              )}
-            </form.AppField>
-
-            <form.AppField name="email">
-              {(field) => (
-                <field.FormField
-                  label={<Trans id="admin.user.email">Email</Trans>}
-                  description={
-                    <>
-                      <Trans id="admin.user.email.hint">
-                        Optional. Leave it empty to store no address.
-                      </Trans>
-                      {account.email && emailUnchanged && (
-                        <EmailVerification verified={account.emailVerified} />
-                      )}
-                    </>
-                  }
-                  type="email"
                   autoComplete="off"
                 />
               )}
@@ -316,27 +287,5 @@ export function AccountProfileSection({ account }: { account: Account }) {
         </Section>
       </form.Form>
     </form.AppForm>
-  );
-}
-
-/** Whether the stored address has been confirmed, in words and an icon. */
-function EmailVerification({ verified }: { verified: boolean }) {
-  return (
-    <span className="mt-1 flex items-center gap-1.5 text-xs">
-      {verified ? (
-        <>
-          <CheckIcon aria-hidden="true" className="size-3.5 text-success" />
-          <Trans id="admin.user.email.verified">Verified</Trans>
-        </>
-      ) : (
-        <>
-          <CircleAlertIcon
-            aria-hidden="true"
-            className="size-3.5 text-warning"
-          />
-          <Trans id="admin.user.email.unverified">Not verified</Trans>
-        </>
-      )}
-    </span>
   );
 }

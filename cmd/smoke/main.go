@@ -65,7 +65,7 @@ import (
 const (
 	nCore       = 55
 	nFederation = 39
-	nOIDC       = 18
+	nOIDC       = 22
 	nSAML       = 15
 	nHardening  = 14
 	nConsent    = 2
@@ -2652,9 +2652,9 @@ func main() {
 	}
 	log.Printf("  auto-provisioned signing key kid=%s; /oauth/jwks has 1 key ✓", signingKID)
 
-	step(fmt.Sprintf("oidc %d/%d — oidc-client create (confidential, openid+profile+offline_access)", 2, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — oidc-client create (confidential, openid+profile+email+offline_access)", 2, nOIDC))
 	rpSecret, err := createOIDCClient(*baseURL, rpClientID, rpRedirectURI, rpPostLogout,
-		[]string{"openid", "profile", "offline_access"})
+		[]string{"openid", "profile", "email", "offline_access"})
 	if err != nil {
 		log.Fatalf("oidc-client create: %v", err)
 	}
@@ -2671,7 +2671,7 @@ func main() {
 		"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
 		url.QueryEscape(rpClientID),
 		url.QueryEscape(rpRedirectURI),
-		url.QueryEscape("openid profile offline_access"),
+		url.QueryEscape("openid profile email offline_access"),
 		url.QueryEscape(authState),
 		url.QueryEscape(authNonce),
 		url.QueryEscape(challenge),
@@ -2794,7 +2794,215 @@ func main() {
 	log.Printf("  userinfo sub matches id_token; username=%s preferred_username=%s name=%s ✓",
 		str(userinfo["username"]), str(userinfo["preferred_username"]), str(userinfo["name"]))
 
-	step(fmt.Sprintf("oidc %d/%d — POST /oauth/introspect (access token, Basic auth) → active", 6, nOIDC))
+	// PHB-148: the email scope must agree with the account's primary —
+	// both claims together when one exists, neither when none does. By this
+	// point in the run the federation arc may have linked a verified upstream
+	// identity to smoke-admin, so the pair is checked for consistency rather
+	// than for absence.
+	if email, ok := userinfo["email"]; ok {
+		if email == "" || userinfo["email_verified"] != true {
+			log.Fatalf("userinfo email=%v email_verified=%v; the pair must appear together with a verified value", email, userinfo["email_verified"])
+		}
+	} else if _, ok := userinfo["email_verified"]; ok {
+		log.Fatal("userinfo email_verified present without email")
+	}
+
+	step(fmt.Sprintf("oidc %d/%d — GET /me/emails over HTTP (session API)", 6, nOIDC))
+	meEmailsResp, err := c.getRaw("/api/prohibitorum/me/emails")
+	if err != nil {
+		log.Fatalf("GET /me/emails: %v", err)
+	}
+	meEmailsBody, _ := io.ReadAll(meEmailsResp.Body)
+	meEmailsResp.Body.Close()
+	if meEmailsResp.StatusCode != 200 {
+		log.Fatalf("GET /me/emails status = %d (headers %v); want 200 with a JSON body", meEmailsResp.StatusCode, meEmailsResp.Header)
+	}
+	var meEmails struct {
+		Emails            []map[string]any `json:"emails"`
+		DeliveryAvailable bool             `json:"deliveryAvailable"`
+		Limit             int              `json:"limit"`
+	}
+	if err := json.Unmarshal(meEmailsBody, &meEmails); err != nil {
+		log.Fatalf("GET /me/emails body is not the JSON view: %v (%q)", err, string(meEmailsBody))
+	}
+	if meEmails.Limit != 10 {
+		log.Fatalf("GET /me/emails limit = %d, want 10", meEmails.Limit)
+	}
+	// The federation arc runs before this one and may have linked a verified
+	// upstream identity, so the list can legitimately hold its address; what
+	// must hold is the view contract: every row has an address, at most one
+	// primary, and the primary (if any) is verified.
+	primaries := 0
+	for _, row := range meEmails.Emails {
+		if row["address"] == nil || row["address"] == "" {
+			log.Fatalf("GET /me/emails row without an address: %v", row)
+		}
+		if primary, ok := row["primary"].(bool); ok && primary {
+			primaries++
+			if verified, ok := row["verified"].(bool); !ok || !verified {
+				log.Fatalf("GET /me/emails primary row not verified: %v", row)
+			}
+		}
+	}
+	if primaries > 1 {
+		log.Fatalf("GET /me/emails lists %d primary rows, want at most 1", primaries)
+	}
+	for _, leaked := range []string{"Emails", "Deliveryavailable", "Limit"} {
+		if _, present := meEmailsResp.Header[http.CanonicalHeaderKey(leaked)]; present {
+			log.Fatalf("GET /me/emails leaked %q as a response header (204-with-headers bug)", leaked)
+		}
+	}
+	log.Printf("  GET /me/emails → 200 JSON {emails:[], deliveryAvailable:%v, limit:10} ✓", meEmails.DeliveryAvailable)
+
+	step(fmt.Sprintf("oidc %d/%d — admin asserts a primary email → userinfo email/email_verified", 7, nOIDC))
+	const smokeAddress = "smoke-primary@example.test"
+	var addedEmail struct {
+		ID int64 `json:"id"`
+	}
+	if err := c.postJSON(fmt.Sprintf("/api/prohibitorum/accounts/%d/emails", oidcMe.ID), map[string]any{
+		"address": smokeAddress, "verified": true, "primary": true,
+	}, &addedEmail); err != nil {
+		log.Fatalf("admin add primary email: %v", err)
+	}
+	uiWithPrimary, err := fetchUserinfo(*baseURL, accessToken)
+	if err != nil {
+		log.Fatalf("/oauth/userinfo (with primary): %v", err)
+	}
+	if str(uiWithPrimary["email"]) != smokeAddress {
+		log.Fatalf("userinfo email: want %q, got %q", smokeAddress, str(uiWithPrimary["email"]))
+	}
+	if uiWithPrimary["email_verified"] != true {
+		log.Fatalf("userinfo email_verified: want true, got %v", uiWithPrimary["email_verified"])
+	}
+	log.Printf("  userinfo email=%s email_verified=true ✓", smokeAddress)
+
+	step(fmt.Sprintf("oidc %d/%d — delete the primary → userinfo never shows the deleted address", 8, nOIDC))
+	delReq, err := http.NewRequest(http.MethodDelete,
+		*baseURL+fmt.Sprintf("/api/prohibitorum/accounts/%d/emails/%d", oidcMe.ID, addedEmail.ID), nil)
+	if err != nil {
+		log.Fatalf("delete email request: %v", err)
+	}
+	for _, ck := range c.cookies() {
+		delReq.AddCookie(ck)
+	}
+	delResp, err := c.hc.Do(delReq)
+	if err != nil {
+		log.Fatalf("delete email: %v", err)
+	}
+	delResp.Body.Close()
+	if delResp.StatusCode != http.StatusNoContent {
+		log.Fatalf("delete email: status %d", delResp.StatusCode)
+	}
+	uiAfterDelete, err := fetchUserinfo(*baseURL, accessToken)
+	if err != nil {
+		log.Fatalf("/oauth/userinfo (after primary deletion): %v", err)
+	}
+	// The federation arc may have left another verified address on the
+	// account, which deletion of the primary legitimately promotes. The
+	// invariant: the deleted address is gone; whatever email remains is a
+	// verified one (the pair must stay consistent).
+	if got, ok := uiAfterDelete["email"]; ok {
+		if got == smokeAddress {
+			log.Fatalf("userinfo still shows the deleted address %q", smokeAddress)
+		}
+		if uiAfterDelete["email_verified"] != true {
+			log.Fatalf("userinfo email=%v email_verified=%v; the pair must stay consistent", got, uiAfterDelete["email_verified"])
+		}
+		log.Printf("  deleted %q; primary promoted, userinfo email now %v ✓", smokeAddress, got)
+	} else {
+		if _, ok := uiAfterDelete["email_verified"]; ok {
+			log.Fatal("userinfo email_verified present without email")
+		}
+		log.Printf("  userinfo email claims omitted without a primary ✓")
+	}
+
+	step(fmt.Sprintf("oidc %d/%d — account with no addresses → userinfo and id_token omit the email claims", 9, nOIDC))
+	// Remove every remaining address on the account, so it has no primary at
+	// all; then re-run the authorize flow and prove neither the userinfo
+	// response nor a freshly minted id_token carries email claims.
+	var emailList struct {
+		Emails []struct {
+			ID      int64  `json:"id"`
+			Address string `json:"address"`
+		} `json:"emails"`
+	}
+	if err := c.get(fmt.Sprintf("/api/prohibitorum/accounts/%d/emails", oidcMe.ID), &emailList); err != nil {
+		log.Fatalf("admin list emails: %v", err)
+	}
+	for _, row := range emailList.Emails {
+		delRemaining, err := http.NewRequest(http.MethodDelete,
+			*baseURL+fmt.Sprintf("/api/prohibitorum/accounts/%d/emails/%d", oidcMe.ID, row.ID), nil)
+		if err != nil {
+			log.Fatalf("delete remaining email request: %v", err)
+		}
+		for _, ck := range c.cookies() {
+			delRemaining.AddCookie(ck)
+		}
+		delRemainingResp, err := c.hc.Do(delRemaining)
+		if err != nil {
+			log.Fatalf("delete remaining email %q: %v", row.Address, err)
+		}
+		delRemainingResp.Body.Close()
+		if delRemainingResp.StatusCode != http.StatusNoContent {
+			log.Fatalf("delete remaining email %q: status %d", row.Address, delRemainingResp.StatusCode)
+		}
+	}
+	log.Printf("  removed %d remaining address(es); the account has no primary ✓", len(emailList.Emails))
+
+	uiNoEmail, err := fetchUserinfo(*baseURL, accessToken)
+	if err != nil {
+		log.Fatalf("/oauth/userinfo (no addresses): %v", err)
+	}
+	if _, ok := uiNoEmail["email"]; ok {
+		log.Fatalf("userinfo email claim present with no primary: %v", uiNoEmail["email"])
+	}
+	if _, ok := uiNoEmail["email_verified"]; ok {
+		log.Fatal("userinfo email_verified claim present with no primary")
+	}
+
+	// A fresh authorize + token: the minted id_token must omit the claims too.
+	verifier2, challenge2 := genPKCE()
+	authState2 := randState()
+	authNonce2 := randState()
+	authzURL2 := fmt.Sprintf(
+		"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+		url.QueryEscape(rpClientID),
+		url.QueryEscape(rpRedirectURI),
+		url.QueryEscape("openid profile email offline_access"),
+		url.QueryEscape(authState2),
+		url.QueryEscape(authNonce2),
+		url.QueryEscape(challenge2),
+	)
+	loc2, err := authorizeWithSession(c, authzURL2)
+	if err != nil {
+		log.Fatalf("/oauth/authorize (no addresses): %v", err)
+	}
+	authCode2, err := parseAuthorizeRedirect(loc2, rpRedirectURI, authState2, issuer)
+	if err != nil {
+		log.Fatalf("/oauth/authorize redirect (no addresses): %v", err)
+	}
+	tokNoEmail, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {authCode2},
+		"redirect_uri":  {rpRedirectURI},
+		"code_verifier": {verifier2},
+	})
+	if err != nil {
+		log.Fatalf("/oauth/token (no addresses): %v", err)
+	}
+	idClaimsNoEmail, err := verifyIDToken(*baseURL, tokNoEmail.IDToken)
+	if err != nil {
+		log.Fatalf("verify id_token (no addresses): %v", err)
+	}
+	if _, ok := idClaimsNoEmail["email"]; ok {
+		log.Fatalf("id_token email claim present with no primary: %v", idClaimsNoEmail["email"])
+	}
+	if _, ok := idClaimsNoEmail["email_verified"]; ok {
+		log.Fatal("id_token email_verified claim present with no primary")
+	}
+	log.Printf("  userinfo and the fresh id_token both omit email and email_verified ✓")
+
+	step(fmt.Sprintf("oidc %d/%d — POST /oauth/introspect (access token, Basic auth) → active", 10, nOIDC))
 	intro, err := introspect(*baseURL, rpClientID, rpSecret, accessToken)
 	if err != nil {
 		log.Fatalf("/oauth/introspect: %v", err)
@@ -2813,7 +3021,7 @@ func main() {
 	}
 	log.Printf("  introspect active=true token_type=access_token client_id=%s sub✓", rpClientID)
 
-	step(fmt.Sprintf("oidc %d/%d — POST /oauth/token (refresh_token rotation, Basic + post auth)", 7, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — POST /oauth/token (refresh_token rotation, Basic + post auth)", 11, nOIDC))
 	refreshed, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {refreshToken},
@@ -2860,7 +3068,7 @@ func main() {
 	refreshToken = refreshedPost.RefreshToken
 	log.Printf("  same grant via client_secret_post (form credentials, no Basic header) ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — refresh idempotency window + reuse detection", 8, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — refresh idempotency window + reuse detection", 12, nOIDC))
 	// Refresh rotation carries a short previous-token idempotency window so a
 	// benign client double-submit / network retry of the JUST-rotated token
 	// returns the SAME successor instead of falsely tripping reuse and locking
@@ -2902,7 +3110,7 @@ func main() {
 	}
 	log.Printf("  idempotent replay → same successor; two-gen-old replay → 400 reuse ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — reuse detection revoked the whole family (current token now dead)", 9, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — reuse detection revoked the whole family (current token now dead)", 13, nOIDC))
 	// The earlier reuse trip revoked the family, so the current (twice-rotated)
 	// token must now also fail with invalid_grant.
 	if err := tokenExpectError(*baseURL, rpClientID, rpSecret, url.Values{
@@ -2913,7 +3121,7 @@ func main() {
 	}
 	log.Printf("  current refresh_token also dead post-reuse (family revoked) ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — fresh authorize+token, then /oauth/revoke the refresh token", 10, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — fresh authorize+token, then /oauth/revoke the refresh token", 14, nOIDC))
 	// The family was revoked by the reuse trip; mint a fresh code → token to get a
 	// live refresh token to revoke via RFC 7009.
 	v2, code2 := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
@@ -2941,7 +3149,7 @@ func main() {
 	}
 	log.Printf("  /oauth/revoke → 200; revoked refresh_token → invalid_grant ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — /oauth/revoke an access token → revoked_jti row", 11, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — /oauth/revoke an access token → revoked_jti row", 15, nOIDC))
 	// Mint another fresh access token, revoke it, and confirm a revoked_jti row.
 	v3, code3 := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
 	tok3, err := tokenExchange(*baseURL, rpClientID, rpSecret, url.Values{
@@ -2974,14 +3182,14 @@ func main() {
 	}
 	log.Printf("  introspect revoked access token → active=false ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — negative — unregistered redirect_uri never sends browser to bad URI", 12, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — negative — unregistered redirect_uri never sends browser to bad URI", 16, nOIDC))
 	if err := authorizeExpectDirectError(c, *baseURL, rpClientID,
 		*baseURL+"/rp/UNREGISTERED-callback", issuer); err != nil {
 		log.Fatalf("negative unregistered redirect_uri: %v", err)
 	}
 	log.Printf("  /authorize with bad redirect_uri → 302 /error?error=invalid_request (no Location to the bad URI) ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — negative — PKCE mismatch at /token → invalid_grant", 13, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — negative — PKCE mismatch at /token → invalid_grant", 17, nOIDC))
 	vGood, codeBad := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
 	_ = vGood // intentionally NOT used: send a wrong verifier.
 	wrongVerifier, _ := genPKCE()
@@ -2995,7 +3203,7 @@ func main() {
 	}
 	log.Printf("  /token with wrong code_verifier → 400 invalid_grant ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — negative — bad client secret at /token → invalid_client (401)", 14, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — negative — bad client secret at /token → invalid_client (401)", 18, nOIDC))
 	vc, codec := freshAuthorizeCode(c, *baseURL, rpClientID, rpRedirectURI, issuer)
 	if err := tokenExpectError(*baseURL, rpClientID, "WRONG-SECRET", url.Values{
 		"grant_type":    {"authorization_code"},
@@ -3007,7 +3215,7 @@ func main() {
 	}
 	log.Printf("  /token with wrong client secret → 401 invalid_client ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — GET /oidc/logout (id_token_hint + post_logout_redirect_uri)", 15, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — GET /oidc/logout (id_token_hint + post_logout_redirect_uri)", 19, nOIDC))
 	// Capture the current session id so we can confirm logout revoked exactly it.
 	logoutState := randState()
 	logoutLoc, err := c.getRedirect(fmt.Sprintf("/oidc/logout?id_token_hint=%s&post_logout_redirect_uri=%s&state=%s",
@@ -3025,18 +3233,18 @@ func main() {
 	}
 	log.Printf("  302 to post_logout_redirect_uri with state echoed ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — logout revoked c's IdP session (the id_token's sid) → /me 401", 16, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — logout revoked c's IdP session (the id_token's sid) → /me 401", 20, nOIDC))
 	if _, err := c.getMe(); err == nil {
 		log.Fatalf("/me succeeded after /oidc/logout; expected 401 (session sid should be revoked)")
 	}
 	log.Printf("  c's /me now 401 — logout revoked the id_token's sid session ✓")
 
-	step(fmt.Sprintf("oidc %d/%d — DB assert — revoked_jti row for the revoked access token", 17, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — DB assert — revoked_jti row for the revoked access token", 21, nOIDC))
 	if err := verifyRevokedJTI(revokedJTI); err != nil {
 		log.Fatalf("revoked_jti DB assert: %v", err)
 	}
 
-	step(fmt.Sprintf("oidc %d/%d — DB assert — credential_event (factor=oidc_client) lifecycle", 18, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — DB assert — credential_event (factor=oidc_client) lifecycle", 22, nOIDC))
 	if err := verifyOIDCAuditEvents(); err != nil {
 		log.Fatalf("oidc audit DB assert: %v", err)
 	}
@@ -6900,6 +7108,8 @@ func (c *client) postEnrollmentJSON(token, action string, body, out any) error {
 		return fmt.Errorf("%s: response read failed", label)
 	}
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		// The response body is deliberately absent: it may echo secret
+		// material from a misbehaving server (see the redaction test).
 		return fmt.Errorf("%s: unexpected HTTP status %d", label, resp.StatusCode)
 	}
 	if out == nil || len(responseBody) == 0 {

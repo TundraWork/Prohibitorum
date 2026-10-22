@@ -3,6 +3,7 @@ import { AppDetailLayout } from "@/components/custom/AppDetailLayout";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { AsyncSection } from "@/components/custom/Section";
 import { GeneralPanel } from "@/pages/admin/settings/GeneralPanel";
+import { MailPanel } from "@/pages/admin/settings/MailPanel";
 import { MaintenancePanel } from "@/pages/admin/settings/MaintenancePanel";
 import {
   clientIpSection,
@@ -50,6 +51,7 @@ export function AdminSettings() {
       <GeneralPanel />
       <SignInPageSummary />
       <MaintenancePanel />
+      <MailPanel />
       <AsyncSection resetKey="network" {...clientIpSection}>
         <NetworkPanel />
       </AsyncSection>

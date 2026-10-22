@@ -365,7 +365,6 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-
 	case enrollment.IntentReset:
 		if err := acctpkg.ValidateNickname(&body.Nickname); err != nil {
 			writeAuthErr(w, err)
@@ -393,7 +392,6 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		creds, _ := q.ListCredentialsByAccount(r.Context(), a.ID)
 		wu = &webauthnauth.WebAuthnAccount{Account: &a, Credentials: creds}
 		stash.Reset = &resetCeremony{Nickname: body.Nickname}
-
 
 	default:
 		writeAuthErr(w, authn.ErrEnrollmentConsumed())
@@ -605,7 +603,6 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 			federatedProvider = &provider
 			federatedAvatar = inviteSnapshotAvatar(*consumed)
 		}
-
 
 	case enrollment.IntentReset:
 		if !consumed.TargetAccountID.Valid {

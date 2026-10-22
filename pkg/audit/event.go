@@ -43,19 +43,22 @@ const (
 	// FactorAppManager covers account assignments to applications. Its value is
 	// retained for audit compatibility.
 	FactorAppManager Factor = "app_manager"
+	// FactorEmail covers local account-email mutations: add, verify, primary
+	// change, removal, verification mails, and upstream absorption.
+	FactorEmail Factor = "email"
 )
 
 const (
-	EventRegister           = "register"
-	EventUse                = "use"
-	EventFail               = "fail"
-	EventRevoke             = "revoke"
-	EventCloneWarning       = "clone_warning"
-	EventLink               = "link"
-	EventUnlink             = "unlink"
+	EventRegister     = "register"
+	EventUse          = "use"
+	EventFail         = "fail"
+	EventRevoke       = "revoke"
+	EventCloneWarning = "clone_warning"
+	EventLink         = "link"
+	EventUnlink       = "unlink"
 	// EventIdentityVerified is emitted when a provider identity snapshot is
 	// attached to an invitation (verify-then-create), before any account exists.
-	EventIdentityVerified = "identity_verified"
+	EventIdentityVerified   = "identity_verified"
 	EventEnrollmentIssued   = "enrollment_issued"
 	EventEnrollmentConsumed = "enrollment_consumed"
 	EventSessionStart       = "session_start"
@@ -85,6 +88,13 @@ const (
 	// endpoint every time an admin retrieves a request-diagnostic record.
 	// The detail carries only the requestId (no raw cause/secrets).
 	EventDiagnosticLookup = "diagnostic_lookup"
+
+	// Email-factor events: verification_sent (a code mail went out),
+	// verified (code success or admin assertion), primary_changed (the
+	// downstream-visible address moved).
+	EventVerificationSent = "verification_sent"
+	EventVerified         = "verified"
+	EventPrimaryChanged   = "primary_changed"
 )
 
 type Record struct {

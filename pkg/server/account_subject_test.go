@@ -17,8 +17,8 @@ func TestAccountViewsPreserveStoredOIDCSubject(t *testing.T) {
 	}
 	for name, view := range map[string]contract.AccountView{
 		"list":    accountViewFromRow(&db.ListAccountsRow{ID: 7, Username: "carol", OidcSubject: uuid}, ""),
-		"detail":  accountViewFromAccount(&db.Account{ID: 7, Username: "carol", OidcSubject: uuid}, nil, ""),
-		"renamed": accountViewFromAccount(&db.Account{ID: 7, Username: "updated", DisplayName: "New Name", OidcSubject: uuid}, nil, ""),
+		"detail":  accountViewFromAccount(&db.Account{ID: 7, Username: "carol", OidcSubject: uuid}, nil, nil, ""),
+		"renamed": accountViewFromAccount(&db.Account{ID: 7, Username: "updated", DisplayName: "New Name", OidcSubject: uuid}, nil, nil, ""),
 	} {
 		t.Run(name, func(t *testing.T) {
 			encoded, err := json.Marshal(view)

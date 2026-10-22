@@ -13,8 +13,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/audit"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
 )

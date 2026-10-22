@@ -36,7 +36,9 @@ func (f *fakeBrandingStore) ClearUnsplashKey(context.Context) error { return nil
 func (f *fakeBrandingStore) AddImage(context.Context, []byte, string) (branding.ImageRef, error) {
 	return branding.ImageRef{}, nil
 }
-func (f *fakeBrandingStore) DeleteImage(context.Context, int64) error { return branding.ErrImageNotFound }
+func (f *fakeBrandingStore) DeleteImage(context.Context, int64) error {
+	return branding.ErrImageNotFound
+}
 func (f *fakeBrandingStore) ImageData(context.Context, int64) ([]byte, string, error) {
 	return nil, "", branding.ErrImageNotFound
 }

@@ -43,12 +43,6 @@ export interface AccountPatch {
   displayName: string;
   role: string;
   attributes: Record<string, unknown>;
-  /**
-   * The address to store, `""` to clear it. Leave it out when the address is
-   * unchanged: the server treats any supplied address as a new, unverified one,
-   * so sending the stored value back would erase its verification.
-   */
-  email?: string;
 }
 
 /**
@@ -64,7 +58,6 @@ export function accountUpdateBody(
     role: patch.role,
     attributes: patch.attributes,
     disabled: account.disabled,
-    ...(patch.email === undefined ? {} : { email: patch.email }),
   };
 }
 

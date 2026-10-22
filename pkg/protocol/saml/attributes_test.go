@@ -39,7 +39,7 @@ func TestAttributesGHESAdminAccount(t *testing.T) {
 		}),
 	}
 
-	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "", nil)
+	attrs, err := projectAttributes(acct, "", ghesDefaultAttributeMap(), "", nil)
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestAttributesNonAdminOmitsAdministrator(t *testing.T) {
 		Attributes: mustAttrJSON(t, map[string]any{"emails": []any{"bob@x.test"}}),
 	}
 
-	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "", nil)
+	attrs, err := projectAttributes(acct, "", ghesDefaultAttributeMap(), "", nil)
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestAttributesAdministratorTruthyViaAttribute(t *testing.T) {
 				Role:       "user",
 				Attributes: mustAttrJSON(t, map[string]any{"administrator": tc.val}),
 			}
-			attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "", nil)
+			attrs, err := projectAttributes(acct, "", ghesDefaultAttributeMap(), "", nil)
 			if err != nil {
 				t.Fatalf("projectAttributes: %v", err)
 			}
@@ -179,7 +179,7 @@ func TestAttributesAdministratorViaRoleOnly(t *testing.T) {
 		Role:       "admin",
 		Attributes: mustAttrJSON(t, map[string]any{"emails": []any{"b@x.test"}}),
 	}
-	attrs, err := projectAttributes(acct, ghesDefaultAttributeMap(), "", nil)
+	attrs, err := projectAttributes(acct, "", ghesDefaultAttributeMap(), "", nil)
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestAttributesMalformedAccountAttributes(t *testing.T) {
 		t.Fatalf("marshal map: %v", err)
 	}
 	acct := db.Account{Username: "x", Attributes: []byte("{not json")}
-	if _, err := projectAttributes(acct, mapJSON, "", nil); err == nil {
+	if _, err := projectAttributes(acct, "", mapJSON, "", nil); err == nil {
 		t.Error("expected error for malformed account Attributes, got nil")
 	}
 }
@@ -220,14 +220,14 @@ func TestAttributesNameFormatURIsExact(t *testing.T) {
 
 func TestAttributesMalformedMap(t *testing.T) {
 	acct := db.Account{Username: "alice"}
-	if _, err := projectAttributes(acct, []byte("{not an array}"), "", nil); err == nil {
+	if _, err := projectAttributes(acct, "", []byte("{not an array}"), "", nil); err == nil {
 		t.Error("expected error for malformed mapJSON, got nil")
 	}
 }
 
 func TestAttributesEmptyMap(t *testing.T) {
 	acct := db.Account{Username: "alice"}
-	attrs, err := projectAttributes(acct, nil, "", nil)
+	attrs, err := projectAttributes(acct, "", nil, "", nil)
 	if err != nil {
 		t.Errorf("unexpected error for nil mapJSON: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestAttributesMultiValueOrderAndSingleFromArray(t *testing.T) {
 		Username:   "dave",
 		Attributes: mustAttrJSON(t, map[string]any{"emails": []any{"first@x.test", "second@x.test"}}),
 	}
-	attrs, err := projectAttributes(acct, mapJSON, "", nil)
+	attrs, err := projectAttributes(acct, "", mapJSON, "", nil)
 	if err != nil {
 		t.Fatalf("projectAttributes: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestAttributesGroupsSource(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal map: %v", err)
 		}
-		attrs, err := projectAttributes(acct, mapJSON, "", []string{"eng", "ops"})
+		attrs, err := projectAttributes(acct, "", mapJSON, "", []string{"eng", "ops"})
 		if err != nil {
 			t.Fatalf("projectAttributes: %v", err)
 		}
@@ -307,7 +307,7 @@ func TestAttributesGroupsSource(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal map: %v", err)
 		}
-		attrs, err := projectAttributes(acct, mapJSON, "", nil)
+		attrs, err := projectAttributes(acct, "", mapJSON, "", nil)
 		if err != nil {
 			t.Fatalf("projectAttributes: %v", err)
 		}
@@ -324,7 +324,7 @@ func TestAttributesGroupsSource(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal map: %v", err)
 		}
-		attrs, err := projectAttributes(acct, mapJSON, "", []string{})
+		attrs, err := projectAttributes(acct, "", mapJSON, "", []string{})
 		if err != nil {
 			t.Fatalf("projectAttributes: %v", err)
 		}
@@ -341,7 +341,7 @@ func TestAttributesGroupsSource(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal map: %v", err)
 		}
-		attrs, err := projectAttributes(acct, mapJSON, "", []string{"eng", "ops"})
+		attrs, err := projectAttributes(acct, "", mapJSON, "", []string{"eng", "ops"})
 		if err != nil {
 			t.Fatalf("projectAttributes: %v", err)
 		}
@@ -362,7 +362,7 @@ func TestAttributesGroupsSource(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal map: %v", err)
 		}
-		attrs, err := projectAttributes(acct, mapJSON, "", []string{"eng", "ops"})
+		attrs, err := projectAttributes(acct, "", mapJSON, "", []string{"eng", "ops"})
 		if err != nil {
 			t.Fatalf("projectAttributes: %v", err)
 		}

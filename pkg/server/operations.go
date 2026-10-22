@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -43,6 +44,11 @@ func humaConfig() huma.Config {
 			_, pe.Code, pe.Details = weberr.Canonicalize(pe.Code, pe.Details)
 			pe.RequestID = weberr.RequestIDFromContext(ctx.Context())
 			observeDiagnostic(ctx.Context(), pe.Code, pe.Details)
+			// 429s carrying an explicit back-off emit the Retry-After header;
+			// the body stays the plain envelope.
+			if pe.RetryAfterSeconds > 0 {
+				ctx.SetHeader("Retry-After", strconv.Itoa(pe.RetryAfterSeconds))
+			}
 		}
 		return v, nil
 	})

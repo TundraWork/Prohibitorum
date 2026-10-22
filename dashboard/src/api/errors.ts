@@ -488,6 +488,57 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.federation_state_invalid.sign_in",
     message: "This sign-in has expired. Sign in again.",
   }),
+  // Local account email addresses (PHB-148): what the server refuses, in the
+  // words the reader can act on.
+  email_invalid: msg({
+    id: "error.email_invalid",
+    message: "That is not a valid email address.",
+  }),
+  email_limit_reached: msg({
+    id: "error.email_limit_reached",
+    message: "This account already has the maximum number of email addresses.",
+  }),
+  email_exists: msg({
+    id: "error.email_exists",
+    message: "That address is already on this list.",
+  }),
+  email_unavailable: msg({
+    id: "error.email_unavailable",
+    message: "That address cannot be used.",
+  }),
+  email_taken: msg({
+    id: "error.email_taken",
+    message: "That address is already verified by another account.",
+  }),
+  email_not_verified_for_primary: msg({
+    id: "error.email_not_verified_for_primary",
+    message: "Only a verified address can be the primary one.",
+  }),
+  email_primary_undeletable: msg({
+    id: "error.email_primary_undeletable",
+    message:
+      "The primary address cannot be removed. Make another address the primary first.",
+  }),
+  email_code_invalid: msg({
+    id: "error.email_code_invalid",
+    message: "That code is not correct.",
+  }),
+  email_code_expired: msg({
+    id: "error.email_code_expired",
+    message: "That code has expired. Send a new one.",
+  }),
+  email_already_verified: msg({
+    id: "error.email_already_verified",
+    message: "That address is already verified.",
+  }),
+  email_delivery_unavailable: msg({
+    id: "error.email_delivery_unavailable",
+    message: "This instance cannot send email.",
+  }),
+  email_delivery_failed: msg({
+    id: "error.email_delivery_failed",
+    message: "The message could not be sent. Try again in a moment.",
+  }),
 };
 
 /**

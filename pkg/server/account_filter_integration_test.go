@@ -58,13 +58,32 @@ func TestListAccountsIdentityFiltersPostgres(t *testing.T) {
 		}
 		var id int32
 		err := tx.QueryRow(ctx, `
-			INSERT INTO account (username, display_name, webauthn_user_handle, email, created_at)
-			VALUES ($1, $2, $3, $4, $5)
-			RETURNING id`, username, displayName, append(nonce[:], byte(index)), prefix+"@page.test", createdAt[name]).Scan(&id)
+			INSERT INTO account (username, display_name, webauthn_user_handle, created_at)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id`, username, displayName, append(nonce[:], byte(index)), createdAt[name]).Scan(&id)
 		if err != nil {
 			t.Fatalf("insert account %s: %v", name, err)
 		}
 		accountIDs[name] = id
+		// PHB-148: the shared account email becomes per-account address
+		// rows; alice's is verified (and primary), the rest unverified —
+		// mirroring the migration's duplicate-demotion rule.
+		var emailID int64
+		verified := name == "alice"
+		var verifiedAt, verifiedVia any
+		if verified {
+			verifiedAt, verifiedVia = time.Now(), "upstream"
+		}
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO account_email (account_id, address, verified_at, verified_via)
+			VALUES ($1, $2, $3, $4) RETURNING id`, id, prefix+"@page.test", verifiedAt, verifiedVia).Scan(&emailID); err != nil {
+			t.Fatalf("seed %s address: %v", name, err)
+		}
+		if verified {
+			if _, err := tx.Exec(ctx, `UPDATE account SET primary_email_id = $2 WHERE id = $1`, id, emailID); err != nil {
+				t.Fatalf("seed %s primary: %v", name, err)
+			}
+		}
 	}
 
 	providerIDs := make(map[string]int64)
@@ -262,8 +281,15 @@ func TestAccountFilterSchemaPostgres(t *testing.T) {
 			query: `EXPLAIN (COSTS OFF)
 				SELECT id FROM account
 				WHERE (
-					username || E'\n' || display_name || E'\n' || COALESCE(email, '')
+					username || E'\n' || display_name
 				) ILIKE '%selective-local-needle%'`,
+		},
+		{
+			name:      "address text search",
+			indexName: "account_email_search_trgm_idx",
+			query: `EXPLAIN (COSTS OFF)
+				SELECT account_id FROM account_email
+				WHERE address ILIKE '%selective-address-needle%'`,
 		},
 		{
 			name:      "identity text search",

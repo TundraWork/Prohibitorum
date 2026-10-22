@@ -23,8 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
 	fedoidc "prohibitorum/pkg/federation"
@@ -174,8 +172,8 @@ func seedConfirmGrant(t *testing.T, h *fedTestHarness) confirmFixture {
 		ID:          accountID,
 		Username:    "newbie",
 		DisplayName: "New Bie",
-		Email:       pgtype.Text{String: "newbie@example.com", Valid: true},
 	}
+	h.q.seedPrimary(accountID, "newbie@example.com")
 	// h.idp is already seeded under slug "mockop" by the harness.
 
 	token, anti, err := h.s.federationService.CreateConfirmGrant(

@@ -278,13 +278,14 @@ describe("the access lists", () => {
     expect(screen.getByText("No connected identities")).toBeVisible();
   });
 
-  it("are four sections between the profile and the registration link", async () => {
+  it("are five sections between the profile and the registration link", async () => {
     await openAccount(accountFixture());
     const headings = screen
       .getAllByRole("heading", { level: 2 })
       .map((heading) => heading.textContent);
     expect(headings).toEqual([
       "Profile",
+      "Email addresses",
       "Connected identities",
       "Passkeys",
       "Active sessions",

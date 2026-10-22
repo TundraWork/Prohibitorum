@@ -81,7 +81,7 @@ func currentOutboundUserAgent() string {
 var (
 	// errBlockedDialTarget is returned by the dialer's Control hook when a
 	// resolved IP falls in a blocked range.
-	errBlockedDialTarget = errors.New("federation/oidc: refusing to dial blocked (internal/metadata) address")
+	errBlockedDialTarget     = errors.New("federation/oidc: refusing to dial blocked (internal/metadata) address")
 	errHTTPRedirectDowngrade = errors.New("federation/oidc: refusing http redirect downgrade from an https request")
 )
 

@@ -82,9 +82,6 @@ describe("the profile section", () => {
     expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue(
       "Bob Stone",
     );
-    expect(screen.getByRole("textbox", { name: "Email" })).toHaveValue(
-      "bob@example.test",
-    );
     expect(screen.getByRole("textbox", { name: "Attributes" })).toHaveValue(
       JSON.stringify({ department: "ops" }, null, 2),
     );
@@ -109,35 +106,8 @@ describe("the profile section", () => {
     ).not.toHaveClass("font-mono");
   });
 
-  describe("the address", () => {
-    it("says whether the stored address is verified", () => {
-      mount(accountFixture({ emailVerified: true }));
-      expect(screen.getByText("Verified")).toBeVisible();
-    });
-
-    it("says when it is not", () => {
-      mount(accountFixture({ emailVerified: false }));
-      expect(screen.getByText("Not verified")).toBeVisible();
-    });
-
-    it("says nothing about an address that is not stored", () => {
-      mount(accountFixture({ email: undefined, emailVerified: false }));
-      expect(screen.queryByText("Not verified")).toBeNull();
-      expect(screen.queryByText("Verified")).toBeNull();
-    });
-
-    it("stops claiming the typed address is verified", async () => {
-      const user = userEvent.setup();
-      mount(accountFixture());
-
-      await user.type(screen.getByRole("textbox", { name: "Email" }), "x");
-
-      expect(screen.queryByText("Verified")).toBeNull();
-    });
-  });
-
   describe("saving", () => {
-    it("sends the full record, carrying the disabled flag and leaving the address alone", async () => {
+    it("sends the full record, carrying the disabled flag", async () => {
       const user = userEvent.setup();
       mount(accountFixture({ disabled: true }));
 
@@ -150,25 +120,12 @@ describe("the profile section", () => {
       expect(new URL(puts()[0]?.url ?? "").pathname).toBe(
         "/api/prohibitorum/accounts/2",
       );
-      // The address is absent: sending it would mark it unverified.
       expect(await putBody()).toEqual({
         displayName: "Robert",
         role: "user",
         disabled: true,
         attributes: { department: "ops" },
       });
-    });
-
-    it("sends a changed address, and an empty one to clear it", async () => {
-      const user = userEvent.setup();
-      mount(accountFixture());
-
-      const email = screen.getByRole("textbox", { name: "Email" });
-      await user.clear(email);
-      await user.click(screen.getByRole("button", { name: "Save changes" }));
-
-      await waitFor(() => expect(puts()).toHaveLength(1));
-      expect((await putBody<{ email: string }>()).email).toBe("");
     });
 
     it("saves an empty attributes box as an empty object", async () => {

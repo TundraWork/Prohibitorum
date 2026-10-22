@@ -320,3 +320,73 @@ func TestParse_PublicOriginValidation(t *testing.T) {
 		})
 	}
 }
+
+// TestParse_SMTPDefaults checks the disabled-by-default shape: empty host,
+// but valid port/security/timeout defaults for when an operator fills in the
+// host alone.
+func TestParse_SMTPDefaults(t *testing.T) {
+	resetViper(t)
+	cfg, err := Parse()
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.SMTP.Host != "" || cfg.SMTP.From != "" {
+		t.Errorf("SMTP host/from should default empty, got %q/%q", cfg.SMTP.Host, cfg.SMTP.From)
+	}
+	if cfg.SMTP.Port != 587 {
+		t.Errorf("SMTP port default: want 587, got %d", cfg.SMTP.Port)
+	}
+	if cfg.SMTP.Security != "starttls" {
+		t.Errorf("SMTP security default: want starttls, got %q", cfg.SMTP.Security)
+	}
+	if cfg.SMTP.Timeout != 15*time.Second {
+		t.Errorf("SMTP timeout default: want 15s, got %v", cfg.SMTP.Timeout)
+	}
+}
+
+// TestParse_SMTPValidation covers the three refusal cases (missing/bad from,
+// bad security) and the valid shape.
+func TestParse_SMTPValidation(t *testing.T) {
+	cases := []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{"host_without_from", map[string]string{
+			"PROHIBITORUM_SMTP_HOST": "smtp.example.com",
+		}, "smtp.from is required"},
+		{"from_with_display_name", map[string]string{
+			"PROHIBITORUM_SMTP_HOST": "smtp.example.com",
+			"PROHIBITORUM_SMTP_FROM": "Prohibitorum <noreply@example.com>",
+		}, "bare email address"},
+		{"bad_security", map[string]string{
+			"PROHIBITORUM_SMTP_HOST":     "smtp.example.com",
+			"PROHIBITORUM_SMTP_FROM":     "noreply@example.com",
+			"PROHIBITORUM_SMTP_SECURITY": "ssl",
+		}, "smtp.security"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resetViper(t)
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+			_, err := Parse()
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want containing %q", err, tc.want)
+			}
+		})
+	}
+	t.Run("valid_config_passes", func(t *testing.T) {
+		resetViper(t)
+		t.Setenv("PROHIBITORUM_SMTP_HOST", "smtp.example.com")
+		t.Setenv("PROHIBITORUM_SMTP_FROM", "noreply@example.com")
+		cfg, err := Parse()
+		if err != nil {
+			t.Fatalf("Parse: %v", err)
+		}
+		if cfg.SMTP.Host != "smtp.example.com" || cfg.SMTP.From != "noreply@example.com" {
+			t.Errorf("SMTP roundtrip: %+v", cfg.SMTP)
+		}
+	})
+}

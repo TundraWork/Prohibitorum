@@ -236,10 +236,10 @@ func TestDeleteIdentityProviderRemovesLinkedIdentitiesPostgres(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		var id int32
 		if err := base.pool.QueryRow(ctx, `
-			INSERT INTO account (username, display_name, webauthn_user_handle, email)
-			VALUES ($1, 'Linked', $2, $3) RETURNING id`,
+			INSERT INTO account (username, display_name, webauthn_user_handle)
+			VALUES ($1, 'Linked', $2) RETURNING id`,
 			slug+"_acct_"+hex.EncodeToString([]byte{byte('a' + i)}),
-			append([]byte(suffix), byte(i)), slug+"_"+hex.EncodeToString([]byte{byte('a' + i)})+"@del.test",
+			append([]byte(suffix), byte(i)),
 		).Scan(&id); err != nil {
 			t.Fatal(err)
 		}

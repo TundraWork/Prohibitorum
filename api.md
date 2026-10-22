@@ -365,6 +365,35 @@ Upstream avatars are fetched while a sign-in, a connection or an invitation regi
 
 Until the user picks an avatar through the selection endpoint (including `none`), an upload or an upstream avatar may take effect on its own: an upload always does, and an upstream avatar does when no avatar is in effect. After the first pick, only the user changes the active avatar. In both cases a new picture from the upstream that is already in effect replaces the one shown.
 
+## Account emails (self-service)
+
+An account can hold several email addresses; at most one — always verified — is the primary that downstream applications receive. In this section 🔓 means an active session of any user; none of the routes require sudo.
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/me/emails` | 🔓 | `{emails, deliveryAvailable, limit}`. Emails sorted primary first then by creation. Each: `{id, address, verified, verifiedVia?, verifiedProvider?, primary, createdAt, verifiedAt?}`. `deliveryAvailable` is false when SMTP is not configured; `limit` is the per-account cap (10). |
+| POST | `/api/prohibitorum/me/emails` | 🔓 | Body `{"address"}`. Adds an unverified address. 201. 422 `email_invalid`; 409 `email_limit_reached` / `email_exists`. |
+| POST | `/api/prohibitorum/me/emails/{id}/send-code` | 🔓 | Body `{"locale?": "zh"\|"en"}`. Mails a 6-digit code (15-minute TTL, 5 attempts). 202 `{resendAfterSeconds, expiresInSeconds}`. 409 `email_delivery_unavailable` (no SMTP) / `email_already_verified`; 429 `rate_limited` with `Retry-After` (60s per-address cooldown, 10/hour per account, 5/hour per address across accounts; no IP keys); 502 `email_delivery_failed` (code invalidated). |
+| POST | `/api/prohibitorum/me/emails/{id}/verify` | 🔓 | Body `{"code"}`. 200 with the address (becomes primary when the account has none). 422 `email_code_invalid` (+`attemptsRemaining`); 410 `email_code_expired`; 409 `email_unavailable` (deliberately detail-free). |
+| POST | `/api/prohibitorum/me/emails/{id}/primary` | 🔓 | Makes a verified address the primary. 200 with the refreshed list. 409 `email_not_verified_for_primary`. |
+| DELETE | `/api/prohibitorum/me/emails/{id}` | 🔓 | 204; the primary cannot be deleted (409 `email_primary_undeletable`). |
+
+An id that belongs to another account answers 404. Every mutation writes an audit row (`factor=email`); codes are never audited or logged.
+
+## Account emails (admin)
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/accounts/{id}/emails` | admin | `{emails, limit}`; same ordering; `verifiedBy` carries the asserting admin's username for `verifiedVia=admin`. |
+| POST | `/api/prohibitorum/accounts/{id}/emails` | admin | Body `{"address", "verified?", "primary?"}`. `primary` without `verified` is 422. 201. 409 `email_taken` when another account already verified the address. |
+| POST | `/api/prohibitorum/accounts/{id}/emails/{emailId}/verify` | admin | Admin assertion (`verified_via=admin`, operator recorded). 200. 409 `email_taken`. |
+| POST | `/api/prohibitorum/accounts/{id}/emails/{emailId}/primary` | admin | 200 with the refreshed list. 409 `email_not_verified_for_primary`. |
+| DELETE | `/api/prohibitorum/accounts/{id}/emails/{emailId}` | admin | 204. May remove the primary: the earliest-verified remaining address is promoted, or the account keeps no primary. |
+| GET | `/api/prohibitorum/admin/settings/mail` | admin | `{configured, host?, port?, security?, from?}` — credentials never returned. |
+| POST | `/api/prohibitorum/admin/settings/mail/test` | admin | Body `{"to", "locale?"}`. Sends a test mail; 5 per admin per minute. 202. 422 `email_invalid`; 409 `email_delivery_unavailable`; 502 `email_delivery_failed`; 429 `rate_limited`. |
+
+Admin email routes are admin-only but never sudo-gated. `PUT /accounts/{id}` no longer accepts an `email` field; `AccountView` carries `primaryEmail?` instead of `email`/`emailVerified`.
+
 ## Personal access tokens (self-service)
 
 Self-service PAT management routes. These are **not** admin-gated — any enrolled user may call them on their own account.

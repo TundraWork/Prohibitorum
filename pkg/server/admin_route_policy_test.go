@@ -93,6 +93,15 @@ var droppedSudoRoutes = []sudoRoute{
 	// Instance settings
 	{method: "PUT", path: "/api/prohibitorum/admin/settings", body: `{"instanceName":"x"}`},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/maintenance", body: `{"maintenanceMode":true}`},
+
+	// PHB-148 account emails — admin assertions, primary change, removal and
+	// the mail settings/test send are ordinary admin maintenance, never sudo.
+	{method: "POST", path: "/api/prohibitorum/accounts/1/emails", body: `{"address":"a@b.example"}`, noBodyControls: true},
+	{method: "POST", path: "/api/prohibitorum/accounts/1/emails/2/verify", body: ``},
+	{method: "POST", path: "/api/prohibitorum/accounts/1/emails/2/primary", body: ``},
+	{method: "DELETE", path: "/api/prohibitorum/accounts/1/emails/2", body: ``},
+	{method: "GET", path: "/api/prohibitorum/admin/settings/mail", body: ``},
+	{method: "POST", path: "/api/prohibitorum/admin/settings/mail/test", body: `{"to":"a@b.example"}`, noBodyControls: true},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/icon", body: `x`, noBodyControls: true},
 	{method: "DELETE", path: "/api/prohibitorum/admin/settings/icon", body: ``},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/login-appearance", body: `{}`},
@@ -184,6 +193,27 @@ func TestTrimmedAdminRoutesAreAdminOnlyNotSudo(t *testing.T) {
 					sr.method, sr.path, rr.Body.String())
 			}
 		})
+	}
+
+	// Catch a table entry that no longer matches a registered pattern: a
+	// dropped registration would 404 and slip past the sudo assertion above
+	// (this is how DELETE /admin/settings/icon went missing once).
+	registered := map[string][]string{}
+	_ = chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		registered[method] = append(registered[method], route)
+		return nil
+	})
+	for _, sr := range droppedSudoRoutes {
+		found := false
+		for _, pattern := range registered[sr.method] {
+			if routeMatches(pattern, sr.path) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s %s matches no registered route (registration dropped?)", sr.method, sr.path)
+		}
 	}
 }
 

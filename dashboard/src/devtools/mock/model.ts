@@ -309,6 +309,13 @@ export interface MockConfig {
     clientIpHeader: string;
     /** The trusted proxies, one per line, like the settings field. */
     trustedProxies: string;
+    /**
+     * Whether SMTP is configured. One switch answers three reads the way the
+     * server's one config file does: the settings panel's rows, whether a
+     * test mail or a verification code can be sent at all, and the warnings
+     * the profile's email list draws.
+     */
+    smtpConfigured: boolean;
   };
 }
 
@@ -474,6 +481,7 @@ export const defaultMockConfig: MockConfig = {
     clientIpStrategy: "direct",
     clientIpHeader: "",
     trustedProxies: "",
+    smtpConfigured: true,
   },
 } satisfies MockConfig;
 

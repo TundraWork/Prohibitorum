@@ -445,7 +445,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		ProviderID: provider.ID, ProviderSlug: provider.Slug, ReturnTo: state.ReturnTo,
 		App: state.App, Remember: state.Remember, Enrollment: outcome.Enrollment,
 		AMR: append([]string(nil), outcome.AMR...), IsNew: outcome.IsNew,
-		Confirmed: outcome.Confirmed,
+		Confirmed:        outcome.Confirmed,
 		OfferLocalSignin: outcome.OfferLocalSignin,
 	}
 	if outcome.Enrollment != nil {

@@ -43,13 +43,13 @@ func TestTTLResolversHonorConfigElseDefault(t *testing.T) {
 
 	// Configured values are honored.
 	pc := &Provider{cfg: &configx.Config{OIDC: configx.OIDCConfig{
-		AccessTokenTTL:             5 * time.Minute,
-		IDTokenTTL:                 7 * time.Minute,
-		RefreshTokenTTL:            48 * time.Hour,
-		RefreshTokenInactivityTTL:  24 * time.Hour,
-		RefreshTokenAbsoluteTTL:    96 * time.Hour,
-		AuthorizationCodeTTL:       90 * time.Second,
-		JWKSCacheMaxAge:            2 * time.Minute,
+		AccessTokenTTL:            5 * time.Minute,
+		IDTokenTTL:                7 * time.Minute,
+		RefreshTokenTTL:           48 * time.Hour,
+		RefreshTokenInactivityTTL: 24 * time.Hour,
+		RefreshTokenAbsoluteTTL:   96 * time.Hour,
+		AuthorizationCodeTTL:      90 * time.Second,
+		JWKSCacheMaxAge:           2 * time.Minute,
 	}}}
 	for _, c := range []struct {
 		name string

@@ -37,14 +37,14 @@ import (
 )
 
 const (
-	fedClientID                = "downstream-federation"
-	policyDemoFedClientID      = "upstream-policy-demo-federation"
-	policyDemoUpstreamIDPSlug  = "downstream-policy-demo"
-	testRPID                   = "test-rp"
-	testRPRedirect             = "http://127.0.0.1:9876/callback"
-	slugAuto                   = "upstream"
-	slugInvite                 = "upstream-invite"
-	slugLink                   = "upstream-link"
+	fedClientID               = "downstream-federation"
+	policyDemoFedClientID     = "upstream-policy-demo-federation"
+	policyDemoUpstreamIDPSlug = "downstream-policy-demo"
+	testRPID                  = "test-rp"
+	testRPRedirect            = "http://127.0.0.1:9876/callback"
+	slugAuto                  = "upstream"
+	slugInvite                = "upstream-invite"
+	slugLink                  = "upstream-link"
 )
 
 var _devFederationCmd *cobra.Command

@@ -32,6 +32,7 @@ type Querier interface {
 	// free-attempt prefix". Indexing past the array clamps to the last entry,
 	// matching the Go-side schedule-walk semantics.
 	BumpAuthThrottle(ctx context.Context, arg BumpAuthThrottleParams) (BumpAuthThrottleRow, error)
+	ClearAccountPrimaryEmail(ctx context.Context, id int32) error
 	ClearActiveAvatar(ctx context.Context, arg ClearActiveAvatarParams) error
 	ClearManualDecision(ctx context.Context, arg ClearManualDecisionParams) (int64, error)
 	ClearUnsplashKey(ctx context.Context) error
@@ -47,6 +48,7 @@ type Querier interface {
 	// pgx.ErrNoRows surfaces on any not-consumable branch.
 	ConsumeInviteEnrollment(ctx context.Context, token string) (Enrollment, error)
 	ConsumeRecoveryCode(ctx context.Context, arg ConsumeRecoveryCodeParams) (RecoveryCode, error)
+	CountAccountEmails(ctx context.Context, accountID int32) (int64, error)
 	// How many accounts hold an identity from this provider, distinct because one
 	// account can link the same provider twice (two subjects).
 	CountAccountsLinkedToUpstreamIDP(ctx context.Context, upstreamIdpID int64) (int64, error)
@@ -68,7 +70,9 @@ type Querier interface {
 	// ListAccountIdentitiesByAccount intentionally returns all links, including
 	// disabled and sign-in-disabled providers, for display/unlink.
 	CountUsableSignInFederation(ctx context.Context, accountID int32) (int64, error)
-	CountVerifiedAccountsByEmail(ctx context.Context, lower string) (int64, error)
+	// Cross-account check for admin assertion: how many OTHER accounts already
+	// verified this address (0 or 1 under the partial unique index).
+	CountVerifiedAccountEmailsByAddress(ctx context.Context, arg CountVerifiedAccountEmailsByAddressParams) (int64, error)
 	CreateGlobalGroup(ctx context.Context, arg CreateGlobalGroupParams) (UserGroup, error)
 	// The row is read from the INSERT's RETURNING set, not from user_group: a
 	// data-modifying CTE's writes are invisible to the main query's snapshot, so
@@ -78,6 +82,7 @@ type Querier interface {
 	// the CTE's insert within the same statement.
 	CreateSAMLAppGroup(ctx context.Context, arg CreateSAMLAppGroupParams) (CreateSAMLAppGroupRow, error)
 	DeleteAccountByID(ctx context.Context, id int32) error
+	DeleteAccountEmail(ctx context.Context, arg DeleteAccountEmailParams) (int64, error)
 	// Every identity linked to one provider, removed together when the provider
 	// itself is deleted. The account rows survive: an account that could also sign
 	// in another way keeps those, and one that could only use this provider is
@@ -118,7 +123,15 @@ type Querier interface {
 	GetAccountByOIDCSubject(ctx context.Context, oidcSubject pgtype.UUID) (Account, error)
 	GetAccountByUsername(ctx context.Context, username string) (Account, error)
 	GetAccountByWebauthnUserHandle(ctx context.Context, webauthnUserHandle []byte) (Account, error)
+	GetAccountEmail(ctx context.Context, arg GetAccountEmailParams) (GetAccountEmailRow, error)
+	GetAccountEmailByAddress(ctx context.Context, arg GetAccountEmailByAddressParams) (GetAccountEmailByAddressRow, error)
 	GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAccountIdentityByIssuerSubParams) (AccountIdentity, error)
+	// The single read every downstream projection (OIDC claims, forward-auth,
+	// SAML, federation confirm) goes through; ErrNoRows when the account has no
+	// primary. The verified filter is belt-and-braces: the composite FK keeps
+	// the primary inside the owning account, and this keeps the answer verified
+	// even if some future writer pointed it at an unverified row.
+	GetAccountPrimaryEmail(ctx context.Context, id int32) (string, error)
 	GetActiveAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (GetActiveAvatarBySubjectRow, error)
 	GetActiveSigningKey(ctx context.Context) (SigningKey, error)
 	GetAuthThrottle(ctx context.Context, arg GetAuthThrottleParams) (AuthThrottle, error)
@@ -162,6 +175,10 @@ type Querier interface {
 	HasConfirmedIdentityForProviders(ctx context.Context, arg HasConfirmedIdentityForProvidersParams) (bool, error)
 	HasSAMLConsent(ctx context.Context, arg HasSAMLConsentParams) (bool, error)
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
+	InsertAccountEmail(ctx context.Context, arg InsertAccountEmailParams) (AccountEmail, error)
+	// Used by admin assertion and upstream absorption; the caller has already
+	// checked that lower(address) is not verified on another account.
+	InsertAccountEmailVerified(ctx context.Context, arg InsertAccountEmailVerifiedParams) (AccountEmail, error)
 	InsertAccountIdentity(ctx context.Context, arg InsertAccountIdentityParams) (AccountIdentity, error)
 	InsertCredential(ctx context.Context, arg InsertCredentialParams) (WebauthnCredential, error)
 	InsertCredentialEvent(ctx context.Context, arg InsertCredentialEventParams) error
@@ -186,6 +203,10 @@ type Querier interface {
 	IsJTIRevoked(ctx context.Context, jti string) (bool, error)
 	IsOIDCClientManager(ctx context.Context, arg IsOIDCClientManagerParams) (bool, error)
 	IsSAMLSPManager(ctx context.Context, arg IsSAMLSPManagerParams) (bool, error)
+	// Primary first, the rest by creation time. verified_provider and
+	// verified_by_username resolve provenance (upstream display name, asserting
+	// admin) so views can show it without a second query.
+	ListAccountEmails(ctx context.Context, id int32) ([]ListAccountEmailsRow, error)
 	ListAccountIdentitiesByAccount(ctx context.Context, accountID int32) ([]ListAccountIdentitiesByAccountRow, error)
 	ListAccounts(ctx context.Context, arg ListAccountsParams) ([]ListAccountsRow, error)
 	ListActiveAccountAccessFacts(ctx context.Context) ([]ListActiveAccountAccessFactsRow, error)
@@ -264,9 +285,16 @@ type Querier interface {
 	// Row lock for attachInviteIdentity: an unconsumed, unexpired invite only.
 	// pgx.ErrNoRows surfaces on any branch the invite path treats as gone.
 	LockInviteEnrollmentForUpdate(ctx context.Context, token string) (Enrollment, error)
+	// Bumps an existing unverified row to verified. Returns 0 rows when another
+	// account already verified the address (the partial unique index rejects it)
+	// or the row vanished.
+	MarkAccountEmailVerified(ctx context.Context, arg MarkAccountEmailVerifiedParams) (int64, error)
 	// Records the first time the user picked an avatar; later picks keep it.
 	MarkAvatarSelected(ctx context.Context, id int32) error
 	PATGrantsApp(ctx context.Context, arg PATGrantsAppParams) (bool, error)
+	// The earliest-verified other address, used when an admin removes the
+	// primary. ErrNoRows when nothing can take over.
+	PickFallbackPrimary(ctx context.Context, arg PickFallbackPrimaryParams) (PickFallbackPrimaryRow, error)
 	PromoteSigningKey(ctx context.Context, kid string) (SigningKey, error)
 	PruneExpiredRevokedJTI(ctx context.Context) error
 	ReconcileRetiredSigningKeys(ctx context.Context) (int64, error)
@@ -293,6 +321,7 @@ type Querier interface {
 	RevokePATByID(ctx context.Context, id int32) (int64, error)
 	RevokeSession(ctx context.Context, id string) error
 	SetAccountDisabled(ctx context.Context, arg SetAccountDisabledParams) (Account, error)
+	SetAccountPrimaryEmail(ctx context.Context, arg SetAccountPrimaryEmailParams) error
 	// source is forced non-null text (the column is nullable, but this query only
 	// ever sets a concrete sentinel) so callers cannot accidentally NULL the pointer.
 	SetActiveAvatar(ctx context.Context, arg SetActiveAvatarParams) error
@@ -311,9 +340,6 @@ type Querier interface {
 	TouchPATLastUsed(ctx context.Context, id int32) error
 	UpdateAccount(ctx context.Context, arg UpdateAccountParams) (Account, error)
 	UpdateAccountDisplayName(ctx context.Context, arg UpdateAccountDisplayNameParams) error
-	// Refreshes an account's email from a verified upstream on re-login (federation
-	// claim drift), keeping it in lockstep with account_identity.upstream_email.
-	UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmailParams) error
 	UpdateAccountIdentityVerifiedData(ctx context.Context, arg UpdateAccountIdentityVerifiedDataParams) error
 	// Replaces only the sections present in sections; the others stay as stored.
 	UpdateAccountPreferences(ctx context.Context, arg UpdateAccountPreferencesParams) ([]byte, error)

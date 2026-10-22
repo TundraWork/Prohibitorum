@@ -139,9 +139,9 @@ func TestListPaginationLimitAndCursorPostgres(t *testing.T) {
 	for i := 0; i < rowCount; i++ {
 		at := base.Add(-time.Duration(i) * time.Minute)
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO account (username, display_name, webauthn_user_handle, email, created_at)
-			VALUES ($1, $2, $3, $4, $5)`,
-			prefix+"_"+hex.EncodeToString([]byte{byte('a' + i)}), "Paged", append(nonce[:], byte(i)), prefix+"@page.test", at); err != nil {
+			INSERT INTO account (username, display_name, webauthn_user_handle, created_at)
+			VALUES ($1, $2, $3, $4)`,
+			prefix+"_"+hex.EncodeToString([]byte{byte('a' + i)}), "Paged", append(nonce[:], byte(i)), at); err != nil {
 			t.Fatalf("insert account %d: %v", i, err)
 		}
 	}

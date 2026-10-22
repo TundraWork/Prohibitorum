@@ -50,6 +50,8 @@ async function open(
     "GET /api/prohibitorum/admin/settings/login-appearance": () =>
       Response.json({ appearance, hasUnsplashKey: false }),
     // The other sections are not under test and never answer.
+    "GET /api/prohibitorum/admin/settings/mail": () =>
+      Response.json({ configured: false }),
     "GET /api/prohibitorum/admin/settings/client-ip": () =>
       new Promise(() => {}),
     "GET /api/prohibitorum/signing-keys": () => new Promise(() => {}),

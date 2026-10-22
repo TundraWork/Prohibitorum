@@ -142,17 +142,27 @@ func appPolicyDemoTestPool(t *testing.T) *pgxpool.Pool {
 	} {
 		handle := make([]byte, 16)
 		handle[len(handle)-1] = byte(i + 1)
-		if _, err := q.InsertAccount(ctx, db.InsertAccountParams{
+		acct, err := q.InsertAccount(ctx, db.InsertAccountParams{
 			Username:           account.username,
 			DisplayName:        strings.ToUpper(account.username[:1]) + account.username[1:],
 			WebauthnUserHandle: handle,
 			Role:               "user",
 			Attributes:         []byte(`{"fixture":true}`),
 			Disabled:           account.disabled,
-			Email:              pgtype.Text{String: account.username + "@example.com", Valid: true},
-			EmailVerified:      true,
-		}); err != nil {
+		})
+		if err != nil {
 			t.Fatalf("insert %s: %v", account.username, err)
+		}
+		// Each fixture account gets a verified primary address (PHB-148);
+		// verified_via='admin' needs no upstream idp row.
+		row, err := q.InsertAccountEmailVerified(ctx, db.InsertAccountEmailVerifiedParams{
+			AccountID: acct.ID, Address: account.username + "@example.com", VerifiedVia: pgtype.Text{String: "admin", Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("seed email %s: %v", account.username, err)
+		}
+		if err := q.SetAccountPrimaryEmail(ctx, db.SetAccountPrimaryEmailParams{ID: acct.ID, PrimaryEmailID: pgtype.Int8{Int64: row.ID, Valid: true}}); err != nil {
+			t.Fatalf("seed primary %s: %v", account.username, err)
 		}
 	}
 	return pool

@@ -48,9 +48,9 @@ func TestListCredentialEventsAccountUsernamePostgres(t *testing.T) {
 	for index, name := range []string{"alice", "bob"} {
 		var id int32
 		err := tx.QueryRow(ctx, `
-			INSERT INTO account (username, display_name, webauthn_user_handle, email)
-			VALUES ($1, $2, $3, $4)
-			RETURNING id`, prefix+"_"+name, name, append(nonce[:], byte(index)), prefix+"_"+name+"@audit.test").Scan(&id)
+			INSERT INTO account (username, display_name, webauthn_user_handle)
+			VALUES ($1, $2, $3)
+			RETURNING id`, prefix+"_"+name, name, append(nonce[:], byte(index))).Scan(&id)
 		if err != nil {
 			t.Fatalf("insert account %s: %v", name, err)
 		}

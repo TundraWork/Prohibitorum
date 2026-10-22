@@ -22,6 +22,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/db/migrations"
+	"prohibitorum/pkg/account/email"
 	"prohibitorum/pkg/appaccess"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
@@ -42,6 +43,7 @@ import (
 	federationvrchat "prohibitorum/pkg/federation/providers/vrchat"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
+	"prohibitorum/pkg/mail"
 	"prohibitorum/pkg/pagination"
 	oidcop "prohibitorum/pkg/protocol/oidc"
 	samlidp "prohibitorum/pkg/protocol/saml"
@@ -51,16 +53,28 @@ import (
 )
 
 type Server struct {
-	queries                *db.Queries
-	dbPool                 *pgxpool.Pool
-	router                 *chi.Mux
-	api                    huma.API
-	config                 *configx.Config
-	webUIHandler           http.Handler
-	kvStore                kv.Store
-	sessionStore           *sessstore.SessionStore
-	pairingStore           *pairing.PairingStore
-	rateLimiter            *authn.RateLimiter
+	queries      *db.Queries
+	dbPool       *pgxpool.Pool
+	router       *chi.Mux
+	api          huma.API
+	config       *configx.Config
+	webUIHandler http.Handler
+	kvStore      kv.Store
+	sessionStore *sessstore.SessionStore
+	pairingStore *pairing.PairingStore
+	rateLimiter  *authn.RateLimiter
+	// mailSender delivers outbound verification and test mail; tests replace
+	mailSender mail.Sender
+	// emailLimits caps verification-code and test-mail sending. Keys never
+	// contain an IP; the store follows the KV driver. Nil in NewHuma.
+	emailLimits             *email.SendLimits
+	meEmailTxRunnerOverride meEmailTxRunner
+	// meEmailsOverride lets the /me/emails HTTP tests inject a read fake;
+	// nil in production, where the handlers use s.queries.
+	meEmailsOverride meEmailsQueries
+	// accountDetailOverride lets the account detail-view tests inject a
+	// read fake; nil in production.
+	accountDetailOverride  accountDetailQueries
 	webauthn               *webauthn.WebAuthn
 	oidcOP                 *oidcop.Provider
 	samlIdP                *samlidp.IdP
@@ -383,7 +397,11 @@ func NewServer(ctx context.Context) (*Server, error) {
 
 	rateLimiter := authn.NewRateLimiter()
 	accessService := appaccess.NewService(queries)
-
+	mailSender := mail.NewSMTPSender(config.SMTP)
+	emailLimits, err := email.NewSendLimits(kvStore)
+	if err != nil {
+		return nil, fmt.Errorf("server: email send limits: %w", err)
+	}
 	s := &Server{
 		queries:               queries,
 		dbPool:                conn,
@@ -395,6 +413,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		sessionStore:          sessionStore,
 		pairingStore:          pairing.NewPairingStore(kvStore),
 		rateLimiter:           rateLimiter,
+		mailSender:            mailSender,
+		emailLimits:           emailLimits,
 		webauthn:              wa,
 		oidcOP:                oidcop.New(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP, accessService),
 		samlIdP:               samlidp.NewIdP(config, queries, kvStore, sessionStore, auditWriter, rateLimiter, clientIPResolver.IP, accessService),
@@ -754,8 +774,18 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/devices/pair/status", publicReq, s.handlePairStatusHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/devices/pair/complete", publicReq, s.handlePairCompleteHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/devices/pair/lookup", browserReq, s.handlePairLookupHTTP)
-	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/approve", browserReq, s.handlePairApproveHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/cancel", browserReq, s.handlePairCancelHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/devices/pair/approve", browserReq, s.handlePairApproveHTTP)
+
+	// /me/emails — local account addresses (PHB-148). None of these require
+	// sudo: adding, verifying, and choosing the primary is ordinary
+	// self-service, and the code ceremony is session-bound per address.
+	registerOp(mgmt, contract.OperationListMyEmails, s.handleListMyEmails, sessionReq)
+	registerOp(mgmt, contract.OperationAddMyEmail, s.handleAddMyEmail, sessionReq)
+	registerOp(mgmt, contract.OperationSendMyEmailCode, s.handleSendMyEmailCode, sessionReq)
+	registerOp(mgmt, contract.OperationVerifyMyEmail, s.handleVerifyMyEmail, sessionReq)
+	registerOp(mgmt, contract.OperationSetMyEmailPrimary, s.handleSetMyEmailPrimary, sessionReq)
+	registerOp(mgmt, contract.OperationDeleteMyEmail, s.handleDeleteMyEmail, sessionReq)
 
 	// Admin: audit events (read-only, filterable, keyset-paginated)
 	registerOp(mgmt, contract.OperationListAuditEvents, s.handleListAuditEvents, admin)
@@ -788,9 +818,21 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationListInvitations, s.handleListInvitations, admin)
 	registerOp(mgmt, contract.OperationRevokeInvitation, s.handleRevokeInvitation, admin)
 
+	// Admin: account email addresses (PHB-148) — assertion, primary, removal.
+	// Admin-only but never sudo-gated: these are account maintenance, not
+	// instance-sensitive operations.
+	registerOp(mgmt, contract.OperationListAccountEmails, s.handleListAccountEmails, admin)
+	registerOp(mgmt, contract.OperationAddAccountEmail, s.handleAddAccountEmail, admin)
+	registerOp(mgmt, contract.OperationVerifyAccountEmail, s.handleVerifyAccountEmail, admin)
+	registerOp(mgmt, contract.OperationSetAccountEmailPrimary, s.handleSetAccountEmailPrimary, admin)
+	registerOp(mgmt, contract.OperationDeleteAccountEmail, s.handleDeleteAccountEmail, admin)
 	// Admin: instance-branding settings (name + icon)
 	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings", admin, s.handlePutInstanceNameHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/maintenance", admin, s.handlePutMaintenanceHTTP)
+
+	// Admin: outbound-mail settings (read-only view + test send) (PHB-148).
+	registerOp(mgmt, contract.OperationGetMailSettings, s.handleGetMailSettings, admin)
+	registerOp(mgmt, contract.OperationSendTestMail, s.handleSendTestMail, admin)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/icon", admin, s.handlePutInstanceIconHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/icon", admin, s.handleDeleteInstanceIconHTTP)
 	// Admin: sign-in page appearance, Unsplash key, preview wallpaper, background images

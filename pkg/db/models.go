@@ -21,12 +21,11 @@ type Account struct {
 	Disabled           bool               `json:"disabled"`
 	CreatedAt          pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt          pgtype.Timestamptz `json:"updatedAt"`
-	Email              pgtype.Text        `json:"email"`
-	EmailVerified      bool               `json:"emailVerified"`
 	AvatarContentType  pgtype.Text        `json:"avatarContentType"`
 	AvatarEtag         pgtype.Text        `json:"avatarEtag"`
 	AvatarSource       pgtype.Text        `json:"avatarSource"`
 	AvatarSelectedAt   pgtype.Timestamptz `json:"avatarSelectedAt"`
+	PrimaryEmailID     pgtype.Int8        `json:"primaryEmailId"`
 	Preferences        []byte             `json:"preferences"`
 }
 
@@ -38,6 +37,17 @@ type AccountAvatar struct {
 	Etag        pgtype.Text `json:"etag"`
 	IdpID       *int64      `json:"idpId"`
 	UpstreamUrl pgtype.Text `json:"upstreamUrl"`
+}
+
+type AccountEmail struct {
+	ID                int64              `json:"id"`
+	AccountID         int32              `json:"accountId"`
+	Address           string             `json:"address"`
+	VerifiedAt        pgtype.Timestamptz `json:"verifiedAt"`
+	VerifiedVia       pgtype.Text        `json:"verifiedVia"`
+	VerifiedByIdpID   pgtype.Int8        `json:"verifiedByIdpId"`
+	VerifiedByAdminID pgtype.Int8        `json:"verifiedByAdminId"`
+	CreatedAt         pgtype.Timestamptz `json:"createdAt"`
 }
 
 type AccountIdentity struct {
