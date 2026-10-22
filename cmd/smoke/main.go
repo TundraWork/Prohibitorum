@@ -6397,7 +6397,7 @@ func main() {
 		surface := func(translucent bool, opacity int, blur bool) map[string]any {
 			return map[string]any{"translucent": translucent, "opacity": opacity, "blur": blur}
 		}
-		appearance := func(source, order string, interval int, card, capsules map[string]any, cardPosition, theme string) map[string]any {
+		appearance := func(source, order string, interval int, card, capsules map[string]any, cardPosition, theme, scheme string) map[string]any {
 			return map[string]any{
 				"background": map[string]any{
 					"source":   source,
@@ -6411,6 +6411,7 @@ func main() {
 				"capsules":     capsules,
 				"cardPosition": cardPosition,
 				"theme":        theme,
+				"scheme":       scheme,
 			}
 		}
 
@@ -6461,8 +6462,8 @@ func main() {
 		}
 		log.Printf("  both images byte-for-byte identical; /config lists them in upload order ✓")
 
-		step(fmt.Sprintf("look %d/%d — PUT appearance (images/carousel/15s, card 60%% on the left, opaque capsules, always dark) round-trips", 3, nLook))
-		want := appearance("images", "carousel", 15, surface(true, 60, true), surface(false, 70, true), "left", "dark")
+		step(fmt.Sprintf("look %d/%d — PUT appearance (images/carousel/15s, card 60%% on the left, opaque capsules, always dark, Nord) round-trips", 3, nLook))
+		want := appearance("images", "carousel", 15, surface(true, 60, true), surface(false, 70, true), "left", "dark", "nord")
 		if status, body := putAppearance(map[string]any{"appearance": want}); status != http.StatusNoContent {
 			log.Fatalf("look: PUT appearance: want 204, got %d — %s", status, firstN(body, 300))
 		}
@@ -6493,7 +6494,7 @@ func main() {
 			log.Fatalf("look: PUT unknown field: want 400 bad_request, got %d — %s", status, firstN(body, 300))
 		}
 		if !admin.HasUnsplashKey {
-			unsplash := appearance("unsplash", "random", 10, surface(false, 80, true), surface(true, 70, true), "center", "switchable")
+			unsplash := appearance("unsplash", "random", 10, surface(false, 80, true), surface(true, 70, true), "center", "switchable", "graphite")
 			if status, body := putAppearance(map[string]any{"appearance": unsplash}); status != http.StatusBadRequest || !strings.Contains(body, `"unsplash_key_required"`) {
 				log.Fatalf("look: PUT unsplash without key: want 400 unsplash_key_required, got %d — %s", status, firstN(body, 300))
 			}
@@ -6520,7 +6521,7 @@ func main() {
 		if status, body := rawRequest(http.MethodDelete, imagePath, nil, ""); status != http.StatusNoContent {
 			log.Fatalf("look: DELETE second image: want 204, got %d — %s", status, firstN(string(body), 300))
 		}
-		reset := appearance("none", "random", 10, surface(false, 80, true), surface(true, 70, true), "center", "switchable")
+		reset := appearance("none", "random", 10, surface(false, 80, true), surface(true, 70, true), "center", "switchable", "graphite")
 		if status, body := putAppearance(map[string]any{"appearance": reset}); status != http.StatusNoContent {
 			log.Fatalf("look: PUT reset: want 204, got %d — %s", status, firstN(body, 300))
 		}
