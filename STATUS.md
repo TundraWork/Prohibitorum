@@ -6,6 +6,18 @@ proof-backed local registration/recovery. It provides OIDC OP, SAML 2.0 IdP,
 and forward-auth downstream access, plus app-bound policy, delegated
 application management. This file records capabilities by version and the roadmap.
 
+## Unreleased — PHB-145 multilingual maintenance notice
+
+The maintenance notice is one text per interface language plus a default
+language. `/config` carries every language's text and the default; the
+dashboard shows each visitor the notice in their own UI language — switching
+the language menu switches the notice with it — and falls back to the default
+language when theirs has none. Saving requires the default language to carry
+a notice whenever any language does, so a notice is always visible to every
+visitor; leaving everything empty stays allowed. Migration 052 moves the
+existing single notice under `en` (visitors see the same text as before) and
+drops the old column.
+
 ## Unreleased — PHB-101 provider sign-in switch
 
 Every identity provider carries an "allow sign-in" switch. VRChat starts with

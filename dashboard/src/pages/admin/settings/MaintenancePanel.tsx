@@ -11,13 +11,15 @@ import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import { updateMaintenanceMutationOptions } from "@/api/mutations";
 import { publicConfigQueryOptions } from "@/api/queries";
-import type { MaintenanceSettings } from "@/api/raw-admin-paths";
 import { withInlineReport } from "@/app/query-client";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { ConsequenceFooter } from "@/components/custom/ConsequenceFooter";
 import { Section } from "@/components/custom/Section";
+import { Badge } from "@/components/ui/badge";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
+import type { Locale } from "@/i18n";
+import { localeNames, locales, localeTags, resolveLocale } from "@/i18n";
 
 /** `PUT /admin/settings/maintenance` refuses a longer notice. */
 const maxNoticeLength = 500;
@@ -26,6 +28,28 @@ const noticeTooLong = msg({
   id: "settings.maintenance.notice.too_long",
   message: "Use 500 characters or fewer.",
 });
+
+const defaultNoticeRequired = msg({
+  id: "settings.maintenance.notice.default_required",
+  message:
+    "Write the notice in the default language too, so every visitor sees it.",
+});
+
+/** The form's value: one text box per language, an empty string meaning none. */
+type MaintenanceFormValue = {
+  maintenanceMode: boolean;
+  maintenanceDefaultLocale: Locale;
+  maintenanceMessages: Record<Locale, string>;
+};
+
+/** Every language present, missing ones read as no notice. */
+function messagesFromConfig(config: {
+  maintenanceMessages: Partial<Record<string, string>>;
+}): Record<Locale, string> {
+  return Object.fromEntries(
+    locales.map((locale) => [locale, config.maintenanceMessages[locale] ?? ""]),
+  ) as Record<Locale, string>;
+}
 
 /** What turning maintenance mode on does, in the footer and in the dialog. */
 function MaintenanceConsequence() {
@@ -38,48 +62,61 @@ function MaintenanceConsequence() {
 }
 
 /**
- * Maintenance mode and the notice shown while it is on.
+ * Maintenance mode and the multilingual notice shown while it is on.
  *
- * Turning it on locks every non-admin out until it is turned off again, so that
- * one change states its consequence in the footer and waits for a confirmation
- * when the form is saved; turning it off, or editing the notice of a mode that
- * is already on, does not.
+ * The notice is one text per UI language; the default language is what a
+ * visitor sees when their own language has no notice, so it must be filled in
+ * whenever any language is — the form and the server both refuse otherwise.
+ *
+ * Turning maintenance on locks every non-admin out until it is turned off
+ * again, so that one change states its consequence in the footer and waits for
+ * a confirmation when the form is saved; turning it off, or editing the notice
+ * of a mode that is already on, does not.
  */
 export function MaintenancePanel() {
   const { data: config } = useSuspenseQuery(publicConfigQueryOptions());
+  const saved: MaintenanceFormValue = {
+    maintenanceMode: config.maintenanceMode,
+    maintenanceDefaultLocale: resolveLocale(config.maintenanceDefaultLocale),
+    maintenanceMessages: messagesFromConfig(config),
+  };
   return (
     // Keyed by the saved values, so the form starts again from what the server
     // now reports once a save has gone through.
     <MaintenanceSection
-      key={`${config.maintenanceMode}:${config.maintenanceMessage}`}
-      saved={{
-        maintenanceMode: config.maintenanceMode,
-        maintenanceMessage: config.maintenanceMessage,
-      }}
+      key={`${config.maintenanceMode}:${config.maintenanceDefaultLocale}:${JSON.stringify(config.maintenanceMessages)}`}
+      saved={saved}
     />
   );
 }
 
-function MaintenanceSection({ saved }: { saved: MaintenanceSettings }) {
+function MaintenanceSection({ saved }: { saved: MaintenanceFormValue }) {
   const { t } = useLingui();
   const queryClient = useQueryClient();
   const update = useMutation(
     withInlineReport(updateMaintenanceMutationOptions(queryClient), true),
   );
   // The checked values the dialog is confirming, held beside the form.
-  const [confirming, setConfirming] = useState<MaintenanceSettings | null>(
+  const [confirming, setConfirming] = useState<MaintenanceFormValue | null>(
     null,
   );
 
-  const save = async (body: MaintenanceSettings) => {
+  const save = async (value: MaintenanceFormValue) => {
     try {
-      await update.mutateAsync(body);
-      form.reset(body);
+      await update.mutateAsync(value);
+      form.reset(value);
     } catch (error) {
       if (isCancellation(error)) return;
+      // A refused PUT lands on the default language's box: the refusals name
+      // no field, and the default language is the one whose notice both error
+      // codes are about. (An over-long notice never reaches the PUT — the
+      // onChange limit check holds the form back — so no per-language guess.)
       applyServerError(form, error, {
         locations: {},
-        codes: { bad_request: "maintenanceMessage" },
+        codes: {
+          bad_request: `maintenanceMessages.${value.maintenanceDefaultLocale}`,
+          maintenance_default_notice_required: `maintenanceMessages.${value.maintenanceDefaultLocale}`,
+        },
       });
     }
   };
@@ -100,6 +137,10 @@ function MaintenanceSection({ saved }: { saved: MaintenanceSettings }) {
   const turningOn = useStore(
     form.store,
     (state) => state.values.maintenanceMode && !saved.maintenanceMode,
+  );
+  const defaultLocale = useStore(
+    form.store,
+    (state) => state.values.maintenanceDefaultLocale,
   );
 
   const title = t({
@@ -156,29 +197,91 @@ function MaintenanceSection({ saved }: { saved: MaintenanceSettings }) {
                   />
                 )}
               </form.AppField>
-              <form.AppField
-                name="maintenanceMessage"
-                validators={{
-                  onChange: ({ value }) =>
-                    [...value].length > maxNoticeLength
-                      ? noticeTooLong
-                      : undefined,
-                }}
-              >
+              <form.AppField name="maintenanceDefaultLocale">
                 {(field) => (
-                  <field.TextAreaField
-                    label={
-                      <Trans id="settings.maintenance.notice">Notice</Trans>
-                    }
+                  <field.SegmentedField
+                    label={t({
+                      id: "settings.maintenance.default_locale",
+                      message: "Default language",
+                    })}
                     description={
-                      <Trans id="settings.maintenance.notice.hint">
-                        Shown on the sign-in page while maintenance mode is on.
+                      <Trans id="settings.maintenance.default_locale.hint">
+                        Shown when a visitor's language has no notice.
                       </Trans>
                     }
-                    rows={4}
+                    options={locales.map((locale) => ({
+                      value: locale,
+                      label: (
+                        <span lang={localeTags[locale]}>
+                          {localeNames[locale]}
+                        </span>
+                      ),
+                    }))}
                   />
                 )}
               </form.AppField>
+              {locales.map((locale) => (
+                <form.AppField
+                  key={locale}
+                  name={`maintenanceMessages.${locale}`}
+                  validators={{
+                    onChange: ({ value }) =>
+                      [...value].length > maxNoticeLength
+                        ? noticeTooLong
+                        : undefined,
+                    onSubmit: ({ value, fieldApi }) => {
+                      // The over-long case is left to the onChange validator;
+                      // reaching the server with one is reported by the
+                      // server-error mapping in save().
+                      const messages = fieldApi.form.getFieldValue(
+                        "maintenanceMessages",
+                      ) as Record<Locale, string>;
+                      const currentDefault = fieldApi.form.getFieldValue(
+                        "maintenanceDefaultLocale",
+                      ) as Locale;
+                      const anyNotice = locales.some((l) => messages[l] !== "");
+                      if (
+                        anyNotice &&
+                        locale === currentDefault &&
+                        value === ""
+                      ) {
+                        return defaultNoticeRequired;
+                      }
+                      return undefined;
+                    },
+                  }}
+                >
+                  {(field) => (
+                    <field.TextAreaField
+                      label={
+                        <span className="flex items-center gap-2">
+                          <span lang={localeTags[locale]}>
+                            {localeNames[locale]}
+                          </span>
+                          {locale === defaultLocale && (
+                            <Badge>
+                              <Trans id="settings.maintenance.default_badge">
+                                Default
+                              </Trans>
+                            </Badge>
+                          )}
+                        </span>
+                      }
+                      description={
+                        locale === defaultLocale ? (
+                          <Trans id="settings.maintenance.notice.hint">
+                            Shown on the sign-in page and the maintenance page
+                            while maintenance mode is on. A visitor sees the
+                            notice in their own language, or this one when
+                            theirs has none.
+                          </Trans>
+                        ) : undefined
+                      }
+                      rows={4}
+                    />
+                  )}
+                </form.AppField>
+              ))}
             </div>
           </Section>
         </form.Form>

@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { AddressInput } from "@/components/custom/AddressInput";
 import type { FieldVariant } from "@/components/custom/FormField";
 import { FormMessages } from "@/components/custom/FormMessages";
+import { SegmentedControl } from "@/components/custom/SegmentedControl";
 import { useFieldBinding } from "@/components/custom/use-field-binding";
 import {
   Field,
@@ -20,6 +21,53 @@ import {
 } from "@/components/ui/number-field";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+
+/**
+ * A closed set of short choices as a segmented strip wrapped like `FormField`.
+ * Options are passed through to `SegmentedControl`; each carries its own label.
+ */
+export function SegmentedField<T extends string>({
+  label,
+  description,
+  options,
+  size = "default",
+  isDisabled = false,
+  className,
+}: {
+  /** Names the radio group when no visible label does; pass `aria-label`. */
+  label: string;
+  description?: ReactNode;
+  options: Readonly<Parameters<typeof SegmentedControl<T>>[0]["options"]>;
+  size?: "sm" | "default";
+  isDisabled?: boolean;
+  className?: string;
+}) {
+  const { field, errors, invalid, disabled, onChange } =
+    useFieldBinding<T>(isDisabled);
+
+  return (
+    <Field disabled={disabled} invalid={invalid} name={field.name}>
+      <SegmentedControl
+        label={label}
+        value={field.state.value}
+        options={options}
+        size={size}
+        className={className ?? "w-full"}
+        onValueChange={onChange}
+      />
+      {description !== undefined && (
+        <FieldDescription className="text-pretty">
+          {description}
+        </FieldDescription>
+      )}
+      {invalid && (
+        <FieldError match>
+          <FormMessages errors={errors} />
+        </FieldError>
+      )}
+    </Field>
+  );
+}
 
 /**
  * The handful of field shapes the management forms need beyond `FormField`:

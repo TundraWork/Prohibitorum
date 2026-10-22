@@ -8,6 +8,7 @@ import { defaultLoginAppearance } from "@/components/custom/login-appearance/app
 // `vi.resetModules()` re-evaluates the transformed modules for the dynamic
 // imports below, which is what the locale state needs.
 import "@/App";
+import { locales } from "@/i18n";
 
 let stopLocaleSync: (() => void) | undefined;
 
@@ -47,7 +48,8 @@ const config = {
   iconUrl: "/branding/icon",
   iconEtag: "",
   maintenanceMode: false,
-  maintenanceMessage: "",
+  maintenanceMessages: {},
+  maintenanceDefaultLocale: "en",
   loginAppearance: defaultLoginAppearance,
   loginImages: [],
   totp: { issuer: "Prohibitorum", algorithm: "SHA1", digits: 6, period: 30 },
@@ -163,5 +165,14 @@ describe("language preference", () => {
 
     expect(localeBeforeMount).toBe("en");
     expect(screen.getByRole("heading", { name: /^Sign in to / })).toBeVisible();
+  });
+});
+
+// The notice editor and the server's locale list both build on this list;
+// `pkg/branding.TestNoticeLocales` pins the Go side. Add a UI language in
+// both places at once.
+describe("the locale list", () => {
+  it("is exactly English and Chinese, in that order", () => {
+    expect([...locales]).toEqual(["en", "zh"]);
   });
 });

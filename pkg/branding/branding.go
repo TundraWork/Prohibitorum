@@ -26,11 +26,13 @@ var (
 // Settings is the raw DB-override row (nil fields = no override). Exported so
 // the server package's tests/wiring can build a Store fake.
 type Settings struct {
-	Name               *string
-	IconPNG            []byte
-	IconEtag           *string
-	Maintenance        bool
-	MaintenanceMessage *string
+	Name        *string
+	IconPNG     []byte
+	IconEtag    *string
+	Maintenance bool
+	// MaintenanceNotice is the multilingual notice; DefaultLocale is "en"
+	// whenever nothing was saved.
+	MaintenanceNotice MaintenanceNotice
 	// Appearance is the saved sign-in page look; nil means DefaultAppearance.
 	Appearance *Appearance
 	// Images are the uploaded sign-in backgrounds in upload order, without bytes.
@@ -58,7 +60,8 @@ type Store interface {
 	SetName(ctx context.Context, name *string) error
 	SetIcon(ctx context.Context, png []byte, etag string) error
 	ClearIcon(ctx context.Context) error
-	SetMaintenance(ctx context.Context, on bool, message *string) error
+	// SetMaintenance stores the mode and the validated multilingual notice.
+	SetMaintenance(ctx context.Context, on bool, notice MaintenanceNotice) error
 	// SetAppearance saves a and, when key is non-nil, the Unsplash key in the
 	// same transaction. It returns ErrUnsplashKeyRequired when a selects
 	// Unsplash and neither key nor a saved key exists.
@@ -175,26 +178,31 @@ func (r *Resolver) HasCustomIcon(ctx context.Context) bool {
 	return custom
 }
 
-// Maintenance reports whether maintenance mode is on and the optional
-// admin-authored message. Cached with the rest of the singleton row, so this is
-// a free read on the hot path until the next admin toggle invalidates it.
-func (r *Resolver) Maintenance(ctx context.Context) (on bool, message string) {
+// Maintenance reports whether maintenance mode is on and the multilingual
+// notice. Cached with the rest of the singleton row, so this is a free read on
+// the hot path until the next admin toggle invalidates it. A row that could
+// not be read reports no notices and the "en" default.
+func (r *Resolver) Maintenance(ctx context.Context) (on bool, notice MaintenanceNotice) {
 	s := r.load(ctx)
-	if s.MaintenanceMessage != nil {
-		message = *s.MaintenanceMessage
+	notice = s.MaintenanceNotice
+	if notice.Messages == nil {
+		notice.Messages = map[string]string{}
 	}
-	return s.Maintenance, message
+	if notice.DefaultLocale == "" {
+		notice.DefaultLocale = "en"
+	}
+	return s.Maintenance, notice
 }
 
-// SetMaintenance toggles maintenance mode (and the optional message) and
-// invalidates the cache so the change applies immediately. An empty message
-// clears the stored note.
-func (r *Resolver) SetMaintenance(ctx context.Context, on bool, message string) error {
-	var p *string
-	if message != "" {
-		p = &message
+// SetMaintenance toggles maintenance mode and saves the notice after dropping
+// empty entries and validating it, then invalidates the cache so the change
+// applies immediately.
+func (r *Resolver) SetMaintenance(ctx context.Context, on bool, notice MaintenanceNotice) error {
+	notice.Messages = normalizeNoticeMessages(notice.Messages)
+	if err := ValidateMaintenanceNotice(notice); err != nil {
+		return err
 	}
-	if err := r.st.SetMaintenance(ctx, on, p); err != nil {
+	if err := r.st.SetMaintenance(ctx, on, notice); err != nil {
 		return err
 	}
 	r.Invalidate()

@@ -35,7 +35,7 @@ const unsplashKeyName = "unsplash_access_key"
 func (s *Server) handleGetPublicConfigHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	_, etag, _ := s.branding.Icon(ctx)
-	maintenance, maintenanceMsg := s.branding.Maintenance(ctx)
+	maintenance, maintenanceNotice := s.branding.Maintenance(ctx)
 	var totpConfig contract.PublicTOTPConfig
 	if s.config != nil {
 		totpConfig = contract.PublicTOTPConfig{
@@ -46,15 +46,16 @@ func (s *Server) handleGetPublicConfigHTTP(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	cfg := contract.PublicConfig{
-		InstanceName:       s.branding.InstanceName(ctx),
-		HasCustomIcon:      s.branding.HasCustomIcon(ctx),
-		IconURL:            "/branding/icon",
-		IconEtag:           etag,
-		MaintenanceMode:    maintenance,
-		MaintenanceMessage: maintenanceMsg,
-		LoginAppearance:    s.branding.Appearance(ctx),
-		LoginImages:        loginImageViews(s.branding.LoginImages(ctx)),
-		TOTP:               totpConfig,
+		InstanceName:             s.branding.InstanceName(ctx),
+		HasCustomIcon:            s.branding.HasCustomIcon(ctx),
+		IconURL:                  "/branding/icon",
+		IconEtag:                 etag,
+		MaintenanceMode:          maintenance,
+		MaintenanceMessages:      maintenanceNotice.Messages,
+		MaintenanceDefaultLocale: maintenanceNotice.DefaultLocale,
+		LoginAppearance:          s.branding.Appearance(ctx),
+		LoginImages:              loginImageViews(s.branding.LoginImages(ctx)),
+		TOTP:                     totpConfig,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")

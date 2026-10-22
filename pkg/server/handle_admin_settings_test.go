@@ -28,19 +28,19 @@ func (noopAuditWriter) Record(context.Context, audit.Record) error { return nil 
 // settingsBrandingStore is a fakeBrandingStore variant that records mutations
 // so tests can assert the correct method was called.
 type settingsBrandingStore struct {
-	name     *string
-	icon     []byte
-	etag     *string
-	cleared  bool
-	maint    bool
-	maintMsg *string
+	name        *string
+	icon        []byte
+	etag        *string
+	cleared     bool
+	maint       bool
+	maintNotice branding.MaintenanceNotice
 }
 
 func (f *settingsBrandingStore) Get(context.Context) (branding.Settings, error) {
-	return branding.Settings{Name: f.name, IconPNG: f.icon, IconEtag: f.etag, Maintenance: f.maint, MaintenanceMessage: f.maintMsg}, nil
+	return branding.Settings{Name: f.name, IconPNG: f.icon, IconEtag: f.etag, Maintenance: f.maint, MaintenanceNotice: f.maintNotice}, nil
 }
-func (f *settingsBrandingStore) SetMaintenance(_ context.Context, on bool, msg *string) error {
-	f.maint, f.maintMsg = on, msg
+func (f *settingsBrandingStore) SetMaintenance(_ context.Context, on bool, notice branding.MaintenanceNotice) error {
+	f.maint, f.maintNotice = on, notice
 	return nil
 }
 func (f *settingsBrandingStore) SetName(_ context.Context, name *string) error {

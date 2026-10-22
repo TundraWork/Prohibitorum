@@ -11,6 +11,7 @@ import {
   AddressField,
   NumberField,
   ReadOnlyField,
+  SegmentedField,
   SwitchField,
   TextAreaField,
 } from "@/components/custom/FormFields";
@@ -30,6 +31,7 @@ export const { useAppForm, withForm } = createFormHook({
     SwitchField,
     NumberField,
     ReadOnlyField,
+    SegmentedField,
     AccountPicker,
     GroupPicker,
     IdentityProviderPicker,

@@ -26,18 +26,20 @@ func NewPGStore(pool *pgxpool.Pool) *PGStore { return &PGStore{pool: pool, q: db
 func (s *PGStore) Get(ctx context.Context) (Settings, error) {
 	var out Settings
 	row := s.pool.QueryRow(ctx,
-		`SELECT instance_name, icon_png, icon_etag, maintenance_mode, maintenance_message
+		`SELECT instance_name, icon_png, icon_etag, maintenance_mode, maintenance_messages, maintenance_default_locale
 		   FROM instance_settings WHERE id = 1`)
 	var name *string
 	var icon []byte
 	var etag *string
 	var maintenance bool
-	var message *string
-	if err := row.Scan(&name, &icon, &etag, &maintenance, &message); err != nil {
+	var messagesRaw []byte
+	var defaultLocale string
+	if err := row.Scan(&name, &icon, &etag, &maintenance, &messagesRaw, &defaultLocale); err != nil {
 		return Settings{}, err
 	}
 	out.Name, out.IconPNG, out.IconEtag = name, icon, etag
-	out.Maintenance, out.MaintenanceMessage = maintenance, message
+	out.Maintenance = maintenance
+	out.MaintenanceNotice = decodeMaintenanceNotice(ctx, messagesRaw, defaultLocale)
 
 	look, err := s.q.GetLoginAppearance(ctx)
 	if err != nil {
@@ -70,10 +72,14 @@ func (s *PGStore) Get(ctx context.Context) (Settings, error) {
 	return out, nil
 }
 
-func (s *PGStore) SetMaintenance(ctx context.Context, on bool, message *string) error {
-	_, err := s.pool.Exec(ctx,
-		`UPDATE instance_settings SET maintenance_mode = $1, maintenance_message = $2, updated_at = now() WHERE id = 1`,
-		on, message)
+func (s *PGStore) SetMaintenance(ctx context.Context, on bool, notice MaintenanceNotice) error {
+	messages, err := json.Marshal(notice.Messages)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx,
+		`UPDATE instance_settings SET maintenance_mode = $1, maintenance_messages = $2, maintenance_default_locale = $3, updated_at = now() WHERE id = 1`,
+		on, messages, notice.DefaultLocale)
 	return err
 }
 
@@ -191,4 +197,30 @@ func (s *PGStore) ImageData(ctx context.Context, id int64) ([]byte, string, erro
 		return nil, "", err
 	}
 	return row.Data, row.Etag, nil
+}
+
+// decodeMaintenanceNotice reads the stored jsonb + default locale. A document
+// this build cannot read falls back to "no notice" rather than taking the
+// instance name and icon down with it (the same stance as the sign-in
+// appearance), and language keys outside NoticeLocales — written by a build
+// that knew more languages — are dropped, not fatal.
+func decodeMaintenanceNotice(ctx context.Context, messagesRaw []byte, defaultLocale string) MaintenanceNotice {
+	notice := MaintenanceNotice{Messages: map[string]string{}, DefaultLocale: defaultLocale}
+	if notice.DefaultLocale == "" {
+		notice.DefaultLocale = "en"
+	}
+	if len(messagesRaw) == 0 {
+		return notice
+	}
+	var stored map[string]string
+	if err := json.Unmarshal(messagesRaw, &stored); err != nil {
+		logx.WithContext(ctx).WithError(err).Warn("branding: stored maintenance notice unreadable; using none")
+		return MaintenanceNotice{Messages: map[string]string{}, DefaultLocale: notice.DefaultLocale}
+	}
+	for locale, text := range stored {
+		if text != "" && IsNoticeLocale(locale) {
+			notice.Messages[locale] = text
+		}
+	}
+	return notice
 }

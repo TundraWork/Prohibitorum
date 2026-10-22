@@ -1250,14 +1250,18 @@ describe("mocked logs, settings and signing keys", () => {
     expect(recent.nextCursor).toBe("");
   });
 
-  it("carries a saved name, notice and images into /config", () => {
+  it("carries a saved name, per-language notices and images into /config", () => {
     let current = writes();
     for (const [method, path, body] of [
       ["PUT", "/api/prohibitorum/admin/settings", { instanceName: "Home" }],
       [
         "PUT",
         "/api/prohibitorum/admin/settings/maintenance",
-        { maintenanceMode: true, maintenanceMessage: "Back soon" },
+        {
+          maintenanceMode: true,
+          maintenanceMessages: { en: "Back soon", zh: "马上回来" },
+          maintenanceDefaultLocale: "en",
+        },
       ],
       ["PUT", "/api/prohibitorum/admin/settings/icon", undefined],
     ] as const) {
@@ -1266,14 +1270,16 @@ describe("mocked logs, settings and signing keys", () => {
     const saved = bodyOf(read("/api/prohibitorum/config", current)) as {
       instanceName: string;
       maintenanceMode: boolean;
-      maintenanceMessage: string;
+      maintenanceMessages: Record<string, string>;
+      maintenanceDefaultLocale: string;
       hasCustomIcon: boolean;
       iconEtag: string;
     };
     expect(saved).toMatchObject({
       instanceName: "Home",
       maintenanceMode: true,
-      maintenanceMessage: "Back soon",
+      maintenanceMessages: { en: "Back soon", zh: "马上回来" },
+      maintenanceDefaultLocale: "en",
       hasCustomIcon: true,
     });
 
@@ -1298,6 +1304,73 @@ describe("mocked logs, settings and signing keys", () => {
     expect(cleared.instanceName).toBe("Prohibitorum (mock)");
     expect(cleared.hasCustomIcon).toBe(false);
     expect(cleared.iconEtag).not.toBe(before);
+  });
+
+  it("validates the maintenance PUT the way the server does", () => {
+    const base = writes();
+    const cases: [
+      string,
+      Record<string, unknown>,
+      { status: number; code: string },
+    ][] = [
+      [
+        "unknown language key",
+        {
+          maintenanceMode: true,
+          maintenanceMessages: { fr: "Bonjour" },
+          maintenanceDefaultLocale: "en",
+        },
+        { status: 400, code: "bad_request" },
+      ],
+      [
+        "missing default language",
+        {
+          maintenanceMode: true,
+          maintenanceMessages: { zh: "维护中" },
+          maintenanceDefaultLocale: "en",
+        },
+        { status: 400, code: "maintenance_default_notice_required" },
+      ],
+      [
+        "unknown default language",
+        {
+          maintenanceMode: true,
+          maintenanceMessages: { en: "Hi" },
+          maintenanceDefaultLocale: "fr",
+        },
+        { status: 400, code: "bad_request" },
+      ],
+      [
+        "notice over the limit",
+        {
+          maintenanceMode: true,
+          maintenanceMessages: { en: "x".repeat(501) },
+          maintenanceDefaultLocale: "en",
+        },
+        { status: 400, code: "bad_request" },
+      ],
+    ];
+    for (const [name, body, want] of cases) {
+      const reply = call(
+        "PUT",
+        "/api/prohibitorum/admin/settings/maintenance",
+        base,
+        body,
+      );
+      expect(reply, name).toEqual({ kind: "error", ...want });
+    }
+    // An all-empty PUT clears the notices and is accepted.
+    const cleared = applied(
+      call("PUT", "/api/prohibitorum/admin/settings/maintenance", base, {
+        maintenanceMode: false,
+        maintenanceMessages: {},
+        maintenanceDefaultLocale: "en",
+      }),
+      base,
+    );
+    expect(bodyOf(read("/api/prohibitorum/config", cleared))).toMatchObject({
+      maintenanceMessages: {},
+    });
   });
 
   it("keeps the sign-in page's appearance, images and key in step with /config", () => {

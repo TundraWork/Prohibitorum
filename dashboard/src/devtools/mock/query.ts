@@ -225,6 +225,7 @@ function allowedValues(path: string): readonly string[] | undefined {
   if (path === "instance.loginAppearance.scheme") {
     return colorSchemes.map((s) => s.slug);
   }
+  if (path === "instance.maintenanceDefaultLocale") return ["en", "zh"];
   return undefined;
 }
 

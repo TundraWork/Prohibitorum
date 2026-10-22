@@ -91,6 +91,11 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.bad_request",
     message: "The request could not be accepted.",
   }),
+  maintenance_default_notice_required: msg({
+    id: "error.maintenance_default_notice_required",
+    message:
+      "Write the notice in the default language too, so every visitor sees it.",
+  }),
   request_too_large: msg({
     id: "error.request_too_large",
     message: "The submitted data is too large.",

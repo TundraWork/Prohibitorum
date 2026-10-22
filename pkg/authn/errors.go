@@ -62,6 +62,7 @@ func init() {
 		{Code: "invitation_groups_unavailable", Status: http.StatusConflict, LocaleKey: "errors.invitation_groups_unavailable", DiagnosticKind: "enrollment", DetailKeys: map[string]struct{}{"groupIds": {}}},
 		{Code: "not_bootstrapped", Status: http.StatusServiceUnavailable, LocaleKey: "errors.not_bootstrapped", DiagnosticKind: "system"},
 		{Code: "maintenance_mode", Status: http.StatusServiceUnavailable, LocaleKey: "errors.maintenance_mode", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
+		{Code: "maintenance_default_notice_required", Status: http.StatusBadRequest, LocaleKey: "errors.maintenance_default_notice_required", DiagnosticKind: "validation", Recovery: "fix_input"},
 		{Code: "pairing_not_found", Status: http.StatusNotFound, LocaleKey: "errors.pairing_not_found", DiagnosticKind: "pairing"},
 		{Code: "pairing_state", Status: http.StatusConflict, LocaleKey: "errors.pairing_state", DiagnosticKind: "pairing"},
 		{Code: "pairing_expired", Status: http.StatusGone, LocaleKey: "errors.pairing_expired", DiagnosticKind: "pairing"},
@@ -439,6 +440,13 @@ func ErrNotBootstrapped() *AuthError {
 // with a code the dashboard maps to the maintenance screen.
 func ErrMaintenanceMode() *AuthError {
 	return newErr(http.StatusServiceUnavailable, "maintenance_mode", "系统正在维护中，请稍后再试")
+}
+
+// ErrMaintenanceDefaultNoticeRequired is returned by the maintenance settings
+// PUT when some language has a notice but the default language does not: the
+// default language is every visitor's fallback, so it must be filled in.
+func ErrMaintenanceDefaultNoticeRequired() *AuthError {
+	return newErr(http.StatusBadRequest, "maintenance_default_notice_required", "默认语言也需要填写维护通知")
 }
 
 // Pairing errors — same not-found / state policy as enrollment: collapse

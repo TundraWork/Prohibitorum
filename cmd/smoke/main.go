@@ -6439,12 +6439,17 @@ func main() {
 	//  since the smoke runs only as the admin.
 	// =====================================================================
 	{
-		const nMaint = 3
-		const maintMsg = "Smoke maintenance window — back shortly"
+		const nMaint = 4
+		const maintEn = "Smoke maintenance window — back shortly"
+		const maintZh = "冒烟维护窗口 — 很快恢复"
 
-		step(fmt.Sprintf("maintenance %d/%d — admin enables maintenance (PUT, no sudo) → /config maintenanceMode=true", 1, nMaint))
+		step(fmt.Sprintf("maintenance %d/%d — admin enables maintenance with per-language notices (PUT, no sudo) → /config reflects them", 1, nMaint))
 		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/maintenance", map[string]any{
-			"maintenanceMode": true, "maintenanceMessage": maintMsg,
+			"maintenanceMode": true,
+			"maintenanceMessages": map[string]string{
+				"en": maintEn, "zh": maintZh,
+			},
+			"maintenanceDefaultLocale": "en",
 		}); err != nil {
 			log.Fatalf("maintenance: PUT enable: %v", err)
 		} else {
@@ -6455,26 +6460,45 @@ func main() {
 			}
 		}
 		var cfg struct {
-			MaintenanceMode    bool   `json:"maintenanceMode"`
-			MaintenanceMessage string `json:"maintenanceMessage"`
+			MaintenanceMode          bool              `json:"maintenanceMode"`
+			MaintenanceMessages      map[string]string `json:"maintenanceMessages"`
+			MaintenanceDefaultLocale string            `json:"maintenanceDefaultLocale"`
 		}
 		if err := c.get("/api/prohibitorum/config", &cfg); err != nil {
 			log.Fatalf("maintenance: GET /config: %v", err)
 		}
-		if !cfg.MaintenanceMode || cfg.MaintenanceMessage != maintMsg {
-			log.Fatalf("maintenance: /config = (%v,%q), want (true,%q)", cfg.MaintenanceMode, cfg.MaintenanceMessage, maintMsg)
+		if !cfg.MaintenanceMode || cfg.MaintenanceMessages["en"] != maintEn || cfg.MaintenanceMessages["zh"] != maintZh || cfg.MaintenanceDefaultLocale != "en" {
+			log.Fatalf("maintenance: /config = (%v,%q,%q,%q), want (true,%q,%q,en)", cfg.MaintenanceMode, cfg.MaintenanceMessages["en"], cfg.MaintenanceMessages["zh"], cfg.MaintenanceDefaultLocale, maintEn, maintZh)
 		}
-		log.Printf("  maintenance ON; /config maintenanceMode=true message=%q ✓", cfg.MaintenanceMessage)
+		log.Printf("  maintenance ON; /config maintenanceMode=true en=%q zh=%q default=en ✓", cfg.MaintenanceMessages["en"], cfg.MaintenanceMessages["zh"])
 
-		step(fmt.Sprintf("maintenance %d/%d — admin is exempt: GET /me still 200 during maintenance", 2, nMaint))
+		step(fmt.Sprintf("maintenance %d/%d — a notice that skips the default language is refused", 2, nMaint))
+		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/maintenance", map[string]any{
+			"maintenanceMode": true,
+			"maintenanceMessages": map[string]string{
+				"en": "", "zh": maintZh,
+			},
+			"maintenanceDefaultLocale": "en",
+		}); err != nil {
+			log.Fatalf("maintenance: PUT default-required: %v", err)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "maintenance_default_notice_required") {
+				log.Fatalf("maintenance: PUT default-required: want 400 maintenance_default_notice_required, got %d — %s", resp.StatusCode, firstN(string(body), 300))
+			}
+		}
+		log.Printf("  notice without the default language → 400 maintenance_default_notice_required ✓")
+
+		step(fmt.Sprintf("maintenance %d/%d — admin is exempt: GET /me still 200 during maintenance", 3, nMaint))
 		if _, err := c.getMe(); err != nil {
 			log.Fatalf("maintenance: admin GET /me during maintenance (admin must be exempt): %v", err)
 		}
 		log.Printf("  admin GET /me 200 during maintenance (not locked out) ✓")
 
-		step(fmt.Sprintf("maintenance %d/%d — admin disables maintenance → /config maintenanceMode=false", 3, nMaint))
+		step(fmt.Sprintf("maintenance %d/%d — admin disables maintenance with empty notices → /config maintenanceMode=false, {}", 4, nMaint))
 		if resp, err := c.putJSONRaw("/api/prohibitorum/admin/settings/maintenance", map[string]any{
-			"maintenanceMode": false, "maintenanceMessage": "",
+			"maintenanceMode": false, "maintenanceMessages": map[string]string{}, "maintenanceDefaultLocale": "en",
 		}); err != nil {
 			log.Fatalf("maintenance: PUT disable: %v", err)
 		} else {
@@ -6485,15 +6509,16 @@ func main() {
 			}
 		}
 		var cfg2 struct {
-			MaintenanceMode bool `json:"maintenanceMode"`
+			MaintenanceMode     bool              `json:"maintenanceMode"`
+			MaintenanceMessages map[string]string `json:"maintenanceMessages"`
 		}
 		if err := c.get("/api/prohibitorum/config", &cfg2); err != nil {
 			log.Fatalf("maintenance: GET /config (post-disable): %v", err)
 		}
-		if cfg2.MaintenanceMode {
-			log.Fatalf("maintenance: /config still maintenanceMode=true after disable")
+		if cfg2.MaintenanceMode || len(cfg2.MaintenanceMessages) != 0 {
+			log.Fatalf("maintenance: /config after disable = (%v,%q), want (false,{})", cfg2.MaintenanceMode, cfg2.MaintenanceMessages)
 		}
-		log.Printf("  maintenance OFF; /config maintenanceMode=false ✓")
+		log.Printf("  maintenance OFF; /config maintenanceMode=false messages={} ✓")
 	}
 
 	// =====================================================================

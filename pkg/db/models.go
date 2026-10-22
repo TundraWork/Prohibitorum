@@ -138,20 +138,21 @@ type GroupManualDecision struct {
 }
 
 type InstanceSetting struct {
-	ID                     int16              `json:"id"`
-	InstanceName           pgtype.Text        `json:"instanceName"`
-	IconPng                []byte             `json:"iconPng"`
-	IconEtag               pgtype.Text        `json:"iconEtag"`
-	UpdatedAt              pgtype.Timestamptz `json:"updatedAt"`
-	MaintenanceMode        bool               `json:"maintenanceMode"`
-	MaintenanceMessage     pgtype.Text        `json:"maintenanceMessage"`
-	ClientIpStrategy       string             `json:"clientIpStrategy"`
-	ClientIpHeader         string             `json:"clientIpHeader"`
-	ClientIpTrustedProxies []string           `json:"clientIpTrustedProxies"`
-	LoginAppearance        []byte             `json:"loginAppearance"`
-	UnsplashKeyEnc         []byte             `json:"unsplashKeyEnc"`
-	UnsplashKeyNonce       []byte             `json:"unsplashKeyNonce"`
-	UnsplashKeyVersion     pgtype.Int4        `json:"unsplashKeyVersion"`
+	ID                       int16              `json:"id"`
+	InstanceName             pgtype.Text        `json:"instanceName"`
+	IconPng                  []byte             `json:"iconPng"`
+	IconEtag                 pgtype.Text        `json:"iconEtag"`
+	UpdatedAt                pgtype.Timestamptz `json:"updatedAt"`
+	MaintenanceMode          bool               `json:"maintenanceMode"`
+	ClientIpStrategy         string             `json:"clientIpStrategy"`
+	ClientIpHeader           string             `json:"clientIpHeader"`
+	ClientIpTrustedProxies   []string           `json:"clientIpTrustedProxies"`
+	LoginAppearance          []byte             `json:"loginAppearance"`
+	UnsplashKeyEnc           []byte             `json:"unsplashKeyEnc"`
+	UnsplashKeyNonce         []byte             `json:"unsplashKeyNonce"`
+	UnsplashKeyVersion       pgtype.Int4        `json:"unsplashKeyVersion"`
+	MaintenanceMessages      []byte             `json:"maintenanceMessages"`
+	MaintenanceDefaultLocale string             `json:"maintenanceDefaultLocale"`
 }
 
 type LoginBackgroundImage struct {

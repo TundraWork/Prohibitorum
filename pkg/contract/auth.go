@@ -219,10 +219,13 @@ type PublicConfig struct {
 	IconURL       string `json:"iconUrl"`
 	IconEtag      string `json:"iconEtag"`
 	// MaintenanceMode is the public maintenance flag — the SPA reads it (even
-	// pre-login) to render the maintenance screen for non-admins. MaintenanceMessage
-	// is the optional admin-authored note shown on that screen.
-	MaintenanceMode    bool   `json:"maintenanceMode"`
-	MaintenanceMessage string `json:"maintenanceMessage"`
+	// pre-login) to render the maintenance screen for non-admins. The notice
+	// is one text per UI language (MaintenanceMessages, `{}` when none) plus
+	// the fallback language (MaintenanceDefaultLocale); the SPA picks the
+	// visitor's UI language, falling back to the default language.
+	MaintenanceMode          bool              `json:"maintenanceMode"`
+	MaintenanceMessages      map[string]string `json:"maintenanceMessages"`
+	MaintenanceDefaultLocale string            `json:"maintenanceDefaultLocale"`
 	// LoginAppearance is the sign-in page's background and surface style;
 	// LoginImages are the uploaded backgrounds in upload (carousel) order,
 	// listed whichever source is selected.

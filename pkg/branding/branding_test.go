@@ -6,20 +6,22 @@ import (
 	"errors"
 	"image"
 	"image/png"
+	"reflect"
+	"strings"
 	"testing"
 )
 
 type fakeStore struct {
-	name       *string
-	iconPNG    []byte
-	iconEtag   *string
-	maint      bool
-	maintMsg   *string
-	appearance *Appearance
-	key        *SealedKey
-	images     []fakeImage
-	nextID     int64
-	gets       int
+	name        *string
+	iconPNG     []byte
+	iconEtag    *string
+	maint       bool
+	maintNotice MaintenanceNotice
+	appearance  *Appearance
+	key         *SealedKey
+	images      []fakeImage
+	nextID      int64
+	gets        int
 }
 
 type fakeImage struct {
@@ -35,7 +37,7 @@ func (f *fakeStore) Get(context.Context) (Settings, error) {
 	}
 	return Settings{
 		Name: f.name, IconPNG: f.iconPNG, IconEtag: f.iconEtag,
-		Maintenance: f.maint, MaintenanceMessage: f.maintMsg,
+		Maintenance: f.maint, MaintenanceNotice: f.maintNotice,
 		Appearance: f.appearance, Images: refs, UnsplashKey: f.key,
 	}, nil
 }
@@ -45,8 +47,8 @@ func (f *fakeStore) SetIcon(_ context.Context, png []byte, etag string) error {
 	return nil
 }
 func (f *fakeStore) ClearIcon(context.Context) error { f.iconPNG, f.iconEtag = nil, nil; return nil }
-func (f *fakeStore) SetMaintenance(_ context.Context, on bool, msg *string) error {
-	f.maint, f.maintMsg = on, msg
+func (f *fakeStore) SetMaintenance(_ context.Context, on bool, notice MaintenanceNotice) error {
+	f.maint, f.maintNotice = on, notice
 	return nil
 }
 func (f *fakeStore) SetAppearance(_ context.Context, a Appearance, key *SealedKey) error {
@@ -95,18 +97,107 @@ func (f *fakeStore) ImageData(_ context.Context, id int64) ([]byte, string, erro
 func strp(s string) *string { return &s }
 
 // TestMaintenance_RoundTrip verifies SetMaintenance persists + invalidates the
-// cache so Maintenance reflects the new state (off by default).
+// cache so Maintenance reflects the new state (off by default), and that
+// empty-string entries are dropped while an all-empty notice is allowed.
 func TestMaintenance_RoundTrip(t *testing.T) {
 	ctx := context.Background()
-	r := NewWithStore("X", &fakeStore{})
-	if on, _ := r.Maintenance(ctx); on {
-		t.Fatal("default maintenance should be off")
+	f := &fakeStore{}
+	r := NewWithStore("X", f)
+	if on, notice := r.Maintenance(ctx); on || len(notice.Messages) != 0 || notice.DefaultLocale != "en" {
+		t.Fatalf("default Maintenance = (%v,%+v), want off with no messages and en", on, notice)
 	}
-	if err := r.SetMaintenance(ctx, true, "Down for upgrade"); err != nil {
+	if err := r.SetMaintenance(ctx, true, MaintenanceNotice{
+		Messages:      map[string]string{"en": "Down for upgrade", "zh": "升级中停机", "fr": ""},
+		DefaultLocale: "zh",
+	}); err != nil {
 		t.Fatalf("SetMaintenance: %v", err)
 	}
-	if on, msg := r.Maintenance(ctx); !on || msg != "Down for upgrade" {
-		t.Errorf("Maintenance = (%v,%q), want (true,Down for upgrade)", on, msg)
+	want := MaintenanceNotice{
+		Messages:      map[string]string{"en": "Down for upgrade", "zh": "升级中停机"},
+		DefaultLocale: "zh",
+	}
+	if on, notice := r.Maintenance(ctx); !on || !noticeEqual(notice, want) {
+		t.Errorf("Maintenance = (%v,%+v), want (true,%+v)", on, notice, want)
+	}
+	if !f.maint || !noticeEqual(f.maintNotice, want) {
+		t.Errorf("store = (%v,%+v), want (true,%+v)", f.maint, f.maintNotice, want)
+	}
+	if err := r.SetMaintenance(ctx, false, MaintenanceNotice{Messages: map[string]string{"en": "", "zh": ""}, DefaultLocale: "en"}); err != nil {
+		t.Fatalf("SetMaintenance clearing: %v", err)
+	}
+	if on, notice := r.Maintenance(ctx); on || len(notice.Messages) != 0 {
+		t.Errorf("cleared Maintenance = (%v,%+v), want off with no messages", on, notice)
+	}
+}
+
+func noticeEqual(a, b MaintenanceNotice) bool {
+	if a.DefaultLocale != b.DefaultLocale || len(a.Messages) != len(b.Messages) {
+		return false
+	}
+	for locale, text := range a.Messages {
+		if b.Messages[locale] != text {
+			return false
+		}
+	}
+	return true
+}
+
+// TestMaintenance_Validation pins which sentinel error each refused notice
+// produces, and that nothing reaches the store.
+func TestMaintenance_Validation(t *testing.T) {
+	ctx := context.Background()
+	cases := []struct {
+		name   string
+		notice MaintenanceNotice
+		want   error
+	}{
+		{
+			"unknown message locale",
+			MaintenanceNotice{Messages: map[string]string{"fr": "Bonjour"}, DefaultLocale: "en"},
+			ErrNoticeLocale,
+		},
+		{
+			"unknown default locale",
+			MaintenanceNotice{Messages: map[string]string{"en": "Hi"}, DefaultLocale: "fr"},
+			ErrNoticeLocale,
+		},
+		{
+			"missing default locale",
+			MaintenanceNotice{Messages: map[string]string{"en": "Hi"}},
+			ErrNoticeLocale,
+		},
+		{
+			"notice over the rune limit",
+			MaintenanceNotice{Messages: map[string]string{"en": strings.Repeat("x", MaxNoticeRunes+1)}, DefaultLocale: "en"},
+			ErrNoticeTooLong,
+		},
+		{
+			"notice without the default language",
+			MaintenanceNotice{Messages: map[string]string{"zh": "维护中"}, DefaultLocale: "en"},
+			ErrNoticeDefaultRequired,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeStore{}
+			r := NewWithStore("X", f)
+			err := r.SetMaintenance(ctx, true, tc.notice)
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("SetMaintenance error = %v, want %v", err, tc.want)
+			}
+			if f.maint {
+				t.Error("store mutated despite invalid notice")
+			}
+		})
+	}
+}
+
+// TestNoticeLocales pins the language list: it must equal dashboard
+// `locales` (dashboard/src/i18n/index.ts), which carries its own matching
+// test. Add a UI language in both places at once.
+func TestNoticeLocales(t *testing.T) {
+	if !reflect.DeepEqual(NoticeLocales, []string{"en", "zh"}) {
+		t.Fatalf("NoticeLocales = %v, want [en zh]", NoticeLocales)
 	}
 }
 
