@@ -1,13 +1,7 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { publicConfigQueryOptions } from "@/api/queries";
@@ -118,6 +112,25 @@ describe("the maintenance section", () => {
       ?.querySelector("[data-slot=field-label]");
     expect(zhLabel?.textContent).toContain("Default");
     expect(enLabel?.textContent).not.toContain("Default");
+  });
+
+  it("carries the notice explanation under the default language's box", async () => {
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("radio", { name: "中文" }));
+
+    // The explanation names the default language's role, so it belongs to
+    // whichever box is the default — not to the first one.
+    const hint = await screen.findByText(
+      "Shown on the sign-in page and the maintenance page while maintenance mode is on. A visitor sees the notice in their own language, or this one when theirs has none.",
+    );
+    expect(noticeBox("中文").closest("[data-slot=field]")?.contains(hint)).toBe(
+      true,
+    );
+    expect(
+      noticeBox("English").closest("[data-slot=field]")?.contains(hint),
+    ).toBe(false);
   });
 
   it("states the consequence and names the action while the switch is going on", async () => {
@@ -289,7 +302,7 @@ describe("the maintenance section", () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 
-  it("reports an over-long notice on that language's own box, not the default's", async () => {
+  it("puts a server's plain bad_request on the default language's box, on a real save", async () => {
     const user = userEvent.setup();
     mount(publicConfigFixture({ maintenanceMode: true }), (request) =>
       request.method === "PUT"
@@ -301,29 +314,16 @@ describe("the maintenance section", () => {
     );
 
     await user.type(noticeBox("English"), "Back at noon");
-    // An over-long notice never reaches the PUT (onChange blocks submit), so
-    // simulate the gap the mapping covers: the server refuses while the form
-    // holds an over-long text. Type past the limit with the validator active,
-    // then clear it to fire the request the mapping classifies.
-    const zhBox = noticeBox("中文");
-    const descriptor: PropertyDescriptor | undefined =
-      Object.getOwnPropertyDescriptor(
-        window.HTMLTextAreaElement.prototype,
-        "value",
-      );
-    expect(descriptor?.set).toBeInstanceOf(Function);
-    descriptor?.set?.call(zhBox, "长".repeat(501));
-    fireEvent(zhBox, new Event("input", { bubbles: true }));
-    expect(
-      await screen.findByText("Use 500 characters or fewer."),
-    ).toBeVisible();
-    // The refusal now reports on the zh box: the form's over-long value is
-    // what a bad_request means here.
-    const zhField = zhBox.closest("[data-slot=field]");
-    const overLongError = await screen.findByText(
-      "Use 500 characters or fewer.",
-    );
-    expect(zhField?.contains(overLongError)).toBe(true);
+    await user.type(noticeBox("中文"), "马上回来");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    const error = await screen.findByText("The request could not be accepted.");
+    const enField = noticeBox("English").closest("[data-slot=field]");
+    const zhField = noticeBox("中文").closest("[data-slot=field]");
+    expect(enField?.contains(error)).toBe(true);
+    expect(zhField?.contains(error)).toBe(false);
+    expect(notifyError).not.toHaveBeenCalled();
   });
 
   it("reports a refused save once, on the form and not as a toast", async () => {

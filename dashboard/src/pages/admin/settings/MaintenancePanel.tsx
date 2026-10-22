@@ -107,22 +107,15 @@ function MaintenanceSection({ saved }: { saved: MaintenanceFormValue }) {
       form.reset(value);
     } catch (error) {
       if (isCancellation(error)) return;
-      // The default-required refusal belongs to the default language's box.
-      // A plain bad_request names no field; the only client-side gap that can
-      // still reach it is one over-long notice, so it lands on that language.
-      const defaultField = `maintenanceMessages.${value.maintenanceDefaultLocale}`;
-      const overLong = locales.find(
-        (locale) =>
-          [...(value.maintenanceMessages[locale] ?? "")].length >
-          maxNoticeLength,
-      );
+      // A refused PUT lands on the default language's box: the refusals name
+      // no field, and the default language is the one whose notice both error
+      // codes are about. (An over-long notice never reaches the PUT — the
+      // onChange limit check holds the form back — so no per-language guess.)
       applyServerError(form, error, {
         locations: {},
         codes: {
-          bad_request: overLong
-            ? `maintenanceMessages.${overLong}`
-            : defaultField,
-          maintenance_default_notice_required: defaultField,
+          bad_request: `maintenanceMessages.${value.maintenanceDefaultLocale}`,
+          maintenance_default_notice_required: `maintenanceMessages.${value.maintenanceDefaultLocale}`,
         },
       });
     }
