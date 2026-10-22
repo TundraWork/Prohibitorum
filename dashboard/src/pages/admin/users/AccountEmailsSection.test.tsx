@@ -145,8 +145,39 @@ describe("AccountEmailsSection", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
     const dialog = await screen.findByRole("alertdialog");
     expect(
-      within(dialog).getByText(/next@example.test will become/),
+      within(dialog).getByText(/next@example.test.*will become/),
     ).toBeVisible();
+  });
+
+  it("picks the earliest-verified address as the fallback, not the first listed", async () => {
+    const user = userEvent.setup();
+    // Listed with the later-verified one first, so array order would be wrong.
+    mount([
+      fixture(),
+      fixture({
+        id: 3,
+        address: "late@example.test",
+        primary: false,
+        verifiedAt: "2026-03-01T00:00:00Z",
+      }),
+      fixture({
+        id: 2,
+        address: "early@example.test",
+        primary: false,
+        verifiedAt: "2026-02-01T00:00:00Z",
+      }),
+    ]);
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for member@example.test",
+      }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/early@example.test/)).toBeVisible();
+    expect(
+      within(dialog).queryByText(/late@example.test/),
+    ).not.toBeInTheDocument();
   });
 
   it("says the member keeps no primary when nothing can take over", async () => {

@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { Mail, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ApiError } from "@/api/errors";
+import { ApiError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
   addMyEmailMutationOptions,
@@ -37,10 +37,9 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { MenuItem, MenuSeparator } from "@/components/ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "@/components/ui/tooltip";
+import { applyServerError, ServerFormError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
 export type EmailAddress = components["schemas"]["EmailAddressView"];
@@ -48,10 +47,6 @@ export type EmailAddress = components["schemas"]["EmailAddressView"];
 /** The verification code the server mails is always six digits. */
 const codeLength = 6;
 
-const addInvalidError = msg({
-  id: "profile.emails.error.invalid",
-  message: "That is not a valid email address.",
-});
 const addLimitError = msg({
   id: "profile.emails.error.limit",
   message: "At most {limit} addresses. Remove one before adding another.",
@@ -92,6 +87,23 @@ const primaryToast = msg({
   id: "profile.emails.primary_toast",
   message: "{address} is now your primary address",
 });
+/** The limit refusal needs the count, which the form error path cannot close over. */
+const addLimitErrorWith = (limit: number) => ({
+  ...addLimitError,
+  values: { limit },
+});
+const addedToast = msg({
+  id: "profile.emails.added_toast",
+  message: "{address} was added and is waiting for an administrator",
+});
+const removedToast = msg({
+  id: "profile.emails.removed_toast",
+  message: "{address} was removed",
+});
+const rowSendFailedError = msg({
+  id: "profile.emails.error.row_send_failed",
+  message: "The code could not be sent. Try again in a moment.",
+});
 
 /**
  * The section's heading, drawn by the panel and by the boundary that waits for
@@ -127,17 +139,49 @@ export function EmailsPanel() {
 }
 
 function EmailsList() {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const { data } = useSuspenseQuery(quietQuery(myEmailsQueryOptions()));
   const [adding, setAdding] = useState(false);
   // The address being verified, from the add flow or from a row's button.
   const [verifying, setVerifying] = useState<EmailAddress | null>(null);
+  // A code a row's button already sent, so the dialog it opens starts at the
+  // cooldown instead of mailing a second one.
+  const [presend, setPresend] = useState<number | null>(null);
   const [makingPrimary, setMakingPrimary] = useState<EmailAddress | null>(null);
   const [removing, setRemoving] = useState<EmailAddress | null>(null);
+  // The row whose Verify button is mailing a code, and the refusal that kept
+  // one from going out.
+  const [sendingRow, setSendingRow] = useState<number | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+  const rowSend = useMutation(
+    withInlineReport(sendMyEmailCodeMutationOptions(), true),
+  );
 
   const emails = data.emails ?? [];
   const hasPrimary = emails.some((email) => email.primary);
   const atCap = emails.length >= data.limit;
+
+  // A row's Verify sends its code before any dialog opens: only a sent code
+  // is worth entering, and a refusal stays on the row that caused it.
+  const verifyFromRow = (email: EmailAddress) => {
+    if (rowSend.isPending) return;
+    setRowError(null);
+    setSendingRow(email.id);
+    rowSend.mutate(
+      { id: email.id, locale: i18n.locale },
+      {
+        onSuccess: () => {
+          setSendingRow(null);
+          setPresend(email.id);
+          setVerifying(email);
+        },
+        onError: () => {
+          setSendingRow(null);
+          setRowError(i18n._(rowSendFailedError));
+        },
+      },
+    );
+  };
 
   return (
     <>
@@ -176,7 +220,7 @@ function EmailsList() {
           )
         }
       >
-        {emails.length > 0 && !data.deliveryAvailable ? (
+        {!data.deliveryAvailable ? (
           // Without mail there is nothing the reader can verify themselves, so
           // this stands in for the no-primary warning rather than stacking on
           // it: the fix is the same administrator either way.
@@ -226,7 +270,9 @@ function EmailsList() {
               key={email.id}
               email={email}
               deliveryAvailable={data.deliveryAvailable}
-              onVerify={() => setVerifying(email)}
+              verifyPending={sendingRow === email.id}
+              verifyError={sendingRow === null ? rowError : null}
+              onVerify={() => verifyFromRow(email)}
               onMakePrimary={() => setMakingPrimary(email)}
               onRemove={() => setRemoving(email)}
             />
@@ -244,7 +290,12 @@ function EmailsList() {
 
       <VerifyEmailDialog
         address={verifying}
-        onClose={() => setVerifying(null)}
+        codeAlreadySent={verifying !== null && presend === verifying.id}
+        onClose={() => {
+          setVerifying(null);
+          setPresend(null);
+          setRowError(null);
+        }}
       />
 
       <SetPrimaryDialog
@@ -259,12 +310,18 @@ function EmailsList() {
 function EmailRow({
   email,
   deliveryAvailable,
+  verifyPending,
+  verifyError,
   onVerify,
   onMakePrimary,
   onRemove,
 }: {
   email: EmailAddress;
   deliveryAvailable: boolean;
+  /** True while the row's own Verify button is mailing the code. */
+  verifyPending: boolean;
+  /** Why the row's last code could not be sent, shown until it is tried again. */
+  verifyError: string | null;
   onVerify: () => void;
   onMakePrimary: () => void;
   onRemove: () => void;
@@ -309,9 +366,24 @@ function EmailRow({
           <div className="flex items-center gap-2">
             {!email.verified &&
               (deliveryAvailable ? (
-                <Button variant="outline" size="sm" onClick={onVerify}>
-                  <Trans id="profile.emails.verify">Verify</Trans>
-                </Button>
+                <span className="flex flex-col gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    pending={verifyPending}
+                    onClick={onVerify}
+                  >
+                    <Trans id="profile.emails.verify">Verify</Trans>
+                  </Button>
+                  {verifyError !== null && (
+                    <span
+                      role="alert"
+                      className="text-destructive text-caption"
+                    >
+                      {verifyError}
+                    </span>
+                  )}
+                </span>
               ) : (
                 <span className="text-muted-foreground text-caption">
                   <Trans id="profile.emails.awaiting_admin">
@@ -400,104 +472,123 @@ function AddEmailDialog({
   onClose: () => void;
   onVerify: (email: EmailAddress) => void;
 }) {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const queryClient = useQueryClient();
-  const [address, setAddress] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const add = useMutation(addMyEmailMutationOptions(queryClient));
+  // Every refusal lands in the form's field, so the toast stays silent.
+  const add = useMutation(
+    withInlineReport(addMyEmailMutationOptions(queryClient), true),
+  );
+
+  const form = useAppForm({
+    defaultValues: { address: "" },
+    onSubmit: async ({ value }) => {
+      try {
+        const created = await add.mutateAsync(value.address.trim());
+        form.reset();
+        if (deliveryAvailable) {
+          // Close this dialog before the code dialog opens, so the two never
+          // stack (review B7).
+          onClose();
+          onVerify(created);
+        } else {
+          notifySuccess({
+            ...addedToast,
+            values: { address: created.address },
+          });
+          onClose();
+        }
+      } catch (failure) {
+        if (isCancellation(failure)) return;
+        applyServerError(form, failure, {
+          locations: {},
+          codes: { email_invalid: "address" },
+        });
+        if (failure instanceof ApiError) {
+          if (failure.code === "email_limit_reached") {
+            form.setErrorMap({
+              onSubmit: {
+                fields: {
+                  address: new ServerFormError(
+                    failure,
+                    addLimitErrorWith(limit),
+                  ),
+                },
+              },
+            });
+            return;
+          }
+          if (failure.code === "email_exists") {
+            form.setErrorMap({
+              onSubmit: {
+                fields: {
+                  address: new ServerFormError(failure, addExistsError),
+                },
+              },
+            });
+            return;
+          }
+        }
+      }
+    },
+  });
+
+  const address = useStore(form.store, (state) => state.values.address);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
 
   const close = () => {
-    if (add.isPending) return;
-    setError(null);
-    setAddress("");
+    if (submitting) return;
+    form.reset();
     onClose();
-  };
-
-  const submit = async () => {
-    setError(null);
-    try {
-      const created = await add.mutateAsync(address.trim());
-      setAddress("");
-      if (deliveryAvailable) {
-        // Close this dialog before the code dialog opens, so the two never
-        // stack (review B7).
-        onClose();
-        onVerify(created);
-      } else {
-        onClose();
-      }
-    } catch (failure) {
-      if (failure instanceof ApiError) {
-        if (failure.code === "email_invalid") {
-          setError(i18n._(addInvalidError));
-          return;
-        }
-        if (failure.code === "email_limit_reached") {
-          setError(i18n._({ ...addLimitError, values: { limit } }));
-          return;
-        }
-        if (failure.code === "email_exists") {
-          setError(i18n._(addExistsError));
-          return;
-        }
-      }
-      throw failure;
-    }
   };
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogPopup className="sm:max-w-md">
-        <form
-          className="flex min-h-0 flex-1 flex-col"
-          aria-label={t({
-            id: "profile.emails.add.title",
-            message: "Add an email address",
-          })}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!add.isPending && address.trim() !== "") void submit();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>
-              <Trans id="profile.emails.add.title">Add an email address</Trans>
-            </DialogTitle>
-          </DialogHeader>
-          <DialogPanel>
-            <Field invalid={error !== null}>
-              <FieldLabel>
-                <Trans id="profile.emails.address">Address</Trans>
-              </FieldLabel>
-              <Input
-                type="email"
-                autoComplete="off"
-                value={address}
-                onValueChange={(value) => {
-                  setError(null);
-                  setAddress(value);
-                }}
-              />
-              {error !== null && <FieldError>{error}</FieldError>}
-            </Field>
-          </DialogPanel>
-          <DialogFooter>
-            <Button variant="ghost" disabled={add.isPending} onClick={close}>
-              <Trans id="profile.cancel">Cancel</Trans>
-            </Button>
-            <Button
-              type="submit"
-              pending={add.isPending}
-              disabled={address.trim() === ""}
-            >
-              {deliveryAvailable ? (
-                <Trans id="profile.emails.send_code">Send code</Trans>
-              ) : (
-                <Trans id="profile.emails.add.short">Add</Trans>
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+        <form.AppForm>
+          <form.Form
+            label={t({
+              id: "profile.emails.add.title",
+              message: "Add an email address",
+            })}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <DialogHeader>
+              <DialogTitle>
+                <Trans id="profile.emails.add.title">
+                  Add an email address
+                </Trans>
+              </DialogTitle>
+            </DialogHeader>
+            <DialogPanel>
+              <form.AppField name="address">
+                {(field) => (
+                  <field.FormField
+                    label={<Trans id="profile.emails.address">Address</Trans>}
+                    type="email"
+                    autoComplete="off"
+                    autoFocus
+                  />
+                )}
+              </form.AppField>
+            </DialogPanel>
+            <DialogFooter>
+              <Button variant="ghost" disabled={submitting} onClick={close}>
+                <Trans id="profile.cancel">Cancel</Trans>
+              </Button>
+              <Button
+                type="submit"
+                pending={submitting}
+                disabled={address.trim() === ""}
+              >
+                {deliveryAvailable ? (
+                  <Trans id="profile.emails.send_code">Send code</Trans>
+                ) : (
+                  <Trans id="profile.emails.add.short">Add</Trans>
+                )}
+              </Button>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogPopup>
     </Dialog>
   );
@@ -512,9 +603,12 @@ function AddEmailDialog({
  */
 function VerifyEmailDialog({
   address,
+  codeAlreadySent,
   onClose,
 }: {
   address: EmailAddress | null;
+  /** True when the caller already mailed the code, so opening skips the send. */
+  codeAlreadySent: boolean;
   onClose: () => void;
 }) {
   const { t, i18n } = useLingui();
@@ -644,7 +738,9 @@ function VerifyEmailDialog({
     if (startedFor === address.id) return;
     setStartedFor(address.id);
     setCooldown(0);
-    sendCode();
+    // A row's Verify button mails the code before opening; only the add flow
+    // relies on the dialog itself to send the first one.
+    if (!codeAlreadySent) sendCode();
   }, [openedFor]);
 
   const close = () => {
@@ -828,7 +924,17 @@ function RemoveDialog({
       confirmLabel={<Trans id="profile.emails.delete.action">Remove</Trans>}
       isPending={remove.isPending}
       onConfirm={() => {
-        if (address) remove.mutate(address.id, { onSuccess: onClose });
+        if (!address) return;
+        const target = address;
+        remove.mutate(target.id, {
+          onSuccess: () => {
+            onClose();
+            notifySuccess({
+              ...removedToast,
+              values: { address: target.address },
+            });
+          },
+        });
       }}
     />
   );

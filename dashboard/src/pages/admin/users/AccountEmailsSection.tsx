@@ -1,5 +1,6 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import {
   useMutation,
   useQueryClient,
@@ -7,7 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { Mail, ShieldCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { ApiError } from "@/api/errors";
+import { ApiError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
   addAccountEmailMutationOptions,
@@ -16,7 +17,7 @@ import {
   verifyAccountEmailMutationOptions,
 } from "@/api/mutations";
 import { accountEmailsQueryOptions } from "@/api/queries";
-import { quietQuery } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { notifySuccess } from "@/components/custom/AppNotifications";
 import { Button } from "@/components/custom/Button";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
@@ -36,10 +37,10 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MenuItem, MenuSeparator } from "@/components/ui/menu";
+import { applyServerError, ServerFormError } from "@/forms/server-errors";
+import { useAppForm } from "@/forms/use-app-form";
 
 type EmailAddress = components["schemas"]["EmailAddressView"];
 
@@ -47,9 +48,21 @@ const addressTakenError = msg({
   id: "admin.user.emails.error.taken",
   message: "That address is already verified by another account.",
 });
-const addressInvalidError = msg({
-  id: "admin.user.emails.error.invalid",
-  message: "That is not a valid email address.",
+const addressLimitError = msg({
+  id: "admin.user.emails.error.limit",
+  message: "This account already has the maximum number of email addresses.",
+});
+const addressExistsError = msg({
+  id: "admin.user.emails.error.exists",
+  message: "That address is already on this account.",
+});
+const addedToast = msg({
+  id: "admin.user.emails.added_toast",
+  message: "{address} was added to the account",
+});
+const removedToast = msg({
+  id: "admin.user.emails.removed_toast",
+  message: "{address} was removed from the account",
 });
 const primaryToast = msg({
   id: "admin.user.emails.primary_toast",
@@ -104,9 +117,12 @@ function AccountEmailsList({ accountId }: { accountId: number }) {
 
   const emails = data.emails ?? [];
   const hasPrimary = emails.some((email) => email.primary);
-  // Deleting a primary hands the role to another verified address, so the
-  // confirmation names which one takes over — or that none will.
-  const nextPrimary = emails.find((email) => !email.primary && email.verified);
+  // Deleting a primary hands the role to the address verified earliest — the
+  // server picks by verified_at, not by when it was added — so the
+  // confirmation names that one, or says none will take over.
+  const nextPrimary = emails
+    .filter((email) => !email.primary && email.verified)
+    .sort((a, b) => (a.verifiedAt ?? "").localeCompare(b.verifiedAt ?? ""))[0];
 
   return (
     <>
@@ -261,7 +277,8 @@ function AccountEmailsList({ accountId }: { accountId: number }) {
             nextPrimary ? (
               <p>
                 <Trans id="admin.user.emails.delete.fallback">
-                  {nextPrimary.address} will become the new primary address.
+                  {nextPrimary.address} — the earliest verified remaining
+                  address — will become the new primary address.
                 </Trans>
               </p>
             ) : (
@@ -286,9 +303,18 @@ function AccountEmailsList({ accountId }: { accountId: number }) {
         isPending={remove.isPending}
         onConfirm={() => {
           if (removing === null) return;
+          const target = removing;
           remove.mutate(
-            { id: accountId, emailId: removing.id },
-            { onSuccess: () => setRemoving(null) },
+            { id: accountId, emailId: target.id },
+            {
+              onSuccess: () => {
+                setRemoving(null);
+                notifySuccess({
+                  ...removedToast,
+                  values: { address: target.address },
+                });
+              },
+            },
           );
         }}
       />
@@ -427,46 +453,82 @@ function AddAccountEmailDialog({
   accountId: number;
   onClose: () => void;
 }) {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const queryClient = useQueryClient();
-  const [address, setAddress] = useState("");
   const [verified, setVerified] = useState(false);
   const [primary, setPrimary] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const add = useMutation(addAccountEmailMutationOptions(queryClient));
+  // Every refusal lands in the form's field, so the toast stays silent.
+  const add = useMutation(
+    withInlineReport(addAccountEmailMutationOptions(queryClient), true),
+  );
+
+  const form = useAppForm({
+    defaultValues: { address: "" },
+    onSubmit: async ({ value }) => {
+      const created = value.address.trim();
+      try {
+        await add.mutateAsync({
+          id: accountId,
+          address: created,
+          verified: verified || undefined,
+          primary: (verified && primary) || undefined,
+        });
+        form.reset();
+        setVerified(false);
+        setPrimary(false);
+        notifySuccess({ ...addedToast, values: { address: created } });
+        onClose();
+      } catch (failure) {
+        if (isCancellation(failure)) return;
+        applyServerError(form, failure, {
+          locations: {},
+          codes: { email_invalid: "address" },
+        });
+        if (failure instanceof ApiError) {
+          if (failure.code === "email_taken") {
+            form.setErrorMap({
+              onSubmit: {
+                fields: {
+                  address: new ServerFormError(failure, addressTakenError),
+                },
+              },
+            });
+            return;
+          }
+          if (failure.code === "email_limit_reached") {
+            form.setErrorMap({
+              onSubmit: {
+                fields: {
+                  address: new ServerFormError(failure, addressLimitError),
+                },
+              },
+            });
+            return;
+          }
+          if (failure.code === "email_exists") {
+            form.setErrorMap({
+              onSubmit: {
+                fields: {
+                  address: new ServerFormError(failure, addressExistsError),
+                },
+              },
+            });
+            return;
+          }
+        }
+      }
+    },
+  });
+
+  const address = useStore(form.store, (state) => state.values.address);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
 
   const close = () => {
-    if (add.isPending) return;
-    setError(null);
-    setAddress("");
+    if (submitting) return;
+    form.reset();
     setVerified(false);
     setPrimary(false);
     onClose();
-  };
-
-  const submit = async () => {
-    setError(null);
-    try {
-      await add.mutateAsync({
-        id: accountId,
-        address: address.trim(),
-        verified: verified || undefined,
-        primary: (verified && primary) || undefined,
-      });
-      close();
-    } catch (failure) {
-      if (failure instanceof ApiError) {
-        if (failure.code === "email_taken") {
-          setError(i18n._(addressTakenError));
-          return;
-        }
-        if (failure.code === "email_invalid") {
-          setError(i18n._(addressInvalidError));
-          return;
-        }
-      }
-      throw failure;
-    }
   };
 
   const verifiedHelp = t({
@@ -481,89 +543,84 @@ function AddAccountEmailDialog({
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogPopup className="sm:max-w-md">
-        <form
-          className="flex min-h-0 flex-1 flex-col"
-          aria-label={t({
-            id: "admin.user.emails.add.title",
-            message: "Add an email address",
-          })}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!add.isPending && address.trim() !== "") void submit();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>
-              <Trans id="admin.user.emails.add.title">
-                Add an email address
-              </Trans>
-            </DialogTitle>
-          </DialogHeader>
-          <DialogPanel className="flex flex-col gap-4">
-            <Field invalid={error !== null}>
-              <FieldLabel>
-                <Trans id="admin.user.emails.address">Address</Trans>
-              </FieldLabel>
-              <Input
-                type="email"
-                autoComplete="off"
-                value={address}
-                onValueChange={(value) => {
-                  setError(null);
-                  setAddress(value);
-                }}
-              />
-              {error !== null && <FieldError>{error}</FieldError>}
-            </Field>
-            <div className="flex flex-col gap-3">
-              <Label className="gap-2.5 text-sm font-normal">
-                <Checkbox
-                  checked={verified}
-                  onCheckedChange={(next) => {
-                    setVerified(next === true);
-                    if (next !== true) setPrimary(false);
-                  }}
-                />
-                <Trans id="admin.user.emails.mark_verified">
-                  Confirm as verified
+        <form.AppForm>
+          <form.Form
+            label={t({
+              id: "admin.user.emails.add.title",
+              message: "Add an email address",
+            })}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <DialogHeader>
+              <DialogTitle>
+                <Trans id="admin.user.emails.add.title">
+                  Add an email address
                 </Trans>
-              </Label>
-              <p className="text-muted-foreground text-caption -mt-1">
-                {verifiedHelp}
-              </p>
-              <Label
-                className="gap-2.5 text-sm font-normal"
-                data-disabled={verified ? undefined : "true"}
-              >
-                <Checkbox
-                  checked={primary}
-                  disabled={!verified}
-                  onCheckedChange={(next) => setPrimary(next === true)}
-                />
-                <Trans id="admin.user.emails.mark_primary">
-                  Make it the primary address
-                </Trans>
-              </Label>
-              {!verified && (
+              </DialogTitle>
+            </DialogHeader>
+            <DialogPanel className="flex flex-col gap-4">
+              <form.AppField name="address">
+                {(field) => (
+                  <field.FormField
+                    label={
+                      <Trans id="admin.user.emails.address">Address</Trans>
+                    }
+                    type="email"
+                    autoComplete="off"
+                    autoFocus
+                  />
+                )}
+              </form.AppField>
+              <div className="flex flex-col gap-3">
+                <Label className="gap-2.5 text-sm font-normal">
+                  <Checkbox
+                    checked={verified}
+                    onCheckedChange={(next) => {
+                      setVerified(next === true);
+                      if (next !== true) setPrimary(false);
+                    }}
+                  />
+                  <Trans id="admin.user.emails.mark_verified">
+                    Confirm as verified
+                  </Trans>
+                </Label>
                 <p className="text-muted-foreground text-caption -mt-1">
-                  {primaryHelp}
+                  {verifiedHelp}
                 </p>
-              )}
-            </div>
-          </DialogPanel>
-          <DialogFooter>
-            <Button variant="ghost" disabled={add.isPending} onClick={close}>
-              <Trans id="admin.user.emails.cancel">Cancel</Trans>
-            </Button>
-            <Button
-              type="submit"
-              pending={add.isPending}
-              disabled={address.trim() === ""}
-            >
-              <Trans id="admin.user.emails.add.short">Add</Trans>
-            </Button>
-          </DialogFooter>
-        </form>
+                <Label
+                  className="gap-2.5 text-sm font-normal"
+                  data-disabled={verified ? undefined : "true"}
+                >
+                  <Checkbox
+                    checked={primary}
+                    disabled={!verified}
+                    onCheckedChange={(next) => setPrimary(next === true)}
+                  />
+                  <Trans id="admin.user.emails.mark_primary">
+                    Make it the primary address
+                  </Trans>
+                </Label>
+                {!verified && (
+                  <p className="text-muted-foreground text-caption -mt-1">
+                    {primaryHelp}
+                  </p>
+                )}
+              </div>
+            </DialogPanel>
+            <DialogFooter>
+              <Button variant="ghost" disabled={submitting} onClick={close}>
+                <Trans id="admin.user.emails.cancel">Cancel</Trans>
+              </Button>
+              <Button
+                type="submit"
+                pending={submitting}
+                disabled={address.trim() === ""}
+              >
+                <Trans id="admin.user.emails.add.short">Add</Trans>
+              </Button>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogPopup>
     </Dialog>
   );

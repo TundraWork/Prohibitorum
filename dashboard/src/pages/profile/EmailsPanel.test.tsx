@@ -115,6 +115,88 @@ describe("EmailsPanel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the no-mail notice with no addresses at all", async () => {
+    mount([], false);
+    expect(await screen.findByText(/does not send mail/)).toBeVisible();
+  });
+
+  it("sends the code from the row before opening the code dialog", async () => {
+    const user = userEvent.setup();
+    mount(
+      [
+        emailFixture({
+          id: 3,
+          address: "spare@example.test",
+          primary: false,
+          verified: false,
+          verifiedVia: undefined,
+          verifiedAt: undefined,
+        }),
+      ],
+      true,
+      (request) => {
+        const path = new URL(request.url).pathname;
+        if (path === `${emailsPath}/3/send-code`) {
+          return Response.json({
+            resendAfterSeconds: 60,
+            expiresInSeconds: 900,
+          });
+        }
+        return undefined;
+      },
+    );
+    // No dialog exists before the code is on its way.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Verify" }));
+    await waitFor(() =>
+      expect(
+        fetchBoundary.mock.calls.some(
+          ([request]) =>
+            request.method === "POST" &&
+            new URL(request.url).pathname === `${emailsPath}/3/send-code`,
+        ),
+      ).toBe(true),
+    );
+    // The send succeeded, so the code dialog opens on the same single code.
+    expect(
+      await within(screen.getByRole("dialog")).findByText(
+        /was sent to spare@example.test/,
+      ),
+    ).toBeVisible();
+    expect(fetchBoundary.mock.calls).toHaveLength(1);
+  });
+
+  it("keeps the row's dialog closed and shows the error when the send fails", async () => {
+    const user = userEvent.setup();
+    mount(
+      [
+        emailFixture({
+          id: 4,
+          address: "bad@example.test",
+          primary: false,
+          verified: false,
+          verifiedVia: undefined,
+          verifiedAt: undefined,
+        }),
+      ],
+      true,
+      (request) => {
+        if (new URL(request.url).pathname === `${emailsPath}/4/send-code`) {
+          return Response.json(
+            { code: "email_delivery_failed", requestId: "r1" },
+            { status: 502 },
+          );
+        }
+        return undefined;
+      },
+    );
+    await user.click(await screen.findByRole("button", { name: "Verify" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not be sent/,
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("adds, sends, and verifies through the two-step dialog", async () => {
     const user = userEvent.setup();
     mount([], true, (request) => {

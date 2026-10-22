@@ -43,7 +43,7 @@ msgstr "{0, plural, other {显示 # 个已退役的密钥}}"
 #. placeholder {0}: nextPrimary.address
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.delete.fallback"
-msgstr "{0} 将成为新的主邮箱。"
+msgstr "{0} ——最早验证的剩余地址——将成为新的主邮箱。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
@@ -51,9 +51,34 @@ msgid "admin.user.emails.primary_toast"
 msgstr "{address} 已成为该用户的主邮箱"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.added_toast"
+msgstr "已将 {address} 添加到该账户"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.removed_toast"
+msgstr "已从该账户移除 {address}"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.primary_toast"
 msgstr "{address} 已成为主邮箱"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/EmailsPanel.tsx
+msgid "profile.emails.added_toast"
+msgstr "已添加 {address}，等待管理员确认"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/EmailsPanel.tsx
+msgid "profile.emails.removed_toast"
+msgstr "已移除 {address}"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/EmailsPanel.tsx
+msgid "profile.emails.error.row_send_failed"
+msgstr "验证码没有发出去，请稍后重试。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsFrame.tsx
@@ -9004,6 +9029,16 @@ msgid "admin.user.emails.error.taken"
 msgstr "这个地址已被另一个账户验证。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.error.limit"
+msgstr "该账户的邮箱地址数量已达上限。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.error.exists"
+msgstr "这个邮箱地址已经在这个账户上。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_taken"
 msgstr "这个地址已被另一个账户验证"
@@ -9192,6 +9227,11 @@ msgstr "该验证方式当前不可用，请选择其他方式。"
 #: src/pages/admin/settings/MailPanel.tsx
 msgid "settings.mail.test.rate_limited"
 msgstr "发得太频繁了，请稍后再试。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MailPanel.tsx
+msgid "settings.mail.test.delivery_unavailable"
+msgstr "本站没有开启邮件发送。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx

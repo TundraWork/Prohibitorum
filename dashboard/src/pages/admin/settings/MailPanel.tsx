@@ -1,12 +1,13 @@
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useStore } from "@tanstack/react-form";
 import { useMutation, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { Mail, Send } from "lucide-react";
-import { useState } from "react";
-import { ApiError } from "@/api/errors";
+import { useEffect, useState } from "react";
+import { ApiError, isCancellation } from "@/api/errors";
 import { sendTestMailMutationOptions } from "@/api/mutations";
 import { mailSettingsQueryOptions, myEmailsQueryOptions } from "@/api/queries";
-import { quietQuery } from "@/app/query-client";
+import { quietQuery, withInlineReport } from "@/app/query-client";
 import { notifySuccess } from "@/components/custom/AppNotifications";
 import { Button } from "@/components/custom/Button";
 import { AsyncSection, Section } from "@/components/custom/Section";
@@ -19,8 +20,8 @@ import {
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { applyServerError, ServerFormError } from "@/forms/server-errors";
+import { useAppForm } from "@/forms/use-app-form";
 
 /**
  * The section's heading, drawn by the panel and by the boundary that waits for
@@ -51,6 +52,10 @@ const failedError = msg({
   message:
     "The mail server refused this message or could not be reached. The reason is in the server log.",
 });
+const deliveryUnavailableError = msg({
+  id: "settings.mail.test.delivery_unavailable",
+  message: "This instance cannot send email.",
+});
 
 /** What the config's `security` value is called on the page. */
 const securityLabels = {
@@ -67,64 +72,70 @@ const securityLabels = {
  * settings live.
  */
 export function MailPanel() {
+  return (
+    <AsyncSection resetKey="mail" {...mailSection}>
+      <MailSettings />
+    </AsyncSection>
+  );
+}
+
+function MailSettings() {
   const { data } = useSuspenseQuery(quietQuery(mailSettingsQueryOptions()));
 
   return (
-    <AsyncSection resetKey="mail" {...mailSection}>
-      <Section
-        {...mailSection}
-        action={data.configured ? <TestMailButton /> : undefined}
-      >
-        {data.configured ? (
-          <div className="flex flex-col">
-            <SettingRow title={<Trans id="settings.mail.status">Status</Trans>}>
-              <span className="flex items-center gap-2 text-sm">
-                <span
-                  aria-hidden="true"
-                  className="inline-block size-2 rounded-full bg-success"
-                />
-                <Trans id="settings.mail.enabled">On</Trans>
-              </span>
-            </SettingRow>
-            <SettingRow title={<Trans id="settings.mail.server">Server</Trans>}>
-              <span className="font-mono text-[13px] text-balance">
-                {data.host}:{data.port}
-              </span>
-            </SettingRow>
-            <SettingRow
-              title={<Trans id="settings.mail.security">Encryption</Trans>}
-            >
-              <span className="text-sm">{securityLabel(data.security)}</span>
-            </SettingRow>
-            <SettingRow title={<Trans id="settings.mail.from">From</Trans>}>
-              <span className="font-mono text-[13px] text-balance">
-                {data.from}
-              </span>
-            </SettingRow>
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            <SettingRow title={<Trans id="settings.mail.status">Status</Trans>}>
-              <span className="text-sm">
-                <Trans id="settings.mail.disabled">Off</Trans>
-              </span>
-            </SettingRow>
-            <SettingRow
-              title={<Trans id="settings.mail.how_to_configure">Setup</Trans>}
-              description={
-                <Trans id="settings.mail.configure.hint">
-                  Fill in the server and sender in the `smtp` section of the
-                  config file, or set environment variables such as
-                  PROHIBITORUM_SMTP_HOST. See CONFIG.md.
-                </Trans>
-              }
-            >
-              <span />
-            </SettingRow>
-          </div>
-        )}
-      </Section>
-    </AsyncSection>
+    <Section
+      {...mailSection}
+      action={data.configured ? <TestMailButton /> : undefined}
+    >
+      {data.configured ? (
+        <div className="flex flex-col">
+          <SettingRow title={<Trans id="settings.mail.status">Status</Trans>}>
+            <span className="flex items-center gap-2 text-sm">
+              <span
+                aria-hidden="true"
+                className="inline-block size-2 rounded-full bg-success"
+              />
+              <Trans id="settings.mail.enabled">On</Trans>
+            </span>
+          </SettingRow>
+          <SettingRow title={<Trans id="settings.mail.server">Server</Trans>}>
+            <span className="font-mono text-[13px] text-balance">
+              {data.host}:{data.port}
+            </span>
+          </SettingRow>
+          <SettingRow
+            title={<Trans id="settings.mail.security">Encryption</Trans>}
+          >
+            <span className="text-sm">{securityLabel(data.security)}</span>
+          </SettingRow>
+          <SettingRow title={<Trans id="settings.mail.from">From</Trans>}>
+            <span className="font-mono text-[13px] text-balance">
+              {data.from}
+            </span>
+          </SettingRow>
+        </div>
+      ) : (
+        <div className="flex flex-col">
+          <SettingRow title={<Trans id="settings.mail.status">Status</Trans>}>
+            <span className="text-sm">
+              <Trans id="settings.mail.disabled">Off</Trans>
+            </span>
+          </SettingRow>
+          <SettingRow
+            title={<Trans id="settings.mail.how_to_configure">Setup</Trans>}
+            description={
+              <Trans id="settings.mail.configure.hint">
+                Fill in the server and sender in the `smtp` section of the
+                config file, or set environment variables such as
+                PROHIBITORUM_SMTP_HOST. See CONFIG.md.
+              </Trans>
+            }
+          >
+            <span />
+          </SettingRow>
+        </div>
+      )}
+    </Section>
   );
 }
 
@@ -171,84 +182,121 @@ function TestMailDialog({
   // missing or failed read only leaves the box empty, so it stays quiet.
   const emails = useQuery(quietQuery(myEmailsQueryOptions()));
   const primary = emails.data?.emails?.find((email) => email.primary);
-  const [to, setTo] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const send = useMutation(sendTestMailMutationOptions());
+  // Every refusal the dialog can word lands in its field, so the toast stays
+  // silent; the rest of the write is also shown here rather than re-thrown.
+  const send = useMutation(
+    withInlineReport(sendTestMailMutationOptions(), true),
+  );
 
-  const recipient = to ?? primary?.address ?? "";
+  const form = useAppForm({
+    defaultValues: { to: "" },
+    onSubmit: async ({ value }) => {
+      const target = value.to.trim();
+      try {
+        await send.mutateAsync({ to: target, locale: i18n.locale });
+        onClose();
+        notifySuccess({ ...sentToast, values: { to: target } });
+      } catch (failure) {
+        if (isCancellation(failure)) return;
+        if (failure instanceof ApiError) {
+          if (failure.code === "email_invalid") {
+            applyServerError(form, failure, {
+              locations: {},
+              codes: { email_invalid: "to" },
+            });
+            return;
+          }
+          if (failure.code === "rate_limited") {
+            form.setErrorMap({
+              onSubmit: {
+                fields: { to: new ServerFormError(failure, rateLimitedError) },
+              },
+            });
+            return;
+          }
+          if (failure.code === "email_delivery_unavailable") {
+            form.setErrorMap({
+              onSubmit: {
+                fields: {
+                  to: new ServerFormError(failure, deliveryUnavailableError),
+                },
+              },
+            });
+            return;
+          }
+        }
+        // Anything else is still the mail subsystem's refusal; the details
+        // are in the server log, not the response.
+        form.setErrorMap({
+          onSubmit: {
+            fields: { to: new ServerFormError(failure, failedError) },
+          },
+        });
+      }
+    },
+  });
+
+  const to = useStore(form.store, (state) => state.values.to);
+  const submitting = useStore(form.store, (state) => state.isSubmitting);
+  // The prefill arrives with (or after) the quiet read; it only fills an
+  // untouched box, never one the administrator has typed in. Keyed on the
+  // address string so a refetch of the same primary does not re-run it.
+  const primaryAddress = primary?.address;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: prefill fires once per address; `to` and the form setters are read, not triggers
+  useEffect(() => {
+    if (to === "" && primaryAddress !== undefined) {
+      form.setFieldValue("to", primaryAddress, { dontUpdateMeta: true });
+    }
+  }, [primaryAddress]);
 
   const close = () => {
-    if (send.isPending) return;
-    setError(null);
-    setTo(null);
+    if (submitting) return;
+    form.reset();
     onClose();
-  };
-
-  const submit = async () => {
-    setError(null);
-    try {
-      const target = recipient.trim();
-      await send.mutateAsync({ to: target, locale: i18n.locale });
-      onClose();
-      notifySuccess({ ...sentToast, values: { to: target } });
-    } catch (failure) {
-      if (failure instanceof ApiError && failure.code === "rate_limited") {
-        setError(i18n._(rateLimitedError));
-        return;
-      }
-      setError(i18n._(failedError));
-    }
   };
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogPopup className="sm:max-w-md">
-        <form
-          className="flex min-h-0 flex-1 flex-col"
-          aria-label={t({
-            id: "settings.mail.test.title",
-            message: "Send test mail",
-          })}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!send.isPending && recipient.trim() !== "") void submit();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>
-              <Trans id="settings.mail.test.title">Send test mail</Trans>
-            </DialogTitle>
-          </DialogHeader>
-          <DialogPanel>
-            <Field invalid={error !== null}>
-              <FieldLabel>
-                <Trans id="settings.mail.test.to">Recipient</Trans>
-              </FieldLabel>
-              <Input
-                type="email"
-                autoComplete="off"
-                value={recipient}
-                onValueChange={(value) => {
-                  setError(null);
-                  setTo(value);
-                }}
-              />
-              {error !== null && <FieldError>{error}</FieldError>}
-            </Field>
-          </DialogPanel>
-          <DialogFooter>
-            <Button variant="ghost" disabled={send.isPending} onClick={close}>
-              <Trans id="settings.mail.cancel">Cancel</Trans>
-            </Button>
-            <Button
-              type="submit"
-              pending={send.isPending}
-              disabled={recipient.trim() === ""}
-            >
-              <Trans id="settings.mail.test.send">Send</Trans>
-            </Button>
-          </DialogFooter>
-        </form>
+        <form.AppForm>
+          <form.Form
+            label={t({
+              id: "settings.mail.test.title",
+              message: "Send test mail",
+            })}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <DialogHeader>
+              <DialogTitle>
+                <Trans id="settings.mail.test.title">Send test mail</Trans>
+              </DialogTitle>
+            </DialogHeader>
+            <DialogPanel>
+              <form.AppField name="to">
+                {(field) => (
+                  <field.FormField
+                    label={<Trans id="settings.mail.test.to">Recipient</Trans>}
+                    type="email"
+                    autoComplete="off"
+                    autoFocus
+                  />
+                )}
+              </form.AppField>
+            </DialogPanel>
+            <DialogFooter>
+              <Button variant="ghost" disabled={submitting} onClick={close}>
+                <Trans id="settings.mail.cancel">Cancel</Trans>
+              </Button>
+              <Button
+                type="submit"
+                pending={submitting}
+                disabled={to.trim() === ""}
+              >
+                <Trans id="settings.mail.test.send">Send</Trans>
+              </Button>
+            </DialogFooter>
+          </form.Form>
+        </form.AppForm>
       </DialogPopup>
     </Dialog>
   );

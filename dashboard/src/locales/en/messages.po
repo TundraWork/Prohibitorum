@@ -43,7 +43,7 @@ msgstr "{0, plural, one {Show # retired key} other {Show # retired keys}}"
 #. placeholder {0}: nextPrimary.address
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.delete.fallback"
-msgstr "{0} will become the new primary address."
+msgstr "{0} — the earliest verified remaining address — will become the new primary address."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
@@ -51,9 +51,34 @@ msgid "admin.user.emails.primary_toast"
 msgstr "{address} is now the user's primary address"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.added_toast"
+msgstr "{address} was added to the account"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.removed_toast"
+msgstr "{address} was removed from the account"
+
+#. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.primary_toast"
 msgstr "{address} is now your primary address"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/EmailsPanel.tsx
+msgid "profile.emails.added_toast"
+msgstr "{address} was added and is waiting for an administrator"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/EmailsPanel.tsx
+msgid "profile.emails.removed_toast"
+msgstr "{address} was removed"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/EmailsPanel.tsx
+msgid "profile.emails.error.row_send_failed"
+msgstr "The code could not be sent. Try again in a moment."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsFrame.tsx
@@ -9004,6 +9029,16 @@ msgid "admin.user.emails.error.taken"
 msgstr "That address is already verified by another account."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.error.limit"
+msgstr "This account already has the maximum number of email addresses."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/users/AccountEmailsSection.tsx
+msgid "admin.user.emails.error.exists"
+msgstr "That address is already on this account."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_taken"
 msgstr "That address is already verified by another account."
@@ -9192,6 +9227,11 @@ msgstr "That verification method is not available. Choose another one."
 #: src/pages/admin/settings/MailPanel.tsx
 msgid "settings.mail.test.rate_limited"
 msgstr "That was too many. Try again in a moment."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MailPanel.tsx
+msgid "settings.mail.test.delivery_unavailable"
+msgstr "This instance cannot send email."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
