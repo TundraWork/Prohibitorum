@@ -50,7 +50,8 @@ var (
 )
 
 // Picture is one wallpaper and its credit. Bing fills Title, Copyright and
-// CopyrightURL; Unsplash fills the photographer and photo links.
+// CopyrightURL; Unsplash fills Title from the photo's description, when it
+// has one, and the photographer and photo links.
 type Picture struct {
 	ImageURL        string
 	Title           string
@@ -266,7 +267,9 @@ func (s *Service) fetchUnsplash(ctx context.Context, key, query string, count in
 		Links struct {
 			HTML string `json:"html"`
 		} `json:"links"`
-		User struct {
+		Description    string `json:"description"`
+		AltDescription string `json:"alt_description"`
+		User           struct {
 			Name  string `json:"name"`
 			Links struct {
 				HTML string `json:"html"`
@@ -287,8 +290,14 @@ func (s *Service) fetchUnsplash(ctx context.Context, key, query string, count in
 			!strings.HasPrefix(p.User.Links.HTML, unsplashSiteOrigin) {
 			continue
 		}
+		// The photographer's own description, else Unsplash's alt text.
+		title := strings.TrimSpace(p.Description)
+		if title == "" {
+			title = strings.TrimSpace(p.AltDescription)
+		}
 		out = append(out, Picture{
 			ImageURL:        withQuery(p.URLs.Raw, "w=2560&q=80&auto=format"),
+			Title:           title,
 			Photographer:    p.User.Name,
 			PhotographerURL: withQuery(p.User.Links.HTML, referral),
 			PhotoURL:        withQuery(p.Links.HTML, referral),

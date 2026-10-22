@@ -18,15 +18,23 @@ export function AppToolbar({
   surface,
   showThemeSelect,
   account,
+  className,
 }: {
   children: ReactNode;
+  /** Classes for the bar, such as the public pages' wider edge. */
+  className?: string;
   surface: LoginSurface;
   showThemeSelect: boolean;
   /** The signed-in account's menu, on its own capsule at the trailing end. */
   account?: ReactNode;
 }) {
   return (
-    <header className="flex h-16 min-w-0 shrink-0 items-center justify-between gap-3 px-5">
+    <header
+      className={cn(
+        "flex h-16 min-w-0 shrink-0 items-center justify-between gap-3 px-5",
+        className,
+      )}
+    >
       <Capsule surface={surface} className="ps-1.5 pe-3 font-medium text-sm">
         {children}
       </Capsule>

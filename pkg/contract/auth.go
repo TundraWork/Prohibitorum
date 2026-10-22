@@ -242,8 +242,9 @@ type Wallpaper struct {
 }
 
 // WallpaperPicture is one picture and its credit. Bing fills title, copyright
-// and copyrightUrl (omitted when the caption is hidden); Unsplash fills the
-// photographer and photo links, which are always shown.
+// and copyrightUrl (omitted when the caption is hidden); Unsplash fills title
+// from the photo's description when it has one, and the photographer and
+// photo links, which are always shown.
 type WallpaperPicture struct {
 	ImageURL        string `json:"imageUrl"`
 	Title           string `json:"title,omitempty"`

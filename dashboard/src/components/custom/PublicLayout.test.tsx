@@ -129,7 +129,7 @@ function bingWallpaper() {
   );
 }
 
-function unsplashWallpaper() {
+function unsplashWallpaper(extra: Record<string, string> = {}) {
   vi.stubGlobal(
     "fetch",
     vi.fn(
@@ -143,6 +143,7 @@ function unsplashWallpaper() {
                 photographer: "Ada",
                 photographerUrl: "https://unsplash.com/@ada",
                 photoUrl: "https://unsplash.com/photos/p1",
+                ...extra,
               },
             ],
           }),
@@ -313,11 +314,12 @@ it("centres the stage and offers the theme control by default", async () => {
   const banner = await mount();
   const main = screen.getByRole("main");
   expect(main).toHaveAttribute("data-position", "center");
-  // The toolbar and the stage share one capped, centred region, so a very
-  // wide screen keeps the card under the capsules.
-  const region = main.closest('[data-slot="public-region"]');
-  expect(region).toHaveClass("mx-auto", "max-w-(--public-region)");
-  expect(region).toContainElement(banner);
+  // The toolbar, the stage and the credit share one edge that grows with the
+  // window.
+  expect(banner).toHaveClass("px-(--public-edge)");
+  expect(main).toHaveClass("px-(--public-edge)");
+  // A centred card never splits the window.
+  expect(document.querySelector('[data-slot="public-split-panel"]')).toBeNull();
   expect(within(banner).getByRole("button", { name: "Theme" })).toBeVisible();
 });
 
@@ -328,18 +330,25 @@ it("puts the stage on the left from lg and the credit at the bottom right", asyn
     appearance.cardPosition = "left";
   });
   await mount();
-  expect(screen.getByRole("main")).toHaveAttribute("data-position", "left");
-  // Centred in the left half of the region, clear of the edge.
-  expect(screen.getByRole("main")).toHaveClass(
-    "lg:grid-cols-2",
-    "lg:*:col-start-1",
+  const main = screen.getByRole("main");
+  expect(main).toHaveAttribute("data-position", "left");
+  // At the edge the capsules keep, and on a very wide window centred on the
+  // opaque panel that takes the left two fifths.
+  expect(main).toHaveClass(
+    "lg:justify-start",
+    "min-[2200px]:grid-cols-[2fr_3fr]",
+    "min-[2200px]:*:col-start-1",
   );
+  expect(
+    document.querySelector('[data-slot="public-split-panel"]'),
+  ).toHaveClass("left-0", "w-2/5", "bg-background", "min-[2200px]:block");
   const credit = await wideCredit();
   expect(credit).toHaveClass(
-    "right-(--public-inset)",
-    "max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
+    "right-(--public-edge)",
+    "bottom-(--public-edge)",
+    "min-[2200px]:max-w-[calc(60vw-2*var(--public-edge))]",
   );
-  expect(credit).not.toHaveClass("left-(--public-inset)");
+  expect(credit).not.toHaveClass("left-(--public-edge)");
 });
 
 it("puts the stage on the right from lg and the credit at the bottom left", async () => {
@@ -349,17 +358,19 @@ it("puts the stage on the right from lg and the credit at the bottom left", asyn
     appearance.cardPosition = "right";
   });
   await mount();
-  expect(screen.getByRole("main")).toHaveAttribute("data-position", "right");
-  expect(screen.getByRole("main")).toHaveClass(
-    "lg:grid-cols-2",
-    "lg:*:col-start-2",
+  const main = screen.getByRole("main");
+  expect(main).toHaveAttribute("data-position", "right");
+  expect(main).toHaveClass(
+    "lg:justify-end",
+    "min-[2200px]:grid-cols-[3fr_2fr]",
+    "min-[2200px]:*:col-start-2",
   );
+  expect(
+    document.querySelector('[data-slot="public-split-panel"]'),
+  ).toHaveClass("right-0");
   const credit = await wideCredit();
-  expect(credit).toHaveClass(
-    "left-(--public-inset)",
-    "max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
-  );
-  expect(credit).not.toHaveClass("right-(--public-inset)");
+  expect(credit).toHaveClass("left-(--public-edge)", "bottom-(--public-edge)");
+  expect(credit).not.toHaveClass("right-(--public-edge)");
 });
 
 it("frames the stage plain over the page's own background and frosted over a picture", async () => {
@@ -381,11 +392,10 @@ it("shows no wallpaper credit for a source without a picture", async () => {
   });
   await mount();
   expect(screen.queryByText("A quiet ridge")).toBeNull();
-  expect(screen.queryByText(/Photo by/)).toBeNull();
-  expect(screen.queryByRole("link", { name: "Unsplash" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Ada" })).toBeNull();
 });
 
-it("credits the Unsplash photographer and photo", async () => {
+it("credits the Unsplash photographer, without naming the platform in words", async () => {
   unsplashWallpaper();
   withAppearance((appearance) => {
     appearance.background.source = "unsplash";
@@ -393,11 +403,23 @@ it("credits the Unsplash photographer and photo", async () => {
   await mount();
   const photographer = (await screen.findAllByRole("link", { name: "Ada" }))[0];
   expect(photographer).toHaveAttribute("href", "https://unsplash.com/@ada");
-  expect(screen.getAllByRole("link", { name: "Unsplash" })[0]).toHaveAttribute(
+  expect(screen.queryByText(/Photo by|Unsplash/)).toBeNull();
+});
+
+it("names the Unsplash photo by its description, linked to the photo", async () => {
+  unsplashWallpaper({ title: "Morning fog over the lake" });
+  withAppearance((appearance) => {
+    appearance.background.source = "unsplash";
+  });
+  await mount();
+  const photo = (
+    await screen.findAllByRole("link", { name: "Morning fog over the lake" })
+  )[0];
+  expect(photo).toHaveAttribute("href", "https://unsplash.com/photos/p1");
+  expect(screen.getAllByRole("link", { name: "Ada" })[0]).toHaveAttribute(
     "href",
-    "https://unsplash.com/photos/p1",
+    "https://unsplash.com/@ada",
   );
-  expect(screen.getAllByText(/Photo by/).length).toBeGreaterThan(0);
 });
 
 it("shows Bing's title when the caption is on", async () => {

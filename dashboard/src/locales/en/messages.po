@@ -6427,11 +6427,6 @@ msgid "settings.sign-in.preview.phone"
 msgstr "Phone"
 
 #. js-lingui-explicit-id
-#: src/components/custom/login-appearance/WallpaperCredit.tsx
-msgid "login.wallpaper.unsplash-credit"
-msgstr "Photo by <0>{name}</0> on <1>Unsplash</1>"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/ColorControl.tsx
 msgid "settings.sign-in.color.picker"
 msgstr "Pick a color"

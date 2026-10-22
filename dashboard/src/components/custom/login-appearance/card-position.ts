@@ -5,33 +5,50 @@ import { cva } from "class-variance-authority";
  * The public pages apply it from `lg`; a narrower window centres the stage and
  * puts the credit under it.
  *
- * The toolbar and the stage share the public region: the window, capped at
- * `--public-region` and centred. On the left or the right, the stage is
- * centred in that half of the region, so it keeps clear of the edge as the
- * screen grows; at `lg` the half is barely wider than the stage, which then
- * sits about where the toolbar capsule's edge does. The credit is fixed to the
- * window, so it takes the bottom corner of the region's other half, 1.25rem
- * in, and stops 1.5rem short of the middle: 2.75rem in all.
+ * Everything around the stage keeps `--public-edge` from the window: the
+ * toolbar capsules, a stage set to the left or the right, and the credit in
+ * the bottom corner away from the stage. The credit stops 1.5rem short of the
+ * stage, whichever width the stage takes: its edge, 1.5rem of gap and the 30rem
+ * wide stage, plus the stage's own edge.
+ *
+ * On a window at least 2200px wide, a side-placed stage moves onto a
+ * panel of the page's own opaque background that takes two fifths of the
+ * window on its side, centred in it, and the picture keeps the other three
+ * fifths; the credit then stays within the picture.
  */
 export const publicCardPlacement = cva("", {
   variants: {
     position: {
-      left: "lg:grid lg:grid-cols-2 lg:justify-items-center lg:*:col-start-1",
+      left: "lg:justify-start min-[2200px]:grid min-[2200px]:grid-cols-[2fr_3fr] min-[2200px]:justify-items-center min-[2200px]:px-0 min-[2200px]:*:col-start-1",
       center: "",
-      right: "lg:grid lg:grid-cols-2 lg:justify-items-center lg:*:col-start-2",
+      right:
+        "lg:justify-end min-[2200px]:grid min-[2200px]:grid-cols-[3fr_2fr] min-[2200px]:justify-items-center min-[2200px]:px-0 min-[2200px]:*:col-start-2",
     },
   },
 });
 
-/** The `lg` credit container on the public pages, fixed to the window. */
-export const publicCreditPlacement = cva("fixed bottom-5 hidden lg:flex", {
-  variants: {
-    position: {
-      left: "right-(--public-inset) max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
-      center:
-        "left-(--public-inset) max-w-[calc(min(50vw,var(--public-region)/2)-17.75rem)]",
-      right:
-        "left-(--public-inset) max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
+/** The opaque panel a side-placed stage sits on when the window is split. */
+export const publicSplitPanel = cva(
+  "pointer-events-none fixed inset-y-0 -z-[5] hidden w-2/5 bg-background min-[2200px]:block",
+  {
+    variants: {
+      position: { left: "left-0", right: "right-0" },
     },
   },
-});
+);
+
+/** The `lg` credit container on the public pages, fixed to the window. */
+export const publicCreditPlacement = cva(
+  "fixed bottom-(--public-edge) hidden lg:flex",
+  {
+    variants: {
+      position: {
+        left: "right-(--public-edge) max-w-[calc(100vw-2*var(--public-edge)-31.5rem)] min-[2200px]:max-w-[calc(60vw-2*var(--public-edge))]",
+        center:
+          "left-(--public-edge) max-w-[calc(50vw-var(--public-edge)-16.5rem)]",
+        right:
+          "left-(--public-edge) max-w-[calc(100vw-2*var(--public-edge)-31.5rem)] min-[2200px]:max-w-[calc(60vw-2*var(--public-edge))]",
+      },
+    },
+  },
+);

@@ -1,4 +1,3 @@
-import { Trans } from "@lingui/react/macro";
 import { ImageIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { LoginAppearance, WallpaperPicture } from "@/api/raw-paths";
@@ -8,8 +7,10 @@ const link = "underline underline-offset-2 hover:text-white";
 /**
  * Where the Bing or Unsplash picture on screen comes from, on a small dark
  * pill that reads on any picture. Bing's title and copyright appear when the
- * administrator shows the caption; the Unsplash credit is always shown and
- * changes with the photo, as Unsplash asks. Draws nothing without a `picture`,
+ * administrator shows the caption; the Unsplash credit, the photo's
+ * description and its photographer, is always shown and changes with the
+ * photo, as Unsplash asks. Neither names the platform in words: its links
+ * lead there. Draws nothing without a `picture`,
  * which `useLoginBackground` gives only for those two sources.
  */
 export function WallpaperCredit({
@@ -46,33 +47,34 @@ export function WallpaperCredit({
     );
   }
 
-  const name = picture.photographer ?? "";
-  // One run of inline text inside a single flex item: separate items would put
-  // a gap between the words, and spaces into the Chinese sentence.
+  // The photo's description and its photographer, linked to the photo and to
+  // the photographer's page; the links are where Unsplash is named, so the
+  // credit stays short.
   return (
     <Pill>
-      <span className="min-w-0 truncate">
-        <Trans id="login.wallpaper.unsplash-credit">
-          Photo by{" "}
-          <a
-            href={picture.photographerUrl}
-            target="_blank"
-            rel="noreferrer"
-            className={`font-medium ${link}`}
-          >
-            {name}
-          </a>{" "}
-          on{" "}
+      {picture.title && (
+        <>
           <a
             href={picture.photoUrl}
             target="_blank"
             rel="noreferrer"
-            className={`font-medium ${link}`}
+            className={`min-w-0 truncate font-medium ${link}`}
           >
-            Unsplash
+            {picture.title}
           </a>
-        </Trans>
-      </span>
+          <span aria-hidden="true" className="text-white/60">
+            ·
+          </span>
+        </>
+      )}
+      <a
+        href={picture.photographerUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={`shrink-0 ${picture.title ? "" : "font-medium "}${link}`}
+      >
+        {picture.photographer}
+      </a>
     </Pill>
   );
 }

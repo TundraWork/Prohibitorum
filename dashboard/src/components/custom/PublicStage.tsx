@@ -34,7 +34,7 @@ export function useStageSlots(): StageSlots {
 }
 
 const placement =
-  "flex min-h-[calc(var(--app-viewport-height)-4rem)] w-full items-start justify-center px-5 sm:items-center py-4";
+  "flex min-h-[calc(var(--app-viewport-height)-var(--public-edge)-2.25rem)] w-full items-start justify-center px-(--public-edge) sm:items-center py-4";
 
 const frameStyle = cva(
   "relative flex w-full flex-col rounded-[28px] p-1.5 max-sm:max-w-none [--stage-inset:--spacing(5)] sm:[--stage-inset:--spacing(7)]",
