@@ -31,7 +31,6 @@
   );
 }
 
-
 /* Nord, light. */
 :root[data-scheme="nord"]:not(.dark) {
   --background: #eceff4;

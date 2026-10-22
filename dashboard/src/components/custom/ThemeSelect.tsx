@@ -1,6 +1,6 @@
 import { useLingui } from "@lingui/react/macro";
-import { atom, useAtom, useAtomValue } from "jotai";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { useAppearanceChoice } from "@/app/use-appearance";
 import { Button } from "@/components/ui/button";
 import {
   Menu,
@@ -9,16 +9,7 @@ import {
   MenuRadioItem,
   MenuTrigger,
 } from "@/components/ui/menu";
-
-/** The visitor's choice, which the console and the public pages share. */
-export const themeAtom = atom<"light" | "dark" | "system">("system");
-
-/**
- * The theme the sign-in page's settings force on the public pages, or nothing
- * when the visitor chooses. Only `PublicLayout` writes it, while it is mounted;
- * `themeAtom` is left alone, so the console keeps the visitor's choice.
- */
-export const publicThemeAtom = atom<"light" | "dark" | undefined>(undefined);
+import { isColorMode } from "@/lib/appearance";
 
 export function useThemeOptions() {
   const { t } = useLingui();
@@ -43,16 +34,14 @@ export function useThemeOptions() {
 
 /** The theme choice as radio items, for any menu that offers it. */
 export function ThemeMenuItems() {
-  const [theme, setTheme] = useAtom(themeAtom);
+  const { mode, choose } = useAppearanceChoice();
   const { t } = useLingui();
   return (
     <MenuRadioGroup
       aria-label={t({ id: "theme.label", message: "Theme" })}
-      value={theme}
+      value={mode ?? "system"}
       onValueChange={(value) => {
-        if (value === "light" || value === "dark" || value === "system") {
-          setTheme(value);
-        }
+        if (isColorMode(value)) choose({ mode: value });
       }}
     >
       {useThemeOptions().map(({ value, label }) => (
@@ -66,7 +55,7 @@ export function ThemeMenuItems() {
 
 /** An icon button, showing the current theme, that opens the theme choice. */
 export function ThemeMenu() {
-  const theme = useAtomValue(themeAtom);
+  const theme = useAppearanceChoice().mode ?? "system";
   const { t } = useLingui();
   const Icon = useThemeOptions().find(({ value }) => value === theme)?.icon;
   return (

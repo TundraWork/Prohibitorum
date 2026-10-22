@@ -19,8 +19,8 @@ import { AppEnvironment } from "@/app/AppEnvironment";
 import { createQueryClient } from "@/app/query-client";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { PublicLayout } from "@/components/custom/PublicLayout";
-import { themeAtom } from "@/components/custom/ThemeSelect";
 import { i18n } from "@/i18n";
+import { modeChoiceAtom } from "@/lib/appearance";
 
 const config: PublicConfig = {
   instanceName: "Test instance",
@@ -94,11 +94,11 @@ async function mount() {
   render(
     <I18nProvider i18n={i18n}>
       <Provider store={store}>
-        <AppEnvironment>
-          <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <AppEnvironment>
             <RouterProvider router={router} />
-          </QueryClientProvider>
-        </AppEnvironment>
+          </AppEnvironment>
+        </QueryClientProvider>
       </Provider>
     </I18nProvider>,
   );
@@ -450,13 +450,13 @@ it("keeps the narrow-screen credit inside the stage's column", async () => {
 });
 
 it("forces the settings' theme on the page without changing the visitor's choice", async () => {
-  store.set(themeAtom, "light");
+  store.set(modeChoiceAtom, "light");
   withAppearance((appearance) => {
     appearance.theme = "dark";
   });
   const banner = await mount();
   expect(document.documentElement.dataset.theme).toBe("dark");
-  expect(store.get(themeAtom)).toBe("light");
+  expect(store.get(modeChoiceAtom)).toBe("light");
   expect(within(banner).queryByRole("button", { name: "Theme" })).toBeNull();
   expect(
     within(banner).getByRole("button", { name: "Language" }),

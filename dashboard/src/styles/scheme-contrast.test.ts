@@ -35,7 +35,13 @@ function block(css: string, selector: string): Map<string, string> {
     // The selector must start a rule, not end a longer one.
     const before = css.slice(0, at).trimEnd().at(-1);
     from = at + selector.length;
-    if (before !== undefined && before !== "}" && before !== "/" && before !== ";") continue;
+    if (
+      before !== undefined &&
+      before !== "}" &&
+      before !== "/" &&
+      before !== ";"
+    )
+      continue;
     let depth = 0;
     let end = at;
     for (let i = css.indexOf("{", at); i < css.length; i++) {
@@ -100,7 +106,12 @@ function oklchToRgb(l: number, c: number, h: number): Rgba {
     const v = Math.min(1, Math.max(0, x));
     return v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055;
   });
-  return { r: lin[0] as number, g: lin[1] as number, b: lin[2] as number, a: 1 };
+  return {
+    r: lin[0] as number,
+    g: lin[1] as number,
+    b: lin[2] as number,
+    a: 1,
+  };
 }
 
 function resolve(value: string, tokens: Map<string, string>, depth = 0): Rgba {
@@ -110,11 +121,18 @@ function resolve(value: string, tokens: Map<string, string>, depth = 0): Rgba {
   const hex = v.match(/^#([0-9a-f]{6})$/i);
   if (hex) {
     const n = Number.parseInt(hex[1] as string, 16);
-    return { r: ((n >> 16) & 255) / 255, g: ((n >> 8) & 255) / 255, b: (n & 255) / 255, a: 1 };
+    return {
+      r: ((n >> 16) & 255) / 255,
+      g: ((n >> 8) & 255) / 255,
+      b: (n & 255) / 255,
+      a: 1,
+    };
   }
   if (v === "#000") return { r: 0, g: 0, b: 0, a: 1 };
   if (v === "#fff") return { r: 1, g: 1, b: 1, a: 1 };
-  const ok = v.match(/^oklch\(\s*([\d.]+)(%?)\s+([\d.]+|none)\s+([\d.]+|none)\s*\)$/);
+  const ok = v.match(
+    /^oklch\(\s*([\d.]+)(%?)\s+([\d.]+|none)\s+([\d.]+|none)\s*\)$/,
+  );
   if (ok) {
     const l = Number(ok[1]) / (ok[2] === "%" ? 100 : 1);
     const c = ok[3] === "none" ? 0 : Number(ok[3]);
@@ -136,14 +154,21 @@ function resolve(value: string, tokens: Map<string, string>, depth = 0): Rgba {
   if (mix) {
     const [first, second] = splitTopLevel(mix[1] as string, ",").map((part) => {
       const m = part.trim().match(/^([\s\S]+?)(?:\s+([\d.]+)%)?$/);
-      return { color: resolve(m?.[1] as string, tokens, depth + 1), p: m?.[2] === undefined ? undefined : Number(m[2]) / 100 };
+      return {
+        color: resolve(m?.[1] as string, tokens, depth + 1),
+        p: m?.[2] === undefined ? undefined : Number(m[2]) / 100,
+      };
     });
     if (!first || !second) throw new Error(`bad color-mix ${v}`);
     const p1 = first.p ?? (second.p === undefined ? 0.5 : 1 - second.p);
     const p2 = second.p ?? 1 - p1;
     const a = first.color.a * p1 + second.color.a * p2;
     const ch = (k: "r" | "g" | "b") =>
-      a === 0 ? 0 : (first.color[k] * first.color.a * p1 + second.color[k] * second.color.a * p2) / a;
+      a === 0
+        ? 0
+        : (first.color[k] * first.color.a * p1 +
+            second.color[k] * second.color.a * p2) /
+          a;
     return { r: ch("r"), g: ch("g"), b: ch("b"), a };
   }
   throw new Error(`cannot resolve ${v}`);
@@ -151,17 +176,22 @@ function resolve(value: string, tokens: Map<string, string>, depth = 0): Rgba {
 
 /** `top` laid over the opaque `bottom`. */
 function over(top: Rgba, bottom: Rgba): Rgba {
-  const mixCh = (k: "r" | "g" | "b") => top[k] * top.a + bottom[k] * (1 - top.a);
+  const mixCh = (k: "r" | "g" | "b") =>
+    top[k] * top.a + bottom[k] * (1 - top.a);
   return { r: mixCh("r"), g: mixCh("g"), b: mixCh("b"), a: 1 };
 }
 
 function luminance({ r, g, b }: Rgba) {
-  const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const lin = (c: number) =>
+    c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
 }
 
 function ratio(a: Rgba, b: Rgba) {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [
+    number,
+    number,
+  ];
   return (hi + 0.05) / (lo + 0.05);
 }
 
@@ -170,31 +200,80 @@ type Pair = { fg: string; on: string[]; min: number };
 
 const pairs: Record<string, Pair> = {
   "body text": { fg: "foreground", on: ["background"], min: 4.5 },
-  "text on a card": { fg: "card-foreground", on: ["background", "card"], min: 4.5 },
-  "text in a popover": { fg: "popover-foreground", on: ["background", "popover"], min: 4.5 },
+  "text on a card": {
+    fg: "card-foreground",
+    on: ["background", "card"],
+    min: 4.5,
+  },
+  "text in a popover": {
+    fg: "popover-foreground",
+    on: ["background", "popover"],
+    min: 4.5,
+  },
   "muted text": { fg: "muted-foreground", on: ["background"], min: 4.5 },
-  "muted text on a card": { fg: "muted-foreground", on: ["background", "card"], min: 4.5 },
-  "muted text in a well": { fg: "muted-foreground", on: ["background", "muted"], min: 4.5 },
+  "muted text on a card": {
+    fg: "muted-foreground",
+    on: ["background", "card"],
+    min: 4.5,
+  },
+  "muted text in a well": {
+    fg: "muted-foreground",
+    on: ["background", "muted"],
+    min: 4.5,
+  },
   "sidebar text": { fg: "sidebar-foreground", on: ["sidebar"], min: 7 },
-  "selected sidebar item": { fg: "sidebar-accent-foreground", on: ["sidebar", "sidebar-accent"], min: 4.5 },
-  "primary button": { fg: "primary-foreground", on: ["background", "primary"], min: 4.5 },
-  "secondary button": { fg: "secondary-foreground", on: ["background", "secondary"], min: 4.5 },
-  "hovered item": { fg: "accent-foreground", on: ["background", "accent"], min: 4.5 },
+  "selected sidebar item": {
+    fg: "sidebar-accent-foreground",
+    on: ["sidebar", "sidebar-accent"],
+    min: 4.5,
+  },
+  "primary button": {
+    fg: "primary-foreground",
+    on: ["background", "primary"],
+    min: 4.5,
+  },
+  "secondary button": {
+    fg: "secondary-foreground",
+    on: ["background", "secondary"],
+    min: 4.5,
+  },
+  "hovered item": {
+    fg: "accent-foreground",
+    on: ["background", "accent"],
+    min: 4.5,
+  },
   "focus ring": { fg: "ring", on: ["background"], min: 3 },
   "error text": { fg: "destructive-foreground", on: ["background"], min: 4.5 },
-  "error text on a card": { fg: "destructive-foreground", on: ["background", "card"], min: 4.5 },
+  "error text on a card": {
+    fg: "destructive-foreground",
+    on: ["background", "card"],
+    min: 4.5,
+  },
   "warning text": { fg: "warning-foreground", on: ["background"], min: 4.5 },
-  "warning text on a card": { fg: "warning-foreground", on: ["background", "card"], min: 4.5 },
+  "warning text on a card": {
+    fg: "warning-foreground",
+    on: ["background", "card"],
+    min: 4.5,
+  },
   "success text": { fg: "success-foreground", on: ["background"], min: 4.5 },
-  "success text on a card": { fg: "success-foreground", on: ["background", "card"], min: 4.5 },
+  "success text on a card": {
+    fg: "success-foreground",
+    on: ["background", "card"],
+    min: 4.5,
+  },
   "info text": { fg: "info-foreground", on: ["background"], min: 4.5 },
-  "info text on a card": { fg: "info-foreground", on: ["background", "card"], min: 4.5 },
+  "info text on a card": {
+    fg: "info-foreground",
+    on: ["background", "card"],
+    min: 4.5,
+  },
 };
 
-export function contrastOf(scheme: string, mode: Mode, pair: Pair): number {
+function contrastOf(scheme: string, mode: Mode, pair: Pair): number {
   const tokens = tokensFor(scheme, mode);
   let surface: Rgba = { r: 1, g: 1, b: 1, a: 1 };
-  for (const layer of pair.on) surface = over(resolve(`var(--${layer})`, tokens), surface);
+  for (const layer of pair.on)
+    surface = over(resolve(`var(--${layer})`, tokens), surface);
   return ratio(over(resolve(`var(--${pair.fg})`, tokens), surface), surface);
 }
 
@@ -207,8 +286,12 @@ describe.each(colorSchemes.map((s) => s.slug))("the %s scheme", (scheme) => {
 
   it("declares a light and a dark block", () => {
     if (scheme === "graphite") return;
-    expect(block(schemes, `:root[data-scheme="${scheme}"]:not(.dark)`).size).toBeGreaterThan(0);
-    expect(block(schemes, `:root[data-scheme="${scheme}"].dark`).size).toBeGreaterThan(0);
+    expect(
+      block(schemes, `:root[data-scheme="${scheme}"]:not(.dark)`).size,
+    ).toBeGreaterThan(0);
+    expect(
+      block(schemes, `:root[data-scheme="${scheme}"].dark`).size,
+    ).toBeGreaterThan(0);
   });
 });
 

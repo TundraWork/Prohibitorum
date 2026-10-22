@@ -415,6 +415,31 @@ export function updateProfileMutationOptions(queryClient: QueryClient) {
   });
 }
 
+export type PreferencesUpdate =
+  paths["/api/prohibitorum/me/preferences"]["patch"]["requestBody"]["content"]["application/json"];
+
+/**
+ * Saves preference sections to the account; sections left out stay as saved.
+ * The session carries the preferences, so it is updated with the answer. A
+ * success is not announced: the page already shows the choice.
+ */
+export function updatePreferencesMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    mutationFn: async (body: PreferencesUpdate) =>
+      requireJsonData(
+        client.PATCH("/api/prohibitorum/me/preferences", { body }),
+      ),
+    onSuccess: (preferences) => {
+      queryClient.setQueryData(
+        ["session", "me"],
+        (session: components["schemas"]["SessionView"] | null | undefined) =>
+          session ? { ...session, preferences } : session,
+      );
+    },
+  });
+}
+
 /**
  * Every avatar write changes both the list of pictures and the session: the
  * sidebar draws the session's `avatarUrl`, which already carries a fresh query
