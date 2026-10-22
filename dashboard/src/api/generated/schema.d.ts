@@ -483,6 +483,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prohibitorum/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the caller's preferences; unset fields are null. */
+        get: operations["getMyPreferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Replace the preference sections in the body; absent sections are kept. */
+        patch: operations["updateMyPreferences"];
+        trace?: never;
+    };
     "/api/prohibitorum/me/sessions": {
         parameters: {
             query?: never;
@@ -676,6 +694,12 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             username: string;
+        };
+        AppearancePreferences: {
+            /** @description light, dark or system, or null when not chosen. */
+            mode: string | null;
+            /** @description A colour scheme slug, or null when not chosen. */
+            scheme: string | null;
         };
         AuditEventView: {
             /** Format: int32 */
@@ -964,6 +988,12 @@ export interface components {
             name: string;
             tokenHint: string;
         };
+        Preferences: {
+            appearance: components["schemas"]["AppearancePreferences"];
+        };
+        PreferencesPatch: {
+            appearance?: components["schemas"]["AppearancePreferences"];
+        };
         PublicError: {
             code: string;
             details?: {
@@ -1054,6 +1084,7 @@ export interface components {
             /** Format: int32 */
             id: number;
             oidcSubject: string;
+            preferences: components["schemas"]["Preferences"];
             role: string;
             username: string;
         };
@@ -2083,6 +2114,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyForwardAuthApp"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    getMyPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Preferences"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    updateMyPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesPatch"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Preferences"];
                 };
             };
             /** @description Error */

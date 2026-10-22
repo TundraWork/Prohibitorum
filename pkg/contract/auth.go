@@ -8,6 +8,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"prohibitorum/pkg/branding"
+	"prohibitorum/pkg/preferences"
 )
 
 // AuthKind discriminates the AuthRequirement variants.
@@ -46,7 +47,17 @@ type SessionView struct {
 	Attributes   map[string]any `json:"attributes,omitempty"`
 	AvatarURL    *string        `json:"avatarUrl,omitempty"`
 	AvatarSource *string        `json:"avatarSource,omitempty"`
+	// Preferences saves the page a GET /me/preferences round trip on load.
+	Preferences Preferences `json:"preferences"`
 }
+
+// Preferences is the account's own settings document; pkg/preferences owns
+// its structure and validation.
+type Preferences = preferences.Preferences
+
+// PreferencesPatch is PATCH /me/preferences: only the sections it carries are
+// replaced.
+type PreferencesPatch = preferences.PreferencesPatch
 
 // AccountIdentityView is the common secret-free projection used by admin and
 // self-service identity lists.
@@ -370,6 +381,20 @@ var OperationUpdateMe = huma.Operation{
 	Method:      http.MethodPut,
 	Path:        "/me",
 	Summary:     "Update the caller's own profile (display name only).",
+}
+
+var OperationGetMyPreferences = huma.Operation{
+	OperationID: "getMyPreferences",
+	Method:      http.MethodGet,
+	Path:        "/me/preferences",
+	Summary:     "Return the caller's preferences; unset fields are null.",
+}
+
+var OperationUpdateMyPreferences = huma.Operation{
+	OperationID: "updateMyPreferences",
+	Method:      http.MethodPatch,
+	Path:        "/me/preferences",
+	Summary:     "Replace the preference sections in the body; absent sections are kept.",
 }
 
 var OperationListMyCredentials = huma.Operation{

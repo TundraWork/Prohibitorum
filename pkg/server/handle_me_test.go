@@ -9,6 +9,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -24,8 +25,35 @@ import (
 
 // fakeUpdateMeQ is a minimal stub satisfying the updateMeQueries interface.
 type fakeUpdateMeQ struct {
-	calls []db.UpdateAccountDisplayNameParams
-	err   error
+	calls           []db.UpdateAccountDisplayNameParams
+	preferenceCalls []db.UpdateAccountPreferencesParams
+	stored          []byte
+	err             error
+}
+
+// UpdateAccountPreferences merges like Postgres's jsonb ||: top-level keys in
+// the sections replace the stored ones.
+func (f *fakeUpdateMeQ) UpdateAccountPreferences(_ context.Context, arg db.UpdateAccountPreferencesParams) ([]byte, error) {
+	f.preferenceCalls = append(f.preferenceCalls, arg)
+	if f.err != nil {
+		return nil, f.err
+	}
+	stored := map[string]json.RawMessage{}
+	if len(f.stored) > 0 {
+		if err := json.Unmarshal(f.stored, &stored); err != nil {
+			return nil, err
+		}
+	}
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(arg.Sections, &sections); err != nil {
+		return nil, err
+	}
+	for k, v := range sections {
+		stored[k] = v
+	}
+	merged, err := json.Marshal(stored)
+	f.stored = merged
+	return merged, err
 }
 
 func (f *fakeUpdateMeQ) UpdateAccountDisplayName(_ context.Context, arg db.UpdateAccountDisplayNameParams) error {

@@ -47,6 +47,14 @@ const (
 	ThemeDark       = "dark"
 )
 
+// Schemes are the colour schemes' slugs, in the order the pickers list them.
+// The dashboard's lib/color-scheme.ts registers the same ones; a test keeps
+// the two lists equal.
+var Schemes = []string{"graphite", "nord", "sand", "matcha", "sakura", "lavender", "lagoon", "citrus"}
+
+// DefaultScheme is the colour scheme of an instance that has not chosen one.
+const DefaultScheme = "graphite"
+
 var sources = []string{SourceNone, SourceColor, SourceGradient, SourceBing, SourceUnsplash, SourceImages}
 
 var (
@@ -66,6 +74,9 @@ type Appearance struct {
 	CardPosition string `json:"cardPosition"`
 	// Theme applies to the public pages only, never to the console.
 	Theme string `json:"theme"`
+	// Scheme is the colour scheme every page uses until the visitor or the
+	// signed-in user picks another.
+	Scheme string `json:"scheme"`
 }
 
 type Background struct {
@@ -118,6 +129,7 @@ func DefaultAppearance() Appearance {
 		Capsules:     Surface{Translucent: true, Opacity: 70, Blur: true},
 		CardPosition: CardCenter,
 		Theme:        ThemeSwitchable,
+		Scheme:       DefaultScheme,
 	}
 }
 
@@ -149,6 +161,7 @@ type wireAppearance struct {
 	Capsules     *wireSurface `json:"capsules"`
 	CardPosition *string      `json:"cardPosition"`
 	Theme        *string      `json:"theme"`
+	Scheme       *string      `json:"scheme"`
 }
 
 type wireSurface struct {
@@ -186,7 +199,7 @@ func (w wireAppearance) complete() (Appearance, bool) {
 		b.Unsplash == nil || b.Unsplash.Query == nil ||
 		b.Unsplash.Order == nil || b.Unsplash.IntervalSeconds == nil ||
 		b.Images == nil || b.Images.Order == nil || b.Images.IntervalSeconds == nil ||
-		w.CardPosition == nil || w.Theme == nil {
+		w.CardPosition == nil || w.Theme == nil || w.Scheme == nil {
 		return Appearance{}, false
 	}
 	card, ok := w.Card.complete()
@@ -214,6 +227,7 @@ func (w wireAppearance) complete() (Appearance, bool) {
 		Capsules:     capsules,
 		CardPosition: *w.CardPosition,
 		Theme:        *w.Theme,
+		Scheme:       *w.Scheme,
 	}, true
 }
 
@@ -244,6 +258,8 @@ func ValidateAppearance(a Appearance) error {
 		return fmt.Errorf("%w: card position", ErrInvalidAppearance)
 	case !slices.Contains(themes, a.Theme):
 		return fmt.Errorf("%w: theme", ErrInvalidAppearance)
+	case !ValidScheme(a.Scheme):
+		return fmt.Errorf("%w: scheme", ErrInvalidAppearance)
 	}
 	if field, ok := validRotation(b.Images.Order, b.Images.IntervalSeconds); !ok {
 		return fmt.Errorf("%w: %s", ErrInvalidAppearance, field)
@@ -268,6 +284,9 @@ func validRotation(order string, interval int) (field string, ok bool) {
 }
 
 func validSurface(s Surface) bool { return s.Opacity >= 0 && s.Opacity <= 100 }
+
+// ValidScheme reports whether s is a colour scheme's slug.
+func ValidScheme(s string) bool { return slices.Contains(Schemes, s) }
 
 // ValidBingMarket reports whether m is a market Bing publishes a picture for.
 func ValidBingMarket(m string) bool { return slices.Contains(BingMarkets, m) }

@@ -72,6 +72,7 @@ function mount({
     oidcSubject: "00000000-0000-4000-8000-000000000001",
     displayName: "Alice",
     role,
+    preferences: { appearance: { scheme: null, mode: null } },
   };
   fetchBoundary.mockImplementation(async (request) => {
     const path = new URL(request.url).pathname;

@@ -191,6 +191,7 @@ describe("shared server state", () => {
         oidcSubject: "00000000-0000-4000-8000-000000000001",
         displayName: "User",
         role: "user",
+        preferences: { appearance: { scheme: null, mode: null } },
       }),
     });
     fetchBoundary.mockResolvedValue(
@@ -271,6 +272,7 @@ describe("profile updates", () => {
       oidcSubject: "00000000-0000-4000-8000-000000000001",
       displayName: "Alice",
       role: "user",
+      preferences: { appearance: { scheme: null, mode: null } },
     };
     queryClient.setQueryData(sessionQueryOptions().queryKey, before);
 

@@ -14,6 +14,7 @@ import {
   mockAvatarUpstreamsMax,
   updateMockConfig,
 } from "@/devtools/mock/model";
+import { colorSchemes } from "@/lib/color-scheme";
 
 /**
  * Drives the API mock from the URL search string, so a walkthrough or a review
@@ -220,6 +221,9 @@ function allowedValues(path: string): readonly string[] | undefined {
   }
   if (path === "instance.loginAppearance.theme") {
     return ["switchable", "light", "dark"];
+  }
+  if (path === "instance.loginAppearance.scheme") {
+    return colorSchemes.map((s) => s.slug);
   }
   return undefined;
 }

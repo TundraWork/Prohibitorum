@@ -239,3 +239,9 @@ ORDER BY (av.source <> 'user'), av.source;
 -- name: MarkAvatarSelected :exec
 -- Records the first time the user picked an avatar; later picks keep it.
 UPDATE account SET avatar_selected_at = COALESCE(avatar_selected_at, now()), updated_at = now() WHERE id = $1;
+
+-- name: UpdateAccountPreferences :one
+-- Replaces only the sections present in sections; the others stay as stored.
+UPDATE account SET preferences = preferences || sqlc.arg(sections)::jsonb, updated_at = now()
+WHERE id = sqlc.arg(id)
+RETURNING preferences;

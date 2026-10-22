@@ -3,7 +3,7 @@ import type { LoginAppearance } from "@/api/raw-paths";
 /**
  * The look of an instance that has never saved one, as `branding.DefaultAppearance`
  * defines it on the server: the page's own background, an opaque centred card,
- * translucent frosted capsules, and the theme left to the visitor.
+ * translucent frosted capsules, the theme left to the visitor, and Graphite.
  */
 export const defaultLoginAppearance: LoginAppearance = {
   background: {
@@ -18,4 +18,5 @@ export const defaultLoginAppearance: LoginAppearance = {
   capsules: { translucent: true, opacity: 70, blur: true },
   cardPosition: "center",
   theme: "switchable",
+  scheme: "graphite",
 };
