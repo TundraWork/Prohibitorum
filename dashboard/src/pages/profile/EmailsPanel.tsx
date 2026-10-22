@@ -418,8 +418,14 @@ function AddEmailDialog({
     try {
       const created = await add.mutateAsync(address.trim());
       setAddress("");
-      if (deliveryAvailable) onVerify(created);
-      else onClose();
+      if (deliveryAvailable) {
+        // Close this dialog before the code dialog opens, so the two never
+        // stack (review B7).
+        onClose();
+        onVerify(created);
+      } else {
+        onClose();
+      }
     } catch (failure) {
       if (failure instanceof ApiError) {
         if (failure.code === "email_invalid") {

@@ -171,6 +171,13 @@ describe("EmailsPanel", () => {
         /was sent to new@example.test/,
       ),
     ).toBeVisible();
+
+    // The add dialog must be gone: the code dialog never stacks on it
+    // (review B7). The one open dialog is the code step, and no "Address"
+    // field (the add dialog's only field) remains.
+    const dialogs = screen.getAllByRole("dialog");
+    expect(dialogs).toHaveLength(1);
+    expect(screen.queryByLabelText("Address")).not.toBeInTheDocument();
   });
 
   it("refuses to delete the primary address and offers it for secondary ones", async () => {
