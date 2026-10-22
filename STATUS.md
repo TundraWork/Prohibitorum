@@ -14,7 +14,7 @@ dashboard shows each visitor the notice in their own UI language — switching
 the language menu switches the notice with it — and falls back to the default
 language when theirs has none. Saving requires the default language to carry
 a notice whenever any language does, so a notice is always visible to every
-visitor; leaving everything empty stays allowed. Migration 051 moves the
+visitor; leaving everything empty stays allowed. Migration 052 moves the
 existing single notice under `en` (visitors see the same text as before) and
 drops the old column.
 

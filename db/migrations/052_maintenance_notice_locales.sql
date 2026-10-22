@@ -1,5 +1,5 @@
 -- +goose Up
--- 051_maintenance_notice_locales.sql — the maintenance notice becomes one
+-- 052_maintenance_notice_locales.sql — the maintenance notice becomes one
 -- notice per interface language, plus the language visitors fall back to. The
 -- single saved notice moves under the default language "en": after the
 -- migration every visitor still sees the same text (a "zh" visitor falls back

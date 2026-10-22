@@ -63,7 +63,7 @@ func maintenanceNoticeSchema(t *testing.T) (context.Context, *sql.DB) {
 	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quoted+", public"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 50); err != nil {
+	if err := goose.UpTo(conn, ".", 51); err != nil {
 		t.Fatal(err)
 	}
 	return ctx, conn
@@ -91,7 +91,7 @@ func TestMaintenanceNoticeMigrationMovesSavedMessage(t *testing.T) {
 		"UPDATE instance_settings SET maintenance_message = $1 WHERE id = 1", "Back at 17:00 UTC"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 51); err != nil {
+	if err := goose.UpTo(conn, ".", 52); err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,7 +117,7 @@ func TestMaintenanceNoticeMigrationWithoutMessage(t *testing.T) {
 		if _, err := conn.ExecContext(ctx, setup); err != nil {
 			t.Fatal(err)
 		}
-		if err := goose.UpTo(conn, ".", 51); err != nil {
+		if err := goose.UpTo(conn, ".", 52); err != nil {
 			t.Fatal(err)
 		}
 		messages, locale := readMaintenanceMessages(t, ctx, conn)
@@ -127,7 +127,7 @@ func TestMaintenanceNoticeMigrationWithoutMessage(t *testing.T) {
 		if locale != "en" {
 			t.Fatalf("maintenance_default_locale = %q, want en", locale)
 		}
-		if err := goose.DownTo(conn, ".", 50); err != nil {
+		if err := goose.DownTo(conn, ".", 51); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -139,7 +139,7 @@ func TestMaintenanceNoticeMigrationDown(t *testing.T) {
 		"UPDATE instance_settings SET maintenance_message = '回到 17:00' WHERE id = 1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 51); err != nil {
+	if err := goose.UpTo(conn, ".", 52); err != nil {
 		t.Fatal(err)
 	}
 	// A notice set per language after the migration: the Down keeps the
@@ -151,7 +151,7 @@ func TestMaintenanceNoticeMigrationDown(t *testing.T) {
 		WHERE id = 1`); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.DownTo(conn, ".", 50); err != nil {
+	if err := goose.DownTo(conn, ".", 51); err != nil {
 		t.Fatal(err)
 	}
 
