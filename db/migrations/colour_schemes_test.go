@@ -16,7 +16,7 @@ func TestColourSchemesMigrationPostgres(t *testing.T) {
 		"UPDATE instance_settings SET login_appearance = $1::jsonb WHERE id = 1", savedAppearance); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 51); err != nil {
+	if err := goose.UpTo(conn, ".", 50); err != nil {
 		t.Fatal(err)
 	}
 	want := loginAppearance(t, ctx, conn)
@@ -34,7 +34,7 @@ func TestColourSchemesMigrationPostgres(t *testing.T) {
 		t.Fatalf("new account preferences = %s, want {}", preferences)
 	}
 
-	if err := goose.DownTo(conn, ".", 50); err != nil {
+	if err := goose.DownTo(conn, ".", 49); err != nil {
 		t.Fatal(err)
 	}
 	got := loginAppearance(t, ctx, conn)

@@ -1,5 +1,5 @@
 -- +goose Up
--- 051_colour_schemes.sql — PHB-154. Accounts keep their own preferences, one
+-- 050_colour_schemes.sql — PHB-154. Accounts keep their own preferences, one
 -- section per kind (this card adds "appearance"); only sections the user has
 -- set are stored. The sign-in page appearance gains the instance's default
 -- colour scheme; the document is decoded strictly, so fill in the scheme that
