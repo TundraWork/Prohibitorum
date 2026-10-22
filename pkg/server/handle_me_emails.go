@@ -19,9 +19,21 @@ import (
 	"prohibitorum/pkg/mail"
 )
 
-// meEmailsQueries is the narrow read surface for the /me/emails listing.
+// meEmailsQueries is the narrow surface the /me/emails handlers read
+// through; tests inject a fake. Nil in production — falls back to s.queries.
 type meEmailsQueries interface {
 	ListAccountEmails(ctx context.Context, accountID int32) ([]db.ListAccountEmailsRow, error)
+	GetAccountEmail(ctx context.Context, arg db.GetAccountEmailParams) (db.GetAccountEmailRow, error)
+	GetAccountPrimaryEmail(ctx context.Context, id int32) (string, error)
+}
+
+// meEmailsQ returns the read surface for the /me/emails handlers: the test
+// override when present, the shared queries otherwise.
+func (s *Server) meEmailsQ() meEmailsQueries {
+	if s.meEmailsOverride != nil {
+		return s.meEmailsOverride
+	}
+	return s.queries
 }
 
 // meEmailTx is the transaction seam the write endpoints share with tests.
@@ -115,16 +127,20 @@ func mapEmailRuleError(err error) error {
 
 // ----- GET /me/emails ------------------------------------------------------
 
-func (s *Server) handleListMyEmails(ctx context.Context, _ *struct{}) (*contract.MyEmailsView, error) {
+type listMyEmailsOut struct {
+	Body contract.MyEmailsView
+}
+
+func (s *Server) handleListMyEmails(ctx context.Context, _ *struct{}) (*listMyEmailsOut, error) {
 	sess := authn.SessionFromContext(ctx)
 	if sess == nil {
 		return nil, authErrToHuma(authn.ErrNoSession())
 	}
-	rows, err := s.queries.ListAccountEmails(ctx, sess.Account.ID)
+	rows, err := s.meEmailsQ().ListAccountEmails(ctx, sess.Account.ID)
 	if err != nil {
 		return nil, fmt.Errorf("handleListMyEmails: %w", err)
 	}
-	return myEmailsOut(rows, s.mailSender.Available()), nil
+	return &listMyEmailsOut{Body: *myEmailsOut(rows, s.mailSender.Available())}, nil
 }
 
 // ----- POST /me/emails -----------------------------------------------------
@@ -197,7 +213,7 @@ func (s *Server) handleSendMyEmailCode(ctx context.Context, in *sendMyEmailCodeI
 		return nil, authErrToHuma(authn.ErrEmailDeliveryUnavailable())
 	}
 
-	row, err := s.queries.GetAccountEmail(ctx, db.GetAccountEmailParams{ID: in.ID, AccountID: sess.Account.ID})
+	row, err := s.meEmailsQ().GetAccountEmail(ctx, db.GetAccountEmailParams{ID: in.ID, AccountID: sess.Account.ID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, authErrToHuma(authn.ErrEmailNotFound())
@@ -295,7 +311,7 @@ func (s *Server) handleVerifyMyEmail(ctx context.Context, in *verifyMyEmailIn) (
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	before, err := s.queries.GetAccountPrimaryEmail(ctx, sess.Account.ID)
+	before, err := s.meEmailsQ().GetAccountPrimaryEmail(ctx, sess.Account.ID)
 	hadPrimary := err == nil
 	row, err := email.AssertVerified(ctx, tx.Queries(), sess.Account.ID, in.ID, "code", nil, nil)
 	if err != nil {
@@ -339,9 +355,11 @@ type setMyEmailPrimaryIn struct {
 	ID int64 `path:"id"`
 }
 
-type setMyEmailPrimaryOut = contract.MyEmailsView
+type setMyEmailPrimaryOut struct {
+	Body contract.MyEmailsView
+}
 
-func (s *Server) handleSetMyEmailPrimary(ctx context.Context, in *setMyEmailPrimaryIn) (*contract.MyEmailsView, error) {
+func (s *Server) handleSetMyEmailPrimary(ctx context.Context, in *setMyEmailPrimaryIn) (*setMyEmailPrimaryOut, error) {
 	sess := authn.SessionFromContext(ctx)
 	if sess == nil {
 		return nil, authErrToHuma(authn.ErrNoSession())
@@ -359,7 +377,7 @@ func (s *Server) handleSetMyEmailPrimary(ctx context.Context, in *setMyEmailPrim
 		return nil, fmt.Errorf("handleSetMyEmailPrimary: commit: %w", err)
 	}
 
-	rows, err := s.queries.ListAccountEmails(ctx, sess.Account.ID)
+	rows, err := s.meEmailsQ().ListAccountEmails(ctx, sess.Account.ID)
 	if err != nil {
 		return nil, fmt.Errorf("handleSetMyEmailPrimary: reload: %w", err)
 	}
@@ -378,7 +396,7 @@ func (s *Server) handleSetMyEmailPrimary(ctx context.Context, in *setMyEmailPrim
 		CredentialRef: &in.ID,
 		Detail:        map[string]any{"address": address},
 	})
-	return myEmailsOut(rows, s.mailSender.Available()), nil
+	return &setMyEmailPrimaryOut{Body: *myEmailsOut(rows, s.mailSender.Available())}, nil
 }
 
 // ----- DELETE /me/emails/{id} ------------------------------------------------
@@ -398,7 +416,7 @@ func (s *Server) handleDeleteMyEmail(ctx context.Context, in *deleteMyEmailIn) (
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	address, err := s.queries.GetAccountEmail(ctx, db.GetAccountEmailParams{ID: in.ID, AccountID: sess.Account.ID})
+	address, err := s.meEmailsQ().GetAccountEmail(ctx, db.GetAccountEmailParams{ID: in.ID, AccountID: sess.Account.ID})
 	if err == nil {
 		if _, err := email.Remove(ctx, tx.Queries(), sess.Account.ID, in.ID, false); err != nil {
 			return nil, mapEmailRuleError(err)

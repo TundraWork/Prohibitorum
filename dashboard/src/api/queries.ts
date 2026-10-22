@@ -7,7 +7,6 @@ import { client, requireJsonData } from "@/api/client";
 import { readEnrollmentPreview } from "@/api/enrollment";
 import { ApiError } from "@/api/errors";
 import { readFederationFlow } from "@/api/federation";
-import type { components } from "@/api/generated/schema";
 import type {
   AppAccessRule,
   ManagedApplicationKind,
@@ -367,13 +366,7 @@ export function myEmailsQueryOptions() {
     queryKey: ["session", "emails"] as const,
     meta: { requiresSession: true },
     queryFn: ({ signal }) =>
-      // Huma documents this read as 204-with-headers, so the generated data
-      // type is `never` and the answer's shape is named here instead.
-      requireJsonData<{
-        emails: components["schemas"]["EmailAddressView"][] | null;
-        deliveryAvailable: boolean;
-        limit: number;
-      }>(client.GET("/api/prohibitorum/me/emails", { signal })),
+      requireJsonData(client.GET("/api/prohibitorum/me/emails", { signal })),
   });
 }
 

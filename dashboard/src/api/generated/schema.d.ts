@@ -1120,6 +1120,12 @@ export interface components {
             activeSource: string;
             sources: components["schemas"]["MyAvatarSourceView"][] | null;
         };
+        MyEmailsView: {
+            deliveryAvailable: boolean;
+            emails: components["schemas"]["EmailAddressView"][] | null;
+            /** Format: int64 */
+            limit: number;
+        };
         MyForwardAuthApp: {
             clientId: string;
             displayName: string;
@@ -2541,15 +2547,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No Content */
-            204: {
+            /** @description OK */
+            200: {
                 headers: {
-                    DeliveryAvailable?: boolean;
-                    Emails?: components["schemas"]["EmailAddressView"];
-                    Limit?: number;
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MyEmailsView"];
+                };
             };
             /** @description Error */
             default: {
@@ -2635,15 +2640,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description No Content */
-            204: {
+            /** @description OK */
+            200: {
                 headers: {
-                    DeliveryAvailable?: boolean;
-                    Emails?: components["schemas"]["EmailAddressView"];
-                    Limit?: number;
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["MyEmailsView"];
+                };
             };
             /** @description Error */
             default: {

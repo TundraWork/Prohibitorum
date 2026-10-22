@@ -69,17 +69,20 @@ type Server struct {
 	// contain an IP; the store follows the KV driver. Nil in NewHuma.
 	emailLimits             *email.SendLimits
 	meEmailTxRunnerOverride meEmailTxRunner
-	webauthn                *webauthn.WebAuthn
-	oidcOP                  *oidcop.Provider
-	samlIdP                 *samlidp.IdP
-	passwordStore           *password.Store
-	totpStore               *totp.Store
-	throttle                *authn.Throttle
-	federationService       *federation.Service
-	federationOIDCAdapter   *federationoidc.Adapter
-	federationRegistry      *federation.Registry
-	vrchatOperatorService   vrchatOperatorService
-	vrchatOperatorOverride  vrchatOperatorService
+	// meEmailsOverride lets the /me/emails HTTP tests inject a read fake;
+	// nil in production, where the handlers use s.queries.
+	meEmailsOverride       meEmailsQueries
+	webauthn               *webauthn.WebAuthn
+	oidcOP                 *oidcop.Provider
+	samlIdP                *samlidp.IdP
+	passwordStore          *password.Store
+	totpStore              *totp.Store
+	throttle               *authn.Throttle
+	federationService      *federation.Service
+	federationOIDCAdapter  *federationoidc.Adapter
+	federationRegistry     *federation.Registry
+	vrchatOperatorService  vrchatOperatorService
+	vrchatOperatorOverride vrchatOperatorService
 	// Audit records credential lifecycle events.
 	Audit audit.Writer
 	// sudoFlowOverride lets tests inject a fake sudoFlowQueries for the
