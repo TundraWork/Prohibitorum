@@ -128,7 +128,9 @@ type Querier interface {
 	GetAccountIdentityByIssuerSub(ctx context.Context, arg GetAccountIdentityByIssuerSubParams) (AccountIdentity, error)
 	// The single read every downstream projection (OIDC claims, forward-auth,
 	// SAML, federation confirm) goes through; ErrNoRows when the account has no
-	// primary.
+	// primary. The verified filter is belt-and-braces: the composite FK keeps
+	// the primary inside the owning account, and this keeps the answer verified
+	// even if some future writer pointed it at an unverified row.
 	GetAccountPrimaryEmail(ctx context.Context, id int32) (string, error)
 	GetActiveAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (GetActiveAvatarBySubjectRow, error)
 	GetActiveSigningKey(ctx context.Context) (SigningKey, error)

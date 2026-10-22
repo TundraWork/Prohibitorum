@@ -16,6 +16,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/net/idna"
 
 	"prohibitorum/pkg/db"
@@ -64,6 +65,16 @@ type Queries interface {
 // net/mail with no display name and byte-equality with the trimmed input, an
 // IDNA-encodable domain (stored in ASCII form), and the RFC 5321 length cap.
 // The local part is stored as given; comparisons lowercase the whole address.
+
+// isVerifiedAddressTaken reports whether err is the partial unique index
+// rejecting a second account's verified copy of an address; callers surface
+// it as ErrTaken instead of a raw 500.
+func isVerifiedAddressTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505" &&
+		pgErr.ConstraintName == "account_email_verified_address_uidx"
+}
+
 func ValidateAddress(input string) (string, error) {
 	s := strings.TrimSpace(input)
 	if s == "" {
@@ -162,6 +173,9 @@ func AdminAdd(ctx context.Context, q Queries, accountID int32, address string, v
 		AccountID: accountID, Address: normalized, VerifiedVia: pgText("admin"), VerifiedByAdminID: pgInt8(int64(adminID)),
 	})
 	if err != nil {
+		if isVerifiedAddressTaken(err) {
+			return db.AccountEmail{}, ErrTaken
+		}
 		return db.AccountEmail{}, fmt.Errorf("email: insert verified: %w", err)
 	}
 	if primary {

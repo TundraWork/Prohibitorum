@@ -153,12 +153,14 @@ const getAccountPrimaryEmail = `-- name: GetAccountPrimaryEmail :one
 SELECT ae.address
 FROM account a
 JOIN account_email ae ON ae.id = a.primary_email_id
-WHERE a.id = $1
+WHERE a.id = $1 AND ae.verified_at IS NOT NULL
 `
 
 // The single read every downstream projection (OIDC claims, forward-auth,
 // SAML, federation confirm) goes through; ErrNoRows when the account has no
-// primary.
+// primary. The verified filter is belt-and-braces: the composite FK keeps
+// the primary inside the owning account, and this keeps the answer verified
+// even if some future writer pointed it at an unverified row.
 func (q *Queries) GetAccountPrimaryEmail(ctx context.Context, id int32) (string, error) {
 	row := q.db.QueryRow(ctx, getAccountPrimaryEmail, id)
 	var address string

@@ -3,7 +3,6 @@ package email
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"prohibitorum/pkg/db"
 )
@@ -60,6 +59,9 @@ func AbsorbUpstream(ctx context.Context, q Queries, accountID int32, address str
 		if n, err := q.MarkAccountEmailVerified(ctx, db.MarkAccountEmailVerifiedParams{
 			ID: existing.ID, AccountID: accountID, VerifiedVia: pgText("upstream"), VerifiedByIdpID: pgInt8(idpID),
 		}); err != nil {
+			if isVerifiedAddressTaken(err) {
+				return AbsorbSkipTaken, db.AccountEmail{}, nil
+			}
 			return AbsorbSkipInvalid, db.AccountEmail{}, fmt.Errorf("email: verify upstream: %w", err)
 		} else if n == 0 {
 			return AbsorbExisting, db.AccountEmail{}, nil
@@ -86,7 +88,7 @@ func AbsorbUpstream(ctx context.Context, q Queries, accountID int32, address str
 	if err != nil {
 		// The partial unique index can race a concurrent verify; that is a
 		// skip, not a sign-in failure.
-		if strings.Contains(err.Error(), "account_email_verified_address_uidx") {
+		if isVerifiedAddressTaken(err) {
 			return AbsorbSkipTaken, db.AccountEmail{}, nil
 		}
 		return AbsorbSkipInvalid, db.AccountEmail{}, fmt.Errorf("email: insert upstream: %w", err)

@@ -223,8 +223,8 @@ func resolveExisting(
 	upstreamData []byte,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
-	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
-		if err := syncClaims(ctx, qtx, txAudit, idp, stored, identity, upstreamData); err != nil {
+	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer, tx pgx.Tx) (ResolveOutcome, error) {
+		if err := syncClaims(ctx, qtx, txAudit, tx, idp, stored, identity, upstreamData); err != nil {
 			if ae := authn.AsAuthError(err); ae != nil && ae.Code == "bad_credentials" {
 				audit.RecordOrLog(ctx, w, audit.Record{
 					AccountID: new(stored.AccountID),
@@ -291,7 +291,7 @@ func applyAutoProvision(
 		displayName = username
 	}
 
-	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer, tx pgx.Tx) (ResolveOutcome, error) {
 		finalIdentity, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
 			UpstreamIss: identity.Issuer,
 			UpstreamSub: identity.Subject,
@@ -314,7 +314,7 @@ func applyAutoProvision(
 				})
 				return ResolveOutcome{}, authn.ErrFederationStateInvalid()
 			}
-			if err := syncClaims(ctx, qtx, txAudit, idp, &finalIdentity, identity, upstreamData); err != nil {
+			if err := syncClaims(ctx, qtx, txAudit, tx, idp, &finalIdentity, identity, upstreamData); err != nil {
 				if ae := authn.AsAuthError(err); ae != nil && ae.Code == "bad_credentials" {
 					audit.RecordOrLog(ctx, w, audit.Record{
 						AccountID: new(finalIdentity.AccountID),
@@ -419,7 +419,7 @@ func applyAutoProvision(
 		// audit goes through txAudit: the account row is uncommitted, so the
 		// pool-level writer's FK check would fail and drop the row.
 		if email != "" && identity.EmailVerified {
-			absorbUpstream(ctx, qtx, txAudit, idp, identity, acct.ID, email)
+			absorbUpstream(ctx, qtx, tx, txAudit, idp, identity, acct.ID, email)
 		}
 
 		ident, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
@@ -519,7 +519,7 @@ func applyInviteProvision(
 	upstreamData []byte,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
-	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer, tx pgx.Tx) (ResolveOutcome, error) {
 		// One authoritative identity lookup inside the tx (same shape as
 		// applyAutoProvision). A concurrent callback may have bound this
 		// (iss, sub) since begin — refuse instead of silently logging the
@@ -650,7 +650,7 @@ func applyInviteProvision(
 		// PHB-148: same as auto-provision — verified upstream email goes to
 		// account_email, audited through txAudit for the same FK reason.
 		if email != "" && identity.EmailVerified {
-			absorbUpstream(ctx, qtx, txAudit, idp, identity, acct.ID, email)
+			absorbUpstream(ctx, qtx, tx, txAudit, idp, identity, acct.ID, email)
 		}
 
 		ident, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
@@ -728,7 +728,7 @@ func attachInviteIdentity(
 	upstreamData []byte,
 	pool *pgxpool.Pool,
 ) (ResolveOutcome, error) {
-	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer, tx pgx.Tx) (ResolveOutcome, error) {
 		// Authoritative identity lookup inside the tx, same as
 		// applyInviteProvision: an (iss, sub) already bound to some account
 		// refuses here rather than silently walking the invite into it later.
@@ -822,10 +822,10 @@ func runProvisionTx(
 	pool *pgxpool.Pool,
 	q ModesQueries,
 	w audit.Writer,
-	fn func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error),
+	fn func(qtx ModesQueries, txAudit audit.Writer, tx pgx.Tx) (ResolveOutcome, error),
 ) (ResolveOutcome, error) {
 	if pool == nil {
-		return fn(q, w)
+		return fn(q, w, nil)
 	}
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -835,7 +835,7 @@ func runProvisionTx(
 
 	qtx := db.New(tx)
 	txAudit := audit.NewWriter(qtx)
-	outcome, err := fn(qtx, txAudit)
+	outcome, err := fn(qtx, txAudit, tx)
 	if err != nil {
 		return ResolveOutcome{}, err
 	}
@@ -873,6 +873,7 @@ func syncClaims(
 	ctx context.Context,
 	q ModesQueries,
 	w audit.Writer,
+	tx pgx.Tx,
 	idp *resolverProvider,
 	stored *db.AccountIdentity,
 	identity *VerifiedIdentity,
@@ -903,7 +904,7 @@ func syncClaims(
 	// below. Nothing ever removes or downgrades existing addresses, so a
 	// Steam login without an email claim no longer clears anything.
 	if email != "" && identity.EmailVerified {
-		absorbUpstream(ctx, q, w, idp, identity, stored.AccountID, email)
+		absorbUpstream(ctx, q, tx, w, idp, identity, stored.AccountID, email)
 	}
 	if err := q.UpdateAccountIdentityVerifiedData(ctx, db.UpdateAccountIdentityVerifiedDataParams{
 		ID:            stored.ID,
@@ -915,11 +916,34 @@ func syncClaims(
 	return nil
 }
 
+// absorbInSavepoint runs the upstream absorption inside a savepoint so a
+// losing race on the verified-address unique index cannot poison the sign-in
+// transaction: the savepoint rolls back to just the failed statement. With
+// no transaction (tests, pool-less callers) it runs bare.
+func absorbInSavepoint(ctx context.Context, q email.Queries, tx pgx.Tx, accountID int32, address string, idpID int64) (email.AbsorbOutcome, db.AccountEmail, error) {
+	if tx == nil {
+		return email.AbsorbUpstream(ctx, q, accountID, address, idpID)
+	}
+	sp, err := tx.Begin(ctx)
+	if err != nil {
+		return email.AbsorbSkipInvalid, db.AccountEmail{}, fmt.Errorf("federation: absorb savepoint: %w", err)
+	}
+	defer sp.Rollback(ctx) //nolint:errcheck // no-op after a clean inner commit
+	outcome, row, err := email.AbsorbUpstream(ctx, q, accountID, address, idpID)
+	if err != nil {
+		return outcome, row, err // rollback releases the savepoint
+	}
+	if err := sp.Commit(ctx); err != nil {
+		return outcome, row, fmt.Errorf("federation: absorb savepoint commit: %w", err)
+	}
+	return outcome, row, nil
+}
+
 // absorbUpstream folds a verified upstream address into the account's
 // address list and audits the outcome (failures included). It never blocks
 // the sign-in: a taken address or a full list is a skip, not an error.
-func absorbUpstream(ctx context.Context, q ModesQueries, w audit.Writer, idp *resolverProvider, identity *VerifiedIdentity, accountID int32, address string) {
-	outcome, _, err := email.AbsorbUpstream(ctx, q, accountID, address, idp.ID)
+func absorbUpstream(ctx context.Context, q ModesQueries, tx pgx.Tx, w audit.Writer, idp *resolverProvider, identity *VerifiedIdentity, accountID int32, address string) {
+	outcome, _, err := absorbInSavepoint(ctx, q, tx, accountID, address, idp.ID)
 	if err != nil {
 		audit.RecordOrLog(ctx, w, audit.Record{
 			AccountID: &accountID,
@@ -1060,7 +1084,7 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *resolverProvider, 
 		return ResolveOutcome{}, NewFailure(FailureDomainNotAllowed, nil)
 	}
 
-	outcome, err := runProvisionTx(ctx, r.pool, r.queries, r.audit, func(qtx ModesQueries, txAudit audit.Writer) (ResolveOutcome, error) {
+	outcome, err := runProvisionTx(ctx, r.pool, r.queries, r.audit, func(qtx ModesQueries, txAudit audit.Writer, tx pgx.Tx) (ResolveOutcome, error) {
 		_, err := qtx.GetAccountIdentityByIssuerSub(ctx, db.GetAccountIdentityByIssuerSubParams{
 			UpstreamIss: identity.Issuer,
 			UpstreamSub: identity.Subject,
@@ -1099,7 +1123,7 @@ func (r *Resolver) resolveLink(ctx context.Context, provider *resolverProvider, 
 		// PHB-148: an explicit link absorbs a verified upstream address too,
 		// audited through the transaction (same FK reason as provisioning).
 		if email != "" && identity.EmailVerified {
-			absorbUpstream(ctx, qtx, txAudit, provider, identity, accountID, email)
+			absorbUpstream(ctx, qtx, tx, txAudit, provider, identity, accountID, email)
 		}
 		return ResolveOutcome{
 			AccountID: accountID, IdentityID: linked.ID, ProviderID: provider.ID,
