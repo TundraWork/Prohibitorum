@@ -415,9 +415,11 @@ func applyAutoProvision(
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account: %w", err)
 		}
 		// PHB-148: a verified upstream address becomes an account_email row
-		// (and the first one primary) right after the insert, same tx.
+		// (and the first one primary) right after the insert, same tx. The
+		// audit goes through txAudit: the account row is uncommitted, so the
+		// pool-level writer's FK check would fail and drop the row.
 		if email != "" && identity.EmailVerified {
-			absorbUpstream(ctx, qtx, w, idp, identity, acct.ID, email)
+			absorbUpstream(ctx, qtx, txAudit, idp, identity, acct.ID, email)
 		}
 
 		ident, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
@@ -646,9 +648,9 @@ func applyInviteProvision(
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: insert account: %w", err)
 		}
 		// PHB-148: same as auto-provision — verified upstream email goes to
-		// account_email, not the (now removed) account column.
+		// account_email, audited through txAudit for the same FK reason.
 		if email != "" && identity.EmailVerified {
-			absorbUpstream(ctx, qtx, w, idp, identity, acct.ID, email)
+			absorbUpstream(ctx, qtx, txAudit, idp, identity, acct.ID, email)
 		}
 
 		ident, err := qtx.InsertAccountIdentity(ctx, db.InsertAccountIdentityParams{
