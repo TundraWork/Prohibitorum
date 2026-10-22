@@ -28,14 +28,14 @@ it("fills a translucent card through a rule that exists in the stylesheet", () =
   expect(rule(".surface-glass")).toMatch(
     /background-color:\s*color-mix\([\s\S]*?var\(--card-alpha\)/,
   );
-  expect(rule(".dark .surface-glass")).toContain("--glass-base");
 });
 
 it("keeps the fill from reading --background, which the card redefines", () => {
   expect(rule(".surface-glass")).not.toMatch(
     /background-color:[^;]*var\(--background\)/,
   );
-  expect(rule(".surface-glass")).toContain("--glass-base: var(--color-white)");
+  // Taken at the root, before any card redefines it, in every scheme.
+  expect(css).toMatch(/:root \{\s*--glass-base: var\(--background\);\s*\}/);
 });
 
 it("adds the blur only to a translucent surface with frosted glass on", () => {

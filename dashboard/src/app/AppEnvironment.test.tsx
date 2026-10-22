@@ -4,7 +4,11 @@ import { act, render, waitFor } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { components } from "@/api/generated/schema";
-import { publicConfigQueryOptions, sessionQueryOptions } from "@/api/queries";
+import {
+  clearSessionQueries,
+  publicConfigQueryOptions,
+  sessionQueryOptions,
+} from "@/api/queries";
 import { AppEnvironment } from "@/app/AppEnvironment";
 import { useAppearanceChoice } from "@/app/use-appearance";
 import { i18n } from "@/i18n";
@@ -246,4 +250,16 @@ it("keeps a visitor's change in this browser only", () => {
   expect(store.get(schemeChoiceAtom)).toBe("lavender");
   expect(htmlScheme()).toBe("lavender");
   expect(patches).toHaveLength(0);
+});
+
+it("follows the account that signs in after the signed-out session was cleared", async () => {
+  queryClient.setQueryData(sessionQueryOptions().queryKey, null);
+  withInstanceScheme("graphite");
+  mount();
+  expect(htmlScheme()).toBe("graphite");
+  // Signing in clears the signed-out answer, then loads the account.
+  await act(() => clearSessionQueries(queryClient));
+  act(() => signedIn({ scheme: "nord", mode: "dark" }));
+  await waitFor(() => expect(htmlScheme()).toBe("nord"));
+  expect(htmlTheme()).toBe("dark");
 });

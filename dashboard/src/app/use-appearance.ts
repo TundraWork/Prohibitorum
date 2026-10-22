@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { updatePreferencesMutationOptions } from "@/api/mutations";
 import { publicConfigQueryOptions, sessionQueryOptions } from "@/api/queries";
 import {
@@ -13,9 +13,25 @@ import {
 } from "@/lib/appearance";
 import { type ColorSchemeSlug, isColorSchemeSlug } from "@/lib/color-scheme";
 
-/** The session if one is already loaded; this never asks the server. */
+/**
+ * Re-reads `read` from the query cache whenever the cache changes, without
+ * asking the server. A disabled query observer would not do: signing in or out
+ * removes the session query, and an observer stays on the removed one.
+ */
+function useCached<T>(read: (cache: ReturnType<typeof useQueryClient>) => T) {
+  const queryClient = useQueryClient();
+  const subscribe = useCallback(
+    (onChange: () => void) => queryClient.getQueryCache().subscribe(onChange),
+    [queryClient],
+  );
+  return useSyncExternalStore(subscribe, () => read(queryClient));
+}
+
+/** The session if one is already loaded. */
 function useLoadedSession() {
-  return useQuery({ ...sessionQueryOptions(), enabled: false }).data;
+  return useCached((queryClient) =>
+    queryClient.getQueryData(sessionQueryOptions().queryKey),
+  );
 }
 
 /**
@@ -44,10 +60,9 @@ export function useChosenAppearance(): {
 export function useResolvedAppearance() {
   const chosen = useChosenAppearance();
   const forced = useAtomValue(forcedModeAtom);
-  const { data: config } = useQuery({
-    ...publicConfigQueryOptions(),
-    enabled: false,
-  });
+  const config = useCached((queryClient) =>
+    queryClient.getQueryData(publicConfigQueryOptions().queryKey),
+  );
   return {
     applied: resolveAppearance(chosen, config?.loginAppearance.scheme, forced),
     known: chosen.scheme !== null || config !== undefined,
