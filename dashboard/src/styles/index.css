@@ -324,3 +324,44 @@ body {
     translate: 0 6px;
   }
 }
+
+/*
+ * A very wide window splits for a sign-in card placed to the left or the
+ * right: the card's side becomes a panel of the page's own opaque background
+ * (`publicSplitPanel`), and the panel itself is the surface. The stage drops
+ * its frame and card, so the step reads as one column on the page rather than
+ * as a box on a box: no fill, ring, shadow or blur, no inset, and controls on
+ * the page's own tokens even when the settings make the card translucent.
+ * The strip above and the footer under keep their places in the column.
+ */
+@media (min-width: 2200px) {
+  [data-slot="stage"]:is([data-position="left"], [data-position="right"]) {
+    & [data-slot="stage-frame"] {
+      --stage-inset: 0px;
+      width: 25rem;
+      max-width: 100%;
+      padding: 0;
+      border-radius: 0;
+      background: none;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+    & [data-slot="stage-card"] {
+      --background: inherit;
+      --popover: inherit;
+      border-color: transparent;
+      border-radius: 0;
+      background: none;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+    & [data-slot="stage-card"]::before {
+      content: none;
+    }
+    /* With no box around it, the heading carries the column: one step up. */
+    & [data-slot="stage-card"] h1 {
+      font-size: var(--text-3xl);
+      line-height: var(--text-3xl--line-height);
+    }
+  }
+}
