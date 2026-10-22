@@ -13,7 +13,10 @@ export interface PublicConfig {
   iconUrl: string;
   iconEtag: string;
   maintenanceMode: boolean;
-  maintenanceMessage: string;
+  /** One notice per UI language; `{}` when none, never null. */
+  maintenanceMessages: Partial<Record<string, string>>;
+  /** The language visitors fall back to when theirs has no notice. */
+  maintenanceDefaultLocale: string;
   loginAppearance: LoginAppearance;
   /** The uploaded sign-in backgrounds in upload order, whichever source is chosen. */
   loginImages: LoginImage[];

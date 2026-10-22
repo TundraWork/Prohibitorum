@@ -1,4 +1,4 @@
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import {
   useMutation,
   useQueryClient,
@@ -12,10 +12,12 @@ import {
   publicConfigQueryOptions,
   sessionQueryOptions,
 } from "@/api/queries";
+import { pickMaintenanceNotice } from "@/app/maintenance-notice";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { localeTags } from "@/i18n";
 
 /** How often the page asks whether maintenance is over. */
 const recheckInterval = 180_000;
@@ -27,6 +29,7 @@ const recheckInterval = 180_000;
  */
 export function MaintenancePage() {
   const { name } = useInstanceBranding();
+  const { i18n } = useLingui();
   const { data: config, refetch } = useSuspenseQuery({
     ...publicConfigQueryOptions(),
     refetchInterval: recheckInterval,
@@ -97,14 +100,22 @@ export function MaintenancePage() {
         </PublicStep.Actions>
       }
     >
-      {config.maintenanceMessage && (
-        <SurfaceAlert>
-          <SurfaceAlert.Indicator />
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>{config.maintenanceMessage}</SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
+      {(() => {
+        const notice = pickMaintenanceNotice(
+          config,
+          i18n.locale === "zh" ? "zh" : "en",
+        );
+        return notice ? (
+          <SurfaceAlert>
+            <SurfaceAlert.Indicator />
+            <SurfaceAlert.Content>
+              <SurfaceAlert.Title lang={localeTags[notice.locale]}>
+                {notice.text}
+              </SurfaceAlert.Title>
+            </SurfaceAlert.Content>
+          </SurfaceAlert>
+        ) : null;
+      })()}
     </PublicStep>
   );
 }

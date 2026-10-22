@@ -3090,6 +3090,11 @@ msgid "number-field.decrease"
 msgstr "减少"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.default_badge"
+msgstr "默认"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 #: src/pages/admin/settings/SignInPageSummary.tsx
 msgid "settings.sign-in.source.none"
@@ -3109,6 +3114,9 @@ msgstr "默认"
 #: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.scheme"
 msgstr "默认配色方案"
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.default_locale"
+msgstr "默认语言"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
@@ -6244,11 +6252,6 @@ msgid "admin.user.emails.status.unverified"
 msgstr "未验证"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/MaintenancePanel.tsx
-msgid "settings.maintenance.notice"
-msgstr "公告"
-
-#. js-lingui-explicit-id
 #: src/components/custom/NotificationToasts.tsx
 msgid "notification.region"
 msgstr "通知"
@@ -8363,7 +8366,12 @@ msgstr "显示图片标题和版权信息"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MaintenancePanel.tsx
 msgid "settings.maintenance.notice.hint"
-msgstr "维护模式开启期间显示在登录页上。"
+msgstr "维护模式开启时显示在登录页和维护页。访客看到自己界面语言的通知，没有时看到默认语言的通知。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.default_locale.hint"
+msgstr "访客的语言没有通知时显示这一条。"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -11529,6 +11537,16 @@ msgstr "可在你能使用的每个应用上使用。"
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.access.selected_apps.hint"
 msgstr "只能在你选的应用上使用。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/MaintenancePanel.tsx
+msgid "settings.maintenance.notice.default_required"
+msgstr "默认语言也要写通知，这样每位访客都能看到。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.maintenance_default_notice_required"
+msgstr "默认语言也要写通知，这样每位访客都能看到。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx

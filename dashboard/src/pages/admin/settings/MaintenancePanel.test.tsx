@@ -34,29 +34,30 @@ afterEach(() => {
 const maintenancePath = "/api/prohibitorum/admin/settings/maintenance";
 const consequence =
   "Nobody except administrators can sign in or use applications until it is turned off.";
+const defaultRequired =
+  "Write the notice in the default language too, so every visitor sees it.";
 
 function puts() {
   return fetchBoundary.mock.calls
-    .map(([request]) => request)
-    .filter(
-      (request) =>
-        request.method === "PUT" &&
-        new URL(request.url).pathname === maintenancePath,
-    );
+    .filter(([request]) => new URL(request.url).pathname === maintenancePath)
+    .map(([request]) => request.clone());
 }
 
 function mount(
   config: PublicConfig = publicConfigFixture(),
   answer?: (request: Request) => Response | Promise<Response> | undefined,
 ) {
-  queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
-  fetchBoundary.mockImplementation(async (request) => {
-    const canned = answer?.(request);
-    if (canned) return canned;
-    if (request.method === "GET") return Response.json(config);
-    return new Response(null, { status: 204 });
+  fetchBoundary.mockImplementation((request: Request) => {
+    if (new URL(request.url).pathname === "/api/prohibitorum/config") {
+      return Promise.resolve(Response.json(config));
+    }
+    const answered = answer?.(request);
+    return answered instanceof Response
+      ? Promise.resolve(answered)
+      : (answered ?? Promise.resolve(new Response(null, { status: 204 })));
   });
-  render(
+  queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
+  return render(
     <I18nProvider i18n={i18n}>
       <QueryClientProvider client={queryClient}>
         <MaintenancePanel />
@@ -67,23 +68,50 @@ function mount(
 
 const maintenanceSwitch = () =>
   screen.getByRole("switch", { name: "Maintenance mode" });
-const notice = () => screen.getByRole("textbox", { name: "Notice" });
+const noticeBox = (name: string) =>
+  screen.getByRole("textbox", { name: new RegExp(`^${name}`) });
 
 describe("the maintenance section", () => {
-  it("has its heading, the switch and the notice with its hint, and no footer until something changes", () => {
-    mount(publicConfigFixture({ maintenanceMessage: "Back at noon" }));
+  it("has its heading, the switch, the default-language choice and one notice box per language", () => {
+    mount(
+      publicConfigFixture({
+        maintenanceMessages: { en: "Back at noon", zh: "中午恢复" },
+      }),
+    );
 
     expect(
       screen.getByRole("heading", { level: 2, name: "Maintenance mode" }),
     ).toBeVisible();
     expect(maintenanceSwitch()).not.toBeChecked();
-    expect(notice()).toHaveValue("Back at noon");
+    // The boxes appear in the locale list's order, each labelled in its own
+    // language; the default language's label carries the Default badge.
+    const boxes = screen.getAllByRole("textbox");
+    expect(boxes[0]).toHaveValue("Back at noon");
+    expect(boxes[1]).toHaveValue("中午恢复");
+    expect(noticeBox("English")).toBe(boxes[0]);
+    expect(noticeBox("中文")).toBe(boxes[1]);
     expect(
-      screen.getByText(
-        "Shown on the sign-in page while maintenance mode is on.",
-      ),
+      screen.getByText("Default", { selector: "[data-slot=badge]" }),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+  });
+
+  it("moves the Default badge when the default language changes", async () => {
+    const user = userEvent.setup();
+    mount();
+
+    await user.click(screen.getByRole("radio", { name: "中文" }));
+
+    // The badge travels with the default: the 中文 box's label carries it now,
+    // and the English one no longer does.
+    const zhLabel = noticeBox("中文")
+      .closest("[data-slot=field]")
+      ?.querySelector("[data-slot=field-label]");
+    const enLabel = noticeBox("English")
+      .closest("[data-slot=field]")
+      ?.querySelector("[data-slot=field-label]");
+    expect(zhLabel?.textContent).toContain("Default");
+    expect(enLabel?.textContent).not.toContain("Default");
   });
 
   it("states the consequence and names the action while the switch is going on", async () => {
@@ -105,7 +133,7 @@ describe("the maintenance section", () => {
     mount();
 
     await user.click(maintenanceSwitch());
-    await user.type(notice(), "Back at noon");
+    await user.type(noticeBox("English"), "Back at noon");
     await user.click(
       screen.getByRole("button", { name: "Turn on maintenance and save" }),
     );
@@ -114,18 +142,17 @@ describe("the maintenance section", () => {
       name: "Turn on maintenance mode?",
     });
     expect(puts()).toHaveLength(0);
-    // The dialog asks for the decision; the consequence stays in the footer.
     expect(
       within(dialog).getByText("Only administrators will be able to sign in."),
     ).toBeVisible();
-    expect(within(dialog).queryByText(consequence)).toBeNull();
 
     await user.click(within(dialog).getByRole("button", { name: "Turn on" }));
 
     await waitFor(() => expect(puts()).toHaveLength(1));
     expect(await puts()[0]?.json()).toEqual({
       maintenanceMode: true,
-      maintenanceMessage: "Back at noon",
+      maintenanceMessages: { en: "Back at noon", zh: "" },
+      maintenanceDefaultLocale: "en",
     });
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
   });
@@ -174,7 +201,12 @@ describe("the maintenance section", () => {
 
   it("turns it off with a plain Save, no consequence and no confirmation", async () => {
     const user = userEvent.setup();
-    mount(publicConfigFixture({ maintenanceMode: true }));
+    mount(
+      publicConfigFixture({
+        maintenanceMode: true,
+        maintenanceMessages: { en: "Back at noon" },
+      }),
+    );
 
     await user.click(maintenanceSwitch());
     expect(screen.queryByText(consequence)).toBeNull();
@@ -184,19 +216,9 @@ describe("the maintenance section", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(await puts()[0]?.json()).toEqual({
       maintenanceMode: false,
-      maintenanceMessage: "",
+      maintenanceMessages: { en: "Back at noon", zh: "" },
+      maintenanceDefaultLocale: "en",
     });
-  });
-
-  it("saves a new notice while it is already on without asking", async () => {
-    const user = userEvent.setup();
-    mount(publicConfigFixture({ maintenanceMode: true }));
-
-    await user.type(notice(), "Back at noon");
-    await user.click(screen.getByRole("button", { name: "Save" }));
-
-    await waitFor(() => expect(puts()).toHaveLength(1));
-    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("puts the form back with Discard, sending nothing", async () => {
@@ -214,7 +236,7 @@ describe("the maintenance section", () => {
     const user = userEvent.setup();
     mount(publicConfigFixture({ maintenanceMode: true }));
 
-    await user.click(notice());
+    await user.click(noticeBox("English"));
     await user.paste("x".repeat(501));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -222,6 +244,43 @@ describe("the maintenance section", () => {
       await screen.findByText("Use 500 characters or fewer."),
     ).toBeVisible();
     expect(puts()).toHaveLength(0);
+  });
+
+  it("refuses a save that fills a language but not the default, on the default's box", async () => {
+    const user = userEvent.setup();
+    mount(publicConfigFixture({ maintenanceMode: true }));
+
+    await user.type(noticeBox("中文"), "维护中");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText(defaultRequired)).toBeVisible();
+    expect(puts()).toHaveLength(0);
+  });
+
+  it("maps the server's maintenance_default_notice_required onto the default language's box", async () => {
+    const user = userEvent.setup();
+    mount(publicConfigFixture({ maintenanceMode: true }), (request) =>
+      request.method === "PUT"
+        ? Response.json(
+            {
+              code: "maintenance_default_notice_required",
+              requestId: "maintenance-test",
+            },
+            { status: 400 },
+          )
+        : undefined,
+    );
+
+    await user.type(noticeBox("English"), "Back at noon");
+    await user.type(noticeBox("中文"), "马上回来");
+    // Fill the default so the client-side check passes and the server's
+    // refusal is the one under test.
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(puts()).toHaveLength(1));
+    const error = await screen.findByText(defaultRequired);
+    expect(error).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
   });
 
   it("reports a refused save once, on the form and not as a toast", async () => {
@@ -235,7 +294,7 @@ describe("the maintenance section", () => {
         : undefined,
     );
 
-    await user.type(notice(), "x");
+    await user.type(noticeBox("English"), "x");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(puts()).toHaveLength(1));

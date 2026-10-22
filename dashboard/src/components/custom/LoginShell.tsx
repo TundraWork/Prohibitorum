@@ -10,12 +10,14 @@ import {
   loginContextQueryOptions,
   publicConfigQueryOptions,
 } from "@/api/queries";
+import { pickMaintenanceNotice } from "@/app/maintenance-notice";
 import { AppStrip } from "@/components/custom/AppStrip";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { usePreviewQuiet } from "@/components/custom/login-preview";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { localeTags } from "@/i18n";
 
 export type LoginStep = "password" | "totp" | "recovery";
 
@@ -147,11 +149,15 @@ export function LoginShell({
   footer?: ReactNode;
   children: ReactNode;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const { config, bootstrapped, linkError, application, forApplication } =
     useLoginContext();
   const { name: instance } = useInstanceBranding();
   const label = application?.label;
+  const notice = pickMaintenanceNotice(
+    config,
+    i18n.locale === "zh" ? "zh" : "en",
+  );
   return (
     <div className="flex flex-col gap-4">
       {config.maintenanceMode && (
@@ -164,9 +170,9 @@ export function LoginShell({
                 sign in.
               </Trans>
             </SurfaceAlert.Title>
-            {config.maintenanceMessage && (
-              <SurfaceAlert.Description>
-                {config.maintenanceMessage}
+            {notice && (
+              <SurfaceAlert.Description lang={localeTags[notice.locale]}>
+                {notice.text}
               </SurfaceAlert.Description>
             )}
           </SurfaceAlert.Content>

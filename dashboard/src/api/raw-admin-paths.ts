@@ -240,10 +240,15 @@ export type WallpaperPreviewQuery =
   | { source: "bing"; market: string }
   | { source: "unsplash"; query: string };
 
-/** `PUT /admin/settings/maintenance`. The message is at most 500 characters. */
+/**
+ * `PUT /admin/settings/maintenance`. One notice per UI language (each at most
+ * 500 characters; an empty string means none in that language) plus the
+ * fallback language, which must carry a notice whenever any language does.
+ */
 export interface MaintenanceSettings {
   maintenanceMode: boolean;
-  maintenanceMessage: string;
+  maintenanceMessages: Partial<Record<string, string>>;
+  maintenanceDefaultLocale: string;
 }
 
 /**

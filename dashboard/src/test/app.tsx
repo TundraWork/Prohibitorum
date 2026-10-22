@@ -2,12 +2,13 @@ import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { render } from "@testing-library/react";
+import { Provider } from "jotai";
 import { vi } from "vitest";
 import type { components } from "@/api/generated/schema";
 import type { PublicConfig } from "@/api/raw-paths";
 import { createAppRouter } from "@/app/router";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
-import { i18n } from "@/i18n";
+import { i18n, store } from "@/i18n";
 
 export const testConfig: PublicConfig = {
   instanceName: "Test instance",
@@ -15,7 +16,8 @@ export const testConfig: PublicConfig = {
   iconUrl: "",
   iconEtag: "",
   maintenanceMode: false,
-  maintenanceMessage: "",
+  maintenanceMessages: {},
+  maintenanceDefaultLocale: "en",
   loginAppearance: defaultLoginAppearance,
   loginImages: [],
   totp: { issuer: "Test", algorithm: "SHA1", digits: 6, period: 30 },
@@ -102,9 +104,11 @@ export function renderApp(path: string, queryClient: QueryClient) {
   );
   render(
     <I18nProvider i18n={i18n}>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
+      <Provider store={store}>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </Provider>
     </I18nProvider>,
   );
   return router;

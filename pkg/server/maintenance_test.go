@@ -70,23 +70,42 @@ func TestMaintenanceGate(t *testing.T) {
 	}
 }
 
-// TestPublicConfig_Maintenance verifies the maintenance flag + message reach the
-// public /config payload (the SPA's source of truth for the maintenance screen).
+// TestPublicConfig_Maintenance verifies the maintenance flag + the multilingual
+// notice reach the public /config payload (the SPA's source of truth for the
+// maintenance screen).
 func TestPublicConfig_Maintenance(t *testing.T) {
-	msg := "Back at 17:00 UTC"
-	s := &Server{branding: branding.NewWithStore("TestCo", &fakeBrandingStore{maint: true, maintMsg: &msg})}
+	s := &Server{branding: branding.NewWithStore("TestCo", &fakeBrandingStore{maint: true, maintNotice: branding.MaintenanceNotice{
+		Messages:      map[string]string{"en": "Back at 17:00 UTC"},
+		DefaultLocale: "en",
+	}})}
 	rec := httptest.NewRecorder()
 	s.handleGetPublicConfigHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prohibitorum/config", nil))
 	body := rec.Body.String()
-	for _, want := range []string{`"maintenanceMode":true`, `"maintenanceMessage":"Back at 17:00 UTC"`} {
+	for _, want := range []string{
+		`"maintenanceMode":true`,
+		`"maintenanceMessages":{"en":"Back at 17:00 UTC"}`,
+		`"maintenanceDefaultLocale":"en"`,
+	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("config body missing %q: %s", want, body)
 		}
 	}
 }
 
-// TestAdminSettings_PutMaintenance verifies the sudo-gated toggle persists the
-// flag + message and the resolver reflects them immediately.
+// TestPublicConfig_MaintenanceNoNotice pins `{}` (never null) for an instance
+// without notices.
+func TestPublicConfig_MaintenanceNoNotice(t *testing.T) {
+	s := &Server{branding: branding.NewWithStore("TestCo", &fakeBrandingStore{maint: true})}
+	rec := httptest.NewRecorder()
+	s.handleGetPublicConfigHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prohibitorum/config", nil))
+	body := rec.Body.String()
+	if !strings.Contains(body, `"maintenanceMessages":{}`) {
+		t.Fatalf("config body missing empty maintenanceMessages: %s", body)
+	}
+}
+
+// TestAdminSettings_PutMaintenance verifies the toggle persists the flag and
+// the multilingual notice, and the resolver reflects them immediately.
 func TestAdminSettings_PutMaintenance(t *testing.T) {
 	t.Parallel()
 
@@ -95,39 +114,96 @@ func TestAdminSettings_PutMaintenance(t *testing.T) {
 
 	sess := adminSession(time.Now().Add(time.Hour)) // fresh sudo
 	req := reqWithSession("PUT", "/api/prohibitorum/admin/settings/maintenance",
-		`{"maintenanceMode":true,"maintenanceMessage":"Upgrading"}`, "", sess)
+		`{"maintenanceMode":true,"maintenanceMessages":{"en":"Upgrading","zh":"升级中"},"maintenanceDefaultLocale":"en"}`, "", sess)
 	rr := httptest.NewRecorder()
 	s.handlePutMaintenanceHTTP(rr, req)
 
 	if rr.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want 204; body: %s", rr.Code, rr.Body.String())
 	}
-	if !st.maint || st.maintMsg == nil || *st.maintMsg != "Upgrading" {
-		t.Fatalf("store maintenance = (%v,%v), want (true,Upgrading)", st.maint, st.maintMsg)
+	want := branding.MaintenanceNotice{
+		Messages:      map[string]string{"en": "Upgrading", "zh": "升级中"},
+		DefaultLocale: "en",
 	}
-	if on, msg := s.branding.Maintenance(context.Background()); !on || msg != "Upgrading" {
-		t.Errorf("resolver Maintenance = (%v,%q), want (true,Upgrading)", on, msg)
+	if !st.maint || !noticeEqual(st.maintNotice, want) {
+		t.Fatalf("store maintenance = (%v,%+v), want (true,%+v)", st.maint, st.maintNotice, want)
+	}
+	if on, notice := s.branding.Maintenance(context.Background()); !on || !noticeEqual(notice, want) {
+		t.Errorf("resolver Maintenance = (%v,%+v), want (true,%+v)", on, notice, want)
 	}
 }
 
-// TestAdminSettings_PutMaintenance_MessageTooLong rejects a >500-rune message
-// with 400 before touching the store.
-func TestAdminSettings_PutMaintenance_MessageTooLong(t *testing.T) {
+func noticeEqual(a, b branding.MaintenanceNotice) bool {
+	if a.DefaultLocale != b.DefaultLocale || len(a.Messages) != len(b.Messages) {
+		return false
+	}
+	for locale, text := range a.Messages {
+		if b.Messages[locale] != text {
+			return false
+		}
+	}
+	return true
+}
+
+// TestAdminSettings_PutMaintenance_Refused checks the 400 paths: unknown or
+// missing default language, an unknown language key, and a notice over the
+// rune limit are bad_request; a notice that skips the default language is
+// maintenance_default_notice_required. Nothing reaches the store.
+func TestAdminSettings_PutMaintenance_Refused(t *testing.T) {
 	t.Parallel()
 
-	st := &settingsBrandingStore{}
-	s := &Server{branding: branding.NewWithStore("TestDefault", st), Audit: noopAuditWriter{}}
-
-	sess := adminSession(time.Now().Add(time.Hour))
-	req := reqWithSession("PUT", "/api/prohibitorum/admin/settings/maintenance",
-		`{"maintenanceMode":true,"maintenanceMessage":"`+strings.Repeat("x", 501)+`"}`, "", sess)
-	rr := httptest.NewRecorder()
-	s.handlePutMaintenanceHTTP(rr, req)
-
-	if rr.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", rr.Code)
+	cases := []struct {
+		name string
+		body string
+		code string
+	}{
+		{
+			"unknown message locale",
+			`{"maintenanceMode":true,"maintenanceMessages":{"fr":"Bonjour"},"maintenanceDefaultLocale":"en"}`,
+			"bad_request",
+		},
+		{
+			"missing default locale",
+			`{"maintenanceMode":true,"maintenanceMessages":{"en":"Hi"}}`,
+			"bad_request",
+		},
+		{
+			"unknown default locale",
+			`{"maintenanceMode":true,"maintenanceMessages":{"en":"Hi"},"maintenanceDefaultLocale":"fr"}`,
+			"bad_request",
+		},
+		{
+			"notice over the rune limit",
+			`{"maintenanceMode":true,"maintenanceMessages":{"en":"` + strings.Repeat("x", 501) + `"},"maintenanceDefaultLocale":"en"}`,
+			"bad_request",
+		},
+		{
+			"notice without the default language",
+			`{"maintenanceMode":true,"maintenanceMessages":{"zh":"维护中"},"maintenanceDefaultLocale":"en"}`,
+			"maintenance_default_notice_required",
+		},
 	}
-	if st.maint {
-		t.Error("store mutated despite invalid request")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			st := &settingsBrandingStore{}
+			s := &Server{branding: branding.NewWithStore("TestDefault", st), Audit: noopAuditWriter{}}
+
+			sess := adminSession(time.Now().Add(time.Hour))
+			req := reqWithSession("PUT", "/api/prohibitorum/admin/settings/maintenance", tc.body, "", sess)
+			rr := httptest.NewRecorder()
+			s.handlePutMaintenanceHTTP(rr, req)
+
+			if rr.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400; body: %s", rr.Code, rr.Body.String())
+			}
+			if !strings.Contains(rr.Body.String(), `"code":"`+tc.code+`"`) {
+				t.Fatalf("body = %s, want code %q", rr.Body.String(), tc.code)
+			}
+			if st.maint {
+				t.Error("store mutated despite invalid request")
+			}
+		})
 	}
 }

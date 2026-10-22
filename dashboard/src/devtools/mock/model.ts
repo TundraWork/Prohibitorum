@@ -293,7 +293,10 @@ export interface MockConfig {
   };
   instance: {
     maintenance: boolean;
-    maintenanceMessage: string;
+    /** One notice per UI language; an empty string means none in it. */
+    maintenanceMessages: Record<string, string>;
+    /** The language visitors fall back to. */
+    maintenanceDefaultLocale: string;
     bootstrapped: boolean;
     /** The saved name override; empty means the configured name. */
     name: string;
@@ -470,7 +473,11 @@ export const defaultMockConfig: MockConfig = {
   },
   instance: {
     maintenance: false,
-    maintenanceMessage: "Scheduled maintenance is in progress.",
+    maintenanceMessages: {
+      en: "Scheduled maintenance is in progress.",
+      zh: "正在进行计划维护。",
+    },
+    maintenanceDefaultLocale: "en",
     bootstrapped: true,
     name: "",
     customIcon: false,

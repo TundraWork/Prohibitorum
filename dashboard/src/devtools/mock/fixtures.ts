@@ -271,7 +271,8 @@ function publicConfig(config: MockConfig): PublicConfig {
     iconUrl: mockIconUrl(config),
     iconEtag: `icon-${revision}`,
     maintenanceMode: config.instance.maintenance,
-    maintenanceMessage: config.instance.maintenanceMessage,
+    maintenanceMessages: { ...config.instance.maintenanceMessages },
+    maintenanceDefaultLocale: config.instance.maintenanceDefaultLocale,
     loginAppearance: config.instance.loginAppearance,
     loginImages: mockLoginImages(config),
     totp: {
@@ -3538,11 +3539,44 @@ function writeReply(
     }
 
     case "/api/prohibitorum/admin/settings/maintenance": {
+      const locales = ["en", "zh"] as const;
+      const messagesField = field(body, "maintenanceMessages");
+      const messages: Record<string, string> = {};
+      if (messagesField !== undefined) {
+        if (typeof messagesField !== "object" || messagesField === null) {
+          return { kind: "error", status: 400, code: "bad_request" };
+        }
+        for (const [locale, text] of Object.entries(
+          messagesField as Record<string, unknown>,
+        )) {
+          if (!locales.includes(locale as (typeof locales)[number])) {
+            return { kind: "error", status: 400, code: "bad_request" };
+          }
+          if (typeof text !== "string" || [...text].length > 500) {
+            return { kind: "error", status: 400, code: "bad_request" };
+          }
+          if (text !== "") messages[locale] = text;
+        }
+      }
+      const defaultLocale = stringField(body, "maintenanceDefaultLocale");
+      if (
+        defaultLocale === undefined ||
+        !locales.includes(defaultLocale as (typeof locales)[number])
+      ) {
+        return { kind: "error", status: 400, code: "bad_request" };
+      }
+      if (Object.keys(messages).length > 0 && !(defaultLocale in messages)) {
+        return {
+          kind: "error",
+          status: 400,
+          code: "maintenance_default_notice_required",
+        };
+      }
       const on = booleanField(body, "maintenanceMode") ?? false;
-      const message = stringField(body, "maintenanceMessage") ?? "";
       return empty(204, (draft) => {
         draft.instance.maintenance = on;
-        draft.instance.maintenanceMessage = message;
+        draft.instance.maintenanceMessages = messages;
+        draft.instance.maintenanceDefaultLocale = defaultLocale;
       });
     }
 

@@ -66,33 +66,45 @@ func (s *Server) handlePutInstanceIconHTTP(w http.ResponseWriter, r *http.Reques
 
 // PUT /api/prohibitorum/admin/settings/maintenance
 //
-//	{"maintenanceMode": true, "maintenanceMessage": "..."}
+//	{"maintenanceMode": true,
+//	 "maintenanceMessages": {"en": "…", "zh": "…"},
+//	 "maintenanceDefaultLocale": "en"}
 //
 // Toggles maintenance mode, which denies all non-admin access (login, dashboard,
-// OIDC/SAML SSO, forward-auth gateway). Registered via registerAdminBodyOpHTTP —
-// admin role enforced by the route, so an admin can't be locked out.
+// OIDC/SAML SSO, forward-auth gateway). The notice is one text per UI
+// language plus the fallback language; empty texts mean "no notice in that
+// language" and are dropped. Registered via registerAdminBodyOpHTTP — admin
+// role enforced by the route, so an admin can't be locked out.
 func (s *Server) handlePutMaintenanceHTTP(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		MaintenanceMode    bool   `json:"maintenanceMode"`
-		MaintenanceMessage string `json:"maintenanceMessage"`
+		MaintenanceMode          bool              `json:"maintenanceMode"`
+		MaintenanceMessages      map[string]string `json:"maintenanceMessages"`
+		MaintenanceDefaultLocale string            `json:"maintenanceDefaultLocale"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
-	if len([]rune(body.MaintenanceMessage)) > 500 {
-		writeAuthErr(w, authn.ErrBadRequest())
-		return
+	notice := branding.MaintenanceNotice{
+		Messages:      body.MaintenanceMessages,
+		DefaultLocale: body.MaintenanceDefaultLocale,
 	}
-	if err := s.branding.SetMaintenance(r.Context(), body.MaintenanceMode, body.MaintenanceMessage); err != nil {
-		writeAuthErr(w, err)
+	if err := s.branding.SetMaintenance(r.Context(), body.MaintenanceMode, notice); err != nil {
+		switch {
+		case errors.Is(err, branding.ErrNoticeLocale), errors.Is(err, branding.ErrNoticeTooLong):
+			writeAuthErr(w, authn.ErrBadRequest())
+		case errors.Is(err, branding.ErrNoticeDefaultRequired):
+			writeAuthErr(w, authn.ErrMaintenanceDefaultNoticeRequired())
+		default:
+			writeAuthErr(w, err)
+		}
 		return
 	}
 	reason := "maintenance_disabled"
 	if body.MaintenanceMode {
 		reason = "maintenance_enabled"
 	}
-	s.auditBranding(r, reason)
+	s.auditBranding(r, reason, map[string]any{"defaultLocale": body.MaintenanceDefaultLocale})
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -3,7 +3,7 @@ import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "@/app/query-client";
-import { i18n } from "@/i18n";
+import { i18n, initializeLocale } from "@/i18n";
 import {
   apiError,
   fakeApi,
@@ -16,7 +16,8 @@ import {
 const maintenance = {
   ...testConfig,
   maintenanceMode: true,
-  maintenanceMessage: "Back at 18:00.",
+  maintenanceMessages: { en: "Back at 18:00." },
+  maintenanceDefaultLocale: "en",
 };
 
 let queryClient: QueryClient;
@@ -111,5 +112,65 @@ describe("the maintenance page", () => {
       await screen.findByRole("heading", { name: /^Sign in to / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
+  });
+
+  it("shows the notice in the UI language and switches with the language menu", async () => {
+    const stopLocaleSync = initializeLocale();
+    try {
+      const user = userEvent.setup();
+      fakeApi(
+        publicApi(null, {
+          ...maintenance,
+          maintenanceMessages: { en: "Back at 18:00.", zh: "18:00 恢复。" },
+        }),
+      );
+      renderApp("/maintenance", queryClient);
+
+      expect(await screen.findByText("Back at 18:00.")).toBeVisible();
+
+      await user.click(screen.getByRole("button", { name: /Language/ }));
+      await user.click(
+        await screen.findByRole("menuitemradio", { name: "中文" }),
+      );
+
+      expect(await screen.findByText("18:00 恢复。")).toBeVisible();
+    } finally {
+      stopLocaleSync();
+      i18n.activate("en");
+      localStorage.removeItem("prohibitorum.locale");
+    }
+  });
+
+  it("falls back to the default language's notice, marked with its language", async () => {
+    fakeApi(
+      publicApi(null, {
+        ...maintenance,
+        maintenanceMessages: { en: "Back at 18:00." },
+      }),
+    );
+    i18n.activate("zh");
+    renderApp("/maintenance", queryClient);
+
+    const notice = await screen.findByText("Back at 18:00.");
+    expect(notice).toBeVisible();
+    expect(notice).toHaveAttribute("lang", "en");
+  });
+
+  it("shows no notice block when no language has one", async () => {
+    fakeApi(
+      publicApi(null, {
+        ...testConfig,
+        maintenanceMode: true,
+        maintenanceMessages: {},
+      }),
+    );
+    renderApp("/maintenance", queryClient);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Test instance is under maintenance",
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText("Back at 18:00.")).toBeNull();
   });
 });

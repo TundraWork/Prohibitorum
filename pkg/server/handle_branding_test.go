@@ -12,23 +12,25 @@ import (
 )
 
 type fakeBrandingStore struct {
-	name     *string
-	icon     []byte
-	etag     *string
-	maint    bool
-	maintMsg *string
+	name        *string
+	icon        []byte
+	etag        *string
+	maint       bool
+	maintNotice branding.MaintenanceNotice
 }
 
 func (f *fakeBrandingStore) Get(context.Context) (branding.Settings, error) {
 	return branding.Settings{
 		Name: f.name, IconPNG: f.icon, IconEtag: f.etag,
-		Maintenance: f.maint, MaintenanceMessage: f.maintMsg,
+		Maintenance: f.maint, MaintenanceNotice: f.maintNotice,
 	}, nil
 }
 func (f *fakeBrandingStore) SetName(context.Context, *string) error              { return nil }
 func (f *fakeBrandingStore) SetIcon(context.Context, []byte, string) error       { return nil }
 func (f *fakeBrandingStore) ClearIcon(context.Context) error                     { return nil }
-func (f *fakeBrandingStore) SetMaintenance(context.Context, bool, *string) error { return nil }
+func (f *fakeBrandingStore) SetMaintenance(context.Context, bool, branding.MaintenanceNotice) error {
+	return nil
+}
 func (f *fakeBrandingStore) SetAppearance(context.Context, branding.Appearance, *branding.SealedKey) error {
 	return nil
 }
