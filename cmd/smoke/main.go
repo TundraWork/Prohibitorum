@@ -2794,10 +2794,17 @@ func main() {
 	log.Printf("  userinfo sub matches id_token; username=%s preferred_username=%s name=%s ✓",
 		str(userinfo["username"]), str(userinfo["preferred_username"]), str(userinfo["name"]))
 
-	// PHB-148: with no primary on the freshly-enrolled account, the email
-	// scope yields neither claim.
-	if _, ok := userinfo["email"]; ok {
-		log.Fatalf("userinfo email claim present without a primary address")
+	// PHB-148: the email scope must agree with the account's primary —
+	// both claims together when one exists, neither when none does. By this
+	// point in the run the federation arc may have linked a verified upstream
+	// identity to smoke-admin, so the pair is checked for consistency rather
+	// than for absence.
+	if email, ok := userinfo["email"]; ok {
+		if email == "" || userinfo["email_verified"] != true {
+			log.Fatalf("userinfo email=%v email_verified=%v; the pair must appear together with a verified value", email, userinfo["email_verified"])
+		}
+	} else if _, ok := userinfo["email_verified"]; ok {
+		log.Fatal("userinfo email_verified present without email")
 	}
 
 	step(fmt.Sprintf("oidc %d/%d — GET /me/emails over HTTP (session API)", 6, nOIDC))
@@ -2821,8 +2828,24 @@ func main() {
 	if meEmails.Limit != 10 {
 		log.Fatalf("GET /me/emails limit = %d, want 10", meEmails.Limit)
 	}
-	if len(meEmails.Emails) != 0 {
-		log.Fatalf("GET /me/emails listed %d addresses on the fresh account, want 0", len(meEmails.Emails))
+	// The federation arc runs before this one and may have linked a verified
+	// upstream identity, so the list can legitimately hold its address; what
+	// must hold is the view contract: every row has an address, at most one
+	// primary, and the primary (if any) is verified.
+	primaries := 0
+	for _, row := range meEmails.Emails {
+		if row["address"] == nil || row["address"] == "" {
+			log.Fatalf("GET /me/emails row without an address: %v", row)
+		}
+		if primary, ok := row["primary"].(bool); ok && primary {
+			primaries++
+			if verified, ok := row["verified"].(bool); !ok || !verified {
+				log.Fatalf("GET /me/emails primary row not verified: %v", row)
+			}
+		}
+	}
+	if primaries > 1 {
+		log.Fatalf("GET /me/emails lists %d primary rows, want at most 1", primaries)
 	}
 	for _, leaked := range []string{"Emails", "Deliveryavailable", "Limit"} {
 		if _, present := meEmailsResp.Header[http.CanonicalHeaderKey(leaked)]; present {
@@ -2853,7 +2876,7 @@ func main() {
 	}
 	log.Printf("  userinfo email=%s email_verified=true ✓", smokeAddress)
 
-	step(fmt.Sprintf("oidc %d/%d — delete the primary → userinfo email claims disappear", 8, nOIDC))
+	step(fmt.Sprintf("oidc %d/%d — delete the primary → userinfo never shows the deleted address", 8, nOIDC))
 	delReq, err := http.NewRequest(http.MethodDelete,
 		*baseURL+fmt.Sprintf("/api/prohibitorum/accounts/%d/emails/%d", oidcMe.ID, addedEmail.ID), nil)
 	if err != nil {
@@ -2870,17 +2893,28 @@ func main() {
 	if delResp.StatusCode != http.StatusNoContent {
 		log.Fatalf("delete email: status %d", delResp.StatusCode)
 	}
-	uiNoPrimary, err := fetchUserinfo(*baseURL, accessToken)
+	uiAfterDelete, err := fetchUserinfo(*baseURL, accessToken)
 	if err != nil {
-		log.Fatalf("/oauth/userinfo (no primary): %v", err)
+		log.Fatalf("/oauth/userinfo (after primary deletion): %v", err)
 	}
-	if _, ok := uiNoPrimary["email"]; ok {
-		log.Fatalf("userinfo email claim survived primary deletion")
+	// The federation arc may have left another verified address on the
+	// account, which deletion of the primary legitimately promotes. The
+	// invariant: the deleted address is gone; whatever email remains is a
+	// verified one (the pair must stay consistent).
+	if got, ok := uiAfterDelete["email"]; ok {
+		if got == smokeAddress {
+			log.Fatalf("userinfo still shows the deleted address %q", smokeAddress)
+		}
+		if uiAfterDelete["email_verified"] != true {
+			log.Fatalf("userinfo email=%v email_verified=%v; the pair must stay consistent", got, uiAfterDelete["email_verified"])
+		}
+		log.Printf("  deleted %q; primary promoted, userinfo email now %v ✓", smokeAddress, got)
+	} else {
+		if _, ok := uiAfterDelete["email_verified"]; ok {
+			log.Fatal("userinfo email_verified present without email")
+		}
+		log.Printf("  userinfo email claims omitted without a primary ✓")
 	}
-	if _, ok := uiNoPrimary["email_verified"]; ok {
-		log.Fatalf("userinfo email_verified claim survived primary deletion")
-	}
-	log.Printf("  userinfo email claims omitted without a primary ✓")
 
 	step(fmt.Sprintf("oidc %d/%d — POST /oauth/introspect (access token, Basic auth) → active", 9, nOIDC))
 	intro, err := introspect(*baseURL, rpClientID, rpSecret, accessToken)
