@@ -16,7 +16,7 @@ func TestSchemesMatchDashboardRegistry(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got []string
-	for _, m := range regexp.MustCompile(`(?m)^\s*slug: "([a-z]+)",$`).FindAllSubmatch(src, -1) {
+	for _, m := range regexp.MustCompile(`(?m)^\s*slug: "([a-z][a-z-]*)",$`).FindAllSubmatch(src, -1) {
 		got = append(got, string(m[1]))
 	}
 	if !slices.Equal(got, Schemes) {

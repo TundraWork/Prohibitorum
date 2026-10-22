@@ -482,3 +482,176 @@
   --code-foreground: var(--foreground);
   --code-highlight: var(--muted);
 }
+
+/*
+ * Catppuccin (MIT), Latte for light and Macchiato for dark, taken as published
+ * at github.com/catppuccin/palette with no value adjusted: the owner chose the
+ * official palette over contrast tuning (PHB-154 #comment-2225), so a few
+ * pairs sit below the AA floor; scheme-contrast.test.ts lists them. Roles
+ * follow Catppuccin's style guide: Base for the page, Mantle for the sidebar,
+ * Surface 0 for wells and hover, Text, Subtext 1 and Subtext 0 for text,
+ * Mauve for the primary action, Lavender for the focus ring, and Red, Yellow,
+ * Green and Blue for status. Catppuccin Gray is the same with every surface
+ * and text colour turned to a neutral grey of equal OKLab lightness; the
+ * accent and status colours stay.
+ */
+
+/* Catppuccin, light (Latte). */
+:root[data-scheme="catppuccin"]:not(.dark) {
+  --background: #eff1f5;
+  --foreground: #4c4f69;
+  --card: #eff1f5;
+  --card-foreground: #4c4f69;
+  --popover: #eff1f5;
+  --popover-foreground: #4c4f69;
+  --primary: #8839ef;
+  --primary-foreground: #eff1f5;
+  --secondary: #ccd0da;
+  --secondary-foreground: #4c4f69;
+  --muted: #ccd0da;
+  --muted-foreground: #6c6f85;
+  --accent: #ccd0da;
+  --accent-foreground: #4c4f69;
+  --border: #ccd0da;
+  --input: #bcc0cc;
+  --ring: #7287fd;
+  --destructive: #d20f39;
+  --destructive-foreground: #d20f39;
+  --info: #1e66f5;
+  --info-foreground: #1e66f5;
+  --success: #40a02b;
+  --success-foreground: #40a02b;
+  --warning: #df8e1d;
+  --warning-foreground: #df8e1d;
+  --sidebar: #e6e9ef;
+  --sidebar-foreground: #5c5f77;
+  --sidebar-primary: #8839ef;
+  --sidebar-primary-foreground: #eff1f5;
+  --sidebar-accent: #ccd0da;
+  --sidebar-accent-foreground: #4c4f69;
+  --sidebar-border: #ccd0da;
+  --sidebar-ring: #7287fd;
+  --code: #e6e9ef;
+  --code-foreground: #4c4f69;
+  --code-highlight: #ccd0da;
+}
+
+/* Catppuccin, dark (Macchiato). */
+:root[data-scheme="catppuccin"].dark {
+  --background: #24273a;
+  --foreground: #cad3f5;
+  --card: #24273a;
+  --card-foreground: #cad3f5;
+  --popover: #24273a;
+  --popover-foreground: #cad3f5;
+  --primary: #c6a0f6;
+  --primary-foreground: #181926;
+  --secondary: #363a4f;
+  --secondary-foreground: #cad3f5;
+  --muted: #363a4f;
+  --muted-foreground: #a5adcb;
+  --accent: #363a4f;
+  --accent-foreground: #cad3f5;
+  --border: #363a4f;
+  --input: #494d64;
+  --ring: #b7bdf8;
+  --destructive: #ed8796;
+  --destructive-foreground: #ed8796;
+  --info: #8aadf4;
+  --info-foreground: #8aadf4;
+  --success: #a6da95;
+  --success-foreground: #a6da95;
+  --warning: #eed49f;
+  --warning-foreground: #eed49f;
+  --sidebar: #1e2030;
+  --sidebar-foreground: #b8c0e0;
+  --sidebar-primary: #c6a0f6;
+  --sidebar-primary-foreground: #181926;
+  --sidebar-accent: #363a4f;
+  --sidebar-accent-foreground: #cad3f5;
+  --sidebar-border: #363a4f;
+  --sidebar-ring: #b7bdf8;
+  --code: #1e2030;
+  --code-foreground: #cad3f5;
+  --code-highlight: #363a4f;
+}
+
+/* Catppuccin Gray, light (Latte). */
+:root[data-scheme="catppuccin-gray"]:not(.dark) {
+  --background: #f1f1f1;
+  --foreground: #515151;
+  --card: #f1f1f1;
+  --card-foreground: #515151;
+  --popover: #f1f1f1;
+  --popover-foreground: #515151;
+  --primary: #8839ef;
+  --primary-foreground: #f1f1f1;
+  --secondary: #d0d0d0;
+  --secondary-foreground: #515151;
+  --muted: #d0d0d0;
+  --muted-foreground: #717171;
+  --accent: #d0d0d0;
+  --accent-foreground: #515151;
+  --border: #d0d0d0;
+  --input: #c0c0c0;
+  --ring: #7287fd;
+  --destructive: #d20f39;
+  --destructive-foreground: #d20f39;
+  --info: #1e66f5;
+  --info-foreground: #1e66f5;
+  --success: #40a02b;
+  --success-foreground: #40a02b;
+  --warning: #df8e1d;
+  --warning-foreground: #df8e1d;
+  --sidebar: #e9e9e9;
+  --sidebar-foreground: #616161;
+  --sidebar-primary: #8839ef;
+  --sidebar-primary-foreground: #f1f1f1;
+  --sidebar-accent: #d0d0d0;
+  --sidebar-accent-foreground: #515151;
+  --sidebar-border: #d0d0d0;
+  --sidebar-ring: #7287fd;
+  --code: #e9e9e9;
+  --code-foreground: #515151;
+  --code-highlight: #d0d0d0;
+}
+
+/* Catppuccin Gray, dark (Macchiato). */
+:root[data-scheme="catppuccin-gray"].dark {
+  --background: #282828;
+  --foreground: #d4d4d4;
+  --card: #282828;
+  --card-foreground: #d4d4d4;
+  --popover: #282828;
+  --popover-foreground: #d4d4d4;
+  --primary: #c6a0f6;
+  --primary-foreground: #1a1a1a;
+  --secondary: #3b3b3b;
+  --secondary-foreground: #d4d4d4;
+  --muted: #3b3b3b;
+  --muted-foreground: #aeaeae;
+  --accent: #3b3b3b;
+  --accent-foreground: #d4d4d4;
+  --border: #3b3b3b;
+  --input: #4f4f4f;
+  --ring: #b7bdf8;
+  --destructive: #ed8796;
+  --destructive-foreground: #ed8796;
+  --info: #8aadf4;
+  --info-foreground: #8aadf4;
+  --success: #a6da95;
+  --success-foreground: #a6da95;
+  --warning: #eed49f;
+  --warning-foreground: #eed49f;
+  --sidebar: #212121;
+  --sidebar-foreground: #c1c1c1;
+  --sidebar-primary: #c6a0f6;
+  --sidebar-primary-foreground: #1a1a1a;
+  --sidebar-accent: #3b3b3b;
+  --sidebar-accent-foreground: #d4d4d4;
+  --sidebar-border: #3b3b3b;
+  --sidebar-ring: #b7bdf8;
+  --code: #212121;
+  --code-foreground: #d4d4d4;
+  --code-highlight: #3b3b3b;
+}
