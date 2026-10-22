@@ -104,11 +104,14 @@ func withEmailServerDB(t *testing.T, sender mail.Sender, fn func(ctx context.Con
 	_ = auditLog // records are asserted via s.Audit if needed
 }
 
+// skipWithoutDB returns the test database URL, or skips the test when the
+// environment names none — a machine without Postgres (the plain CI job)
+// must not fall back to some local database.
 func skipWithoutDB(t *testing.T) string {
 	t.Helper()
-	url := "postgresql://prohibitorum:prohibitorum@localhost:5432/prohibitorum_dev"
-	if os.Getenv("PROHIBITORUM_TEST_DATABASE_URL") != "" {
-		url = os.Getenv("PROHIBITORUM_TEST_DATABASE_URL")
+	url := os.Getenv("PROHIBITORUM_TEST_DATABASE_URL")
+	if url == "" {
+		t.Skip("PROHIBITORUM_TEST_DATABASE_URL is not set")
 	}
 	return url
 }
