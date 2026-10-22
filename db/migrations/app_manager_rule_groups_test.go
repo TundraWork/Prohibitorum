@@ -71,7 +71,6 @@ func TestAppManagerRuleGroupsMigrationPostgres(t *testing.T) {
 	}
 	defer conn.Close()
 
-
 	var legacyAccountID int32
 	if err := conn.QueryRowContext(ctx, `
 		INSERT INTO account (username, display_name, webauthn_user_handle)

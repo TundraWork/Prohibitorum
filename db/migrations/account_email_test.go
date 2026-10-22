@@ -73,7 +73,10 @@ func TestAccountEmailMigrationPostgres(t *testing.T) {
 	if _, err := conn.ExecContext(ctx, "SET search_path TO "+quotedSchema+", public"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.UpTo(conn, ".", 49); err != nil {
+	// Up through 050 (colour schemes): the legacy email columns still exist
+	// there, so the fixture rows are seeded between 050 and 051. The goose
+	// dance stays two-phase for the pg_trgm 032 dependency.
+	if err := goose.UpTo(conn, ".", 50); err != nil {
 		t.Fatal(err)
 	}
 
@@ -100,7 +103,7 @@ func TestAccountEmailMigrationPostgres(t *testing.T) {
 	blankEmail := insertAccount("email-blank", "   ", true)
 	noEmail := insertAccount("email-none", "", false)
 
-	if err := goose.UpTo(conn, ".", 50); err != nil {
+	if err := goose.UpTo(conn, ".", 51); err != nil {
 		t.Fatal(err)
 	}
 
@@ -209,15 +212,15 @@ func TestAccountEmailMigrationPostgres(t *testing.T) {
 		t.Errorf("addresses survived account delete: %d rows", count)
 	}
 
-	if err := goose.DownTo(conn, ".", 49); err != nil {
+	if err := goose.DownTo(conn, ".", 50); err != nil {
 		t.Fatal(err)
 	}
 	var version int64
 	if err := conn.QueryRowContext(ctx, `SELECT version_id FROM goose_db_version WHERE is_applied ORDER BY id DESC LIMIT 1`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 49 {
-		t.Fatalf("migration version after down = %d, want 49", version)
+	if version != 50 {
+		t.Fatalf("migration version after down = %d, want 50", version)
 	}
 
 	readLegacy := func(accountID int32, wantEmail string, wantVerified bool) {
