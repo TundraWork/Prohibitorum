@@ -105,10 +105,12 @@
   --app-sticky-offset: 0px;
   --app-gutter-top: 0px;
   --app-gutter-bottom: 0px;
-  /* The public pages' edge: how far the toolbar capsules, a sign-in card
-     set to the left or the right, and the wallpaper credit stay from the
-     window. It grows with the window, so on a mid-sized or larger screen a
-     side-placed card never reads as pressed against the edge. */
+  /* The public pages' edge: how far the toolbar capsules (from the top and
+     the sides), a sign-in card set to the left or the right, and the
+     wallpaper credit (from the bottom) stay from the window. One value on
+     every side, so the four corners agree; it grows with the window, so on a
+     mid-sized or larger screen a side-placed card never reads as pressed
+     against the edge. */
   --public-edge: clamp(1.25rem, 3vw, 4rem);
 }
 
