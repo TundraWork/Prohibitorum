@@ -71,7 +71,10 @@ type Server struct {
 	meEmailTxRunnerOverride meEmailTxRunner
 	// meEmailsOverride lets the /me/emails HTTP tests inject a read fake;
 	// nil in production, where the handlers use s.queries.
-	meEmailsOverride       meEmailsQueries
+	meEmailsOverride meEmailsQueries
+	// accountDetailOverride lets the account detail-view tests inject a
+	// read fake; nil in production.
+	accountDetailOverride  accountDetailQueries
 	webauthn               *webauthn.WebAuthn
 	oidcOP                 *oidcop.Provider
 	samlIdP                *samlidp.IdP

@@ -119,14 +119,14 @@ func accountViewFromRow(r *db.ListAccountsRow, origin string) contract.AccountVi
 
 // accountViewFromAccount projects a db.Account into AccountView with an
 // optional lastSignInAt (nil on single-row fetches that don't carry the
-// credential subquery).
-func accountViewFromAccount(a *db.Account, lastSignInAt *time.Time, origin string) contract.AccountView {
+// credential subquery) and the account's primary address when set.
+func accountViewFromAccount(a *db.Account, primaryEmail *string, lastSignInAt *time.Time, origin string) contract.AccountView {
 	v := contract.AccountView{
 		ID:                 a.ID,
 		OIDCSubject:        a.OidcSubject.String(),
 		Username:           a.Username,
 		DisplayName:        a.DisplayName,
-		PrimaryEmail:       nil,
+		PrimaryEmail:       primaryEmail,
 		Role:               a.Role,
 		Attributes:         decodeAttributes(a.Attributes),
 		Disabled:           a.Disabled,
@@ -269,15 +269,49 @@ type getAccountIn struct {
 	ID int32 `path:"id"`
 }
 
+// accountDetailQueries is the read surface of the account detail views;
+// tests inject a fake.
+type accountDetailQueries interface {
+	GetAccountByID(ctx context.Context, id int32) (db.Account, error)
+	GetAccountPrimaryEmail(ctx context.Context, id int32) (string, error)
+}
+
+func (s *Server) accountDetailQ() accountDetailQueries {
+	if s.accountDetailOverride != nil {
+		return s.accountDetailOverride
+	}
+	if s.queries == nil {
+		// A Server wired only for other tests: the detail views then omit
+		// primaryEmail instead of panicking on a nil reader.
+		return nil
+	}
+	return s.queries
+}
+
+// primaryEmailFrom reads the primary address through the detail seam,
+// tolerating a Server wired only for other tests (nil queries): the field
+// is cosmetic in the view, so an unreadable primary just omits it.
+func (s *Server) primaryEmailFrom(ctx context.Context, accountID int32) *string {
+	q := s.accountDetailQ()
+	if q == nil {
+		return nil
+	}
+	addr, err := q.GetAccountPrimaryEmail(ctx, accountID)
+	if err != nil || addr == "" {
+		return nil
+	}
+	return &addr
+}
+
 func (s *Server) handleGetAccount(ctx context.Context, in *getAccountIn) (*accountOut, error) {
-	a, err := s.queries.GetAccountByID(ctx, in.ID)
+	a, err := s.accountDetailQ().GetAccountByID(ctx, in.ID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, authErrToHuma(authn.ErrAccountNotFound())
 		}
 		return nil, fmt.Errorf("handleGetAccount: query: %w", err)
 	}
-	return &accountOut{Body: accountViewFromAccount(&a, nil, s.config.PublicOrigins[0])}, nil
+	return &accountOut{Body: accountViewFromAccount(&a, s.primaryEmailFrom(ctx, a.ID), nil, s.config.PublicOrigins[0])}, nil
 }
 
 type listAccountIdentitiesIn struct {
@@ -476,7 +510,7 @@ func (s *Server) handleUpdateAccount(ctx context.Context, in *updateAccountIn) (
 		_, _ = s.sessionStore.RevokeAllForAccount(ctx, in.ID)
 	}
 
-	return &accountOut{Body: accountViewFromAccount(&updated, nil, s.config.PublicOrigins[0])}, nil
+	return &accountOut{Body: accountViewFromAccount(&updated, s.primaryEmailFrom(ctx, updated.ID), nil, s.config.PublicOrigins[0])}, nil
 }
 
 // ----- POST /accounts/set-disabled (raw, admin) ------------------------------
@@ -549,7 +583,7 @@ func (s *Server) handleSetAccountDisabledHTTP(w http.ResponseWriter, r *http.Req
 		_, _ = s.sessionStore.RevokeAllForAccount(ctx, body.ID)
 	}
 
-	writeJSON(w, accountViewFromAccount(&updated, nil, s.config.PublicOrigins[0]))
+	writeJSON(w, accountViewFromAccount(&updated, s.primaryEmailFrom(r.Context(), updated.ID), nil, s.config.PublicOrigins[0]))
 }
 
 // ----- POST /accounts/delete -------------------------------------------------
