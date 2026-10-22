@@ -323,6 +323,10 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
                   onTheme={(theme) =>
                     form.setFieldValue("appearance.theme", theme)
                   }
+                  scheme={appearance.scheme}
+                  onScheme={(scheme) =>
+                    form.setFieldValue("appearance.scheme", scheme)
+                  }
                 />
                 <SurfaceFields
                   surface={appearance.card}

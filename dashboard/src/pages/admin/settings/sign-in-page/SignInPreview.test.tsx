@@ -285,12 +285,14 @@ describe("the sign-in page preview", () => {
     expect(frame()?.style.height).toBe("844px");
   });
 
-  it("draws the toolbar's theme control only while visitors choose the theme", async () => {
+  it("keeps the toolbar's theme button whether or not the theme is forced", async () => {
     const { rerender } = await show(view());
     const page = await pageDocument();
-    expect(
-      page.querySelector('header button[aria-label="Theme"]'),
-    ).not.toBeNull();
+    const themeButton = () =>
+      [...page.querySelectorAll("header button")].find(
+        (button) => button.textContent === "Theme",
+      );
+    expect(themeButton()).toBeDefined();
 
     rerender(
       view({
@@ -299,10 +301,22 @@ describe("the sign-in page preview", () => {
         }),
       }),
     );
+    await waitFor(() => expect(themeButton()).toBeDefined());
+  });
+
+  it("shows the draft's default scheme, whatever the console shows", async () => {
+    const { rerender } = await show(view());
+    const page = await pageDocument();
+    expect(page.documentElement.dataset.scheme).toBe("graphite");
+    rerender(
+      view({
+        appearance: withAppearance((a) => {
+          a.scheme = "sakura";
+        }),
+      }),
+    );
     await waitFor(() =>
-      expect(
-        page.querySelector('header button[aria-label="Theme"]'),
-      ).toBeNull(),
+      expect(page.documentElement.dataset.scheme).toBe("sakura"),
     );
   });
 

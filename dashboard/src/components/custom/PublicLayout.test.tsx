@@ -8,6 +8,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { act, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createStore, Provider } from "jotai";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
@@ -19,8 +20,8 @@ import { AppEnvironment } from "@/app/AppEnvironment";
 import { createQueryClient } from "@/app/query-client";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { PublicLayout } from "@/components/custom/PublicLayout";
-import { themeAtom } from "@/components/custom/ThemeSelect";
 import { i18n } from "@/i18n";
+import { modeChoiceAtom } from "@/lib/appearance";
 
 const config: PublicConfig = {
   instanceName: "Test instance",
@@ -94,11 +95,11 @@ async function mount() {
   render(
     <I18nProvider i18n={i18n}>
       <Provider store={store}>
-        <AppEnvironment>
-          <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <AppEnvironment>
             <RouterProvider router={router} />
-          </QueryClientProvider>
-        </AppEnvironment>
+          </AppEnvironment>
+        </QueryClientProvider>
       </Provider>
     </I18nProvider>,
   );
@@ -450,17 +451,24 @@ it("keeps the narrow-screen credit inside the stage's column", async () => {
 });
 
 it("forces the settings' theme on the page without changing the visitor's choice", async () => {
-  store.set(themeAtom, "light");
+  const user = userEvent.setup();
+  store.set(modeChoiceAtom, "light");
   withAppearance((appearance) => {
     appearance.theme = "dark";
   });
   const banner = await mount();
   expect(document.documentElement.dataset.theme).toBe("dark");
-  expect(store.get(themeAtom)).toBe("light");
-  expect(within(banner).queryByRole("button", { name: "Theme" })).toBeNull();
+  expect(store.get(modeChoiceAtom)).toBe("light");
   expect(
     within(banner).getByRole("button", { name: "Language" }),
   ).toBeVisible();
+  // Light or dark is settled, so the theme button offers only the scheme.
+  await user.click(within(banner).getByRole("button", { name: "Theme" }));
+  expect(
+    await screen.findByRole("group", { name: "Color scheme" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("group", { name: "Light or dark" })).toBeNull();
+  await user.keyboard("{Escape}");
 
   // The test's own tree, which the app's typed routes do not know.
   await act(async () => banner.router.history.push("/console"));

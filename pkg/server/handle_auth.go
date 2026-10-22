@@ -25,6 +25,7 @@ import (
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 	"prohibitorum/pkg/logx"
+	"prohibitorum/pkg/preferences"
 	sessstore "prohibitorum/pkg/session"
 	"prohibitorum/pkg/weberr"
 )
@@ -99,6 +100,7 @@ func (s *Server) sessionView(a *db.Account) contract.SessionView {
 		DisplayName: a.DisplayName,
 		Role:        a.Role,
 		Attributes:  decodeAttributes(a.Attributes),
+		Preferences: preferences.Decode(a.Preferences),
 	}
 	origin := ""
 	if s.config != nil && len(s.config.PublicOrigins) > 0 {

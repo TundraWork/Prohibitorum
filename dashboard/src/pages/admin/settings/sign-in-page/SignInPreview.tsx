@@ -155,6 +155,8 @@ export function SignInPreview({
         <PreviewDocument
           {...pageSizes[size]}
           theme={theme}
+          // A visitor who has not picked a scheme sees the instance default.
+          scheme={appearance.scheme}
           onDocument={onDocument}
           title={t({
             id: "settings.sign-in.preview.frame",

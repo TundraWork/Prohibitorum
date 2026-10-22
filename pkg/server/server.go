@@ -674,6 +674,8 @@ func (s *Server) registerOperations() {
 	// /me
 	registerOp(mgmt, contract.OperationGetMe, s.handleGetMe, sessionReq)
 	registerOp(mgmt, contract.OperationUpdateMe, s.handleUpdateMe, sessionReq)
+	registerOp(mgmt, contract.OperationGetMyPreferences, s.handleGetMyPreferences, sessionReq)
+	registerOp(mgmt, contract.OperationUpdateMyPreferences, s.handleUpdateMyPreferences, sessionReq)
 	registerOp(mgmt, contract.OperationGetMyFactors, s.handleGetMyFactors, sessionReq)
 	registerOp(mgmt, contract.OperationListMyCredentials, s.handleListMyCredentials, sessionReq)
 	registerSudoOp(s, mgmt, contract.OperationDeleteMyCredential, s.handleDeleteMyCredential, sessionReq)

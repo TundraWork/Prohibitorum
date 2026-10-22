@@ -27,6 +27,7 @@ type Account struct {
 	AvatarEtag         pgtype.Text        `json:"avatarEtag"`
 	AvatarSource       pgtype.Text        `json:"avatarSource"`
 	AvatarSelectedAt   pgtype.Timestamptz `json:"avatarSelectedAt"`
+	Preferences        []byte             `json:"preferences"`
 }
 
 type AccountAvatar struct {

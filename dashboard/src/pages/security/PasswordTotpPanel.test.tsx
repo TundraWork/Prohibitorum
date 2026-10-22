@@ -50,6 +50,7 @@ beforeEach(() => {
       oidcSubject: "00000000-0000-4000-8000-000000000001",
       displayName: "Alice",
       role: "user",
+      preferences: { appearance: { scheme: null, mode: null } },
     },
   );
   queryClient.setQueryData(["public", "config"], publicConfig);

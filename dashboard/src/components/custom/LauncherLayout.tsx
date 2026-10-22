@@ -58,7 +58,7 @@ export function LauncherLayout() {
       <div className="relative">
         <AppToolbar
           surface={loginAppearance.capsules}
-          showThemeSelect
+          chooseMode
           account={<AccountMenu />}
         >
           <Link

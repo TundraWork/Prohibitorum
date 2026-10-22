@@ -386,6 +386,7 @@ function sessionView(config: MockConfig): Session {
     oidcSubject: "mock-oidc-1",
     displayName: config.session.displayName,
     role: config.session.role,
+    preferences: { appearance: { scheme: null, mode: null } },
     avatarSource: active?.source ?? "none",
     ...(active ? { avatarUrl: active.url } : {}),
   };

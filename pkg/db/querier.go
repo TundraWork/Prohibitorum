@@ -315,6 +315,8 @@ type Querier interface {
 	// claim drift), keeping it in lockstep with account_identity.upstream_email.
 	UpdateAccountEmail(ctx context.Context, arg UpdateAccountEmailParams) error
 	UpdateAccountIdentityVerifiedData(ctx context.Context, arg UpdateAccountIdentityVerifiedDataParams) error
+	// Replaces only the sections present in sections; the others stay as stored.
+	UpdateAccountPreferences(ctx context.Context, arg UpdateAccountPreferencesParams) ([]byte, error)
 	UpdateAppGroup(ctx context.Context, arg UpdateAppGroupParams) (UserGroup, error)
 	UpdateCredentialUsage(ctx context.Context, arg UpdateCredentialUsageParams) error
 	UpdateForwardAuthApp(ctx context.Context, arg UpdateForwardAuthAppParams) (UpdateForwardAuthAppRow, error)

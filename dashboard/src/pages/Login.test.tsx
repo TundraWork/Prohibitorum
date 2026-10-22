@@ -546,6 +546,7 @@ it("keeps new recovery codes visible across session changes and blocks leaving w
       oidcSubject: "00000000-0000-4000-8000-000000000001",
       displayName: "Alice",
       role: "user",
+      preferences: { appearance: { scheme: null, mode: null } },
     };
     queryClient.setQueryData(sessionQueryOptions().queryKey, session);
   });

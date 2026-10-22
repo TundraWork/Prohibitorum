@@ -7,7 +7,7 @@ import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { useLoginBackground } from "@/components/custom/login-appearance/use-login-background";
 import { PublicScene } from "@/components/custom/PublicScene";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
-import { publicThemeAtom } from "@/components/custom/ThemeSelect";
+import { forcedModeAtom } from "@/lib/appearance";
 
 /**
  * The public pages' frame: the background the settings chose, the toolbar on
@@ -29,7 +29,7 @@ export function PublicLayout() {
   const background = appearance.background;
   const usesWallpaper =
     background.source === "bing" || background.source === "unsplash";
-  const setPublicTheme = useSetAtom(publicThemeAtom);
+  const setPublicTheme = useSetAtom(forcedModeAtom);
   useLayoutEffect(() => {
     setPublicTheme(
       appearance.theme === "switchable" ? undefined : appearance.theme,

@@ -1079,6 +1079,11 @@ msgid "admin.user.tokens.revoke.body"
 msgstr "使用该令牌的一切会立即停止工作，且无法撤销。"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AppearancePanel.tsx
+msgid "profile.appearance.title"
+msgstr "外观"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlAppearanceSection.tsx
 msgid "admin.saml-apps.appearance"
 msgstr "外观"
@@ -1907,6 +1912,11 @@ msgid "app.groups.kind.manual"
 msgstr "手动选择"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.citrus"
+msgstr "柑橘"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases"
 msgstr "声明别名"
@@ -2125,6 +2135,12 @@ msgstr "纯色"
 #: src/pages/admin/settings/sign-in-page/ColorControl.tsx
 msgid "settings.sign-in.color"
 msgstr "颜色"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+#: src/pages/profile/AppearancePanel.tsx
+msgid "theme.scheme"
+msgstr "配色方案"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -2930,6 +2946,11 @@ msgstr "默认"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.acs.default-endpoint"
 msgstr "默认"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
+msgid "settings.sign-in.scheme"
+msgstr "默认配色方案"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
@@ -4256,6 +4277,11 @@ msgid "settings.sign-in.gradient"
 msgstr "渐变"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.graphite"
+msgstr "石墨"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.column.group"
 msgstr "用户组"
@@ -4345,6 +4371,11 @@ msgstr "会话能持续多久，以及服务提供商必须发送什么。"
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.mode"
 msgstr "应用的注册方式"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AppearancePanel.tsx
+msgid "profile.appearance.description"
+msgstr "页面在你眼中的样子，在你登录的每台设备上都一样。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/AdminSettings.tsx
@@ -4851,6 +4882,11 @@ msgid "settings.sign-in.gradient.lagoon"
 msgstr "泻湖"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.lagoon"
+msgstr "青潟"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
@@ -4912,6 +4948,11 @@ msgid "admin.oidc-apps.field.launch"
 msgstr "启动地址"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.lavender"
+msgstr "薰衣草"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.unsplash.query.hint"
 msgstr "留空则不限主题。"
@@ -4971,6 +5012,12 @@ msgstr "允许这台设备登录？"
 #: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.preview.light"
 msgstr "浅色"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+#: src/pages/profile/AppearancePanel.tsx
+msgid "theme.mode"
+msgstr "明暗"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
@@ -5260,6 +5307,11 @@ msgstr "匹配"
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.well-sentence"
 msgstr "满足<0/>这些条件"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.matcha"
+msgstr "抹茶"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -5841,6 +5893,11 @@ msgstr "未选择"
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.scopes-none"
 msgstr "不发送"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.nord"
+msgstr "北境"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx
@@ -7495,6 +7552,11 @@ msgid "settings.sign-in.color.sage"
 msgstr "鼠尾草绿"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.sakura"
+msgstr "樱花"
+
+#. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.same_device"
 msgstr "与本设备相同"
@@ -7525,6 +7587,11 @@ msgstr "SAML 应用"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.saml-applications"
 msgstr "SAML 应用"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.sand"
+msgstr "沙岩"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx

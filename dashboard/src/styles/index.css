@@ -1,4 +1,5 @@
 @import "./coss.css";
+@import "./schemes.css";
 
 @font-face {
   font-family: "Cal Sans";
@@ -58,26 +59,21 @@
 
 /*
  * A translucent public surface: the card and the toolbar capsules. `--card-alpha`
- * is set inline. The fill is built from the colours coss.css makes
- * `--background` from, because the card redefines `--background` for the
- * controls inside it: only the opaque fill tokens become see-through, at half
- * the card's opacity.
+ * is set inline. The fill is the page's `--background` in the colour scheme and
+ * mode on show, taken once at the root, because the card redefines
+ * `--background` for the controls inside it: only the opaque fill tokens become
+ * see-through, at half the card's opacity.
  */
+:root {
+  --glass-base: var(--background);
+}
+
 @layer components {
   .surface-glass {
-    --glass-base: var(--color-white);
     background-color: color-mix(
       in srgb,
       var(--glass-base) var(--card-alpha),
       transparent
-    );
-  }
-
-  .dark .surface-glass {
-    --glass-base: color-mix(
-      in srgb,
-      var(--color-neutral-950) 96%,
-      var(--color-white)
     );
   }
 

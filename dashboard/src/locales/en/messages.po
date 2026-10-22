@@ -1079,6 +1079,11 @@ msgid "admin.user.tokens.revoke.body"
 msgstr "Anything using this token stops working immediately. This cannot be undone."
 
 #. js-lingui-explicit-id
+#: src/pages/profile/AppearancePanel.tsx
+msgid "profile.appearance.title"
+msgstr "Appearance"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlAppearanceSection.tsx
 msgid "admin.saml-apps.appearance"
 msgstr "Appearance"
@@ -1907,6 +1912,11 @@ msgid "app.groups.kind.manual"
 msgstr "Chosen by hand"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.citrus"
+msgstr "Citrus"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AliasTableField.tsx
 msgid "admin.oidc-apps.aliases"
 msgstr "Claim aliases"
@@ -2125,6 +2135,12 @@ msgstr "Color"
 #: src/pages/admin/settings/sign-in-page/ColorControl.tsx
 msgid "settings.sign-in.color"
 msgstr "Color"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+#: src/pages/profile/AppearancePanel.tsx
+msgid "theme.scheme"
+msgstr "Color scheme"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -2930,6 +2946,11 @@ msgstr "Default"
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
 msgid "admin.saml-apps.acs.default-endpoint"
 msgstr "Default"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
+msgid "settings.sign-in.scheme"
+msgstr "Default color scheme"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
@@ -4256,6 +4277,11 @@ msgid "settings.sign-in.gradient"
 msgstr "Gradient"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.graphite"
+msgstr "Graphite"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroups.tsx
 msgid "admin.groups.column.group"
 msgstr "Group"
@@ -4345,6 +4371,11 @@ msgstr "How long a session lasts, and what the service provider has to send."
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.mode"
 msgstr "How the application is registered"
+
+#. js-lingui-explicit-id
+#: src/pages/profile/AppearancePanel.tsx
+msgid "profile.appearance.description"
+msgstr "How the pages look to you, on every device you sign in on."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/AdminSettings.tsx
@@ -4851,6 +4882,11 @@ msgid "settings.sign-in.gradient.lagoon"
 msgstr "Lagoon"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.lagoon"
+msgstr "Lagoon"
+
+#. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
 #: src/components/custom/LanguageMenu.tsx
 msgid "language.label"
@@ -4912,6 +4948,11 @@ msgid "admin.oidc-apps.field.launch"
 msgstr "Launch URL"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.lavender"
+msgstr "Lavender"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.unsplash.query.hint"
 msgstr "Leave it empty for any photo."
@@ -4971,6 +5012,12 @@ msgstr "Let this device sign in?"
 #: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.preview.light"
 msgstr "Light"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+#: src/pages/profile/AppearancePanel.tsx
+msgid "theme.mode"
+msgstr "Light or dark"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
@@ -5260,6 +5307,11 @@ msgstr "Match"
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.well-sentence"
 msgstr "Match <0/> of these"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.matcha"
+msgstr "Matcha"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -5841,6 +5893,11 @@ msgstr "None selected"
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.scopes-none"
 msgstr "None sent"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.nord"
+msgstr "Nord"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx
@@ -7495,6 +7552,11 @@ msgid "settings.sign-in.color.sage"
 msgstr "Sage"
 
 #. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.sakura"
+msgstr "Sakura"
+
+#. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.field.same_device"
 msgstr "Same as this device"
@@ -7525,6 +7587,11 @@ msgstr "SAML applications"
 #: src/components/custom/ConsoleLayout.tsx
 msgid "console.admin.saml-applications"
 msgstr "SAML applications"
+
+#. js-lingui-explicit-id
+#: src/components/custom/ThemeSelect.tsx
+msgid "theme.scheme.sand"
+msgstr "Sand"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx

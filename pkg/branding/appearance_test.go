@@ -106,6 +106,12 @@ func TestDecodeAppearance(t *testing.T) {
 		{"empty theme", set("", "theme"), false},
 		{"null theme", set(nil, "theme"), false},
 		{"missing theme", drop("theme"), false},
+		{"another scheme", set("sakura", "scheme"), true},
+		{"unknown scheme", set("solarized", "scheme"), false},
+		{"capitalised scheme", set("Nord", "scheme"), false},
+		{"empty scheme", set("", "scheme"), false},
+		{"null scheme", set(nil, "scheme"), false},
+		{"missing scheme", drop("scheme"), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

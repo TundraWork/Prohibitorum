@@ -22,6 +22,7 @@ import (
 	webauthnauth "prohibitorum/pkg/credential/webauthn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
+	"prohibitorum/pkg/preferences"
 )
 
 // ----- GET /me ------------------------------------------------------------
@@ -49,6 +50,7 @@ func (s *Server) handleGetMe(ctx context.Context, _ *struct{}) (*meOut, error) {
 // falls back to s.queries.
 type updateMeQueries interface {
 	UpdateAccountDisplayName(ctx context.Context, arg db.UpdateAccountDisplayNameParams) error
+	UpdateAccountPreferences(ctx context.Context, arg db.UpdateAccountPreferencesParams) ([]byte, error)
 }
 
 type updateMeIn struct {
@@ -94,6 +96,52 @@ func (s *Server) updateMeQueries() updateMeQueries {
 		return s.updateMeOverride
 	}
 	return s.queries
+}
+
+// ----- GET /me/preferences ------------------------------------------------
+
+type preferencesOut struct {
+	Body contract.Preferences
+}
+
+func (s *Server) handleGetMyPreferences(ctx context.Context, _ *struct{}) (*preferencesOut, error) {
+	sess := authn.SessionFromContext(ctx)
+	if sess == nil {
+		return nil, authErrToHuma(authn.ErrNoSession())
+	}
+	return &preferencesOut{Body: preferences.Decode(sess.Account.Preferences)}, nil
+}
+
+// ----- PATCH /me/preferences ----------------------------------------------
+
+type updateMyPreferencesIn struct {
+	Body contract.PreferencesPatch
+}
+
+// handleUpdateMyPreferences replaces the sections the body carries and keeps
+// the rest, so a client that predates a section never erases it. No sudo:
+// preferences change how pages look, nothing about the account's security.
+func (s *Server) handleUpdateMyPreferences(ctx context.Context, in *updateMyPreferencesIn) (*preferencesOut, error) {
+	sess := authn.SessionFromContext(ctx)
+	if sess == nil {
+		return nil, authErrToHuma(authn.ErrNoSession())
+	}
+	if err := in.Body.Validate(); err != nil {
+		return nil, authErrToHuma(authn.ErrBadRequest())
+	}
+	sections, err := in.Body.Sections()
+	if err != nil {
+		return nil, fmt.Errorf("handleUpdateMyPreferences: %w", err)
+	}
+	stored, err := s.updateMeQueries().UpdateAccountPreferences(ctx, db.UpdateAccountPreferencesParams{
+		ID:       sess.Account.ID,
+		Sections: sections,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("handleUpdateMyPreferences: %w", err)
+	}
+	sess.Account.Preferences = stored
+	return &preferencesOut{Body: preferences.Decode(stored)}, nil
 }
 
 // ----- GET /me/factors ----------------------------------------------------

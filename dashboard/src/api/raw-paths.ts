@@ -5,6 +5,7 @@ import type {
   RegistrationResponseJSON,
 } from "@simplewebauthn/browser";
 import type { components } from "@/api/generated/schema";
+import type { ColorSchemeSlug } from "@/lib/color-scheme";
 
 export interface PublicConfig {
   instanceName: string;
@@ -85,6 +86,11 @@ export interface LoginAppearance {
   cardPosition: LoginCardPosition;
   /** Applies to the public pages only, never to the console. */
   theme: LoginTheme;
+  /**
+   * The colour scheme every page uses until the visitor or the signed-in user
+   * picks another.
+   */
+  scheme: ColorSchemeSlug;
 }
 
 export interface LoginImage {

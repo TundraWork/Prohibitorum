@@ -5,24 +5,47 @@ import type {
   LoginSurface,
   LoginTheme,
 } from "@/api/raw-paths";
+import {
+  SchemeSwatch,
+  useColorSchemeNames,
+} from "@/components/custom/ThemeSelect";
 import { Field, FieldLabel } from "@/components/ui/field";
+import {
+  Select,
+  SelectItem,
+  SelectPopup,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import {
+  type ColorSchemeSlug,
+  colorSchemes,
+  isColorSchemeSlug,
+} from "@/lib/color-scheme";
 import { ChoiceStrip } from "@/pages/admin/settings/sign-in-page/ChoiceStrip";
 
-/** Where the card sits on a wide window and which theme the public pages wear. */
+/**
+ * Where the card sits on a wide window, which theme the public pages wear, and
+ * the colour scheme every page uses until a visitor or a user picks another.
+ */
 export function PlacementControls({
   position,
   theme,
+  scheme,
   disabled,
   onPosition,
   onTheme,
+  onScheme,
 }: {
   position: LoginCardPosition;
   theme: LoginTheme;
+  scheme: ColorSchemeSlug;
   disabled: boolean;
   onPosition: (position: LoginCardPosition) => void;
   onTheme: (theme: LoginTheme) => void;
+  onScheme: (scheme: ColorSchemeSlug) => void;
 }) {
   const { t } = useLingui();
   return (
@@ -85,7 +108,51 @@ export function PlacementControls({
           },
         ]}
       />
+      <SchemeSelect value={scheme} disabled={disabled} onChange={onScheme} />
     </>
+  );
+}
+
+function SchemeSelect({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: ColorSchemeSlug;
+  disabled: boolean;
+  onChange: (scheme: ColorSchemeSlug) => void;
+}) {
+  const names = useColorSchemeNames();
+  const item = (slug: ColorSchemeSlug) => (
+    <span className="flex items-center gap-2">
+      <SchemeSwatch scheme={slug} />
+      {names[slug]}
+    </span>
+  );
+  return (
+    <Field disabled={disabled}>
+      <FieldLabel>
+        <Trans id="settings.sign-in.scheme">Default color scheme</Trans>
+      </FieldLabel>
+      <Select
+        value={value}
+        disabled={disabled}
+        onValueChange={(next) => {
+          if (isColorSchemeSlug(next)) onChange(next);
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue>{(slug: ColorSchemeSlug) => item(slug)}</SelectValue>
+        </SelectTrigger>
+        <SelectPopup alignItemWithTrigger={false}>
+          {colorSchemes.map(({ slug }) => (
+            <SelectItem key={slug} value={slug}>
+              {item(slug)}
+            </SelectItem>
+          ))}
+        </SelectPopup>
+      </Select>
+    </Field>
   );
 }
 
