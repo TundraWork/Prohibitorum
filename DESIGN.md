@@ -512,7 +512,7 @@ The toolbar has no fill: two 36px capsules with 14px corners carry the
 instance identity, the language menu and, unless the settings force a theme,
 the theme menu. The stage is a 28px-corner frame with a 6px inset around a
 22px-corner card, 440px wide (480px for wide steps), centred from `sm`, and
-placed left, centre or right from `lg`. The toolbar and the stage share one region, the window capped at 1920px and centred, and on the left or the right the card is centred in that half of the region, so it keeps clear of the edge and a very wide screen keeps it near the middle; the card itself never grows. The frame has a strip above the card
+placed left, centre or right from `lg`. The toolbar capsules, a side-placed stage and the wallpaper credit keep one edge from the window, `clamp(1.25rem, 3vw, 4rem)`, so a card set to the left or the right lines up with the capsules without reading as pressed against the edge. From 2200px a side-placed stage moves onto a panel of the page's own opaque background that takes two fifths of the window on its side, centred in it, and the picture keeps the other three fifths. The frame has a strip above the card
 (who is asking) and a footer under it (a choice or the decision). Over a
 background it is frosted; over the plain canvas it uses the Frame band. The
 card is opaque `card` by default, or translucent at a chosen opacity with

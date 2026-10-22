@@ -105,14 +105,11 @@
   --app-sticky-offset: 0px;
   --app-gutter-top: 0px;
   --app-gutter-bottom: 0px;
-  /* The public pages' region: the window, capped and centred, which the
-     toolbar, the stage and the wallpaper credit line up in. The inset is the
-     region's edge plus the toolbar's own 1.25rem, measured from the window. */
-  --public-region: 1920px;
-  --public-inset: max(
-    1.25rem,
-    calc((100vw - var(--public-region)) / 2 + 1.25rem)
-  );
+  /* The public pages' edge: how far the toolbar capsules, a sign-in card
+     set to the left or the right, and the wallpaper credit stay from the
+     window. It grows with the window, so on a mid-sized or larger screen a
+     side-placed card never reads as pressed against the edge. */
+  --public-edge: clamp(1.25rem, 3vw, 4rem);
 }
 
 body {

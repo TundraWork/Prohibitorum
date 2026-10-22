@@ -313,11 +313,12 @@ it("centres the stage and offers the theme control by default", async () => {
   const banner = await mount();
   const main = screen.getByRole("main");
   expect(main).toHaveAttribute("data-position", "center");
-  // The toolbar and the stage share one capped, centred region, so a very
-  // wide screen keeps the card under the capsules.
-  const region = main.closest('[data-slot="public-region"]');
-  expect(region).toHaveClass("mx-auto", "max-w-(--public-region)");
-  expect(region).toContainElement(banner);
+  // The toolbar, the stage and the credit share one edge that grows with the
+  // window.
+  expect(banner).toHaveClass("px-(--public-edge)");
+  expect(main).toHaveClass("px-(--public-edge)");
+  // A centred card never splits the window.
+  expect(document.querySelector('[data-slot="public-split-panel"]')).toBeNull();
   expect(within(banner).getByRole("button", { name: "Theme" })).toBeVisible();
 });
 
@@ -328,18 +329,25 @@ it("puts the stage on the left from lg and the credit at the bottom right", asyn
     appearance.cardPosition = "left";
   });
   await mount();
-  expect(screen.getByRole("main")).toHaveAttribute("data-position", "left");
-  // Centred in the left half of the region, clear of the edge.
-  expect(screen.getByRole("main")).toHaveClass(
-    "lg:grid-cols-2",
-    "lg:*:col-start-1",
+  const main = screen.getByRole("main");
+  expect(main).toHaveAttribute("data-position", "left");
+  // At the edge the capsules keep, and on a very wide window centred on the
+  // opaque panel that takes the left two fifths.
+  expect(main).toHaveClass(
+    "lg:justify-start",
+    "min-[2200px]:grid-cols-[2fr_3fr]",
+    "min-[2200px]:*:col-start-1",
   );
+  expect(
+    document.querySelector('[data-slot="public-split-panel"]'),
+  ).toHaveClass("left-0", "w-2/5", "bg-background", "min-[2200px]:block");
   const credit = await wideCredit();
   expect(credit).toHaveClass(
-    "right-(--public-inset)",
-    "max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
+    "right-(--public-edge)",
+    "bottom-(--public-edge)",
+    "min-[2200px]:max-w-[calc(60vw-2*var(--public-edge))]",
   );
-  expect(credit).not.toHaveClass("left-(--public-inset)");
+  expect(credit).not.toHaveClass("left-(--public-edge)");
 });
 
 it("puts the stage on the right from lg and the credit at the bottom left", async () => {
@@ -349,17 +357,19 @@ it("puts the stage on the right from lg and the credit at the bottom left", asyn
     appearance.cardPosition = "right";
   });
   await mount();
-  expect(screen.getByRole("main")).toHaveAttribute("data-position", "right");
-  expect(screen.getByRole("main")).toHaveClass(
-    "lg:grid-cols-2",
-    "lg:*:col-start-2",
+  const main = screen.getByRole("main");
+  expect(main).toHaveAttribute("data-position", "right");
+  expect(main).toHaveClass(
+    "lg:justify-end",
+    "min-[2200px]:grid-cols-[3fr_2fr]",
+    "min-[2200px]:*:col-start-2",
   );
+  expect(
+    document.querySelector('[data-slot="public-split-panel"]'),
+  ).toHaveClass("right-0");
   const credit = await wideCredit();
-  expect(credit).toHaveClass(
-    "left-(--public-inset)",
-    "max-w-[calc(min(50vw,var(--public-region)/2)-2.75rem)]",
-  );
-  expect(credit).not.toHaveClass("right-(--public-inset)");
+  expect(credit).toHaveClass("left-(--public-edge)", "bottom-(--public-edge)");
+  expect(credit).not.toHaveClass("right-(--public-edge)");
 });
 
 it("frames the stage plain over the page's own background and frosted over a picture", async () => {
