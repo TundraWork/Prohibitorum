@@ -9529,7 +9529,7 @@ msgstr "控制台、登录页和浏览器标签页中显示的实例名称与图
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.profile.description"
-msgstr "账号的名称、邮箱和角色，以及应用可以读取的属性。"
+msgstr "账号的名称和角色，以及应用可以读取的属性。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -9584,7 +9584,7 @@ msgstr "图片暂时无法获取。"
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
 msgid "profile.page.description"
-msgstr "你在各处登录时显示的头像和名称。"
+msgstr "你登录时显示的头像、名称和邮箱。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -11093,37 +11093,37 @@ msgstr "已验证 {address}。应用会看到这个地址。"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.verified_by_named"
-msgstr "{when} 由 {operator} 确认"
+msgstr "验证于 {when}，由 {operator} 确认"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.verified_by_provider"
-msgstr "{when} 由 {provider} 确认"
+msgstr "验证于 {when}，由 {provider} 确认"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.verified_by_provider"
-msgstr "{when} 由 {provider} 确认"
+msgstr "验证于 {when}，由 {provider} 确认"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.verified_by_admin"
-msgstr "{when} 由管理员确认"
+msgstr "验证于 {when}，由管理员确认"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.verified_by_admin"
-msgstr "{when} 由管理员确认"
+msgstr "验证于 {when}，由管理员确认"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.verified_by_code"
-msgstr "{when} 通过验证码"
+msgstr "验证于 {when}，通过验证码"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.verified_by_code"
-msgstr "{when} 通过验证码"
+msgstr "验证于 {when}，通过验证码"
 
 #. js-lingui-explicit-id
 #. placeholder {0}: verified.displayName

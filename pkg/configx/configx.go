@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/spf13/viper"
 	netmail "net/mail"
 	"net/url"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/viper"
 
 	"prohibitorum/pkg/logx"
 )

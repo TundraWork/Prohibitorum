@@ -9584,7 +9584,7 @@ msgstr "The picture is not available right now."
 #. js-lingui-explicit-id
 #: src/pages/Profile.tsx
 msgid "profile.page.description"
-msgstr "The picture and name shown wherever you sign in."
+msgstr "The picture, name and email address shown wherever you sign in."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
