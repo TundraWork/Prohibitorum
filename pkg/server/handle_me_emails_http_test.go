@@ -110,7 +110,7 @@ func TestMeEmailsHTTPResponsesCarryABody(t *testing.T) {
 		{
 			ID: 2, AccountID: 5, Address: "spare@example.test",
 			VerifiedAt: pgtype.Timestamptz{Valid: true}, VerifiedVia: pgtype.Text{String: "code", Valid: true},
-			CreatedAt:  pgtype.Timestamptz{Valid: true},
+			CreatedAt: pgtype.Timestamptz{Valid: true},
 		},
 	}}
 	s.meEmailsOverride = q

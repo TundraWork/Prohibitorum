@@ -831,6 +831,7 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationGetMailSettings, s.handleGetMailSettings, admin)
 	registerOp(mgmt, contract.OperationSendTestMail, s.handleSendTestMail, admin)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/icon", admin, s.handlePutInstanceIconHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/icon", admin, s.handleDeleteInstanceIconHTTP)
 	// Admin: sign-in page appearance, Unsplash key, preview wallpaper, background images
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/admin/settings/login-appearance", admin, s.handleGetLoginAppearanceHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/login-appearance", admin, s.handlePutLoginAppearanceHTTP)

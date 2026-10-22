@@ -194,6 +194,27 @@ func TestTrimmedAdminRoutesAreAdminOnlyNotSudo(t *testing.T) {
 			}
 		})
 	}
+
+	// Catch a table entry that no longer matches a registered pattern: a
+	// dropped registration would 404 and slip past the sudo assertion above
+	// (this is how DELETE /admin/settings/icon went missing once).
+	registered := map[string][]string{}
+	_ = chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		registered[method] = append(registered[method], route)
+		return nil
+	})
+	for _, sr := range droppedSudoRoutes {
+		found := false
+		for _, pattern := range registered[sr.method] {
+			if routeMatches(pattern, sr.path) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("%s %s matches no registered route (registration dropped?)", sr.method, sr.path)
+		}
+	}
 }
 
 // TestAdminMutationRoutesRequireSudo builds the REAL router via registerOperations()
