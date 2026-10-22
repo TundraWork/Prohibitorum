@@ -299,3 +299,26 @@ func TestUnsplashServesStaleOnError(t *testing.T) {
 		t.Fatalf("got %+v, err %v; want the stale batch", got, err)
 	}
 }
+
+// A photo's credit is named by the photographer's description, else by
+// Unsplash's alt text, and by nothing when it has neither.
+func TestUnsplashTitleFromDescription(t *testing.T) {
+	photo := func(i int, description, alt string) string {
+		return fmt.Sprintf(`{"urls":{"raw":"https://images.unsplash.com/photo-%d"},"links":{"html":"https://unsplash.com/photos/p%d"},"description":%q,"alt_description":%q,"user":{"name":"P","links":{"html":"https://unsplash.com/@p"}}}`, i, i, description, alt)
+	}
+	body := "[" + strings.Join([]string{
+		photo(0, " Morning fog over the lake ", "a lake"),
+		photo(1, "", "snow on a mountain ridge"),
+		photo(2, "", ""),
+	}, ",") + "]"
+	up := newUpstream(t, respond(http.StatusOK, body))
+	s := newService(&clock{t: time.Unix(1_700_000_000, 0)}, nil, up)
+	got, err := s.Unsplash(context.Background(), "key-1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := []string{got[0].Title, got[1].Title, got[2].Title}
+	if want := []string{"Morning fog over the lake", "snow on a mountain ridge", ""}; !slices.Equal(titles, want) {
+		t.Fatalf("titles = %q, want %q", titles, want)
+	}
+}

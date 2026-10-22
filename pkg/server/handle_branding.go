@@ -172,6 +172,7 @@ func (s *Server) unsplashWallpaper(ctx context.Context, query string) (contract.
 	for i, pic := range batch {
 		out.Pictures[i] = contract.WallpaperPicture{
 			ImageURL:        pic.ImageURL,
+			Title:           pic.Title,
 			Photographer:    pic.Photographer,
 			PhotographerURL: pic.PhotographerURL,
 			PhotoURL:        pic.PhotoURL,

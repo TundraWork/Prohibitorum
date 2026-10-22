@@ -146,7 +146,7 @@ func newLoginAppearanceHarness(t *testing.T) *loginAppearanceHarness {
 				Copyright: "Copyright", CopyrightURL: "https://www.bing.com/search?q=x",
 			},
 			unsplash: []wallpaper.Picture{{
-				ImageURL: "https://images.unsplash.com/photo-1?w=2560", Photographer: "Jane",
+				ImageURL: "https://images.unsplash.com/photo-1?w=2560", Title: "Morning fog", Photographer: "Jane",
 				PhotographerURL: "https://unsplash.com/@jane?utm_source=prohibitorum&utm_medium=referral",
 				PhotoURL:        "https://unsplash.com/photos/1?utm_source=prohibitorum&utm_medium=referral",
 			}, {
@@ -213,7 +213,7 @@ func (h *loginAppearanceHarness) wantUnsplashBatch(t *testing.T, got contract.Wa
 	}
 	for i, pic := range h.wp.unsplash {
 		want := contract.WallpaperPicture{
-			ImageURL: pic.ImageURL, Photographer: pic.Photographer,
+			ImageURL: pic.ImageURL, Title: pic.Title, Photographer: pic.Photographer,
 			PhotographerURL: pic.PhotographerURL, PhotoURL: pic.PhotoURL,
 		}
 		if got.Pictures[i] != want {

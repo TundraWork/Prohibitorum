@@ -129,7 +129,7 @@ function bingWallpaper() {
   );
 }
 
-function unsplashWallpaper() {
+function unsplashWallpaper(extra: Record<string, string> = {}) {
   vi.stubGlobal(
     "fetch",
     vi.fn(
@@ -143,6 +143,7 @@ function unsplashWallpaper() {
                 photographer: "Ada",
                 photographerUrl: "https://unsplash.com/@ada",
                 photoUrl: "https://unsplash.com/photos/p1",
+                ...extra,
               },
             ],
           }),
@@ -391,11 +392,10 @@ it("shows no wallpaper credit for a source without a picture", async () => {
   });
   await mount();
   expect(screen.queryByText("A quiet ridge")).toBeNull();
-  expect(screen.queryByText(/Photo by/)).toBeNull();
-  expect(screen.queryByRole("link", { name: "Unsplash" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Ada" })).toBeNull();
 });
 
-it("credits the Unsplash photographer and photo", async () => {
+it("credits the Unsplash photographer, without naming the platform in words", async () => {
   unsplashWallpaper();
   withAppearance((appearance) => {
     appearance.background.source = "unsplash";
@@ -403,11 +403,23 @@ it("credits the Unsplash photographer and photo", async () => {
   await mount();
   const photographer = (await screen.findAllByRole("link", { name: "Ada" }))[0];
   expect(photographer).toHaveAttribute("href", "https://unsplash.com/@ada");
-  expect(screen.getAllByRole("link", { name: "Unsplash" })[0]).toHaveAttribute(
+  expect(screen.queryByText(/Photo by|Unsplash/)).toBeNull();
+});
+
+it("names the Unsplash photo by its description, linked to the photo", async () => {
+  unsplashWallpaper({ title: "Morning fog over the lake" });
+  withAppearance((appearance) => {
+    appearance.background.source = "unsplash";
+  });
+  await mount();
+  const photo = (
+    await screen.findAllByRole("link", { name: "Morning fog over the lake" })
+  )[0];
+  expect(photo).toHaveAttribute("href", "https://unsplash.com/photos/p1");
+  expect(screen.getAllByRole("link", { name: "Ada" })[0]).toHaveAttribute(
     "href",
-    "https://unsplash.com/photos/p1",
+    "https://unsplash.com/@ada",
   );
-  expect(screen.getAllByText(/Photo by/).length).toBeGreaterThan(0);
 });
 
 it("shows Bing's title when the caption is on", async () => {
