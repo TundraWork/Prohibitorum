@@ -278,4 +278,61 @@ describe("EmailsPanel", () => {
     expect(within(menu).getByText("Make primary")).toBeVisible();
     expect(within(menu).getByText("Remove")).toBeVisible();
   });
+
+  it("refetches the list after a delete, so the row leaves without a reload", async () => {
+    const user = userEvent.setup();
+    let deleted = false;
+    mount(
+      [emailFixture(), emailFixture({ id: 2, address: "second@example.test", primary: false })],
+      true,
+      (request) => {
+        const path = new URL(request.url).pathname;
+        if (request.method === "GET" && path === emailsPath) {
+          // The read after the delete no longer lists the removed address.
+          const rows = deleted
+            ? [emailFixture()]
+            : [
+                emailFixture(),
+                emailFixture({
+                  id: 2,
+                  address: "second@example.test",
+                  primary: false,
+                }),
+              ];
+          return Response.json({
+            emails: rows,
+            deliveryAvailable: true,
+            limit: 10,
+          });
+        }
+        if (request.method === "DELETE" && path === `${emailsPath}/2`) {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        }
+        return undefined;
+      },
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for second@example.test",
+      }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Remove",
+      }),
+    );
+
+    expect(await screen.findByText("second@example.test")).toBeVisible();
+    // The list reads again once the delete answers, and the fresh answer —
+    // which no longer carries the row — is what is on screen.
+    await waitFor(() =>
+      expect(
+        screen.queryByText("second@example.test"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(deleted).toBe(true);
+  });
 });
