@@ -3883,6 +3883,11 @@ msgid "admin.forward-auth-apps.host.required"
 msgstr "请填写主机名。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
+msgid "settings.sign-in.openverse.query.required"
+msgstr "填写关键词。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.name.required"
 msgstr "请输入名称。"
@@ -5098,6 +5103,11 @@ msgstr "关键词"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.pixabay.query"
+msgstr "关键词"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.openverse.query"
 msgstr "关键词"
 
 #. js-lingui-explicit-id
@@ -6817,6 +6827,11 @@ msgstr "显示的头像"
 #: src/api/success-messages.ts
 msgid "success.avatar.uploaded"
 msgstr "头像已上传。选中它即可显示。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.openverse.note.sources"
+msgstr "图片来自 Openverse 收录的 Flickr 和 Wikimedia Commons 作品，只用 CC BY、CC BY-SA、CC0 和公有领域的图，登录页会显示作者和许可证。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8864,6 +8879,11 @@ msgid "admin.group.matches.sample"
 msgstr "部分匹配的账号"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.openverse.note.width"
+msgstr "部分图片只有 1024 像素宽，在大屏上可能偏模糊。"
+
+#. js-lingui-explicit-id
 #: src/pages/public/VrchatProof.tsx
 msgid "vrchat_proof.passing_by"
 msgstr "有人把该链接放进了自己的 VRChat 简介，用来向 {instance} 证明该资料属于自己。如果你只是路过，什么都不用做：该页面不会登录任何人，也不会授予任何权限。"
@@ -10428,6 +10448,16 @@ msgstr "该登录请求已经用过。请回到应用重新登录。"
 #: src/api/errors.ts
 msgid "error.vrchat_operator_challenge_invalid"
 msgstr "本次登录耗时过长。请重新输入密码开始。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.openverse.note.statement"
+msgstr "本站使用了 Openverse，但未经 Openverse 认可或认证。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/login-appearance/WallpaperCredit.tsx
+msgid "settings.sign-in.openverse.statement"
+msgstr "本站使用了 Openverse，但未经 Openverse 认可或认证。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

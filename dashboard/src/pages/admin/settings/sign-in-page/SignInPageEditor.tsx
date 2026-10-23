@@ -161,6 +161,12 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
         ) {
           hidden.push("Pixabay");
         }
+        if (
+          value.appearance.background.source !== "openverse" &&
+          queryError(value.appearance.background.openverse.query) !== undefined
+        ) {
+          hidden.push("Openverse");
+        }
         return hidden.length > 0
           ? i18n._({
               ...hiddenKeywordInvalid,

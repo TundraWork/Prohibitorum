@@ -218,7 +218,7 @@ describe("the page", () => {
 });
 
 describe("the background source", () => {
-  it("offers the seven sources", async () => {
+  it("offers the eight sources", async () => {
     await open();
     const sources = screen.getByRole("radiogroup", {
       name: "Background source",
@@ -234,6 +234,7 @@ describe("the background source", () => {
       "Bing",
       "Unsplash",
       "Pixabay",
+      "Openverse",
       "Images",
     ]);
     expect(
@@ -665,6 +666,73 @@ describe("the Pixabay source", () => {
         "Pixabay pictures are at most 1280 pixels wide, so they can look soft on large screens.",
       ),
     ).toBeVisible();
+  });
+});
+
+describe("the Openverse source", () => {
+  const openverse = withAppearance((a) => {
+    a.background.source = "openverse";
+    a.background.openverse.query = "lake";
+  });
+
+  it("requires a keyword before saving, and saves one that is typed", async () => {
+    const user = userEvent.setup();
+    const api = await open();
+    await chooseSource(user, "Openverse");
+
+    await user.click(saveButton());
+    expect(await screen.findByText("Enter a keyword.")).toBeVisible();
+    expect(savedBody(api)).toBeUndefined();
+
+    await user.type(screen.getByLabelText("Keyword"), "landscape");
+    await user.click(saveButton());
+    await waitFor(() => expect(savedBody(api)).toBeDefined());
+    expect(savedBody(api)?.appearance.background.openverse).toEqual({
+      query: "landscape",
+      order: "random",
+      intervalSeconds: 10,
+    });
+    // No key is involved.
+    expect(savedBody(api)).not.toHaveProperty("unsplashAccessKey");
+    expect(savedBody(api)).not.toHaveProperty("pixabayApiKey");
+  });
+
+  it("shows the three notes: sources and licences, the statement, the width", async () => {
+    await open({ appearance: openverse });
+    expect(
+      screen.getByText(
+        "Pictures come from Flickr and Wikimedia Commons works found through Openverse, limited to CC BY, CC BY-SA, CC0 and public domain. The sign-in page shows each picture's author and licence.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "This site uses Openverse but is not endorsed or certified by Openverse.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Some pictures are only 1024 pixels wide and may look soft on large screens.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("says the hidden keyword cannot be used while another source is chosen", async () => {
+    const user = userEvent.setup();
+    const api = await open({
+      appearance: withAppearance((a) => {
+        a.background.openverse.query = " bad ";
+      }),
+    });
+    await user.click(
+      within(frame("Card")).getByRole("radio", { name: "Left" }),
+    );
+    await user.click(saveButton());
+    expect(
+      await screen.findByText(
+        "The Openverse keyword can't be used. Choose Openverse to correct it.",
+      ),
+    ).toBeVisible();
+    expect(savedBody(api)).toBeUndefined();
   });
 });
 

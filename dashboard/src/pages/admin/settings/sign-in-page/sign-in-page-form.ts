@@ -27,6 +27,7 @@ export const backgroundSources: LoginBackgroundSource[] = [
   "bing",
   "unsplash",
   "pixabay",
+  "openverse",
   "images",
 ];
 
@@ -94,6 +95,10 @@ export const signInPageMessages = {
     id: "settings.sign-in.unsplash.query.control",
     message: "Remove the tab or line break.",
   }),
+  queryRequired: msg({
+    id: "settings.sign-in.openverse.query.required",
+    message: "Enter a keyword.",
+  }),
   keyRequired: msg({
     id: "settings.sign-in.key.required",
     message: "Enter the {service} key before saving.",
@@ -119,6 +124,21 @@ export function queryError(value: string): MessageDescriptor | undefined {
   if (controlCharacter.test(value)) return signInPageMessages.queryControl;
   if (value !== value.trim()) return signInPageMessages.querySpaces;
   return undefined;
+}
+
+/**
+ * Openverse's keyword: the ordinary rules, plus one of its own — it is
+ * required once Openverse is the chosen source, because Openverse has no
+ * "any picture" mode worth showing.
+ */
+export function openverseQueryError(
+  value: string,
+  source: LoginBackgroundSource,
+): MessageDescriptor | undefined {
+  if (value === "" && source === "openverse") {
+    return signInPageMessages.queryRequired;
+  }
+  return queryError(value);
 }
 
 export function intervalError(value: number): MessageDescriptor | undefined {

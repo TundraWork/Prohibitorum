@@ -246,11 +246,12 @@ type LoginImage struct {
 }
 
 // Wallpaper is GET /branding/wallpaper: the pictures behind the sign-in page,
-// with their credits. Bing sends today's picture alone; Unsplash and Pixabay
-// send the whole cached batch in its order, and the browser shows one at
-// random or rotates through them. Bing's and Unsplash's imageUrl points
-// straight at their own picture hosts; Pixabay's terms forbid hotlinking, so
-// its imageUrl is this site's /branding/wallpaper/images/pixabay/{id}.
+// with their credits. Bing sends today's picture alone; Unsplash, Pixabay and
+// Openverse send the whole cached batch in its order, and the browser shows
+// one at random or rotates through them. Bing's and Unsplash's imageUrl
+// points straight at their own picture hosts; Pixabay's terms forbid
+// hotlinking and Openverse's pictures live on other sites' servers, so both
+// are served by this site's /branding/wallpaper/images/{source}/{id}.
 type Wallpaper struct {
 	Source   string             `json:"source"`
 	Pictures []WallpaperPicture `json:"pictures"`
@@ -260,7 +261,9 @@ type Wallpaper struct {
 // and copyrightUrl (omitted when the caption is hidden); Unsplash fills title
 // from the photo's description when it has one, and the photographer and
 // photo links, which are always shown; Pixabay fills only the photographer
-// and the photo page link.
+// and the photo page link; Openverse fills the title, author, work page and
+// licence fields (a CC licence asks for the licence to be named and linked,
+// and the work it applies to).
 type WallpaperPicture struct {
 	ImageURL        string `json:"imageUrl"`
 	Title           string `json:"title,omitempty"`
@@ -269,6 +272,8 @@ type WallpaperPicture struct {
 	Photographer    string `json:"photographer,omitempty"`
 	PhotographerURL string `json:"photographerUrl,omitempty"`
 	PhotoURL        string `json:"photoUrl,omitempty"`
+	License         string `json:"license,omitempty"`
+	LicenseURL      string `json:"licenseUrl,omitempty"`
 }
 
 // AdminLoginAppearance is GET /admin/settings/login-appearance. Neither key

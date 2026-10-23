@@ -3883,6 +3883,11 @@ msgid "admin.forward-auth-apps.host.required"
 msgstr "Enter a hostname."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
+msgid "settings.sign-in.openverse.query.required"
+msgstr "Enter a keyword."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/saml-validation.ts
 msgid "admin.saml-apps.name.required"
 msgstr "Enter a name."
@@ -5098,6 +5103,11 @@ msgstr "Keyword"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.pixabay.query"
+msgstr "Keyword"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.openverse.query"
 msgstr "Keyword"
 
 #. js-lingui-explicit-id
@@ -6817,6 +6827,11 @@ msgstr "Picture to show"
 #: src/api/success-messages.ts
 msgid "success.avatar.uploaded"
 msgstr "Picture uploaded. Select it to show it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.openverse.note.sources"
+msgstr "Pictures come from Flickr and Wikimedia Commons works found through Openverse, limited to CC BY, CC BY-SA, CC0 and public domain. The sign-in page shows each picture's author and licence."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -8864,6 +8879,11 @@ msgid "admin.group.matches.sample"
 msgstr "Some of the matching accounts"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.openverse.note.width"
+msgstr "Some pictures are only 1024 pixels wide and may look soft on large screens."
+
+#. js-lingui-explicit-id
 #: src/pages/public/VrchatProof.tsx
 msgid "vrchat_proof.passing_by"
 msgstr "Someone put this link in their VRChat bio to prove to {instance} that the profile is theirs. If you're just passing by, there's nothing to do: this page doesn't sign anyone in or grant any access."
@@ -10428,6 +10448,16 @@ msgstr "This sign-in request was already used. Go back to the app and sign in ag
 #: src/api/errors.ts
 msgid "error.vrchat_operator_challenge_invalid"
 msgstr "This sign-in took too long. Start again with your password."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.openverse.note.statement"
+msgstr "This site uses Openverse but is not endorsed or certified by Openverse."
+
+#. js-lingui-explicit-id
+#: src/components/custom/login-appearance/WallpaperCredit.tsx
+msgid "settings.sign-in.openverse.statement"
+msgstr "This site uses Openverse but is not endorsed or certified by Openverse."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts

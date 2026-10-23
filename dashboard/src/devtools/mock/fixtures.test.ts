@@ -1595,6 +1595,61 @@ describe("mocked logs, settings and signing keys", () => {
     ).toMatchObject({ kind: "empty", status: 204 });
   });
 
+  it("answers an Openverse batch with licences and a required keyword", () => {
+    const withSource = config((draft) => {
+      draft.instance.loginAppearance.background.source = "openverse";
+      draft.instance.loginAppearance.background.openverse.query = "lake";
+    });
+    const wallpaper = bodyOf(
+      read("/branding/wallpaper", withSource),
+    ) as Wallpaper;
+    expect(wallpaper.source).toBe("openverse");
+    expect(wallpaper.pictures).toHaveLength(3);
+    // One picture without a title, one whose author has no page: the credit's
+    // optional segments stay mockable.
+    expect(wallpaper.pictures[0]?.title).toBeUndefined();
+    expect(wallpaper.pictures[1]?.photographerUrl).toBeUndefined();
+    for (const [i, picture] of wallpaper.pictures.entries()) {
+      expect(picture.imageUrl).toBe(
+        `/branding/wallpaper/images/openverse/${100 + i}`,
+      );
+      expect(picture.license).toBeTruthy();
+      expect(picture.licenseUrl).toMatch(/^https:\/\/creativecommons\.org\//);
+    }
+    const preview = bodyOf(
+      read(
+        "/api/prohibitorum/admin/settings/login-appearance/wallpaper",
+        withSource,
+        "http://localhost/api/prohibitorum/admin/settings/login-appearance/wallpaper?source=openverse&query=lake",
+      ),
+    ) as Wallpaper;
+    expect(preview.source).toBe("openverse");
+    expect(preview.pictures[0]?.licenseUrl).toBeTruthy();
+    // The preview without a keyword is refused, as the server does.
+    expect(
+      read(
+        "/api/prohibitorum/admin/settings/login-appearance/wallpaper",
+        withSource,
+        "http://localhost/api/prohibitorum/admin/settings/login-appearance/wallpaper?source=openverse&query=",
+      ),
+    ).toMatchObject({ kind: "error", code: "bad_request" });
+    // So is a save that chooses Openverse without a keyword.
+    const appearance = structuredClone(
+      defaultMockConfig.instance.loginAppearance,
+    );
+    appearance.background.source = "openverse";
+    expect(
+      call(
+        "PUT",
+        "/api/prohibitorum/admin/settings/login-appearance",
+        config((draft) => {
+          draft.writes = true;
+        }),
+        { appearance },
+      ),
+    ).toMatchObject({ kind: "error", code: "bad_request" });
+  });
+
   it("stores the client-IP policy it was sent", () => {
     const policy = {
       strategy: "forwarded",

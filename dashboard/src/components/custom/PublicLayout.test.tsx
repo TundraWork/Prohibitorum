@@ -312,6 +312,79 @@ it("shows the Bing picture and its caption once the wallpaper arrives", async ()
   ).toHaveAttribute("href", "https://www.bing.com/search?q=x");
 });
 
+// The proxied services must reach the public page too: the layout reads
+// /branding/wallpaper for whichever picture source is chosen, not only the
+// two the page started with (Bing and Unsplash).
+it.each([
+  {
+    source: "pixabay" as const,
+    batch: {
+      source: "pixabay",
+      pictures: [
+        {
+          imageUrl: "/branding/wallpaper/images/pixabay/11",
+          photographer: "作者甲",
+          photoUrl: "https://pixabay.com/photos/ridge-11/",
+        },
+      ],
+    },
+    edit: (appearance: LoginAppearance) => {
+      appearance.background.source = "pixabay";
+      appearance.background.pixabay.query = "雪山";
+    },
+  },
+  {
+    source: "openverse" as const,
+    batch: {
+      source: "openverse",
+      pictures: [
+        {
+          imageUrl: "/branding/wallpaper/images/openverse/100",
+          title: "A lake",
+          photographer: "作者乙",
+          photoUrl: "https://www.flickr.com/photos/mock/100/",
+          license: "CC BY-SA 4.0",
+          licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/",
+        },
+      ],
+    },
+    edit: (appearance: LoginAppearance) => {
+      appearance.background.source = "openverse";
+      appearance.background.openverse.query = "lake";
+    },
+  },
+])(
+  "shows the $source batch and its credit once the wallpaper arrives",
+  async ({ batch, edit }) => {
+    const fetchMock = vi.fn(
+      async (_request: Request) =>
+        new Response(JSON.stringify(batch), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    withAppearance(edit);
+    await mount();
+    const first = batch.pictures[0];
+    if (!first) throw new Error("empty batch");
+    const photo = await vi.waitFor(() => {
+      const img = document.querySelector(
+        '[data-login-backdrop="pictures"] img[data-current]',
+      );
+      if (!img) throw new Error("no photo yet");
+      return img;
+    });
+    expect(photo).toHaveAttribute("src", first.imageUrl);
+    const calls = fetchMock.mock.calls.map((call) => {
+      const arg = call[0] as Request | string;
+      return arg instanceof Request ? arg.url : String(arg);
+    });
+    expect(calls.some((url) => url.includes("/branding/wallpaper"))).toBe(true);
+    expect(screen.getAllByText(first.photographer).length).toBeGreaterThan(0);
+  },
+);
+
 it("centres the stage and offers the theme control by default", async () => {
   const banner = await mount();
   const main = screen.getByRole("main");

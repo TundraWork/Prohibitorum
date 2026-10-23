@@ -1,15 +1,18 @@
 // Package wallpaper fetches the sign-in page's wallpapers: Bing's picture of
-// the day, a batch of random Unsplash photos, and a batch of Pixabay photos
-// for a keyword. Bing and Unsplash allow the browser to load their pictures
-// directly, so those answers are only addresses and credits. Pixabay's terms
-// forbid permanent hotlinking and its picture addresses expire after a day, so
-// the server downloads each picture itself and serves it from this site
-// through Image — the browser never talks to Pixabay for a picture.
+// the day, a batch of random Unsplash photos, a batch of Pixabay photos for a
+// keyword, and a batch of Openverse pictures for a keyword. Bing and Unsplash
+// allow the browser to load their pictures directly, so those answers are
+// only addresses and credits. Pixabay's terms forbid permanent hotlinking,
+// and Openverse's pictures live on other sites' servers, so for both the
+// server downloads each picture itself and serves it from this site through
+// Image — the browser never talks to Pixabay or the hosting site for a
+// picture. Openverse's metadata comes from api.openverse.org; its pictures
+// are downloaded from Flickr and Wikimedia.
 //
-// Answers are cached (an hour for Bing and Unsplash, a day for Pixabay, as
-// Pixabay's terms ask). When a refresh fails, the last answer keeps being
-// served (stale-if-error), and the failure itself is remembered for a minute
-// so a down upstream is not asked again on every page load.
+// Answers are cached (an hour for Bing, Unsplash and Openverse, a day for
+// Pixabay, as Pixabay's terms ask). When a refresh fails, the last answer
+// keeps being served (stale-if-error), and the failure itself is remembered
+// for a minute so a down upstream is not asked again on every page load.
 package wallpaper
 
 import (
@@ -22,6 +25,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -41,12 +45,26 @@ const (
 	// not the ones that last.
 	PixabayAPI = "https://pixabay.com/api/"
 
+	// OpenverseAPI is Openverse's JSON API, used anonymously: its terms cap
+	// the anonymous requests per day, which the hourly batch cache keeps
+	// well under.
+	OpenverseAPI = "https://api.openverse.org"
+
 	unsplashImageOrigin = "https://images.unsplash.com/"
 	unsplashSiteOrigin  = "https://unsplash.com/"
 	unsplashBatch       = 30
 	referral            = "utm_source=prohibitorum&utm_medium=referral"
 
 	pixabayBatch = 20
+
+	// openverseBatch is one page of Openverse results; the anonymous quota
+	// allows no more per request, and no page beyond the first is fetched.
+	openverseBatch = 20
+
+	// The only hosts Openverse's pictures are downloaded from: the search
+	// itself asks for flickr and wikimedia pictures only.
+	openverseHostFlickr    = "live.staticflickr.com"
+	openverseHostWikimedia = "upload.wikimedia.org"
 
 	// imageCacheBytes caps the bytes of downloaded pictures; the least
 	// recently used picture is dropped when a new one would pass it.
@@ -76,7 +94,9 @@ var (
 // Picture is one wallpaper and its credit. Bing fills Title, Copyright and
 // CopyrightURL; Unsplash fills Title from the photo's description, when it
 // has one, and the photographer and photo links; Pixabay fills the
-// photographer and the photo page link, whose URL stays inside the service
+// photographer and the photo page link; Openverse also fills the title, the
+// work page, and the licence name and link (a CC licence asks for both).
+// For Pixabay and Openverse the picture address stays inside the service
 // (the picture itself is served by Image).
 type Picture struct {
 	ImageURL        string
@@ -86,6 +106,8 @@ type Picture struct {
 	Photographer    string
 	PhotographerURL string
 	PhotoURL        string
+	License         string
+	LicenseURL      string
 }
 
 // Image is a picture this site serves for a source: its bytes, as downloaded,
@@ -110,34 +132,37 @@ type imageSource struct {
 
 // Options configure a Service. Zero values use the real endpoints and clock.
 type Options struct {
-	Client      *http.Client
-	ImageClient *http.Client
-	BingURL     string
-	UnsplashURL string
-	PixabayURL  string
-	Now         func() time.Time
-	// ImageHosts overrides pixabay's download allow-list (tests point it at
-	// their own server).
+	Client       *http.Client
+	ImageClient  *http.Client
+	BingURL      string
+	UnsplashURL  string
+	PixabayURL   string
+	OpenverseURL string
+	Now          func() time.Time
+	// ImageHosts overrides pixabay's and openverse's download allow-lists
+	// (tests point them at their own server).
 	ImageHosts []string
 }
 
 // Service fetches and caches wallpapers. It is safe for concurrent use.
 type Service struct {
-	client      *http.Client
-	imageClient *http.Client
-	bingURL     string
-	unsplashURL string
-	pixabayURL  string
-	hosts       []string
+	client       *http.Client
+	imageClient  *http.Client
+	bingURL      string
+	unsplashURL  string
+	pixabayURL   string
+	openverseURL string
+	hosts        []string
 	// imageMaxBytes overrides the per-source download cap when set (tests).
 	imageMaxBytes int64
 	now           func() time.Time
 
-	flight   singleflight.Group
-	mu       sync.Mutex
-	bing     map[string]*entry[Picture]
-	unsplash map[string]*entry[[]Picture]
-	pixabay  map[string]*entry[[]cachedPicture]
+	flight    singleflight.Group
+	mu        sync.Mutex
+	bing      map[string]*entry[Picture]
+	unsplash  map[string]*entry[[]Picture]
+	pixabay   map[string]*entry[[]cachedPicture]
+	openverse map[string]*entry[[]cachedPicture]
 
 	// images caches downloaded picture bytes, keyed by source and id.
 	images *lruCache
@@ -164,11 +189,13 @@ func New(o Options) *Service {
 		bingURL:       o.BingURL,
 		unsplashURL:   o.UnsplashURL,
 		pixabayURL:    o.PixabayURL,
+		openverseURL:  o.OpenverseURL,
 		hosts:         o.ImageHosts,
 		now:           o.Now,
 		bing:          map[string]*entry[Picture]{},
 		unsplash:      map[string]*entry[[]Picture]{},
 		pixabay:       map[string]*entry[[]cachedPicture]{},
+		openverse:     map[string]*entry[[]cachedPicture]{},
 		images:        newLRUCache(imageCacheBytes),
 		imageFailures: map[string]time.Time{},
 	}
@@ -186,6 +213,9 @@ func New(o Options) *Service {
 	}
 	if s.pixabayURL == "" {
 		s.pixabayURL = PixabayAPI
+	}
+	if s.openverseURL == "" {
+		s.openverseURL = OpenverseAPI
 	}
 	if s.now == nil {
 		s.now = time.Now
@@ -250,8 +280,28 @@ func (s *Service) VerifyPixabay(ctx context.Context, key string) error {
 	return err
 }
 
-// Forget drops every cached Unsplash batch, so a new key or keyword applies
-// on the next request.
+// Openverse returns the cached batch of pictures for query, in the order
+// Openverse sent them. Each picture's ImageURL points at this site's
+// /branding/wallpaper/images/openverse/{id}; the hosting site's picture
+// address stays inside the service for Image to download. There is no key:
+// the API is used anonymously.
+func (s *Service) Openverse(ctx context.Context, query string) ([]Picture, error) {
+	batch, err := cached(s, s.openverse, freshFor, "openverse:"+query, func() ([]cachedPicture, error) {
+		return s.fetchOpenverse(context.WithoutCancel(ctx), query)
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Picture, len(batch))
+	for i, p := range batch {
+		out[i] = p.Picture
+	}
+	return out, nil
+}
+
+// Forget drops every cached Unsplash batch, so a new key applies on the next
+// request. The Openverse cache is kept: its keyword is part of the cache key
+// and no credential there can go stale.
 func (s *Service) Forget() {
 	s.mu.Lock()
 	clear(s.unsplash)
@@ -311,9 +361,9 @@ func (s *Service) Image(ctx context.Context, source, id string) (Image, error) {
 // imageSources lists the sources Image serves. Pixabay's ids are 1–20 digits
 // and its pictures live on pixabay.com (measured: page and image addresses
 // are all that host); a full-HD address on another host would be dropped at
-// download time.
+// download time. Openverse's ids are the UUIDs Openverse assigns, and its
+// pictures are downloaded from the two hosting sites the search asks for.
 func (s *Service) imageSource(source string) *imageSource {
-	hosts := s.imageHosts()
 	var maxBytes int64 = defaultImageMaxBytes
 	if s.imageMaxBytes > 0 {
 		maxBytes = s.imageMaxBytes
@@ -323,7 +373,14 @@ func (s *Service) imageSource(source string) *imageSource {
 		return &imageSource{
 			idPattern: func(id string) bool { return len(id) >= 1 && len(id) <= 20 && allDigits(id) },
 			lookup:    s.lookupPixabay,
-			hosts:     hosts,
+			hosts:     s.imageHosts(),
+			maxBytes:  maxBytes,
+		}
+	case "openverse":
+		return &imageSource{
+			idPattern: openverseID.MatchString,
+			lookup:    s.lookupOpenverse,
+			hosts:     s.openverseHosts(),
 			maxBytes:  maxBytes,
 		}
 	default:
@@ -345,6 +402,45 @@ func (s *Service) imageHosts() []string {
 		return []string{"pixabay.com"}
 	}
 	return s.hosts
+}
+
+// openverseHosts is the Openverse download allow-list: the two hosting sites
+// the search itself asks for. ImageHosts overrides it for tests.
+func (s *Service) openverseHosts() []string {
+	if len(s.hosts) == 0 {
+		return []string{openverseHostFlickr, openverseHostWikimedia}
+	}
+	return s.hosts
+}
+
+// lookupOpenverse finds id's upstream address across all cached Openverse
+// batches, newest first. Unlike Pixabay's, the addresses do not die with the
+// batch's freshness, but a fresh batch is still preferred so a picture whose
+// hosting site moved is re-resolved by the newer search.
+func (s *Service) lookupOpenverse(id string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	type candidate struct {
+		url        string
+		freshUntil time.Time
+	}
+	var best *candidate
+	for _, e := range s.openverse {
+		if !e.ok {
+			continue
+		}
+		for _, p := range e.value {
+			if p.id == id && p.upstream != "" {
+				if best == nil || e.freshUntil.After(best.freshUntil) {
+					best = &candidate{url: p.upstream, freshUntil: e.freshUntil}
+				}
+			}
+		}
+	}
+	if best == nil {
+		return "", false
+	}
+	return best.url, true
 }
 
 // lookupPixabay finds id's upstream address across the cached batches whose
@@ -693,6 +789,150 @@ func (s *Service) fetchPixabay(ctx context.Context, key, query, lang string) ([]
 		return nil, fmt.Errorf("%w: pixabay: no usable picture", ErrUnavailable)
 	}
 	return out, nil
+}
+
+// openverseID is the shape of Openverse's picture ids: a lowercase UUID.
+var openverseID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+// wikimediaOriginal matches the original-file address Openverse reports for a
+// Wikimedia Commons picture, so a very large one can be rewritten to
+// Wikimedia's own thumbnail of a standard width instead of downloaded whole.
+var wikimediaOriginal = regexp.MustCompile(`^https://upload\.wikimedia\.org/wikipedia/commons/([0-9a-f])/([0-9a-f]{2})/([^/?]+)$`)
+
+// wikimediaThumbWidth is the standard thumbnail width the rewrite asks for.
+const wikimediaThumbWidth = 1920
+
+// openverseLicense names a licence for the credit. Only the four the search
+// asks for reach here; version is empty for public-domain marks.
+func openverseLicense(license, version string) string {
+	switch license {
+	case "by":
+		return joinVersion("CC BY", version)
+	case "by-sa":
+		return joinVersion("CC BY-SA", version)
+	case "cc0":
+		return joinVersion("CC0", version)
+	case "pdm":
+		return joinVersion("Public Domain Mark", version)
+	}
+	return ""
+}
+
+func joinVersion(name, version string) string {
+	if version == "" {
+		return name
+	}
+	return name + " " + version
+}
+
+// creditLimit caps what the credit shows of a title or author name, counted
+// in characters and never cut through a multi-byte one.
+const creditLimit = 200
+
+func trimCredit(s string) string {
+	s = strings.TrimSpace(s)
+	r := []rune(s)
+	if len(r) > creditLimit {
+		r = r[:creditLimit]
+	}
+	return string(r)
+}
+
+// openverseSitePrefixes are the work-page and author-page prefixes accepted:
+// the two hosting sites the search itself asks for.
+var openverseSitePrefixes = []string{"https://www.flickr.com/", "https://commons.wikimedia.org/"}
+
+// fetchOpenverse searches api.openverse.org anonymously and maps each usable
+// result to a Picture with its licence, keeping the hosting site's picture
+// address for Image to download (rewritten to a Wikimedia thumbnail for a
+// very large original, so the download stays bounded).
+func (s *Service) fetchOpenverse(ctx context.Context, query string) ([]cachedPicture, error) {
+	q := url.Values{
+		"q":            {query},
+		"page_size":    {fmt.Sprint(openverseBatch)},
+		"license":      {"by,by-sa,cc0,pdm"},
+		"source":       {"flickr,wikimedia"},
+		"aspect_ratio": {"wide"},
+		"mature":       {"false"},
+	}
+	var body struct {
+		Results []struct {
+			ID                string `json:"id"`
+			Title             string `json:"title"`
+			URL               string `json:"url"`
+			ForeignLandingURL string `json:"foreign_landing_url"`
+			Creator           string `json:"creator"`
+			CreatorURL        string `json:"creator_url"`
+			License           string `json:"license"`
+			LicenseVersion    string `json:"license_version"`
+			LicenseURL        string `json:"license_url"`
+			Width             int    `json:"width"`
+			Height            int    `json:"height"`
+		} `json:"results"`
+	}
+	// No Authorization header: the API is anonymous, and sending none is
+	// what keeps the daily quota counted per IP only.
+	if _, err := s.get(ctx, s.openverseURL+"/v1/images/?"+q.Encode(), nil, &body); err != nil {
+		return nil, fmt.Errorf("%w: openverse: %v", ErrUnavailable, err)
+	}
+	hosts := s.openverseHosts()
+	var out []cachedPicture
+	for _, r := range body.Results {
+		if !openverseID.MatchString(r.ID) || openverseLicense(r.License, r.LicenseVersion) == "" ||
+			!strings.HasPrefix(r.LicenseURL, "https://creativecommons.org/") ||
+			!httpsHost(r.URL, hosts) || !openverseExtension(r.URL) ||
+			!openverseSitePrefix(r.ForeignLandingURL) {
+			continue
+		}
+		// Width and height are known when the hosting site reports them;
+		// only a wide landscape picture at least 1024px across is worth a
+		// full-screen background.
+		if r.Width > 0 && r.Height > 0 && (r.Width < 1024 || r.Width <= r.Height) {
+			continue
+		}
+		photographerURL := ""
+		if openverseSitePrefix(r.CreatorURL) {
+			photographerURL = r.CreatorURL
+		}
+		upstream := r.URL
+		if m := wikimediaOriginal.FindStringSubmatch(r.URL); m != nil && r.Width > wikimediaThumbWidth {
+			upstream = fmt.Sprintf("https://upload.wikimedia.org/wikipedia/commons/thumb/%s/%s/%s/%dpx-%s",
+				m[1], m[2], m[3], wikimediaThumbWidth, m[3])
+		}
+		out = append(out, cachedPicture{
+			Picture: Picture{
+				ImageURL:        "/branding/wallpaper/images/openverse/" + r.ID,
+				Title:           trimCredit(r.Title),
+				Photographer:    trimCredit(r.Creator),
+				PhotographerURL: photographerURL,
+				PhotoURL:        r.ForeignLandingURL,
+				License:         openverseLicense(r.License, r.LicenseVersion),
+				LicenseURL:      r.LicenseURL,
+			},
+			id:       r.ID,
+			upstream: upstream,
+		})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%w: openverse: no usable picture", ErrUnavailable)
+	}
+	return out, nil
+}
+
+// openverseExtension accepts only the picture files Image can sniff and
+// serve: jpeg and png, case-insensitive as the hosting sites write them.
+func openverseExtension(u string) bool {
+	path := u
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		path = path[:i]
+	}
+	return strings.HasSuffix(strings.ToLower(path), ".jpg") ||
+		strings.HasSuffix(strings.ToLower(path), ".jpeg") ||
+		strings.HasSuffix(strings.ToLower(path), ".png")
+}
+
+func openverseSitePrefix(u string) bool {
+	return slices.ContainsFunc(openverseSitePrefixes, func(p string) bool { return strings.HasPrefix(u, p) })
 }
 
 // httpsHost reports whether u is an https address on hosts.

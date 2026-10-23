@@ -13,13 +13,14 @@ import (
 
 // Background sources for the sign-in page.
 const (
-	SourceNone     = "none"
-	SourceColor    = "color"
-	SourceGradient = "gradient"
-	SourceBing     = "bing"
-	SourceUnsplash = "unsplash"
-	SourcePixabay  = "pixabay"
-	SourceImages   = "images"
+	SourceNone      = "none"
+	SourceColor     = "color"
+	SourceGradient  = "gradient"
+	SourceBing      = "bing"
+	SourceUnsplash  = "unsplash"
+	SourcePixabay   = "pixabay"
+	SourceOpenverse = "openverse"
+	SourceImages    = "images"
 )
 
 // MaxLoginImages caps how many background images an instance can upload.
@@ -67,7 +68,7 @@ var Schemes = []string{"graphite", "nord", "sand", "matcha", "sakura", "lavender
 // DefaultScheme is the colour scheme of an instance that has not chosen one.
 const DefaultScheme = "graphite"
 
-var sources = []string{SourceNone, SourceColor, SourceGradient, SourceBing, SourceUnsplash, SourcePixabay, SourceImages}
+var sources = []string{SourceNone, SourceColor, SourceGradient, SourceBing, SourceUnsplash, SourcePixabay, SourceOpenverse, SourceImages}
 
 var (
 	cardPositions = []string{CardLeft, CardCenter, CardRight}
@@ -92,13 +93,14 @@ type Appearance struct {
 }
 
 type Background struct {
-	Source   string          `json:"source"`
-	Color    string          `json:"color"`
-	Gradient string          `json:"gradient"`
-	Bing     BingOptions     `json:"bing"`
-	Unsplash UnsplashOptions `json:"unsplash"`
-	Pixabay  PixabayOptions  `json:"pixabay"`
-	Images   ImageOptions    `json:"images"`
+	Source    string           `json:"source"`
+	Color     string           `json:"color"`
+	Gradient  string           `json:"gradient"`
+	Bing      BingOptions      `json:"bing"`
+	Unsplash  UnsplashOptions  `json:"unsplash"`
+	Pixabay   PixabayOptions   `json:"pixabay"`
+	Openverse OpenverseOptions `json:"openverse"`
+	Images    ImageOptions     `json:"images"`
 }
 
 type BingOptions struct {
@@ -117,6 +119,15 @@ type UnsplashOptions struct {
 type PixabayOptions struct {
 	Query           string `json:"query"`
 	Lang            string `json:"lang"`
+	Order           string `json:"order"`
+	IntervalSeconds int    `json:"intervalSeconds"`
+}
+
+// OpenverseOptions holds the Openverse search. There is no key: the API is
+// used anonymously, so only the keyword (required once Openverse is chosen),
+// the order and the interval are set.
+type OpenverseOptions struct {
+	Query           string `json:"query"`
 	Order           string `json:"order"`
 	IntervalSeconds int    `json:"intervalSeconds"`
 }
@@ -140,13 +151,14 @@ type Surface struct {
 func DefaultAppearance() Appearance {
 	return Appearance{
 		Background: Background{
-			Source:   SourceNone,
-			Color:    "#1f6f8b",
-			Gradient: "lagoon",
-			Bing:     BingOptions{Market: "zh-CN", ShowCaption: true},
-		Unsplash: UnsplashOptions{Query: "", Order: "random", IntervalSeconds: 10},
-		Pixabay:  PixabayOptions{Query: "", Lang: "zh", Order: "random", IntervalSeconds: 10},
-		Images:   ImageOptions{Order: "random", IntervalSeconds: 10},
+			Source:    SourceNone,
+			Color:     "#1f6f8b",
+			Gradient:  "lagoon",
+			Bing:      BingOptions{Market: "zh-CN", ShowCaption: true},
+			Unsplash:  UnsplashOptions{Query: "", Order: "random", IntervalSeconds: 10},
+			Pixabay:   PixabayOptions{Query: "", Lang: "zh", Order: "random", IntervalSeconds: 10},
+			Openverse: OpenverseOptions{Query: "", Order: "random", IntervalSeconds: 10},
+			Images:    ImageOptions{Order: "random", IntervalSeconds: 10},
 		},
 		Card:         Surface{Translucent: false, Opacity: 80, Blur: true},
 		Capsules:     Surface{Translucent: true, Opacity: 70, Blur: true},
@@ -181,6 +193,11 @@ type wireAppearance struct {
 			Order           *string `json:"order"`
 			IntervalSeconds *int    `json:"intervalSeconds"`
 		} `json:"pixabay"`
+		Openverse *struct {
+			Query           *string `json:"query"`
+			Order           *string `json:"order"`
+			IntervalSeconds *int    `json:"intervalSeconds"`
+		} `json:"openverse"`
 		Images *struct {
 			Order           *string `json:"order"`
 			IntervalSeconds *int    `json:"intervalSeconds"`
@@ -229,6 +246,8 @@ func (w wireAppearance) complete() (Appearance, bool) {
 		b.Unsplash.Order == nil || b.Unsplash.IntervalSeconds == nil ||
 		b.Pixabay == nil || b.Pixabay.Query == nil || b.Pixabay.Lang == nil ||
 		b.Pixabay.Order == nil || b.Pixabay.IntervalSeconds == nil ||
+		b.Openverse == nil || b.Openverse.Query == nil ||
+		b.Openverse.Order == nil || b.Openverse.IntervalSeconds == nil ||
 		b.Images == nil || b.Images.Order == nil || b.Images.IntervalSeconds == nil ||
 		w.CardPosition == nil || w.Theme == nil || w.Scheme == nil {
 		return Appearance{}, false
@@ -247,18 +266,23 @@ func (w wireAppearance) complete() (Appearance, bool) {
 			Color:    *b.Color,
 			Gradient: *b.Gradient,
 			Bing:     BingOptions{Market: *b.Bing.Market, ShowCaption: *b.Bing.ShowCaption},
-		Unsplash: UnsplashOptions{
-			Query:           *b.Unsplash.Query,
-			Order:           *b.Unsplash.Order,
-			IntervalSeconds: *b.Unsplash.IntervalSeconds,
-		},
-		Pixabay: PixabayOptions{
-			Query:           *b.Pixabay.Query,
-			Lang:            *b.Pixabay.Lang,
-			Order:           *b.Pixabay.Order,
-			IntervalSeconds: *b.Pixabay.IntervalSeconds,
-		},
-		Images: ImageOptions{Order: *b.Images.Order, IntervalSeconds: *b.Images.IntervalSeconds},
+			Unsplash: UnsplashOptions{
+				Query:           *b.Unsplash.Query,
+				Order:           *b.Unsplash.Order,
+				IntervalSeconds: *b.Unsplash.IntervalSeconds,
+			},
+			Pixabay: PixabayOptions{
+				Query:           *b.Pixabay.Query,
+				Lang:            *b.Pixabay.Lang,
+				Order:           *b.Pixabay.Order,
+				IntervalSeconds: *b.Pixabay.IntervalSeconds,
+			},
+			Openverse: OpenverseOptions{
+				Query:           *b.Openverse.Query,
+				Order:           *b.Openverse.Order,
+				IntervalSeconds: *b.Openverse.IntervalSeconds,
+			},
+			Images: ImageOptions{Order: *b.Images.Order, IntervalSeconds: *b.Images.IntervalSeconds},
 		},
 		Card:         card,
 		Capsules:     capsules,
@@ -291,6 +315,8 @@ func ValidateAppearance(a Appearance) error {
 		return fmt.Errorf("%w: query", ErrInvalidAppearance)
 	case !ValidWallpaperQuery(b.Pixabay.Query) || !ValidPixabayLang(b.Pixabay.Lang):
 		return fmt.Errorf("%w: pixabay query or language", ErrInvalidAppearance)
+	case !ValidWallpaperQuery(b.Openverse.Query):
+		return fmt.Errorf("%w: query", ErrInvalidAppearance)
 	case !validSurface(a.Card) || !validSurface(a.Capsules):
 		return fmt.Errorf("%w: opacity", ErrInvalidAppearance)
 	case !slices.Contains(cardPositions, a.CardPosition):
@@ -308,6 +334,15 @@ func ValidateAppearance(a Appearance) error {
 	}
 	if field, ok := validRotation(b.Pixabay.Order, b.Pixabay.IntervalSeconds); !ok {
 		return fmt.Errorf("%w: %s", ErrInvalidAppearance, field)
+	}
+	if field, ok := validRotation(b.Openverse.Order, b.Openverse.IntervalSeconds); !ok {
+		return fmt.Errorf("%w: %s", ErrInvalidAppearance, field)
+	}
+	// Openverse has no "any picture" mode worth showing, so its keyword is
+	// required once it is the chosen source; unchosen, an empty one stays
+	// valid so the defaults and the migration's filled-in object pass.
+	if b.Source == SourceOpenverse && b.Openverse.Query == "" {
+		return fmt.Errorf("%w: query", ErrInvalidAppearance)
 	}
 	return nil
 }

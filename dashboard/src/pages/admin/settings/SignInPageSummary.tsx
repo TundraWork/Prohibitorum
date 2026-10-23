@@ -40,6 +40,7 @@ export function SignInPageSummary() {
     bing: "Bing",
     unsplash: "Unsplash",
     pixabay: "Pixabay",
+    openverse: "Openverse",
     images: t({
       id: "settings.sign-in.summary.images",
       message: `Images (${count})`,

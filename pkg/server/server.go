@@ -176,8 +176,9 @@ type Server struct {
 	// config → built-in precedence. Admin mutation handlers call Invalidate()
 	// after writes so changes propagate immediately.
 	branding *branding.Resolver
-	// wallpaper fetches the sign-in page's Bing and Unsplash wallpapers and
-	// downloads the pictures services forbid hotlinking (Pixabay). Tests
+	// wallpaper fetches the sign-in page's Bing, Unsplash, Pixabay and
+	// Openverse wallpapers and downloads the pictures that are not served
+	// to visitors directly (Pixabay's terms; Openverse's hosts). Tests
 	// inject a fake; nil in NewHuma.
 	wallpaper wallpaperService
 	// clientIP resolves the effective client IP under the DB-stored, peer-validated
@@ -736,7 +737,8 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/branding/login-images/{id}", publicReq, s.handleGetLoginImageHTTP)
 	registerOpHTTP(s.router, "GET", "/branding/wallpaper", publicReq, s.handleGetWallpaperHTTP)
 	// Pictures the server downloads itself (Pixabay's terms forbid
-	// hotlinking); served from this site with the source named in the path.
+	// hotlinking; Openverse's pictures live on other sites' servers);
+	// served from this site with the source named in the path.
 	registerOpHTTP(s.router, "GET", "/branding/wallpaper/images/{source}/{id}", publicReq, s.handleGetWallpaperImageHTTP)
 	registerOpHTTP(s.router, "GET", "/icon/{kind}/{id}", publicReq, s.handleGetEntityIconHTTP)
 

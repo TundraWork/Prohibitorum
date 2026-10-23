@@ -4,6 +4,7 @@ import { useSetAtom } from "jotai";
 import { useLayoutEffect } from "react";
 import { loginWallpaperQueryOptions } from "@/api/queries";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
+import { photoSources } from "@/components/custom/login-appearance/photo-sources";
 import { useLoginBackground } from "@/components/custom/login-appearance/use-login-background";
 import { PublicScene } from "@/components/custom/PublicScene";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
@@ -27,8 +28,11 @@ import { forcedModeAtom } from "@/lib/appearance";
 export function PublicLayout() {
   const { loginAppearance: appearance, loginImages } = useInstanceBranding();
   const background = appearance.background;
-  const usesWallpaper =
-    background.source === "bing" || background.source === "unsplash";
+  // The picture services: those draw the batch /branding/wallpaper describes,
+  // whichever of them is chosen (uploaded images do not read it).
+  const usesWallpaper = (photoSources as readonly string[]).includes(
+    background.source,
+  );
   const setPublicTheme = useSetAtom(forcedModeAtom);
   useLayoutEffect(() => {
     setPublicTheme(
