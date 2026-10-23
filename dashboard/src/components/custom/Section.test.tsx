@@ -22,6 +22,7 @@ import {
   FramePanel,
   FrameTitle,
 } from "@/components/ui/frame";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { i18n } from "@/i18n";
 
 beforeEach(() => {
@@ -341,6 +342,26 @@ describe("Section", () => {
         panel.parentElement?.closest("[data-slot='frame-panel']"),
       ).toBeNull();
     }
+  });
+
+  it("keeps the section's rhythm between a notice and a list that claims the panel", () => {
+    const { container } = render(
+      <Section title="With notice">
+        <SurfaceAlert status="warning">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>Notice</SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
+        <ItemList label="Rows" empty={<p>No rows</p>} />
+      </Section>,
+    );
+
+    // The claimed-panel body keeps the same gap the section's own panel
+    // uses, so a notice above the list does not sit flush against it.
+    const body = container.querySelector("[data-slot='section-body']");
+    expect(body).not.toBeNull();
+    expect(body?.className).toContain("gap-3");
   });
 
   it("keeps a titled list or card as its own frame under the section's panel", () => {

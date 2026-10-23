@@ -144,9 +144,7 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
         }
       >
         {rowFailure.error !== null && (
-          <div className="px-5 pt-4">
-            <InlineFailure error={rowFailure.error} />
-          </div>
+          <InlineFailure error={rowFailure.error} />
         )}
         {list.error !== null && list.items.length === 0 ? (
           <div className="flex flex-col items-start gap-3 p-4">
