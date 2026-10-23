@@ -3,13 +3,19 @@ package wallpaper
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"image"
 	"image/png"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -40,28 +46,6 @@ func newTLSUpstream(t *testing.T, h http.HandlerFunc) *upstream {
 		u.last.Store(r.Clone(context.Background()))
 		u.handler.Load().(http.HandlerFunc)(w, r)
 	}))
-	t.Cleanup(u.Close)
-	return u
-}
-
-// newTLSUpstreamOnHost serves https bound to a specific loopback address, so
-// its hostname differs from 127.0.0.1's and a host-allow-list check can be
-// told apart from the scheme check.
-func newTLSUpstreamOnHost(t *testing.T, host string, h http.HandlerFunc) *upstream {
-	t.Helper()
-	listener, err := net.Listen("tcp", host+":0")
-	if err != nil {
-		t.Skipf("cannot bind %s: %v", host, err)
-	}
-	u := &upstream{}
-	u.handler.Store(h)
-	u.Server = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		u.hits.Add(1)
-		u.last.Store(r.Clone(context.Background()))
-		u.handler.Load().(http.HandlerFunc)(w, r)
-	}))
-	u.Server.Listener = listener
-	u.Server.StartTLS()
 	t.Cleanup(u.Close)
 	return u
 }
@@ -381,11 +365,14 @@ func TestImageRefusesForeignHosts(t *testing.T) {
 }
 
 func TestImageChecksEveryRedirectHop(t *testing.T) {
-	foreign := newTLSUpstreamOnHost(t, "127.0.0.2", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.NotFound(w, nil)
-	}))
-	var handler atomic.Value
-	handler.Store(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// One throwaway CA signs both servers: the picture server on 127.0.0.1
+	// and the off-list server on 127.0.0.2, each with its address as an IP
+	// SAN. The client trusts that CA, so a followed redirect would complete
+	// its TLS handshake and reach the off-list server — any refusal below
+	// comes from the host allow-list alone.
+	ca := newTestCA(t)
+	var foreign *upstream
+	up := newTLSUpstreamWithCA(t, "127.0.0.1", ca, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			wr2(w, r)
 			return
@@ -399,19 +386,110 @@ func TestImageChecksEveryRedirectHop(t *testing.T) {
 		}
 		http.Redirect(w, r, foreign.URL+"/evil.jpg", http.StatusFound)
 	}))
-	up := newTLSUpstream(t, handler.Load().(http.HandlerFunc))
+	foreign = newTLSUpstreamWithCA(t, "127.0.0.2", ca, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.NotFound(w, nil)
+	}))
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
-	s := newPixabayService(c, up.URL, hostOf(up.URL), up.Client())
+	client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: ca.pool}}}
+	t.Cleanup(client.CloseIdleConnections)
+	s := newPixabayService(c, up.URL, hostOf(up.URL), client)
 	ctx := context.Background()
 	if _, err := s.Pixabay(ctx, "key", "", "zh"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Image(ctx, "pixabay", "5"); !errors.Is(err, ErrUnavailable) {
+	_, err := s.Image(ctx, "pixabay", "5")
+	if !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("err = %v, want ErrUnavailable for a redirect off the allow-list", err)
+	}
+	if !strings.Contains(err.Error(), "not on the allow-list") {
+		t.Fatalf("err = %v, want the allow-list check to be what refused it", err)
 	}
 	if foreign.hits.Load() != 0 {
 		t.Fatal("a redirect off the allow-list was followed")
 	}
+}
+
+// testCA is a throwaway certificate authority for the redirect test.
+type testCA struct {
+	key  *rsa.PrivateKey
+	cert *x509.Certificate
+	pool *x509.CertPool
+}
+
+func newTestCA(t *testing.T) *testCA {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "wallpaper test CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := x509.NewCertPool()
+	pool.AddCert(cert)
+	return &testCA{key: key, cert: cert, pool: pool}
+}
+
+// leafFor issues a server certificate for host under the CA.
+func (ca *testCA) leafFor(t *testing.T, host string) tls.Certificate {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: host},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  []net.IP{net.ParseIP(host)},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, ca.cert, &key.PublicKey, ca.key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: cert}
+}
+
+// newTLSUpstreamWithCA serves https on host with a CA-issued certificate.
+func newTLSUpstreamWithCA(t *testing.T, host string, ca *testCA, h http.HandlerFunc) *upstream {
+	t.Helper()
+	listener, err := net.Listen("tcp", host+":0")
+	if err != nil {
+		t.Skipf("cannot bind %s: %v", host, err)
+	}
+	u := &upstream{}
+	u.handler.Store(h)
+	u.Server = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u.hits.Add(1)
+		u.last.Store(r.Clone(context.Background()))
+		u.handler.Load().(http.HandlerFunc)(w, r)
+	}))
+	u.Server.Listener = listener
+	u.Server.TLS = &tls.Config{Certificates: []tls.Certificate{ca.leafFor(t, host)}}
+	u.Server.StartTLS()
+	t.Cleanup(u.Close)
+	return u
 }
 
 // wr2 answers the search with one hit whose addresses are the server itself.
