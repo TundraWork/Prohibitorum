@@ -750,6 +750,9 @@ func TestWallpaperImageEndpoint(t *testing.T) {
 	if rr.Header().Get("Content-Type") != "image/jpeg" || rr.Header().Get("ETag") != `"abc123"` {
 		t.Fatalf("headers = %v", rr.Header())
 	}
+	if got := rr.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("X-Content-Type-Options = %q, want nosniff", got)
+	}
 	if rr.Header().Get("Cache-Control") != "public, max-age=86400" {
 		t.Fatalf("Cache-Control = %q", rr.Header().Get("Cache-Control"))
 	}

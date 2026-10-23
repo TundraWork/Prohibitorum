@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -38,6 +40,28 @@ func newTLSUpstream(t *testing.T, h http.HandlerFunc) *upstream {
 		u.last.Store(r.Clone(context.Background()))
 		u.handler.Load().(http.HandlerFunc)(w, r)
 	}))
+	t.Cleanup(u.Close)
+	return u
+}
+
+// newTLSUpstreamOnHost serves https bound to a specific loopback address, so
+// its hostname differs from 127.0.0.1's and a host-allow-list check can be
+// told apart from the scheme check.
+func newTLSUpstreamOnHost(t *testing.T, host string, h http.HandlerFunc) *upstream {
+	t.Helper()
+	listener, err := net.Listen("tcp", host+":0")
+	if err != nil {
+		t.Skipf("cannot bind %s: %v", host, err)
+	}
+	u := &upstream{}
+	u.handler.Store(h)
+	u.Server = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u.hits.Add(1)
+		u.last.Store(r.Clone(context.Background()))
+		u.handler.Load().(http.HandlerFunc)(w, r)
+	}))
+	u.Server.Listener = listener
+	u.Server.StartTLS()
 	t.Cleanup(u.Close)
 	return u
 }
@@ -310,6 +334,37 @@ func TestImageRejectsUnknownIdsAndSources(t *testing.T) {
 	}
 }
 
+// TestImageIdPatternGatesLookup proves the id's shape is checked before the
+// batch is consulted at all: a malformed id must never reach lookup, even
+// when a cached batch holds something at that key.
+func TestImageIdPatternGatesLookup(t *testing.T) {
+	w, s, c := newImageWorld(t, 7)
+	ctx := context.Background()
+	if _, err := s.Pixabay(ctx, "key", "", "zh"); err != nil {
+		t.Fatal(err)
+	}
+	// Poison the cache with a hand-made entry whose picture ids are not
+	// digits; without the pattern gate, lookup would find "notanumber" and
+	// the download would start (and hit the server).
+	s.mu.Lock()
+	s.pixabay["pixabay:key::zh"] = &entry[[]cachedPicture]{
+		ok:         true,
+		freshUntil: c.t.Add(pixabayFor),
+		value: []cachedPicture{{
+			Picture:  Picture{ImageURL: "/branding/wallpaper/images/pixabay/notanumber"},
+			id:       "notanumber",
+			upstream: "https://" + urlMustHost(w.URL) + "/ImgX.jpg",
+		}},
+	}
+	s.mu.Unlock()
+	if _, err := s.Image(ctx, "pixabay", "notanumber"); !errors.Is(err, ErrImageNotFound) {
+		t.Fatalf("err = %v, want ErrImageNotFound from the pattern gate", err)
+	}
+	if w.imageHits.Load() != 0 {
+		t.Fatalf("a malformed id reached the download path, hits = %d", w.imageHits.Load())
+	}
+}
+
 func TestImageRefusesForeignHosts(t *testing.T) {
 	// The batch's picture address points at a host outside the allow-list,
 	// so the hit is dropped at search time and nothing is fetched.
@@ -326,7 +381,7 @@ func TestImageRefusesForeignHosts(t *testing.T) {
 }
 
 func TestImageChecksEveryRedirectHop(t *testing.T) {
-	foreign := newUpstream(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	foreign := newTLSUpstreamOnHost(t, "127.0.0.2", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.NotFound(w, nil)
 	}))
 	var handler atomic.Value
@@ -336,7 +391,8 @@ func TestImageChecksEveryRedirectHop(t *testing.T) {
 			return
 		}
 		// The picture "redirects" one hop at a time; the second hop leaves
-		// the allow-list.
+		// the allow-list for a different https host, so the scheme check
+		// passes and only the host check can refuse it.
 		if r.URL.Query().Get("hop") == "" {
 			http.Redirect(w, r, "/Img5.jpg?hop=1", http.StatusFound)
 			return
@@ -364,10 +420,15 @@ func wr2(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"hits":[{"id":5,"pageURL":"https://%s/photos/p5/","largeImageURL":"https://%s/Img5.jpg","user":"A"}]}`, r.Host, r.Host)
 }
 
+// TestImageRejectsOversizedAndNonPictureBodies exercises both refusals with a
+// body that passes the earlier checks: the oversized one is a real PNG header
+// followed by padding, so only the size cap rejects it, and the test counts
+// the bytes the server actually read to prove the cap bounded the read.
 func TestImageRejectsOversizedAndNonPictureBodies(t *testing.T) {
 	var mode atomic.Value
-	mode.Store("text")
+	mode.Store("huge")
 	var host atomic.Value
+	var readBytes atomic.Int64
 	var handler atomic.Value
 	handler.Store(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
@@ -377,8 +438,10 @@ func TestImageRejectsOversizedAndNonPictureBodies(t *testing.T) {
 		}
 		switch mode.Load() {
 		case "huge":
+			// A valid PNG signature with padding: sniffing reads image/png,
+			// so the size cap is the only check that can refuse it.
 			w.Header().Set("Content-Type", "image/png")
-			w.Write(bytes.Repeat([]byte{0x89}, 11<<20))
+			w.Write(append(pngBytes(t), bytes.Repeat([]byte{0x00}, 64<<10)...))
 		default:
 			w.Header().Set("Content-Type", "text/html")
 			fmt.Fprint(w, "<html>")
@@ -387,20 +450,64 @@ func TestImageRejectsOversizedAndNonPictureBodies(t *testing.T) {
 	up := newTLSUpstream(t, handler.Load().(http.HandlerFunc))
 	host.Store(urlMustHost(up.URL))
 	c := &clock{t: time.Unix(1_700_000_000, 0)}
-	s := newPixabayService(c, up.URL, hostOf(up.URL), up.Client())
+	// Wrap the transport so the test sees exactly how many body bytes the
+	// service pulled from the wire.
+	trustworthy := up.Client()
+	counting := *trustworthy
+	counting.Transport = readCountingTransport{base: trustworthy.Transport, read: &readBytes}
+	s := newPixabayService(c, up.URL, hostOf(up.URL), &counting)
+	// A small cap keeps the count deterministic: the PNG header (a few
+	// hundred bytes) plus one buffered read at most.
+	const cap = 512
+	s.imageMaxBytes = cap
 	ctx := context.Background()
 	if _, err := s.Pixabay(ctx, "key", "", "zh"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Image(ctx, "pixabay", "5"); !errors.Is(err, ErrUnavailable) {
-		t.Fatalf("non-picture: err = %v, want ErrUnavailable", err)
-	}
-	// A failed download is not cached, so the over-cap body is refused too.
-	mode.Store("huge")
-	if _, err := s.Image(ctx, "pixabay", "6"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("oversized: err = %v, want ErrUnavailable", err)
 	}
+	// The service must stop reading at the cap, not pull the whole body in
+	// and then measure: LimitReader(maxBytes+1) is what bounds this. One
+	// bufio buffer (4 KiB) of read-ahead can arrive before the reader stops.
+	if read := readBytes.Load(); read > cap+1+4096 {
+		t.Fatalf("service read %d bytes from upstream, want at most the cap+1 (%d) plus one buffered read", read, cap+1)
+	}
+	// A body that is not a picture at all is refused by sniffing.
+	mode.Store("text")
+	if _, err := s.Image(ctx, "pixabay", "6"); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("non-picture: err = %v, want ErrUnavailable", err)
+	}
 }
+
+// readCountingTransport wraps a transport and counts the body bytes its
+// responses hand to the caller.
+type readCountingTransport struct {
+	base http.RoundTripper
+	read *atomic.Int64
+}
+
+func (t readCountingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	resp.Body = &countingReadCloser{r: resp.Body, read: t.read}
+	return resp, nil
+}
+
+type countingReadCloser struct {
+	r    io.ReadCloser
+	read *atomic.Int64
+}
+
+func (c *countingReadCloser) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.read.Add(int64(n))
+	return n, err
+}
+
+func (c *countingReadCloser) Close() error { return c.r.Close() }
 
 func TestImageConcurrentRequestsDownloadOnce(t *testing.T) {
 	var started atomic.Int32
@@ -497,4 +604,86 @@ func urlMustHost(raw string) string {
 		panic(err)
 	}
 	return u.Host
+}
+
+// TestImageRemembersAFailedDownload proves a failed download is remembered per
+// source and id for a short while: repeated requests answer the same failure
+// without touching the upstream again, and the retry happens after the TTL.
+func TestImageRemembersAFailedDownload(t *testing.T) {
+	var mode atomic.Value
+	mode.Store("fail")
+	var host atomic.Value
+	var handler atomic.Value
+	handler.Store(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"hits":[{"id":5,"pageURL":"https://%s/photos/p5/","largeImageURL":"https://%s/Img5.jpg","user":"A"}]}`, host.Load(), host.Load())
+			return
+		}
+		if mode.Load() == "fail" {
+			// The upstream refuses the picture, as Pixabay does once an
+			// address has expired.
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(pngBytes(t))
+	}))
+	up := newTLSUpstream(t, handler.Load().(http.HandlerFunc))
+	host.Store(urlMustHost(up.URL))
+	c := &clock{t: time.Unix(1_700_000_000, 0)}
+	s := newPixabayService(c, up.URL, hostOf(up.URL), up.Client())
+	ctx := context.Background()
+	if _, err := s.Pixabay(ctx, "key", "", "zh"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Image(ctx, "pixabay", "5"); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("first: err = %v, want ErrUnavailable", err)
+	}
+	hits := up.hits.Load() // search + one failed picture download
+	// Many visitors ask for the same dead picture: only the remembered
+	// failure answers, and the upstream sees none of them.
+	for range 50 {
+		if _, err := s.Image(ctx, "pixabay", "5"); !errors.Is(err, ErrUnavailable) {
+			t.Fatalf("retry within TTL: err = %v, want ErrUnavailable", err)
+		}
+	}
+	if got := up.hits.Load(); got != hits {
+		t.Fatalf("upstream hits %d → %d within the TTL; the failure must be remembered", hits, got)
+	}
+	// After the TTL the upstream is asked again, and now it serves the bytes.
+	mode.Store("serve")
+	c.advance(retryAfter + time.Second)
+	img, err := s.Image(ctx, "pixabay", "5")
+	if err != nil {
+		t.Fatalf("after TTL: %v", err)
+	}
+	if img.ContentType != "image/png" {
+		t.Fatalf("after TTL contentType = %s", img.ContentType)
+	}
+	// And the bytes are cached from then on.
+	hits = up.hits.Load()
+	if _, err := s.Image(ctx, "pixabay", "5"); err != nil || up.hits.Load() != hits {
+		t.Fatalf("after success: err %v, hits %d → %d; the bytes must be cached", err, hits, up.hits.Load())
+	}
+}
+
+// TestImageIgnoresExpiredBatches proves an address is not served from a batch
+// whose freshness has passed: Pixabay's addresses die with the batch, so an
+// expired batch's id reads as not found rather than a doomed download.
+func TestImageIgnoresExpiredBatches(t *testing.T) {
+	w, s, c := newImageWorld(t, 5)
+	ctx := context.Background()
+	if _, err := s.Pixabay(ctx, "key", "", "zh"); err != nil {
+		t.Fatal(err)
+	}
+	// The batch is now past its 24-hour freshness; the search cache may
+	// still hold it (stale-if-error), but its addresses are dead.
+	c.advance(pixabayFor + time.Minute)
+	if _, err := s.Image(ctx, "pixabay", "5"); !errors.Is(err, ErrImageNotFound) {
+		t.Fatalf("err = %v, want ErrImageNotFound from an expired batch", err)
+	}
+	if w.imageHits.Load() != 0 {
+		t.Fatalf("a dead address was downloaded, hits = %d", w.imageHits.Load())
+	}
 }

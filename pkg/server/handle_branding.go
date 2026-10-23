@@ -175,9 +175,11 @@ func (s *Server) handleGetWallpaperImageHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	w.Header().Set("Content-Type", img.ContentType)
+	// The type is sniffed from the bytes; nosniff keeps a browser from
+	// re-interpreting them as something else.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("ETag", `"`+img.ETag+`"`)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(img.Data)
 }
 

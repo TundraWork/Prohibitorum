@@ -141,6 +141,11 @@ type Service struct {
 
 	// images caches downloaded picture bytes, keyed by source and id.
 	images *lruCache
+	// imageFailures remembers, per source and id, when a failed download may
+	// be retried; until then the failure is served as-is so an anonymous
+	// visitor cannot make the server re-fetch a dead upstream address on
+	// every request.
+	imageFailures map[string]time.Time
 }
 
 type entry[T any] struct {
@@ -154,17 +159,18 @@ type entry[T any] struct {
 // New builds a Service.
 func New(o Options) *Service {
 	s := &Service{
-		client:      o.Client,
-		imageClient: o.ImageClient,
-		bingURL:     o.BingURL,
-		unsplashURL: o.UnsplashURL,
-		pixabayURL:  o.PixabayURL,
-		hosts:       o.ImageHosts,
-		now:         o.Now,
-		bing:        map[string]*entry[Picture]{},
-		unsplash:    map[string]*entry[[]Picture]{},
-		pixabay:     map[string]*entry[[]cachedPicture]{},
-		images:      newLRUCache(imageCacheBytes),
+		client:        o.Client,
+		imageClient:   o.ImageClient,
+		bingURL:       o.BingURL,
+		unsplashURL:   o.UnsplashURL,
+		pixabayURL:    o.PixabayURL,
+		hosts:         o.ImageHosts,
+		now:           o.Now,
+		bing:          map[string]*entry[Picture]{},
+		unsplash:      map[string]*entry[[]Picture]{},
+		pixabay:       map[string]*entry[[]cachedPicture]{},
+		images:        newLRUCache(imageCacheBytes),
+		imageFailures: map[string]time.Time{},
 	}
 	if s.client == nil {
 		s.client = http.DefaultClient
@@ -262,11 +268,21 @@ func (s *Service) Image(ctx context.Context, source, id string) (Image, error) {
 	if src == nil || !src.idPattern(id) {
 		return Image{}, ErrImageNotFound
 	}
-	if img, ok := s.images.get(source + "/" + id); ok {
+	key := source + "/" + id
+	if img, ok := s.images.get(key); ok {
 		return img, nil
 	}
-	v, err, _ := s.flight.Do("image:"+source+"/"+id, func() (any, error) {
-		if img, ok := s.images.get(source + "/" + id); ok {
+	// A download that failed recently is remembered: until retryAt the same
+	// failure answers without touching the upstream again, so repeated
+	// anonymous requests cannot make the server re-fetch a dead address.
+	s.mu.Lock()
+	retryAt, failed := s.imageFailures[key]
+	s.mu.Unlock()
+	if failed && s.now().Before(retryAt) {
+		return Image{}, ErrUnavailable
+	}
+	v, err, _ := s.flight.Do("image:"+key, func() (any, error) {
+		if img, ok := s.images.get(key); ok {
 			return img, nil
 		}
 		upstream, ok := src.lookup(id)
@@ -275,9 +291,15 @@ func (s *Service) Image(ctx context.Context, source, id string) (Image, error) {
 		}
 		img, err := s.downloadImage(ctx, source, upstream, src)
 		if err != nil {
+			s.mu.Lock()
+			s.imageFailures[key] = s.now().Add(retryAfter)
+			s.mu.Unlock()
 			return Image{}, err
 		}
-		s.images.put(source+"/"+id, img)
+		s.mu.Lock()
+		delete(s.imageFailures, key)
+		s.mu.Unlock()
+		s.images.put(key, img)
 		return img, nil
 	})
 	if err != nil {
@@ -325,8 +347,10 @@ func (s *Service) imageHosts() []string {
 	return s.hosts
 }
 
-// lookupPixabay finds id's upstream address across the cached batches, newest
-// first, so a fresh search wins over an older one.
+// lookupPixabay finds id's upstream address across the cached batches whose
+// addresses are still valid: Pixabay's expire 24 hours after the search, so a
+// batch past its freshness names an address that can no longer be downloaded.
+// Among the valid ones the newest wins.
 func (s *Service) lookupPixabay(id string) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -335,8 +359,9 @@ func (s *Service) lookupPixabay(id string) (string, bool) {
 		freshUntil time.Time
 	}
 	var best *candidate
+	now := s.now()
 	for _, e := range s.pixabay {
-		if !e.ok {
+		if !e.ok || now.After(e.freshUntil) {
 			continue
 		}
 		for _, p := range e.value {

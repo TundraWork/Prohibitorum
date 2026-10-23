@@ -436,11 +436,11 @@ func NewServer(ctx context.Context) (*Server, error) {
 			Client:      federation.NewOutboundHTTPClient(false, 1<<20),
 			ImageClient: federation.NewOutboundHTTPClient(false, 10<<20),
 		}),
-		clientIP:              clientIPResolver,
-		diagStore:             diagStore,
-		cursorCodec:           cursorCodec,
-		appPolicyService:      accessService,
-		appLister:             accessService,
+		clientIP:         clientIPResolver,
+		diagStore:        diagStore,
+		cursorCodec:      cursorCodec,
+		appPolicyService: accessService,
+		appLister:        accessService,
 	}
 	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
 	// the main session middleware, so it gets the maintenance flag injected here.
