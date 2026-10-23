@@ -131,9 +131,7 @@ export function AppManagersSection({
         }
       >
         {removeFailure.error !== null && (
-          <div className="px-5 pb-3">
-            <InlineFailure error={removeFailure.error} />
-          </div>
+          <InlineFailure error={removeFailure.error} />
         )}
         {managers.isError ? (
           <div className="p-4">

@@ -8254,6 +8254,11 @@ msgid "admin.group.exposed"
 msgstr "发送给应用"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/EmailsPanel.tsx
+msgid "profile.emails.sending"
+msgstr "正在发送验证码…"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.basic.hint"
 msgstr "在 Authorization 请求头里发送客户端密钥。"

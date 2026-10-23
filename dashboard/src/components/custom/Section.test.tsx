@@ -344,7 +344,7 @@ describe("Section", () => {
     }
   });
 
-  it("keeps the section's rhythm between a notice and a list that claims the panel", () => {
+  it("keeps exactly one spacing between a notice or strip and a list that claims the panel", () => {
     const { container } = render(
       <Section title="With notice">
         <SurfaceAlert status="warning">
@@ -357,11 +357,24 @@ describe("Section", () => {
       </Section>,
     );
 
-    // The claimed-panel body keeps the same gap the section's own panel
-    // uses, so a notice above the list does not sit flush against it.
+    // The claimed-panel body owns the one gap the section's own panel uses;
+    // anything a caller draws beside the list must not pad the same edge, or
+    // the two stack to double the rhythm. That holds only when the notice or
+    // strip is the body's direct child — no wrapper div between them carries
+    // padding of its own — and it sits flush with the list panel's edge.
     const body = container.querySelector("[data-slot='section-body']");
     expect(body).not.toBeNull();
     expect(body?.className).toContain("gap-3");
+    const alertEl = container.querySelector("[data-slot='alert']");
+    expect(alertEl).not.toBeNull();
+    expect(alertEl?.parentElement).toBe(body);
+    // And the list panel is the body's child too, a sibling of the notice,
+    // both flush with the frame edge rather than one indented inside it.
+    const panels = [
+      ...(body?.querySelectorAll(":scope > [data-slot='frame-panel']") ?? []),
+    ];
+    expect(panels.length).toBeGreaterThan(0);
+    expect(panels).toContain(alertEl?.nextElementSibling ?? null);
   });
 
   it("keeps a titled list or card as its own frame under the section's panel", () => {

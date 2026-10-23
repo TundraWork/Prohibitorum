@@ -207,11 +207,7 @@ export function AppAccessSection({
           </div>
         }
       >
-        {error !== null && (
-          <div className="px-5 pb-3">
-            <InlineFailure error={error} />
-          </div>
-        )}
+        {error !== null && <InlineFailure error={error} />}
         {restricted && <OrderStrip groups={selected} />}
         <ItemList
           label={t({ id: "app.groups.list", message: "Selected groups" })}
@@ -453,38 +449,36 @@ function OrderStrip({ groups }: { groups: AppGroupView[] }) {
     },
   ];
   return (
-    <div className="px-5 pb-3">
-      <ol
-        aria-label={t({
-          id: "app.access.order.label",
-          message: "Order of checks",
-        })}
-        className="grid grid-cols-2 overflow-hidden rounded-xl bg-muted/60 ring-1 ring-border/60 sm:grid-cols-4"
-      >
-        {steps.map((step, index) => (
-          <li
-            key={step.key}
-            className="border-t px-3 py-2.5 nth-[-n+2]:border-t-0 even:border-s sm:border-t-0 sm:border-s sm:first:border-s-0"
-          >
-            <div className="flex items-center gap-2 font-medium text-sm">
-              <span
-                aria-hidden="true"
-                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground text-xs shadow-xs/5 ring-1 ring-border"
-              >
-                {index + 1}
-              </span>
-              {step.title}
-            </div>
-            <div
-              data-tone={step.key === "rest" ? "danger" : undefined}
-              className="mt-0.5 text-muted-foreground text-caption data-[tone=danger]:text-destructive-foreground"
+    <ol
+      aria-label={t({
+        id: "app.access.order.label",
+        message: "Order of checks",
+      })}
+      className="grid grid-cols-2 overflow-hidden rounded-xl bg-muted/60 ring-1 ring-border/60 sm:grid-cols-4"
+    >
+      {steps.map((step, index) => (
+        <li
+          key={step.key}
+          className="border-t px-3 py-2.5 nth-[-n+2]:border-t-0 even:border-s sm:border-t-0 sm:border-s sm:first:border-s-0"
+        >
+          <div className="flex items-center gap-2 font-medium text-sm">
+            <span
+              aria-hidden="true"
+              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground text-xs shadow-xs/5 ring-1 ring-border"
             >
-              {step.detail}
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
+              {index + 1}
+            </span>
+            {step.title}
+          </div>
+          <div
+            data-tone={step.key === "rest" ? "danger" : undefined}
+            className="mt-0.5 text-muted-foreground text-caption data-[tone=danger]:text-destructive-foreground"
+          >
+            {step.detail}
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 

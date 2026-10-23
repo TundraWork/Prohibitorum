@@ -8254,6 +8254,11 @@ msgid "admin.group.exposed"
 msgstr "Send to applications"
 
 #. js-lingui-explicit-id
+#: src/pages/profile/EmailsPanel.tsx
+msgid "profile.emails.sending"
+msgstr "Sending the code…"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.basic.hint"
 msgstr "Sends the client secret in the Authorization header."

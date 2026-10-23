@@ -405,6 +405,11 @@ function EmailRow({
           </Trans>
         </p>
       )}
+      {verifyPending && (
+        <p role="status" className="text-muted-foreground text-caption">
+          <Trans id="profile.emails.sending">Sending the code…</Trans>
+        </p>
+      )}
       {verifyError !== null && (
         <p role="alert" className="text-destructive text-caption">
           {verifyError}

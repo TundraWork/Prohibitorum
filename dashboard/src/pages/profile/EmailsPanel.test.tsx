@@ -406,4 +406,65 @@ describe("EmailsPanel", () => {
     expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
     expect(within(menu).queryByRole("separator")).not.toBeInTheDocument();
   });
+
+  it("disables Verify and shows the row sending while the code is on its way", async () => {
+    const user = userEvent.setup();
+    let releaseSend: ((value: Response) => void) | undefined;
+    mount(
+      [
+        emailFixture({
+          id: 7,
+          address: "slow@example.test",
+          primary: false,
+          verified: false,
+          verifiedVia: undefined,
+          verifiedAt: undefined,
+        }),
+      ],
+      true,
+      (request) => {
+        if (new URL(request.url).pathname === `${emailsPath}/7/send-code`) {
+          // Held open until the test lets it go, so the pending state is on
+          // screen to be read.
+          return new Promise<Response>((resolve) => {
+            releaseSend = resolve;
+          });
+        }
+        return undefined;
+      },
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for slow@example.test",
+      }),
+    );
+    const verifyItem = await screen.findByRole("menuitem", { name: "Verify" });
+    await user.click(verifyItem);
+
+    // The menu closes on click; the row itself says the code is leaving.
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Sending the code/,
+    );
+    // A reopened menu's Verify is inert until the send answers.
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for slow@example.test",
+      }),
+    );
+    const item = await screen.findByRole("menuitem", { name: "Verify" });
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for slow@example.test",
+      }),
+    );
+
+    releaseSend?.(
+      Response.json({ resendAfterSeconds: 60, expiresInSeconds: 900 }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByText(/was sent to slow@example.test/),
+    ).toBeVisible();
+  });
 });
