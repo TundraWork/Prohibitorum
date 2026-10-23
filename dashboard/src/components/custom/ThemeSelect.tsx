@@ -57,6 +57,9 @@ export function useColorSchemeNames(): Record<ColorSchemeSlug, string> {
     lavender: t({ id: "theme.scheme.lavender", message: "Lavender" }),
     lagoon: t({ id: "theme.scheme.lagoon", message: "Lagoon" }),
     citrus: t({ id: "theme.scheme.citrus", message: "Citrus" }),
+    // Brand names, the same in every language.
+    catppuccin: "Catppuccin",
+    "catppuccin-gray": "Catppuccin Gray",
   };
 }
 

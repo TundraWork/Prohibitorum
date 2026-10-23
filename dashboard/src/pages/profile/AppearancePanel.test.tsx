@@ -11,6 +11,7 @@ import { AppEnvironment } from "@/app/AppEnvironment";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import { modeChoiceAtom, schemeChoiceAtom } from "@/lib/appearance";
+import { colorSchemes } from "@/lib/color-scheme";
 import { AppearancePanel } from "@/pages/profile/AppearancePanel";
 import { testConfig, testSession } from "@/test/app";
 
@@ -81,9 +82,13 @@ it("shows the account's choice and every scheme, previewed in both modes", () =>
     within(modes).getByRole("radio", { name: "System theme" }),
   ).toBeChecked();
   const schemes = screen.getByRole("radiogroup", { name: "Color scheme" });
-  expect(within(schemes).getAllByRole("radio")).toHaveLength(8);
+  expect(within(schemes).getAllByRole("radio")).toHaveLength(
+    colorSchemes.length,
+  );
   expect(within(schemes).getByRole("radio", { name: "Nord" })).toBeChecked();
-  expect(document.querySelectorAll("[data-scheme-preview]")).toHaveLength(8);
+  expect(document.querySelectorAll("[data-scheme-preview]")).toHaveLength(
+    colorSchemes.length,
+  );
 });
 
 it("applies a choice at once and saves the whole appearance section", async () => {

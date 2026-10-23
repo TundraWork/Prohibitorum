@@ -5,6 +5,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LoginSurface } from "@/api/raw-paths";
 import { i18n } from "@/i18n";
+import { colorSchemes } from "@/lib/color-scheme";
 import {
   PlacementControls,
   SurfaceFields,
@@ -91,7 +92,9 @@ describe("the card's place, theme and default scheme", () => {
     });
     expect(scheme).toHaveTextContent("Graphite");
     await user.click(scheme);
-    expect(await screen.findAllByRole("option")).toHaveLength(8);
+    expect(await screen.findAllByRole("option")).toHaveLength(
+      colorSchemes.length,
+    );
     await user.click(screen.getByRole("option", { name: "Sakura" }));
     expect(onScheme).toHaveBeenCalledWith("sakura");
   });

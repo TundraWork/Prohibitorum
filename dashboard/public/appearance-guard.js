@@ -12,7 +12,7 @@
     // Storage is unavailable or holds something else; use the defaults.
   }
   const scheme = applied?.scheme;
-  if (typeof scheme === "string" && /^[a-z]+$/.test(scheme)) {
+  if (typeof scheme === "string" && /^[a-z][a-z-]*$/.test(scheme)) {
     root.dataset.scheme = scheme;
   }
   const mode = applied?.mode;

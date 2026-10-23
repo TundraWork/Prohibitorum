@@ -60,7 +60,9 @@ const (
 // Schemes are the colour schemes' slugs, in the order the pickers list them.
 // The dashboard's lib/color-scheme.ts registers the same ones; a test keeps
 // the two lists equal.
-var Schemes = []string{"graphite", "nord", "sand", "matcha", "sakura", "lavender", "lagoon", "citrus"}
+var Schemes = []string{"graphite", "nord", "sand", "matcha", "sakura", "lavender", "lagoon", "citrus",
+	"catppuccin", "catppuccin-gray",
+}
 
 // DefaultScheme is the colour scheme of an instance that has not chosen one.
 const DefaultScheme = "graphite"

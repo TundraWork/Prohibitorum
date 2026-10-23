@@ -277,11 +277,51 @@ function contrastOf(scheme: string, mode: Mode, pair: Pair): number {
   return ratio(over(resolve(`var(--${pair.fg})`, tokens), surface), surface);
 }
 
+/*
+ * Pairs a scheme keeps below the floor on purpose. Catppuccin's Latte is used
+ * as published (PHB-154 #comment-2225), so these pairs hold at most at the
+ * official palette's own ratio: the figure here is that ratio rounded down,
+ * and a change that makes one worse still fails.
+ */
+const latteBelowFloor = (well: number): Record<string, number> => ({
+  "muted text": 4.3,
+  "muted text on a card": 4.3,
+  "muted text in a well": well,
+  "sidebar text": 5.1,
+  "focus ring": 2.8,
+  "warning text": 2.3,
+  "warning text on a card": 2.3,
+  "success text": 2.9,
+  "success text on a card": 2.9,
+  "info text": 4.3,
+  "info text on a card": 4.3,
+});
+const exemptions: Record<
+  string,
+  Partial<Record<Mode, Record<string, number>>>
+> = {
+  catppuccin: { light: latteBelowFloor(3.2) },
+  "catppuccin-gray": { light: latteBelowFloor(3.1) },
+};
+
 describe.each(colorSchemes.map((s) => s.slug))("the %s scheme", (scheme) => {
   describe.each(["light", "dark"] as const)("in %s mode", (mode) => {
-    it.each(Object.entries(pairs))("keeps %s readable", (_label, pair) => {
-      expect(contrastOf(scheme, mode, pair)).toBeGreaterThanOrEqual(pair.min);
+    it.each(Object.entries(pairs))("keeps %s readable", (label, pair) => {
+      const floor = exemptions[scheme]?.[mode]?.[label] ?? pair.min;
+      expect(contrastOf(scheme, mode, pair)).toBeGreaterThanOrEqual(floor);
     });
+  });
+
+  it("lists only pairs that are really below the floor as exempt", () => {
+    for (const mode of ["light", "dark"] as const) {
+      for (const label of Object.keys(exemptions[scheme]?.[mode] ?? {})) {
+        const pair = pairs[label];
+        expect(pair, label).toBeDefined();
+        expect(contrastOf(scheme, mode, pair as Pair)).toBeLessThan(
+          (pair as Pair).min,
+        );
+      }
+    }
   });
 
   it("declares a light and a dark block", () => {
