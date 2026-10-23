@@ -5,6 +5,7 @@ import {
   CameraIcon,
   ImagesIcon,
   LogInIcon,
+  MountainIcon,
   SquareDashedIcon,
   SunriseIcon,
 } from "lucide-react";
@@ -38,6 +39,7 @@ export function SignInPageSummary() {
     }),
     bing: "Bing",
     unsplash: "Unsplash",
+    pixabay: "Pixabay",
     images: t({
       id: "settings.sign-in.summary.images",
       message: `Images (${count})`,
@@ -103,9 +105,11 @@ function Thumbnail({
       ? SunriseIcon
       : background.source === "unsplash"
         ? CameraIcon
-        : background.source === "images"
-          ? ImagesIcon
-          : SquareDashedIcon;
+        : background.source === "pixabay"
+          ? MountainIcon
+          : background.source === "images"
+            ? ImagesIcon
+            : SquareDashedIcon;
   return (
     <div
       aria-hidden="true"
@@ -125,6 +129,7 @@ function Thumbnail({
       {(background.source === "none" ||
         background.source === "bing" ||
         background.source === "unsplash" ||
+        background.source === "pixabay" ||
         (background.source === "images" && firstImage === undefined)) && (
         <Mark className="absolute top-1.5 left-1.5 size-3.5 text-muted-foreground" />
       )}

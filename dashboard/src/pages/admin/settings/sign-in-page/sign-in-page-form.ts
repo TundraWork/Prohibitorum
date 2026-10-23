@@ -16,6 +16,8 @@ export interface SignInPageValues {
   appearance: LoginAppearance;
   /** Empty unless the administrator typed a new key. */
   unsplashAccessKey: string;
+  /** Empty unless the administrator typed a new Pixabay API key. */
+  pixabayApiKey: string;
 }
 
 export const backgroundSources: LoginBackgroundSource[] = [
@@ -24,6 +26,7 @@ export const backgroundSources: LoginBackgroundSource[] = [
   "gradient",
   "bing",
   "unsplash",
+  "pixabay",
   "images",
 ];
 
@@ -92,8 +95,8 @@ export const signInPageMessages = {
     message: "Remove the tab or line break.",
   }),
   keyRequired: msg({
-    id: "settings.sign-in.unsplash.key.required",
-    message: "Enter the access key of your Unsplash application.",
+    id: "settings.sign-in.key.required",
+    message: "Enter the {service} key before saving.",
   }),
   keyInvalid: msg({
     id: "settings.sign-in.unsplash.key.invalid",
@@ -128,15 +131,27 @@ export function intervalError(value: number): MessageDescriptor | undefined {
 
 /**
  * A key is checked only when one is being entered; it is required when the
- * background is Unsplash and no key is saved to fall back on.
+ * background is that key's service and no key is saved to fall back on.
  */
 export function keyError(
   value: string,
-  context: { source: LoginBackgroundSource; hasSavedKey: boolean },
+  context: {
+    source: LoginBackgroundSource;
+    service: "unsplash" | "pixabay";
+    hasSavedKey: boolean;
+  },
 ): MessageDescriptor | undefined {
   if (value === "") {
-    return context.source === "unsplash" && !context.hasSavedKey
-      ? signInPageMessages.keyRequired
+    return context.source === context.service && !context.hasSavedKey
+      ? {
+          ...signInPageMessages.keyRequired,
+          values: {
+            service:
+              context.service === "unsplash"
+                ? "Unsplash access"
+                : "Pixabay API",
+          },
+        }
       : undefined;
   }
   return unsplashKeyPattern.test(value)
@@ -144,27 +159,40 @@ export function keyError(
     : signInPageMessages.keyInvalid;
 }
 
-/** The whole appearance, and the key only when one was typed. */
+/**
+ * The whole appearance, and each key only while its service is chosen and a
+ * new one was typed.
+ */
 export function signInPageBody(values: SignInPageValues): LoginAppearanceWrite {
-  return values.unsplashAccessKey === ""
-    ? { appearance: values.appearance }
-    : {
-        appearance: values.appearance,
-        unsplashAccessKey: values.unsplashAccessKey,
-      };
+  const body: LoginAppearanceWrite = { appearance: values.appearance };
+  if (
+    values.unsplashAccessKey !== "" &&
+    values.appearance.background.source === "unsplash"
+  ) {
+    body.unsplashAccessKey = values.unsplashAccessKey;
+  }
+  if (
+    values.pixabayApiKey !== "" &&
+    values.appearance.background.source === "pixabay"
+  ) {
+    body.pixabayApiKey = values.pixabayApiKey;
+  }
+  return body;
 }
 
 /**
- * How many settings the draft changes from what is saved, a typed access key
- * counting as one. Each leaf value that differs is one change, so choosing a
- * source and then its picture reads as two.
+ * How many settings the draft changes from what is saved, a typed key
+ * counting as one each. Each leaf value that differs is one change, so
+ * choosing a source and then its picture reads as two.
  */
 export function changedSettings(
   saved: LoginAppearance,
   draft: LoginAppearance,
-  typedKey: string,
+  typedKeys: string[],
 ): number {
-  return changedValues(saved, draft) + (typedKey === "" ? 0 : 1);
+  return (
+    changedValues(saved, draft) + typedKeys.filter((key) => key !== "").length
+  );
 }
 
 /** How many leaf values differ between two settings objects. */
@@ -189,18 +217,18 @@ export function changedValues(a: unknown, b: unknown): number {
 }
 
 /**
- * Where the changes are: the background (and a typed access key), the card's
+ * Where the changes are: the background (and each typed key), the card's
  * place, theme, default scheme and surface, and the toolbar's surface.
  */
 export function changesBySection(
   saved: LoginAppearance,
   draft: LoginAppearance,
-  typedKey: string,
+  typedKeys: string[],
 ) {
   return {
     background:
       changedValues(saved.background, draft.background) +
-      (typedKey === "" ? 0 : 1),
+      typedKeys.filter((key) => key !== "").length,
     card:
       changedValues(saved.cardPosition, draft.cardPosition) +
       changedValues(saved.theme, draft.theme) +

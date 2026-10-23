@@ -512,7 +512,7 @@ msgstr "Access hasn't been granted yet. Once an administrator grants it, you can
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key"
 msgstr "Access key"
 
@@ -522,7 +522,7 @@ msgid "success.unsplash-key.removed"
 msgstr "Access key removed"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.saved"
 msgstr "Access key saved"
 
@@ -1169,6 +1169,22 @@ msgstr "Anything using this token stops working immediately. This cannot be undo
 #: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.body"
 msgstr "Anything using this token stops working immediately. This cannot be undone."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
+msgid "settings.sign-in.pixabay.key"
+msgstr "API key"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.pixabay-key.removed"
+msgstr "API key removed"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
+msgid "settings.sign-in.pixabay.key.saved"
+msgstr "API key saved"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AppearancePanel.tsx
@@ -2874,6 +2890,11 @@ msgstr "Couldn't get a photo from Unsplash."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
+msgid "settings.sign-in.preview.pixabay_failed"
+msgstr "Couldn't get a picture from Pixabay."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.bing_failed"
 msgstr "Couldn't get the picture from Bing."
 
@@ -3897,6 +3918,11 @@ msgid "login.password.invalid"
 msgstr "Enter a password of no more than 1024 UTF-8 bytes."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pixabay_key_required"
+msgstr "Enter a Pixabay API key to use Pixabay pictures."
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.recovery.invalid"
 msgstr "Enter a recovery code in XXXX-XXXX-XXXX-XXXX format, using uppercase A–Z and digits 2–7."
@@ -3959,8 +3985,8 @@ msgstr "Enter the {0}-digit code from your authenticator."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
-msgid "settings.sign-in.unsplash.key.required"
-msgstr "Enter the access key of your Unsplash application."
+msgid "settings.sign-in.key.required"
+msgstr "Enter the {service} key before saving."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -4352,6 +4378,11 @@ msgstr "From the saved rule"
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.column.returned.when"
 msgstr "From the test <0/>"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.key.hint"
+msgstr "From your account on <0>pixabay.com/api/docs</0>."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
@@ -5040,7 +5071,7 @@ msgid "settings.maintenance.description"
 msgstr "Keep everyone but administrators out while you work on the instance."
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.keep"
 msgstr "Keep the saved key"
 
@@ -5062,6 +5093,11 @@ msgstr "Keys for scripts and tools that act as you. Each is shown once, when you
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.unsplash.query"
+msgstr "Keyword"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.query"
 msgstr "Keyword"
 
 #. js-lingui-explicit-id
@@ -5775,6 +5811,11 @@ msgstr "New access token"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.label"
 msgstr "New access token"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.key.new"
+msgstr "New API key"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -6778,6 +6819,21 @@ msgid "success.avatar.uploaded"
 msgstr "Picture uploaded. Select it to show it."
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pixabay_unreachable"
+msgstr "Pixabay could not be reached, so the API key was not checked or saved."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pixabay_key_invalid"
+msgstr "Pixabay did not accept this API key. Check it and enter it again."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.width"
+msgstr "Pixabay pictures are at most 1280 pixels wide, so they can look soft on large screens."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.pkce"
 msgstr "PKCE"
@@ -7243,7 +7299,7 @@ msgid "admin.user.emails.delete.action"
 msgstr "Remove"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.remove"
 msgstr "Remove"
 
@@ -7475,7 +7531,7 @@ msgid "profile.avatar.replace"
 msgstr "Replace"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.replace"
 msgstr "Replace"
 
@@ -8001,6 +8057,11 @@ msgid "settings.sign-in.preview.unsplash_key"
 msgstr "Save an access key to preview Unsplash photos."
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
+msgid "settings.sign-in.preview.pixabay_key"
+msgstr "Save an API key to preview Pixabay pictures."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.save"
 msgstr "Save changes"
@@ -8084,6 +8145,11 @@ msgstr "Search accounts"
 #: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.placeholder"
 msgstr "Search accounts"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.language"
+msgstr "Search language"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
@@ -8934,7 +9000,7 @@ msgid "consent.switch_account"
 msgstr "Switch account"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.in_use"
 msgstr "Switch the background to another source and save before removing the key."
 
@@ -9217,6 +9283,11 @@ msgstr "That verification method is not available. Choose another one."
 #: src/pages/admin/settings/MailPanel.tsx
 msgid "settings.mail.test.rate_limited"
 msgstr "That was too many. Try again in a moment."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.query.hidden_invalid"
+msgstr "The {source} keyword can't be used. Choose {source} to correct it."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
@@ -9814,6 +9885,11 @@ msgstr "The sign-in page does not use a Bing or Unsplash picture."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
+msgid "error.pixabay_key_in_use"
+msgstr "The sign-in page still uses Pixabay. Switch the background to another source and save before removing the key."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
 msgid "error.unsplash_key_in_use"
 msgstr "The sign-in page still uses Unsplash. Switch the background to another source and save before removing the key."
 
@@ -9856,11 +9932,6 @@ msgstr "The trusted proxies list has an entry the server will not accept. Choose
 #: src/forms/password-totp-rules.ts
 msgid "security.password.mismatch"
 msgstr "The two passwords do not match."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
-msgid "settings.sign-in.unsplash.query.hidden_invalid"
-msgstr "The Unsplash keyword can't be used. Choose Unsplash to correct it."
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -11549,6 +11620,11 @@ msgstr "Write the notice in the default language too, so every visitor sees it."
 #: src/api/errors.ts
 msgid "error.maintenance_default_notice_required"
 msgstr "Write the notice in the default language too, so every visitor sees it."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.query.hint"
+msgstr "Written in the chosen search language; leave it empty for any picture."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx

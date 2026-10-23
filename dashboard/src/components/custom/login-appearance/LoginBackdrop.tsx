@@ -8,10 +8,10 @@ import { useReducedMotion } from "@/components/custom/login-appearance/use-reduc
  * The sign-in page's background, drawn by the saved source, covering the
  * window behind everything.
  *
- * Uploaded images, Bing and Unsplash draw the pictures `useLoginBackground`
- * chose; until a wallpaper arrives, or when it could not be read, nothing is
- * drawn and the page keeps its own background. Every picture is decoration:
- * empty `alt`, hidden from readers.
+ * Uploaded images and the picture services draw the pictures
+ * `useLoginBackground` chose; until a wallpaper arrives, or when it could not
+ * be read, nothing is drawn and the page keeps its own background. Every
+ * picture is decoration: empty `alt`, hidden from readers.
  */
 export function LoginBackdrop({
   appearance,
@@ -52,6 +52,7 @@ export function LoginBackdrop({
       );
     case "bing":
     case "unsplash":
+    case "pixabay":
     case "images":
       if (shown.pictures.length === 0) return null;
       return (

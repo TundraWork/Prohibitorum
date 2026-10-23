@@ -5,6 +5,7 @@ import {
   CameraIcon,
   ImagesIcon,
   type LucideIcon,
+  MountainIcon,
   PaintBucketIcon,
   SquareDashedIcon,
   SunriseIcon,
@@ -21,6 +22,7 @@ import {
   gradientBackground,
   loginGradients,
 } from "@/components/custom/login-appearance/gradients";
+import { pixabayLanguages } from "@/components/custom/login-appearance/photo-sources";
 import { SegmentedControl } from "@/components/custom/SegmentedControl";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { RadioGroup } from "@/components/ui/radio-group";
@@ -37,7 +39,7 @@ import { ChoiceStrip } from "@/pages/admin/settings/sign-in-page/ChoiceStrip";
 import { ColorControl } from "@/pages/admin/settings/sign-in-page/ColorControl";
 import { IntervalField } from "@/pages/admin/settings/sign-in-page/IntervalField";
 import { LoginImagesControl } from "@/pages/admin/settings/sign-in-page/LoginImagesControl";
-import { SavedUnsplashKey } from "@/pages/admin/settings/sign-in-page/SavedUnsplashKey";
+import { SavedWallpaperKey } from "@/pages/admin/settings/sign-in-page/SavedWallpaperKey";
 import {
   backgroundSources,
   bingMarkets,
@@ -54,6 +56,7 @@ const sourceIcons: Record<LoginBackgroundSource, LucideIcon> = {
   gradient: BlendIcon,
   bing: SunriseIcon,
   unsplash: CameraIcon,
+  pixabay: MountainIcon,
   images: ImagesIcon,
 };
 
@@ -154,6 +157,53 @@ function MarketSelect({
   );
 }
 
+/** The language name in the console's language, e.g. "Chinese" for zh. */
+function useLanguageName(): (code: string) => string {
+  const { i18n } = useLingui();
+  const locale = i18n.locale === "zh" ? "zh-CN" : "en";
+  return useMemo(() => {
+    const names = new Intl.DisplayNames([locale], { type: "language" });
+    return (code: string) => names.of(code) ?? code;
+  }, [locale]);
+}
+
+function LanguageSelect({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  onChange: (lang: string) => void;
+}) {
+  const languageName = useLanguageName();
+  return (
+    <Field disabled={disabled}>
+      <FieldLabel>
+        <Trans id="settings.sign-in.pixabay.language">Search language</Trans>
+      </FieldLabel>
+      <Select
+        value={value}
+        disabled={disabled}
+        onValueChange={(next) => {
+          if (typeof next === "string") onChange(next);
+        }}
+      >
+        <SelectTrigger>
+          <SelectValue>{(code: string) => languageName(code)}</SelectValue>
+        </SelectTrigger>
+        <SelectPopup alignItemWithTrigger={false}>
+          {pixabayLanguages.map((code) => (
+            <SelectItem key={code} value={code}>
+              {languageName(code)}
+            </SelectItem>
+          ))}
+        </SelectPopup>
+      </Select>
+    </Field>
+  );
+}
+
 /**
  * How a source with several pictures shows them: one at random per visit, or
  * a carousel, whose interval field is passed as `children` and shown only
@@ -205,27 +255,33 @@ function RotationControls({
  * its own settings while another is chosen, and a hidden source's values are
  * still saved.
  *
- * `inUse` says the saved background is Unsplash, which is what holds the saved
- * key; `hasKey` that there is one. The access key field is shown while there
- * is no key to fall back on, or the administrator chose to replace it.
+ * `inUse` names the service whose background is saved, which is what holds
+ * its key; `hasUnsplashKey`/`hasPixabayKey` say there is one. A key field is
+ * shown while there is no key to fall back on, or while the administrator
+ * chose to replace it.
  */
 export const BackgroundControls = withForm({
   defaultValues: {
     appearance: {} as SignInPageValues["appearance"],
     unsplashAccessKey: "",
+    pixabayApiKey: "",
   } satisfies SignInPageValues,
   props: {} as {
     images: { id: number; url: string }[];
-    hasKey: boolean;
-    inUse: boolean;
-    replacingKey: boolean;
-    onReplaceKey: () => void;
-    onKeepKey: () => void;
+    hasUnsplashKey: boolean;
+    hasPixabayKey: boolean;
+    /** The service the saved background uses, if it is a key-holding one. */
+    inUse: "unsplash" | "pixabay" | undefined;
+    /** The service whose key is being replaced, if any. */
+    replacingKey: "unsplash" | "pixabay" | undefined;
+    onReplaceKey: (source: "unsplash" | "pixabay") => void;
+    onKeepKey: (source: "unsplash" | "pixabay") => void;
   },
   render: function Render({
     form,
     images,
-    hasKey,
+    hasUnsplashKey,
+    hasPixabayKey,
     inUse,
     replacingKey,
     onReplaceKey,
@@ -246,9 +302,10 @@ export const BackgroundControls = withForm({
       }),
       bing: "Bing",
       unsplash: "Unsplash",
+      pixabay: "Pixabay",
       images: t({ id: "settings.sign-in.source.images", message: "Images" }),
     };
-    const showKeyField = !hasKey || replacingKey;
+    const showKeyField = !hasUnsplashKey || replacingKey === "unsplash";
 
     return (
       <>
@@ -347,15 +404,16 @@ export const BackgroundControls = withForm({
 
         {background.source === "unsplash" && (
           <>
-            {hasKey && (
-              <SavedUnsplashKey
-                inUse={inUse}
+            {hasUnsplashKey && (
+              <SavedWallpaperKey
+                source="unsplash"
+                inUse={inUse === "unsplash"}
                 disabled={submitting}
-                replacing={replacingKey}
-                onReplace={onReplaceKey}
+                replacing={replacingKey === "unsplash"}
+                onReplace={() => onReplaceKey("unsplash")}
                 onKeep={() => {
                   form.setFieldValue("unsplashAccessKey", "");
-                  onKeepKey();
+                  onKeepKey("unsplash");
                 }}
               />
             )}
@@ -368,7 +426,8 @@ export const BackgroundControls = withForm({
                       source:
                         fieldApi.form.getFieldValue("appearance").background
                           .source,
-                      hasSavedKey: hasKey,
+                      service: "unsplash",
+                      hasSavedKey: hasUnsplashKey,
                     }),
                 }}
               >
@@ -444,6 +503,133 @@ export const BackgroundControls = withForm({
             >
               <form.Field
                 name="appearance.background.unsplash.intervalSeconds"
+                validators={{ onSubmit: ({ value }) => intervalError(value) }}
+              >
+                {(field) => (
+                  <IntervalField
+                    value={field.state.value}
+                    disabled={submitting}
+                    errors={field.state.meta.errors.flat(
+                      Number.POSITIVE_INFINITY,
+                    )}
+                    onChange={(seconds) => field.handleChange(seconds)}
+                  />
+                )}
+              </form.Field>
+            </RotationControls>
+          </>
+        )}
+
+        {background.source === "pixabay" && (
+          <>
+            {hasPixabayKey && (
+              <SavedWallpaperKey
+                source="pixabay"
+                inUse={inUse === "pixabay"}
+                disabled={submitting}
+                replacing={replacingKey === "pixabay"}
+                onReplace={() => onReplaceKey("pixabay")}
+                onKeep={() => {
+                  form.setFieldValue("pixabayApiKey", "");
+                  onKeepKey("pixabay");
+                }}
+              />
+            )}
+            {(!hasPixabayKey || replacingKey === "pixabay") && (
+              <form.AppField
+                name="pixabayApiKey"
+                validators={{
+                  onSubmit: ({ value, fieldApi }) =>
+                    keyError(value, {
+                      source:
+                        fieldApi.form.getFieldValue("appearance").background
+                          .source,
+                      service: "pixabay",
+                      hasSavedKey: hasPixabayKey,
+                    }),
+                }}
+              >
+                {(field) => (
+                  <field.FormField
+                    label={
+                      replacingKey === "pixabay" ? (
+                        <Trans id="settings.sign-in.pixabay.key.new">
+                          New API key
+                        </Trans>
+                      ) : (
+                        <Trans id="settings.sign-in.pixabay.key">API key</Trans>
+                      )
+                    }
+                    type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    isMonospace
+                    compactValue
+                    description={
+                      <Trans id="settings.sign-in.pixabay.key.hint">
+                        From your account on{" "}
+                        <a
+                          href="https://pixabay.com/api/docs/"
+                          target="_blank"
+                          rel="noreferrer"
+                          className={inlineLinkClass}
+                        >
+                          pixabay.com/api/docs
+                        </a>
+                        .
+                      </Trans>
+                    }
+                  />
+                )}
+              </form.AppField>
+            )}
+            <p className="text-muted-foreground text-caption">
+              <Trans id="settings.sign-in.pixabay.width">
+                Pixabay pictures are at most 1280 pixels wide, so they can look
+                soft on large screens.
+              </Trans>
+            </p>
+            <form.AppField
+              name="appearance.background.pixabay.query"
+              validators={{
+                onBlur: ({ value }) => queryError(value),
+                onSubmit: ({ value }) => queryError(value),
+              }}
+            >
+              {(field) => (
+                <field.FormField
+                  label={
+                    <Trans id="settings.sign-in.pixabay.query">Keyword</Trans>
+                  }
+                  placeholder="雪山"
+                  autoComplete="off"
+                  description={
+                    <Trans id="settings.sign-in.pixabay.query.hint">
+                      Written in the chosen search language; leave it empty for
+                      any picture.
+                    </Trans>
+                  }
+                />
+              )}
+            </form.AppField>
+            <form.Field name="appearance.background.pixabay.lang">
+              {(field) => (
+                <LanguageSelect
+                  value={field.state.value}
+                  disabled={submitting}
+                  onChange={(lang) => field.handleChange(lang)}
+                />
+              )}
+            </form.Field>
+            <RotationControls
+              order={background.pixabay.order}
+              disabled={submitting}
+              onOrder={(order) =>
+                form.setFieldValue("appearance.background.pixabay.order", order)
+              }
+            >
+              <form.Field
+                name="appearance.background.pixabay.intervalSeconds"
                 validators={{ onSubmit: ({ value }) => intervalError(value) }}
               >
                 {(field) => (

@@ -173,6 +173,7 @@ const loginSources = [
   "gradient",
   "bing",
   "unsplash",
+  "pixabay",
   "images",
 ] as const satisfies readonly LoginBackgroundSource[];
 
@@ -1208,6 +1209,15 @@ export function MockPanel() {
             onChange={(next) =>
               updateMockConfig((draft) => {
                 draft.instance.hasUnsplashKey = next;
+              })
+            }
+          />
+          <Toggle
+            label="Pixabay API key saved"
+            checked={config.instance.hasPixabayKey}
+            onChange={(next) =>
+              updateMockConfig((draft) => {
+                draft.instance.hasPixabayKey = next;
               })
             }
           />

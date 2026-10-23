@@ -306,6 +306,7 @@ export interface MockConfig {
     /** How many sign-in background images are uploaded, 0–10. */
     loginImageCount: number;
     hasUnsplashKey: boolean;
+    hasPixabayKey: boolean;
     /** Bumped by every image write, so `/config` reports a new ETag. */
     imageRevision: number;
     clientIpStrategy: "direct" | "forwarded" | "header";
@@ -484,6 +485,7 @@ export const defaultMockConfig: MockConfig = {
     loginAppearance: structuredClone(defaultLoginAppearance),
     loginImageCount: 0,
     hasUnsplashKey: false,
+    hasPixabayKey: false,
     imageRevision: 0,
     clientIpStrategy: "direct",
     clientIpHeader: "",

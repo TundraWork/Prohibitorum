@@ -27,7 +27,7 @@ export function publicConfigQueryOptions() {
 }
 
 /**
- * The Bing or Unsplash picture behind the sign-in page. Read once per visit —
+ * The picture behind the sign-in page, whichever service saved it. Read once
  * the page keeps the picture it opened with — and a failure is not reported:
  * the page simply keeps its own background. The server answers for the saved
  * source; the key carries it, so a newly saved source is a new read rather
@@ -39,7 +39,15 @@ export function loginWallpaperQueryOptions(
   const params =
     background.source === "bing"
       ? [background.source, background.bing.market]
-      : [background.source, background.unsplash.query];
+      : background.source === "unsplash"
+        ? [background.source, background.unsplash.query]
+        : background.source === "pixabay"
+          ? [
+              background.source,
+              background.pixabay.query,
+              background.pixabay.lang,
+            ]
+          : [background.source];
   return queryOptions({
     queryKey: ["public", "login-wallpaper", ...params],
     staleTime: Number.POSITIVE_INFINITY,

@@ -84,7 +84,7 @@ function view(props: Partial<PreviewProps> = {}) {
           props={{
             appearance: defaultLoginAppearance,
             images: [],
-            hasUnsplashKey: false,
+            hasKeys: { unsplash: false, pixabay: false },
             theme: "light",
             size: "desktop",
             ...props,

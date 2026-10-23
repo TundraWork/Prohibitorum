@@ -527,6 +527,7 @@ export async function measureReadability(
       );
     case "bing":
     case "unsplash":
+    case "pixabay":
     case "images": {
       const image = doc.querySelector<HTMLImageElement>(
         '[data-login-backdrop="pictures"] img[data-current]',

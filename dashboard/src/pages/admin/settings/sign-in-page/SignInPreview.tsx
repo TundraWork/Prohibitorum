@@ -84,14 +84,15 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 export function SignInPreview({
   appearance,
   images,
-  hasUnsplashKey,
+  hasKeys,
   theme,
   size,
   onDocument,
 }: {
   appearance: LoginAppearance;
   images: string[];
-  hasUnsplashKey: boolean;
+  /** Which services have a saved key; a source without one cannot preview. */
+  hasKeys: { unsplash: boolean; pixabay: boolean };
   theme: PreviewTheme;
   size: PreviewSize;
   /** Told the preview's document once it is ready, for measuring what it draws. */
@@ -105,10 +106,18 @@ export function SignInPreview({
       ? { source: "bing", market: background.bing.market }
       : background.source === "unsplash"
         ? { source: "unsplash", query: background.unsplash.query }
-        : undefined,
+        : background.source === "pixabay"
+          ? {
+              source: "pixabay",
+              query: background.pixabay.query,
+              lang: background.pixabay.lang,
+            }
+          : undefined,
     400,
   );
-  const needsKey = background.source === "unsplash" && !hasUnsplashKey;
+  const needsKey =
+    (background.source === "unsplash" && !hasKeys.unsplash) ||
+    (background.source === "pixabay" && !hasKeys.pixabay);
   const current = params?.source === background.source;
   const wallpaper = useQuery({
     ...loginWallpaperPreviewQueryOptions(
@@ -122,7 +131,9 @@ export function SignInPreview({
     current ? wallpaper.data : undefined,
   );
   const loading =
-    (background.source === "bing" || background.source === "unsplash") &&
+    (background.source === "bing" ||
+      background.source === "unsplash" ||
+      background.source === "pixabay") &&
     !needsKey &&
     !wallpaper.isError &&
     shown.wallpaperPicture === undefined;
@@ -133,20 +144,30 @@ export function SignInPreview({
         message: "The sign-in page could not be drawn here.",
       })
     : needsKey
-      ? t({
-          id: "settings.sign-in.preview.unsplash_key",
-          message: "Save an access key to preview Unsplash photos.",
-        })
+      ? background.source === "pixabay"
+        ? t({
+            id: "settings.sign-in.preview.pixabay_key",
+            message: "Save an API key to preview Pixabay pictures.",
+          })
+        : t({
+            id: "settings.sign-in.preview.unsplash_key",
+            message: "Save an access key to preview Unsplash photos.",
+          })
       : wallpaper.isError && current
         ? background.source === "bing"
           ? t({
               id: "settings.sign-in.preview.bing_failed",
               message: "Couldn't get the picture from Bing.",
             })
-          : t({
-              id: "settings.sign-in.preview.unsplash_failed",
-              message: "Couldn't get a photo from Unsplash.",
-            })
+          : background.source === "pixabay"
+            ? t({
+                id: "settings.sign-in.preview.pixabay_failed",
+                message: "Couldn't get a picture from Pixabay.",
+              })
+            : t({
+                id: "settings.sign-in.preview.unsplash_failed",
+                message: "Couldn't get a photo from Unsplash.",
+              })
         : undefined;
 
   return (
