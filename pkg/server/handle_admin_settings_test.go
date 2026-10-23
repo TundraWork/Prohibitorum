@@ -59,10 +59,11 @@ func (f *settingsBrandingStore) ClearIcon(_ context.Context) error {
 	f.etag = nil
 	return nil
 }
-func (f *settingsBrandingStore) SetAppearance(context.Context, branding.Appearance, *branding.SealedKey) error {
+func (f *settingsBrandingStore) SetAppearance(context.Context, branding.Appearance, branding.NewKeys) error {
 	return nil
 }
 func (f *settingsBrandingStore) ClearUnsplashKey(context.Context) error { return nil }
+func (f *settingsBrandingStore) ClearPixabayKey(context.Context) error  { return nil }
 func (f *settingsBrandingStore) AddImage(context.Context, []byte, string) (branding.ImageRef, error) {
 	return branding.ImageRef{}, nil
 }

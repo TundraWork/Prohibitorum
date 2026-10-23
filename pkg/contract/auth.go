@@ -245,10 +245,12 @@ type LoginImage struct {
 	Etag string `json:"etag"`
 }
 
-// Wallpaper is GET /branding/wallpaper: the pictures the browser loads straight
-// from Bing or Unsplash, with their credits. Bing sends today's picture alone;
-// Unsplash sends the whole cached batch in its order, and the browser shows one
-// at random or rotates through them.
+// Wallpaper is GET /branding/wallpaper: the pictures behind the sign-in page,
+// with their credits. Bing sends today's picture alone; Unsplash and Pixabay
+// send the whole cached batch in its order, and the browser shows one at
+// random or rotates through them. Bing's and Unsplash's imageUrl points
+// straight at their own picture hosts; Pixabay's terms forbid hotlinking, so
+// its imageUrl is this site's /branding/wallpaper/images/pixabay/{id}.
 type Wallpaper struct {
 	Source   string             `json:"source"`
 	Pictures []WallpaperPicture `json:"pictures"`
@@ -257,7 +259,8 @@ type Wallpaper struct {
 // WallpaperPicture is one picture and its credit. Bing fills title, copyright
 // and copyrightUrl (omitted when the caption is hidden); Unsplash fills title
 // from the photo's description when it has one, and the photographer and
-// photo links, which are always shown.
+// photo links, which are always shown; Pixabay fills only the photographer
+// and the photo page link.
 type WallpaperPicture struct {
 	ImageURL        string `json:"imageUrl"`
 	Title           string `json:"title,omitempty"`
@@ -268,11 +271,12 @@ type WallpaperPicture struct {
 	PhotoURL        string `json:"photoUrl,omitempty"`
 }
 
-// AdminLoginAppearance is GET /admin/settings/login-appearance. The Unsplash
-// key itself is never returned.
+// AdminLoginAppearance is GET /admin/settings/login-appearance. Neither key
+// itself is ever returned.
 type AdminLoginAppearance struct {
 	Appearance     LoginAppearance `json:"appearance"`
 	HasUnsplashKey bool            `json:"hasUnsplashKey"`
+	HasPixabayKey  bool            `json:"hasPixabayKey"`
 }
 
 // EnrollmentURLResponse is returned by reissue-enrollment. Reveal-once: the URL

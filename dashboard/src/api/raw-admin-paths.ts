@@ -219,26 +219,29 @@ export interface ClientIpSettings {
   trustedProxies: string[];
 }
 
-/** `GET /admin/settings/login-appearance`. The Unsplash key itself is never returned. */
+/** `GET /admin/settings/login-appearance`. Neither key is ever returned. */
 export interface AdminLoginAppearance {
   appearance: LoginAppearance;
   hasUnsplashKey: boolean;
+  hasPixabayKey: boolean;
 }
 
 /**
- * `PUT /admin/settings/login-appearance`. Leaving `unsplashAccessKey` out keeps
- * the saved key; a new one is 1–128 of `[A-Za-z0-9_-]` and is checked with
- * Unsplash before it is kept.
+ * `PUT /admin/settings/login-appearance`. Leaving a key out keeps the saved
+ * one; a new one is 1–128 of `[A-Za-z0-9_-]` and is checked with its service
+ * before it is kept. Both keys may be given at once.
  */
 export interface LoginAppearanceWrite {
   appearance: LoginAppearance;
   unsplashAccessKey?: string;
+  pixabayApiKey?: string;
 }
 
 /** The draft parameters the settings preview asks a wallpaper for. */
 export type WallpaperPreviewQuery =
   | { source: "bing"; market: string }
-  | { source: "unsplash"; query: string };
+  | { source: "unsplash"; query: string }
+  | { source: "pixabay"; query: string; lang: string };
 
 /**
  * `PUT /admin/settings/maintenance`. One notice per UI language (each at most
@@ -989,6 +992,14 @@ export interface RawAdminPaths {
     };
   };
   "/api/prohibitorum/admin/settings/login-appearance/unsplash-key": {
+    delete: {
+      parameters: NoParameters;
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+
+  "/api/prohibitorum/admin/settings/login-appearance/pixabay-key": {
     delete: {
       parameters: NoParameters;
       requestBody?: never;

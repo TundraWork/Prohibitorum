@@ -93,20 +93,23 @@ function images(count: number) {
 interface Stored {
   appearance: LoginAppearance;
   hasUnsplashKey: boolean;
+  hasPixabayKey: boolean;
 }
 
 async function open({
   appearance = defaultLoginAppearance,
   hasUnsplashKey = false,
+  hasPixabayKey = false,
   imageCount = 0,
   routes = {},
 }: {
   appearance?: LoginAppearance;
   hasUnsplashKey?: boolean;
+  hasPixabayKey?: boolean;
   imageCount?: number;
   routes?: Parameters<typeof fakeApi>[0];
 } = {}) {
-  const stored: Stored = { appearance, hasUnsplashKey };
+  const stored: Stored = { appearance, hasUnsplashKey, hasPixabayKey };
   const api: FakeApi = fakeApi({
     ...publicApi(
       { ...testSession, role: "admin" },
@@ -121,9 +124,11 @@ async function open({
       const body = (await request.json()) as {
         appearance: LoginAppearance;
         unsplashAccessKey?: string;
+        pixabayApiKey?: string;
       };
       stored.appearance = body.appearance;
       if (body.unsplashAccessKey) stored.hasUnsplashKey = true;
+      if (body.pixabayApiKey) stored.hasPixabayKey = true;
       return new Response(null, { status: 204 });
     },
     [`GET ${appearancePath}/wallpaper`]: () =>
@@ -213,7 +218,7 @@ describe("the page", () => {
 });
 
 describe("the background source", () => {
-  it("offers the six sources", async () => {
+  it("offers the seven sources", async () => {
     await open();
     const sources = screen.getByRole("radiogroup", {
       name: "Background source",
@@ -222,7 +227,15 @@ describe("the background source", () => {
       within(sources)
         .getAllByRole("radio")
         .map((radio) => radio.textContent),
-    ).toEqual(["Default", "Color", "Gradient", "Bing", "Unsplash", "Images"]);
+    ).toEqual([
+      "Default",
+      "Color",
+      "Gradient",
+      "Bing",
+      "Unsplash",
+      "Pixabay",
+      "Images",
+    ]);
     expect(
       within(sources).getByRole("radio", { name: "Default" }),
     ).toBeChecked();
@@ -312,9 +325,7 @@ describe("the Unsplash source", () => {
 
     await user.click(saveButton());
     expect(
-      await screen.findByText(
-        "Enter the access key of your Unsplash application.",
-      ),
+      await screen.findByText("Enter the Unsplash access key before saving."),
     ).toBeVisible();
     expect(savedBody(api)).toBeUndefined();
 
@@ -528,6 +539,131 @@ describe("the Unsplash source", () => {
     await user.click(saveButton());
     expect(
       await screen.findByText("Remove the spaces at the start or end."),
+    ).toBeVisible();
+  });
+});
+
+describe("the Pixabay source", () => {
+  const pixabay = withAppearance((a) => {
+    a.background.source = "pixabay";
+  });
+
+  it("asks for an API key when none is saved, and saves a typed one", async () => {
+    const user = userEvent.setup();
+    const api = await open();
+    await chooseSource(user, "Pixabay");
+
+    await user.click(saveButton());
+    expect(
+      await screen.findByText("Enter the Pixabay API key before saving."),
+    ).toBeVisible();
+    expect(savedBody(api)).toBeUndefined();
+
+    await user.type(screen.getByLabelText("API key"), "Good_key-2");
+    await user.click(saveButton());
+    await waitFor(() => expect(savedBody(api)).toBeDefined());
+    expect(savedBody(api)).toMatchObject({
+      pixabayApiKey: "Good_key-2",
+      appearance: { background: { source: "pixabay" } },
+    });
+  });
+
+  it("puts Pixabay's refusal of the key under the key field, not as a toast", async () => {
+    const user = userEvent.setup();
+    const api = await open({
+      routes: {
+        [`PUT ${appearancePath}`]: () => apiError("pixabay_key_invalid", 400),
+      },
+    });
+    await chooseSource(user, "Pixabay");
+    await user.type(screen.getByLabelText("API key"), "Wrong_key");
+    await user.click(saveButton());
+    expect(
+      await screen.findByText(
+        "Pixabay did not accept this API key. Check it and enter it again.",
+      ),
+    ).toBeVisible();
+    expect(api.sent("PUT", appearancePath)).toHaveLength(1);
+    expect(notifyError).not.toHaveBeenCalled();
+  });
+
+  it("shows the saved key row, replaceable, and refuses removal while in use", async () => {
+    await open({ appearance: pixabay, hasPixabayKey: true });
+    expect(screen.getByText("API key saved")).toBeVisible();
+    const remove = screen.getByRole("button", { name: "Remove" });
+    expect(remove).toBeDisabled();
+    expect(remove).toHaveAccessibleDescription(
+      "Switch the background to another source and save before removing the key.",
+    );
+    expect(screen.getByRole("button", { name: "Replace" })).toBeEnabled();
+  });
+
+  it("removes an unused key at once, without Save", async () => {
+    const user = userEvent.setup();
+    const api = await open({
+      hasPixabayKey: true,
+      routes: {
+        [`DELETE ${appearancePath}/pixabay-key`]: () =>
+          new Response(null, { status: 204 }),
+      },
+    });
+    await chooseSource(user, "Pixabay");
+    const remove = screen.getByRole("button", { name: "Remove" });
+    expect(remove).toBeEnabled();
+    await user.click(remove);
+    await waitFor(() =>
+      expect(api.sent("DELETE", `${appearancePath}/pixabay-key`)).toHaveLength(
+        1,
+      ),
+    );
+    expect(api.sent("PUT", appearancePath)).toHaveLength(0);
+  });
+
+  it("offers the search language and saves it with the keyword", async () => {
+    const user = userEvent.setup();
+    const api = await open({ appearance: pixabay, hasPixabayKey: true });
+    // The console runs in English: Chinese is named in English.
+    const language = screen.getByRole("combobox", { name: "Search language" });
+    expect(within(language).getByText("Chinese")).toBeVisible();
+    await user.click(language);
+    await user.click(screen.getByRole("option", { name: "Japanese" }));
+    await user.type(screen.getByLabelText("Keyword"), "雪山");
+
+    await user.click(saveButton());
+    await waitFor(() => expect(savedBody(api)).toBeDefined());
+    expect(savedBody(api)?.appearance.background.pixabay).toEqual({
+      query: "雪山",
+      lang: "ja",
+      order: "random",
+      intervalSeconds: 10,
+    });
+  });
+
+  it("says the hidden keyword cannot be used while another source is chosen", async () => {
+    const user = userEvent.setup();
+    const api = await open({
+      appearance: withAppearance((a) => {
+        a.background.pixabay.query = " bad ";
+      }),
+    });
+    await user.click(
+      within(frame("Card")).getByRole("radio", { name: "Left" }),
+    );
+    await user.click(saveButton());
+    expect(
+      await screen.findByText(
+        "The Pixabay keyword can't be used. Choose Pixabay to correct it.",
+      ),
+    ).toBeVisible();
+    expect(savedBody(api)).toBeUndefined();
+  });
+
+  it("warns that pictures are at most 1280 pixels wide", async () => {
+    await open({ appearance: pixabay, hasPixabayKey: true });
+    expect(
+      screen.getByText(
+        "Pixabay pictures are at most 1280 pixels wide, so they can look soft on large screens.",
+      ),
     ).toBeVisible();
   });
 });

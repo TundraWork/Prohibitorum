@@ -115,6 +115,10 @@ func init() {
 		{Code: "unsplash_key_invalid", Status: http.StatusBadRequest, LocaleKey: "errors.unsplash_key_invalid", DiagnosticKind: "validation", Recovery: "fix_input"},
 		{Code: "unsplash_unreachable", Status: http.StatusBadGateway, LocaleKey: "errors.unsplash_unreachable", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
 		{Code: "unsplash_key_in_use", Status: http.StatusConflict, LocaleKey: "errors.unsplash_key_in_use", DiagnosticKind: "policy"},
+		{Code: "pixabay_key_required", Status: http.StatusBadRequest, LocaleKey: "errors.pixabay_key_required", DiagnosticKind: "validation", Recovery: "fix_input"},
+		{Code: "pixabay_key_invalid", Status: http.StatusBadRequest, LocaleKey: "errors.pixabay_key_invalid", DiagnosticKind: "validation", Recovery: "fix_input"},
+		{Code: "pixabay_unreachable", Status: http.StatusBadGateway, LocaleKey: "errors.pixabay_unreachable", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
+		{Code: "pixabay_key_in_use", Status: http.StatusConflict, LocaleKey: "errors.pixabay_key_in_use", DiagnosticKind: "policy"},
 		{Code: "wallpaper_not_configured", Status: http.StatusNotFound, LocaleKey: "errors.wallpaper_not_configured", DiagnosticKind: "resource"},
 		{Code: "wallpaper_unavailable", Status: http.StatusServiceUnavailable, LocaleKey: "errors.wallpaper_unavailable", DiagnosticKind: "system", Retryable: true, Recovery: "retry"},
 		{Code: "invalid_group_rule", Status: http.StatusBadRequest, LocaleKey: "errors.invalid_group_rule", DiagnosticKind: "validation", DetailKeys: map[string]struct{}{"path": {}, "reason": {}}},
@@ -811,10 +815,33 @@ func ErrUnsplashKeyInUse() *AuthError {
 	return newErr(http.StatusConflict, "unsplash_key_in_use", "Switch the background away from Unsplash before removing its key.")
 }
 
+// ErrPixabayKeyRequired is returned when the Pixabay source is selected with
+// no API key given or saved. Status 400.
+func ErrPixabayKeyRequired() *AuthError {
+	return newErr(http.StatusBadRequest, "pixabay_key_required", "The Pixabay background needs an API key.")
+}
+
+// ErrPixabayKeyInvalid is returned when Pixabay rejects an API key. Status 400.
+func ErrPixabayKeyInvalid() *AuthError {
+	return newErr(http.StatusBadRequest, "pixabay_key_invalid", "Pixabay did not accept this API key.")
+}
+
+// ErrPixabayUnreachable is returned when a key cannot be checked because
+// Pixabay did not answer. Status 502.
+func ErrPixabayUnreachable() *AuthError {
+	return newErr(http.StatusBadGateway, "pixabay_unreachable", "Pixabay could not be reached to check the API key.")
+}
+
+// ErrPixabayKeyInUse prevents removing the key while the saved background is
+// Pixabay. Status 409.
+func ErrPixabayKeyInUse() *AuthError {
+	return newErr(http.StatusConflict, "pixabay_key_in_use", "Switch the background away from Pixabay before removing its key.")
+}
+
 // ErrWallpaperNotConfigured is returned by the wallpaper endpoint when the
-// background source is neither Bing nor Unsplash. Status 404.
+// background source is no picture service. Status 404.
 func ErrWallpaperNotConfigured() *AuthError {
-	return newErr(http.StatusNotFound, "wallpaper_not_configured", "The sign-in page does not use a Bing or Unsplash wallpaper.")
+	return newErr(http.StatusNotFound, "wallpaper_not_configured", "The sign-in page does not use a picture service.")
 }
 
 // ErrWallpaperUnavailable is returned when the wallpaper upstream failed and

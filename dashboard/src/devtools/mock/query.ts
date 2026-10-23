@@ -208,7 +208,15 @@ function allowedValues(path: string): readonly string[] | undefined {
     return ["pending", "mismatch", "satisfied", "expired"];
   }
   if (path === "instance.loginAppearance.background.source") {
-    return ["none", "color", "gradient", "bing", "unsplash", "images"];
+    return [
+      "none",
+      "color",
+      "gradient",
+      "bing",
+      "unsplash",
+      "pixabay",
+      "images",
+    ];
   }
   if (path === "instance.loginAppearance.background.gradient") {
     return ["dawn", "lagoon", "aurora", "dusk", "mist", "ember"];

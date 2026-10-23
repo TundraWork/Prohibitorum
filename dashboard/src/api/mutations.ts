@@ -1388,7 +1388,7 @@ function invalidateSignInPage(queryClient: QueryClient) {
   ]);
 }
 
-/** Saves the whole appearance, and the Unsplash key when one was typed. */
+/** Saves the whole appearance, and a key when one was typed. */
 export function updateLoginAppearanceMutationOptions(queryClient: QueryClient) {
   return mutationOptions({
     meta: { success: successMessage.saveSignInPage },
@@ -1409,6 +1409,19 @@ export function removeUnsplashKeyMutationOptions(queryClient: QueryClient) {
     mutationFn: async () => {
       await client.DELETE(
         "/api/prohibitorum/admin/settings/login-appearance/unsplash-key",
+      );
+    },
+    onSuccess: () => invalidateSignInPage(queryClient),
+  });
+}
+
+export function removePixabayKeyMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    meta: { success: successMessage.removePixabayKey },
+    retry: false,
+    mutationFn: async () => {
+      await client.DELETE(
+        "/api/prohibitorum/admin/settings/login-appearance/pixabay-key",
       );
     },
     onSuccess: () => invalidateSignInPage(queryClient),

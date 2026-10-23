@@ -428,9 +428,28 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     message:
       "The sign-in page still uses Unsplash. Switch the background to another source and save before removing the key.",
   }),
+  pixabay_key_required: msg({
+    id: "error.pixabay_key_required",
+    message: "Enter a Pixabay API key to use Pixabay pictures.",
+  }),
+  pixabay_key_invalid: msg({
+    id: "error.pixabay_key_invalid",
+    message:
+      "Pixabay did not accept this API key. Check it and enter it again.",
+  }),
+  pixabay_unreachable: msg({
+    id: "error.pixabay_unreachable",
+    message:
+      "Pixabay could not be reached, so the API key was not checked or saved.",
+  }),
+  pixabay_key_in_use: msg({
+    id: "error.pixabay_key_in_use",
+    message:
+      "The sign-in page still uses Pixabay. Switch the background to another source and save before removing the key.",
+  }),
   wallpaper_not_configured: msg({
     id: "error.wallpaper_not_configured",
-    message: "The sign-in page does not use a Bing or Unsplash picture.",
+    message: "The sign-in page does not use a picture service.",
   }),
   wallpaper_unavailable: msg({
     id: "error.wallpaper_unavailable",

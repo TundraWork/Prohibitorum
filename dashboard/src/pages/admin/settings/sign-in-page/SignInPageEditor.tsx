@@ -1,4 +1,4 @@
-import { plural } from "@lingui/core/macro";
+import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import {
@@ -60,11 +60,23 @@ import {
   signInPageBody,
 } from "@/pages/admin/settings/sign-in-page/sign-in-page-form";
 
-/** The server errors that belong to the access key field. */
-const keyErrorCodes = ["unsplash_key_invalid", "unsplash_key_required"];
+/** The server errors that belong to a key field, by the source they name. */
+const keyErrorCodes = [
+  "unsplash_key_invalid",
+  "unsplash_key_required",
+  "pixabay_key_invalid",
+  "pixabay_key_required",
+] as const;
 
 const isKeyRefusal = (error: unknown) =>
-  error instanceof ApiError && keyErrorCodes.includes(error.code ?? "");
+  error instanceof ApiError &&
+  (keyErrorCodes as readonly string[]).includes(error.code ?? "");
+
+/** A keyword kept for a hidden source would be rejected by the server. */
+const hiddenKeywordInvalid = msg({
+  id: "settings.sign-in.query.hidden_invalid",
+  message: "The {source} keyword can't be used. Choose {source} to correct it.",
+});
 
 /**
  * How the sign-in page looks: its background, where its card sits, its theme
@@ -102,7 +114,7 @@ export function SignInPageEditor() {
 }
 
 function Editor({ saved }: { saved: AdminLoginAppearance }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const queryClient = useQueryClient();
   const { loginImages } = useInstanceBranding();
   const update = useMutation(
@@ -111,7 +123,9 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
       isKeyRefusal,
     ),
   );
-  const [replacingKey, setReplacingKey] = useState(false);
+  const [replacingKey, setReplacingKey] = useState<
+    "unsplash" | "pixabay" | undefined
+  >();
   // A phone shows the page at its own width; a window that size could not read
   // a desktop page scaled down into it.
   const [size, setSize] = useState<PreviewSize>(() =>
@@ -121,47 +135,63 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
       : "desktop",
   );
   const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
-  const hasKey = saved.hasUnsplashKey;
+  const hasUnsplashKey = saved.hasUnsplashKey;
+  const hasPixabayKey = saved.hasPixabayKey;
 
   const form = useAppForm({
     defaultValues: {
       appearance: saved.appearance,
       unsplashAccessKey: "",
+      pixabayApiKey: "",
     } as SignInPageValues,
     validators: {
       // A keyword is kept while another source is chosen and its field is
       // hidden, and the server checks it all the same.
-      onSubmit: ({ value }) =>
-        value.appearance.background.source !== "unsplash" &&
-        queryError(value.appearance.background.unsplash.query) !== undefined
-          ? t({
-              id: "settings.sign-in.unsplash.query.hidden_invalid",
-              message:
-                "The Unsplash keyword can't be used. Choose Unsplash to correct it.",
+      onSubmit: ({ value }) => {
+        const hidden: string[] = [];
+        if (
+          value.appearance.background.source !== "unsplash" &&
+          queryError(value.appearance.background.unsplash.query) !== undefined
+        ) {
+          hidden.push("Unsplash");
+        }
+        if (
+          value.appearance.background.source !== "pixabay" &&
+          queryError(value.appearance.background.pixabay.query) !== undefined
+        ) {
+          hidden.push("Pixabay");
+        }
+        return hidden.length > 0
+          ? i18n._({
+              ...hiddenKeywordInvalid,
+              values: { source: hidden.join(" and ") },
             })
-          : undefined,
+          : undefined;
+      },
     },
     onSubmit: async ({ value }) => {
-      // A key typed for Unsplash is sent only while Unsplash is chosen.
-      const body = signInPageBody(
-        value.appearance.background.source === "unsplash"
-          ? value
-          : { ...value, unsplashAccessKey: "" },
-      );
+      // A typed key is sent only while its service is chosen.
+      const body = signInPageBody(value);
       try {
         await update.mutateAsync(body);
         // What was saved is the form's new starting point.
-        form.reset({ appearance: body.appearance, unsplashAccessKey: "" });
-        setReplacingKey(false);
+        form.reset({
+          appearance: body.appearance,
+          unsplashAccessKey: "",
+          pixabayApiKey: "",
+        });
+        setReplacingKey(undefined);
       } catch (error) {
         if (isCancellation(error)) return;
-        // Anything but the key's refusal is the error toast's.
+        // Anything but a key's refusal is the error toast's.
         if (isKeyRefusal(error)) {
           applyServerError(form, error, {
             locations: {},
             codes: {
               unsplash_key_invalid: "unsplashAccessKey",
               unsplash_key_required: "unsplashAccessKey",
+              pixabay_key_invalid: "pixabayApiKey",
+              pixabay_key_required: "pixabayApiKey",
             },
           });
         }
@@ -170,13 +200,18 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
   });
 
   const appearance = useStore(form.store, (state) => state.values.appearance);
-  const typedKey = useStore(
+  const typedUnsplashKey = useStore(
     form.store,
     (state) => state.values.unsplashAccessKey,
   );
+  const typedPixabayKey = useStore(
+    form.store,
+    (state) => state.values.pixabayApiKey,
+  );
+  const typedKeys = [typedUnsplashKey, typedPixabayKey];
   const submitting = useStore(form.store, (state) => state.isSubmitting);
-  const changes = changedSettings(saved.appearance, appearance, typedKey);
-  const where = changesBySection(saved.appearance, appearance, typedKey);
+  const changes = changedSettings(saved.appearance, appearance, typedKeys);
+  const where = changesBySection(saved.appearance, appearance, typedKeys);
   // A colour half typed is not one, so the preview keeps the last that was.
   const lastColor = useRef(saved.appearance.background.color);
   if (colorError(appearance.background.color) === undefined)
@@ -213,8 +248,12 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
   };
 
   const discard = () => {
-    form.reset({ appearance: saved.appearance, unsplashAccessKey: "" });
-    setReplacingKey(false);
+    form.reset({
+      appearance: saved.appearance,
+      unsplashAccessKey: "",
+      pixabayApiKey: "",
+    });
+    setReplacingKey(undefined);
   };
 
   return (
@@ -260,7 +299,10 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
                 <SignInPreview
                   appearance={shown}
                   images={loginImages.map((image) => image.url)}
-                  hasUnsplashKey={hasKey}
+                  hasKeys={{
+                    unsplash: hasUnsplashKey,
+                    pixabay: hasPixabayKey,
+                  }}
                   theme={preview.theme}
                   size={size}
                   onDocument={setPreviewDocument}
@@ -290,11 +332,17 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
                 <BackgroundControls
                   form={form}
                   images={loginImages}
-                  hasKey={hasKey}
-                  inUse={saved.appearance.background.source === "unsplash"}
+                  hasUnsplashKey={hasUnsplashKey}
+                  hasPixabayKey={hasPixabayKey}
+                  inUse={
+                    saved.appearance.background.source === "unsplash" ||
+                    saved.appearance.background.source === "pixabay"
+                      ? saved.appearance.background.source
+                      : undefined
+                  }
                   replacingKey={replacingKey}
-                  onReplaceKey={() => setReplacingKey(true)}
-                  onKeepKey={() => setReplacingKey(false)}
+                  onReplaceKey={setReplacingKey}
+                  onKeepKey={() => setReplacingKey(undefined)}
                 />
               </div>
             </Section>

@@ -1509,6 +1509,92 @@ describe("mocked logs, settings and signing keys", () => {
     });
   });
 
+  it("answers a Pixabay batch with this site's addresses and authors alone", () => {
+    const withKey = config((draft) => {
+      draft.instance.loginAppearance.background.source = "pixabay";
+      draft.instance.hasPixabayKey = true;
+    });
+    const wallpaper = bodyOf(read("/branding/wallpaper", withKey)) as Wallpaper;
+    expect(wallpaper.source).toBe("pixabay");
+    expect(wallpaper.pictures).toHaveLength(4);
+    for (const [i, picture] of wallpaper.pictures.entries()) {
+      expect(picture.imageUrl).toBe(
+        `/branding/wallpaper/images/pixabay/${100 + i}`,
+      );
+      expect(picture.photographer).toBe(`Mock 作者${i + 1}`);
+      expect(picture.photoUrl).toBe(
+        `https://pixabay.com/photos/ridge-${100 + i}/`,
+      );
+      expect(picture.title).toBeUndefined();
+      expect(picture.photographerUrl).toBeUndefined();
+    }
+    const preview = bodyOf(
+      read(
+        "/api/prohibitorum/admin/settings/login-appearance/wallpaper",
+        withKey,
+        "http://localhost/api/prohibitorum/admin/settings/login-appearance/wallpaper?source=pixabay&query=%E9%9B%AA%E5%B1%B1&lang=zh",
+      ),
+    ) as Wallpaper;
+    expect(preview.source).toBe("pixabay");
+    // No key saved: both the public page and the preview say so.
+    expect(
+      read(
+        "/branding/wallpaper",
+        config((draft) => {
+          draft.instance.loginAppearance.background.source = "pixabay";
+        }),
+      ),
+    ).toMatchObject({ kind: "json" });
+    expect(
+      read(
+        "/api/prohibitorum/admin/settings/login-appearance/wallpaper",
+        config((draft) => {
+          draft.instance.loginAppearance.background.source = "pixabay";
+        }),
+        "http://localhost/api/prohibitorum/admin/settings/login-appearance/wallpaper?source=pixabay&query=x&lang=zh",
+      ),
+    ).toMatchObject({ kind: "error", code: "pixabay_key_required" });
+    // A key starting with "bad" is one Pixabay refuses.
+    const appearance = structuredClone(
+      defaultMockConfig.instance.loginAppearance,
+    );
+    appearance.background.source = "pixabay";
+    expect(
+      call(
+        "PUT",
+        "/api/prohibitorum/admin/settings/login-appearance",
+        writes(),
+        { appearance, pixabayApiKey: "bad-key" },
+      ),
+    ).toMatchObject({ kind: "error", code: "pixabay_key_invalid" });
+    // The key cannot be removed while Pixabay is saved; after moving on it
+    // can. (The mock answers writes only while they are enabled.)
+    const inUseCfg = config((draft) => {
+      draft.writes = true;
+      draft.instance.loginAppearance.background.source = "pixabay";
+      draft.instance.hasPixabayKey = true;
+    });
+    expect(
+      call(
+        "DELETE",
+        "/api/prohibitorum/admin/settings/login-appearance/pixabay-key",
+        inUseCfg,
+      ),
+    ).toMatchObject({ kind: "error", code: "pixabay_key_in_use" });
+    const movedOn = config((draft) => {
+      draft.writes = true;
+      draft.instance.loginAppearance.background.source = "none";
+      draft.instance.hasPixabayKey = true;
+    });
+    expect(
+      call(
+        "DELETE",
+        "/api/prohibitorum/admin/settings/login-appearance/pixabay-key",
+        movedOn,
+      ),
+    ).toMatchObject({ kind: "empty", status: 204 });
+  });
+
   it("stores the client-IP policy it was sent", () => {
     const policy = {
       strategy: "forwarded",

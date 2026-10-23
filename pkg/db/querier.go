@@ -35,6 +35,7 @@ type Querier interface {
 	ClearAccountPrimaryEmail(ctx context.Context, id int32) error
 	ClearActiveAvatar(ctx context.Context, arg ClearActiveAvatarParams) error
 	ClearManualDecision(ctx context.Context, arg ClearManualDecisionParams) (int64, error)
+	ClearPixabayKey(ctx context.Context) error
 	ClearUnsplashKey(ctx context.Context) error
 	ConfirmAccountIdentity(ctx context.Context, id int64) error
 	ConfirmTOTPCredential(ctx context.Context, accountID int32) error
@@ -333,6 +334,7 @@ type Querier interface {
 	SetOIDCClientAccessRestricted(ctx context.Context, arg SetOIDCClientAccessRestrictedParams) (OidcClient, error)
 	SetOIDCClientDisabled(ctx context.Context, arg SetOIDCClientDisabledParams) (OidcClient, error)
 	SetOIDCClientLaunchURL(ctx context.Context, arg SetOIDCClientLaunchURLParams) error
+	SetPixabayKey(ctx context.Context, arg SetPixabayKeyParams) error
 	SetSAMLSPAccessRestricted(ctx context.Context, arg SetSAMLSPAccessRestrictedParams) (SamlSp, error)
 	SetSAMLSPDisabled(ctx context.Context, arg SetSAMLSPDisabledParams) (SamlSp, error)
 	SetUnsplashKey(ctx context.Context, arg SetUnsplashKeyParams) error

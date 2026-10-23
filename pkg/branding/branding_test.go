@@ -19,6 +19,7 @@ type fakeStore struct {
 	maintNotice MaintenanceNotice
 	appearance  *Appearance
 	key         *SealedKey
+	pixabayKey  *SealedKey
 	images      []fakeImage
 	nextID      int64
 	gets        int
@@ -39,6 +40,7 @@ func (f *fakeStore) Get(context.Context) (Settings, error) {
 		Name: f.name, IconPNG: f.iconPNG, IconEtag: f.iconEtag,
 		Maintenance: f.maint, MaintenanceNotice: f.maintNotice,
 		Appearance: f.appearance, Images: refs, UnsplashKey: f.key,
+		PixabayKey: f.pixabayKey,
 	}, nil
 }
 func (f *fakeStore) SetName(_ context.Context, n *string) error { f.name = n; return nil }
@@ -51,11 +53,16 @@ func (f *fakeStore) SetMaintenance(_ context.Context, on bool, notice Maintenanc
 	f.maint, f.maintNotice = on, notice
 	return nil
 }
-func (f *fakeStore) SetAppearance(_ context.Context, a Appearance, key *SealedKey) error {
-	if key != nil {
-		f.key = key
+func (f *fakeStore) SetAppearance(_ context.Context, a Appearance, keys NewKeys) error {
+	if keys.Unsplash != nil {
+		f.key = keys.Unsplash
 	} else if a.Background.Source == SourceUnsplash && f.key == nil {
 		return ErrUnsplashKeyRequired
+	}
+	if keys.Pixabay != nil {
+		f.pixabayKey = keys.Pixabay
+	} else if a.Background.Source == SourcePixabay && f.pixabayKey == nil {
+		return ErrPixabayKeyRequired
 	}
 	f.appearance = &a
 	return nil
@@ -65,6 +72,13 @@ func (f *fakeStore) ClearUnsplashKey(context.Context) error {
 		return ErrUnsplashKeyInUse
 	}
 	f.key = nil
+	return nil
+}
+func (f *fakeStore) ClearPixabayKey(context.Context) error {
+	if f.appearance != nil && f.appearance.Background.Source == SourcePixabay {
+		return ErrPixabayKeyInUse
+	}
+	f.pixabayKey = nil
 	return nil
 }
 func (f *fakeStore) AddImage(_ context.Context, data []byte, etag string) (ImageRef, error) {
@@ -353,7 +367,7 @@ func TestAppearance_DefaultSaveAndInvalidate(t *testing.T) {
 	a.Background.Source = SourceGradient
 	a.Background.Gradient = "aurora"
 	a.Card = Surface{Translucent: true, Opacity: 60, Blur: false}
-	if err := r.SetAppearance(ctx, a, nil); err != nil {
+	if err := r.SetAppearance(ctx, a, NewKeys{}); err != nil {
 		t.Fatalf("SetAppearance: %v", err)
 	}
 	if got := r.Appearance(ctx); got != a {
@@ -362,16 +376,16 @@ func TestAppearance_DefaultSaveAndInvalidate(t *testing.T) {
 
 	bad := a
 	bad.Card.Opacity = 101
-	if err := r.SetAppearance(ctx, bad, nil); !errors.Is(err, ErrInvalidAppearance) {
+	if err := r.SetAppearance(ctx, bad, NewKeys{}); !errors.Is(err, ErrInvalidAppearance) {
 		t.Fatalf("SetAppearance(opacity 101) err = %v, want ErrInvalidAppearance", err)
 	}
 
 	a.Background.Source = SourceUnsplash
-	if err := r.SetAppearance(ctx, a, nil); !errors.Is(err, ErrUnsplashKeyRequired) {
+	if err := r.SetAppearance(ctx, a, NewKeys{}); !errors.Is(err, ErrUnsplashKeyRequired) {
 		t.Fatalf("unsplash without key: err = %v, want ErrUnsplashKeyRequired", err)
 	}
 	key := &SealedKey{Ciphertext: []byte("c"), Nonce: []byte("n"), KeyVersion: 1}
-	if err := r.SetAppearance(ctx, a, key); err != nil {
+	if err := r.SetAppearance(ctx, a, NewKeys{Unsplash: key}); err != nil {
 		t.Fatalf("unsplash with key: %v", err)
 	}
 	if got := r.UnsplashKey(ctx); got == nil || got.KeyVersion != 1 {
@@ -380,14 +394,31 @@ func TestAppearance_DefaultSaveAndInvalidate(t *testing.T) {
 	if err := r.ClearUnsplashKey(ctx); !errors.Is(err, ErrUnsplashKeyInUse) {
 		t.Fatalf("clear in-use key: err = %v, want ErrUnsplashKeyInUse", err)
 	}
+	a.Background.Source = SourcePixabay
+	if err := r.SetAppearance(ctx, a, NewKeys{}); !errors.Is(err, ErrPixabayKeyRequired) {
+		t.Fatalf("pixabay without key: err = %v, want ErrPixabayKeyRequired", err)
+	}
+	pixabayKey := &SealedKey{Ciphertext: []byte("pc"), Nonce: []byte("pn"), KeyVersion: 1}
+	if err := r.SetAppearance(ctx, a, NewKeys{Pixabay: pixabayKey}); err != nil {
+		t.Fatalf("pixabay with key: %v", err)
+	}
+	if got := r.PixabayKey(ctx); got == nil || got.KeyVersion != 1 {
+		t.Fatalf("PixabayKey() = %+v, want the saved key", got)
+	}
+	if err := r.ClearPixabayKey(ctx); !errors.Is(err, ErrPixabayKeyInUse) {
+		t.Fatalf("clear in-use pixabay key: err = %v, want ErrPixabayKeyInUse", err)
+	}
 	a.Background.Source = SourceNone
-	if err := r.SetAppearance(ctx, a, nil); err != nil {
+	if err := r.SetAppearance(ctx, a, NewKeys{}); err != nil {
 		t.Fatalf("switch away: %v", err)
 	}
 	if err := r.ClearUnsplashKey(ctx); err != nil {
 		t.Fatalf("ClearUnsplashKey: %v", err)
 	}
-	if r.UnsplashKey(ctx) != nil {
+	if err := r.ClearPixabayKey(ctx); err != nil {
+		t.Fatalf("ClearPixabayKey: %v", err)
+	}
+	if r.UnsplashKey(ctx) != nil || r.PixabayKey(ctx) != nil {
 		t.Fatal("key still reported after clearing")
 	}
 }

@@ -4,6 +4,7 @@ import type {
   Wallpaper,
   WallpaperPicture,
 } from "@/api/raw-paths";
+import { photoSources } from "@/components/custom/login-appearance/photo-sources";
 
 /** What the sign-in page's background shows now; see `useLoginBackground`. */
 export interface LoginBackground {
@@ -13,15 +14,15 @@ export interface LoginBackground {
   current: number;
   /** Index of the one shown before the last change, drawn under it while it fades in. */
   previous: number | undefined;
-  /** The Bing or Unsplash picture shown now, for its credit. */
+  /** The service picture shown now, for its credit. */
   wallpaperPicture: WallpaperPicture | undefined;
 }
 
 /**
  * The background pictures for the saved source and which one is showing.
- * Uploaded images and the Unsplash batch are shown one at random per visit or
- * as a carousel, by their own settings; Bing has one picture. A wallpaper read
- * for another source counts as none.
+ * Uploaded images and the rotating service batches are shown one at random
+ * per visit or as a carousel, by their own settings; Bing has one picture. A
+ * wallpaper read for another source counts as none.
  *
  * The rotation lives here rather than in `LoginBackdrop` so that the credit
  * follows the photo on screen.
@@ -33,7 +34,7 @@ export function useLoginBackground(
 ): LoginBackground {
   const background = appearance.background;
   const photos =
-    (background.source === "bing" || background.source === "unsplash") &&
+    (photoSources as readonly string[]).includes(background.source) &&
     wallpaper?.source === background.source
       ? wallpaper.pictures
       : [];
@@ -46,7 +47,9 @@ export function useLoginBackground(
       ? background.images
       : background.source === "unsplash"
         ? background.unsplash
-        : undefined;
+        : background.source === "pixabay"
+          ? background.pixabay
+          : undefined;
   const { current, previous } = useRotation(
     pictures,
     rotation?.order === "carousel",

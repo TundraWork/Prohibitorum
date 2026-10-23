@@ -399,3 +399,73 @@ describe("Bing and Unsplash photos", () => {
     expect(screen.queryByText(/Person/)).toBeNull();
   });
 });
+
+describe("Pixabay pictures", () => {
+  // Pixabay's pictures are served by this site, and its credit shows only
+  // the author, linked to the photo page.
+  const pixabayBatch: Wallpaper = {
+    source: "pixabay",
+    pictures: ["11", "22"].map((id) => ({
+      imageUrl: `/branding/wallpaper/images/pixabay/${id}`,
+      photographer: `作者${id}`,
+      photoUrl: `https://pixabay.com/photos/ridge-${id}/`,
+    })),
+  };
+  const pixabay = (order: "random" | "carousel") =>
+    appearance((a) => {
+      a.background.source = "pixabay";
+      a.background.pixabay = {
+        query: "",
+        lang: "zh",
+        order,
+        intervalSeconds: 10,
+      };
+    });
+
+  it("keeps one random picture, credited with its author alone", () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const { container } = renderBackdrop(
+      <Backdrop
+        appearance={pixabay("random")}
+        images={images}
+        wallpaper={pixabayBatch}
+      />,
+    );
+    expect(currentSrc(container)).toBe("/branding/wallpaper/images/pixabay/22");
+    const author = screen.getByRole("link", { name: "作者22" });
+    expect(author).toHaveAttribute(
+      "href",
+      "https://pixabay.com/photos/ridge-22/",
+    );
+    // The platform is named by the link alone, never in words.
+    expect(screen.queryByText(/pixabay/i)).toBeNull();
+    expect(screen.queryByText(/Pixabay/i)).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(currentSrc(container)).toBe("/branding/wallpaper/images/pixabay/22");
+  });
+
+  it("rotates by its own settings, the credit following the picture", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const { container } = renderBackdrop(
+      <Backdrop
+        appearance={pixabay("carousel")}
+        images={[]}
+        wallpaper={pixabayBatch}
+      />,
+    );
+    expect(currentSrc(container)).toBe("/branding/wallpaper/images/pixabay/11");
+    expect(screen.getByRole("link", { name: "作者11" })).toHaveAttribute(
+      "href",
+      "https://pixabay.com/photos/ridge-11/",
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(currentSrc(container)).toBe("/branding/wallpaper/images/pixabay/22");
+    expect(screen.getByRole("link", { name: "作者22" })).toBeInTheDocument();
+  });
+});

@@ -34,6 +34,7 @@ export type LoginBackgroundSource =
   | "gradient"
   | "bing"
   | "unsplash"
+  | "pixabay"
   | "images";
 
 export type LoginGradient =
@@ -81,6 +82,17 @@ export interface LoginAppearance {
       order: LoginImageOrder;
       intervalSeconds: number;
     };
+
+    /**
+     * As Unsplash, plus `lang`: the language the keyword is matched in, one
+     * of Pixabay's search languages (see `pixabayLanguages`).
+     */
+    pixabay: {
+      query: string;
+      lang: string;
+      order: LoginImageOrder;
+      intervalSeconds: number;
+    };
     /** `intervalSeconds` is 5–3600. */
     images: { order: LoginImageOrder; intervalSeconds: number };
   };
@@ -103,19 +115,22 @@ export interface LoginImage {
 }
 
 /**
- * `GET /branding/wallpaper`: the pictures the browser loads straight from Bing
- * or Unsplash, never empty. Bing sends today's picture alone; Unsplash sends
- * the server's cached batch in its order, for the page to show one at random
- * or rotate through.
+ * `GET /branding/wallpaper`: the pictures behind the sign-in page, never
+ * empty. Bing sends today's picture alone; Unsplash and Pixabay send the
+ * server's cached batch in its order, for the page to show one at random or
+ * rotate through. Bing's and Unsplash's imageUrl points at their own hosts;
+ * Pixabay's terms forbid hotlinking, so its imageUrl is this site's
+ * `/branding/wallpaper/images/pixabay/{id}`.
  */
 export interface Wallpaper {
-  source: "bing" | "unsplash";
+  source: "bing" | "unsplash" | "pixabay";
   pictures: WallpaperPicture[];
 }
 
 /**
  * One wallpaper and its credit. Bing's title and copyright are left out when
- * the caption is hidden; Unsplash's credit is always there.
+ * the caption is hidden; the credit is always there. Pixabay fills only the
+ * photographer and the photo page link.
  */
 export interface WallpaperPicture {
   imageUrl: string;

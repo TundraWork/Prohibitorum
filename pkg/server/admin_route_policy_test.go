@@ -106,6 +106,7 @@ var droppedSudoRoutes = []sudoRoute{
 	{method: "DELETE", path: "/api/prohibitorum/admin/settings/icon", body: ``},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/login-appearance", body: `{}`},
 	{method: "DELETE", path: "/api/prohibitorum/admin/settings/login-appearance/unsplash-key", body: ``},
+	{method: "DELETE", path: "/api/prohibitorum/admin/settings/login-appearance/pixabay-key", body: ``},
 	{method: "POST", path: "/api/prohibitorum/admin/settings/login-images", body: `x`, noBodyControls: true},
 	{method: "DELETE", path: "/api/prohibitorum/admin/settings/login-images/1", body: ``},
 	{method: "PUT", path: "/api/prohibitorum/admin/settings/client-ip", body: `{"trustedHeader":"X-Forwarded-For"}`},

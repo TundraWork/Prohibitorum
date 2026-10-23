@@ -39,7 +39,16 @@ type Settings struct {
 	Images []ImageRef
 	// UnsplashKey is the sealed Unsplash access key, nil when none is saved.
 	UnsplashKey *SealedKey
+	// PixabayKey is the sealed Pixabay API key, nil when none is saved.
+	PixabayKey *SealedKey
 }
+
+// NewKeys carries the sealed keys a SetAppearance saves beside the document.
+// Each field is written when non-nil; a nil field keeps what is saved.
+type NewKeys struct {
+	Unsplash *SealedKey
+	Pixabay  *SealedKey
+ }
 
 // ImageRef identifies an uploaded sign-in background.
 type ImageRef struct {
@@ -62,12 +71,14 @@ type Store interface {
 	ClearIcon(ctx context.Context) error
 	// SetMaintenance stores the mode and the validated multilingual notice.
 	SetMaintenance(ctx context.Context, on bool, notice MaintenanceNotice) error
-	// SetAppearance saves a and, when key is non-nil, the Unsplash key in the
-	// same transaction. It returns ErrUnsplashKeyRequired when a selects
-	// Unsplash and neither key nor a saved key exists.
-	SetAppearance(ctx context.Context, a Appearance, key *SealedKey) error
+	// SetAppearance saves a and the keys NewKeys carries (each written when
+	// non-nil) in the same transaction. It returns the source's key-required
+	// error when the selected source has neither a given nor a saved key.
+	SetAppearance(ctx context.Context, a Appearance, keys NewKeys) error
 	// ClearUnsplashKey returns ErrUnsplashKeyInUse while the saved source is Unsplash.
 	ClearUnsplashKey(ctx context.Context) error
+	// ClearPixabayKey returns ErrPixabayKeyInUse while the saved source is Pixabay.
+	ClearPixabayKey(ctx context.Context) error
 	// AddImage returns ErrImageLimit once MaxLoginImages are stored.
 	AddImage(ctx context.Context, data []byte, etag string) (ImageRef, error)
 	// DeleteImage returns ErrImageNotFound for an unknown id.
@@ -82,6 +93,8 @@ var (
 	ErrImageNotFound       = errors.New("branding: sign-in background image not found")
 	ErrUnsplashKeyRequired = errors.New("branding: Unsplash source needs an access key")
 	ErrUnsplashKeyInUse    = errors.New("branding: Unsplash access key is in use")
+	ErrPixabayKeyRequired  = errors.New("branding: Pixabay source needs an API key")
+	ErrPixabayKeyInUse     = errors.New("branding: Pixabay API key is in use")
 )
 
 // Resolver resolves the effective instance name and icon with DB → config →
@@ -278,19 +291,31 @@ func (r *Resolver) UnsplashKey(ctx context.Context) *SealedKey {
 	return r.load(ctx).UnsplashKey
 }
 
-// SetAppearance validates and saves a, together with key when it is non-nil.
-func (r *Resolver) SetAppearance(ctx context.Context, a Appearance, key *SealedKey) error {
+// SetAppearance validates and saves a, together with the keys NewKeys
+// carries.
+func (r *Resolver) SetAppearance(ctx context.Context, a Appearance, keys NewKeys) error {
 	if err := ValidateAppearance(a); err != nil {
 		return err
 	}
 	defer r.Invalidate()
-	return r.st.SetAppearance(ctx, a, key)
+	return r.st.SetAppearance(ctx, a, keys)
 }
 
 // ClearUnsplashKey removes the saved Unsplash key unless it is in use.
 func (r *Resolver) ClearUnsplashKey(ctx context.Context) error {
 	defer r.Invalidate()
 	return r.st.ClearUnsplashKey(ctx)
+}
+
+// PixabayKey returns the sealed Pixabay API key, or nil when none is saved.
+func (r *Resolver) PixabayKey(ctx context.Context) *SealedKey {
+	return r.load(ctx).PixabayKey
+}
+
+// ClearPixabayKey removes the saved Pixabay key unless it is in use.
+func (r *Resolver) ClearPixabayKey(ctx context.Context) error {
+	defer r.Invalidate()
+	return r.st.ClearPixabayKey(ctx)
 }
 
 // AddLoginImage validates raw (size, format, dimensions) without modifying it

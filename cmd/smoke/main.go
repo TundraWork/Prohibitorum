@@ -6638,6 +6638,7 @@ func main() {
 					"gradient": "lagoon",
 					"bing":     map[string]any{"market": "zh-CN", "showCaption": true},
 					"unsplash": map[string]any{"query": "", "order": "random", "intervalSeconds": 10},
+					"pixabay":  map[string]any{"query": "", "lang": "zh", "order": "random", "intervalSeconds": 10},
 					"images":   map[string]any{"order": order, "intervalSeconds": interval},
 				},
 				"card":         card,
@@ -6715,6 +6716,7 @@ func main() {
 		var admin struct {
 			Appearance     json.RawMessage `json:"appearance"`
 			HasUnsplashKey bool            `json:"hasUnsplashKey"`
+			HasPixabayKey  bool            `json:"hasPixabayKey"`
 		}
 		if err := c.get("/api/prohibitorum/admin/settings/login-appearance", &admin); err != nil {
 			log.Fatalf("look: admin GET: %v", err)
@@ -6722,7 +6724,7 @@ func main() {
 		sameJSON("admin GET", admin.Appearance)
 		log.Printf("  /config and admin GET both return the saved appearance ✓")
 
-		step(fmt.Sprintf("look %d/%d — PUT with an unknown field → 400; unsplash without a key → unsplash_key_required", 4, nLook))
+		step(fmt.Sprintf("look %d/%d — PUT with an unknown field → 400; a source without a key → key_required", 4, nLook))
 		if status, body := putAppearance(map[string]any{"appearance": want, "extra": true}); status != http.StatusBadRequest || !strings.Contains(body, `"bad_request"`) {
 			log.Fatalf("look: PUT unknown field: want 400 bad_request, got %d — %s", status, firstN(body, 300))
 		}
@@ -6732,7 +6734,13 @@ func main() {
 				log.Fatalf("look: PUT unsplash without key: want 400 unsplash_key_required, got %d — %s", status, firstN(body, 300))
 			}
 		}
-		log.Printf("  strict decoding and the Unsplash key requirement hold ✓")
+		if !admin.HasPixabayKey {
+			pixabay := appearance("pixabay", "random", 10, surface(false, 80, true), surface(true, 70, true), "center", "switchable", "graphite")
+			if status, body := putAppearance(map[string]any{"appearance": pixabay}); status != http.StatusBadRequest || !strings.Contains(body, `"pixabay_key_required"`) {
+				log.Fatalf("look: PUT pixabay without key: want 400 pixabay_key_required, got %d — %s", status, firstN(body, 300))
+			}
+		}
+		log.Printf("  strict decoding and both key requirements hold ✓")
 
 		step(fmt.Sprintf("look %d/%d — admin removes the first image (DELETE) → GET 404", 5, nLook))
 		imagePath := fmt.Sprintf("/api/prohibitorum/admin/settings/login-images/%d", uploaded[0].ID)

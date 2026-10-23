@@ -142,6 +142,10 @@ export const successMessage = {
     id: "success.unsplash-key.removed",
     message: "Access key removed",
   }),
+  removePixabayKey: msg({
+    id: "success.pixabay-key.removed",
+    message: "API key removed",
+  }),
   saveClientIp: msg({
     id: "success.client-ip.saved",
     message: "Client IP settings saved",

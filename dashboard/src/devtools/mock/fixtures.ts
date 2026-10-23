@@ -302,7 +302,7 @@ function mockLoginImages(config: MockConfig): LoginImage[] {
  * copyright out, as the public endpoint does when the caption is hidden.
  */
 function mockWallpaper(
-  source: "bing" | "unsplash",
+  source: "bing" | "unsplash" | "pixabay",
   detail: string,
   caption: boolean,
 ): Wallpaper {
@@ -319,6 +319,18 @@ function mockWallpaper(
           "https://unsplash.com/?utm_source=prohibitorum&utm_medium=referral",
         photoUrl:
           "https://unsplash.com/?utm_source=prohibitorum&utm_medium=referral",
+      })),
+    };
+  }
+  if (source === "pixabay") {
+    // Served by this site, credit is the author alone linked to the photo
+    // page, as the server maps a Pixabay batch.
+    return {
+      source,
+      pictures: Array.from({ length: 4 }, (_, i) => ({
+        imageUrl: `/branding/wallpaper/images/pixabay/${100 + i}`,
+        photographer: `Mock 作者${i + 1}`,
+        photoUrl: `https://pixabay.com/photos/ridge-${100 + i}/`,
       })),
     };
   }
@@ -2721,6 +2733,9 @@ function readReply(
       if (background.source === "unsplash") {
         return json(mockWallpaper("unsplash", background.unsplash.query, true));
       }
+      if (background.source === "pixabay") {
+        return json(mockWallpaper("pixabay", background.pixabay.query, true));
+      }
       return { kind: "error", status: 404, code: "wallpaper_not_configured" };
     }
     case "/api/prohibitorum/admin/settings/login-appearance":
@@ -2728,6 +2743,7 @@ function readReply(
         json({
           appearance: config.instance.loginAppearance,
           hasUnsplashKey: config.instance.hasUnsplashKey,
+          hasPixabayKey: config.instance.hasPixabayKey,
         }),
       );
     case "/api/prohibitorum/admin/settings/login-appearance/wallpaper": {
@@ -2744,6 +2760,14 @@ function readReply(
         }
         return guarded(config, () =>
           json(mockWallpaper("unsplash", params.get("query") ?? "", true)),
+        );
+      }
+      if (source === "pixabay") {
+        if (!config.instance.hasPixabayKey) {
+          return { kind: "error", status: 400, code: "pixabay_key_required" };
+        }
+        return guarded(config, () =>
+          json(mockWallpaper("pixabay", params.get("query") ?? "", true)),
         );
       }
       return { kind: "error", status: 400, code: "bad_request" };
@@ -3592,24 +3616,36 @@ function writeReply(
       const appearance = field(body, "appearance") as
         | LoginAppearance
         | undefined;
-      const key = stringField(body, "unsplashAccessKey");
+      const unsplashKey = stringField(body, "unsplashAccessKey");
+      const pixabayKey = stringField(body, "pixabayApiKey");
       if (appearance === undefined) {
         return { kind: "error", status: 400, code: "bad_request" };
       }
-      // A key starting with "bad" stands for one Unsplash refuses.
-      if (key?.startsWith("bad")) {
+      // A key starting with "bad" stands for one its service refuses.
+      if (unsplashKey?.startsWith("bad")) {
         return { kind: "error", status: 400, code: "unsplash_key_invalid" };
+      }
+      if (pixabayKey?.startsWith("bad")) {
+        return { kind: "error", status: 400, code: "pixabay_key_invalid" };
       }
       if (
         appearance.background.source === "unsplash" &&
-        key === undefined &&
+        unsplashKey === undefined &&
         !config.instance.hasUnsplashKey
       ) {
         return { kind: "error", status: 400, code: "unsplash_key_required" };
       }
+      if (
+        appearance.background.source === "pixabay" &&
+        pixabayKey === undefined &&
+        !config.instance.hasPixabayKey
+      ) {
+        return { kind: "error", status: 400, code: "pixabay_key_required" };
+      }
       return empty(204, (draft) => {
         draft.instance.loginAppearance = structuredClone(appearance);
-        if (key !== undefined) draft.instance.hasUnsplashKey = true;
+        if (unsplashKey !== undefined) draft.instance.hasUnsplashKey = true;
+        if (pixabayKey !== undefined) draft.instance.hasPixabayKey = true;
       });
     }
 
@@ -3620,6 +3656,15 @@ function writeReply(
       }
       return empty(204, (draft) => {
         draft.instance.hasUnsplashKey = false;
+      });
+
+    case "/api/prohibitorum/admin/settings/login-appearance/pixabay-key":
+      if (method !== "DELETE") return undefined;
+      if (config.instance.loginAppearance.background.source === "pixabay") {
+        return { kind: "error", status: 409, code: "pixabay_key_in_use" };
+      }
+      return empty(204, (draft) => {
+        draft.instance.hasPixabayKey = false;
       });
 
     case "/api/prohibitorum/admin/settings/login-images": {

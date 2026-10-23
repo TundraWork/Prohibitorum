@@ -18,6 +18,7 @@ const (
 	SourceGradient = "gradient"
 	SourceBing     = "bing"
 	SourceUnsplash = "unsplash"
+	SourcePixabay  = "pixabay"
 	SourceImages   = "images"
 )
 
@@ -31,6 +32,15 @@ var Gradients = []string{"dawn", "lagoon", "aurora", "dusk", "mist", "ember"}
 var BingMarkets = []string{
 	"de-DE", "en-AU", "en-CA", "en-GB", "en-IN", "en-US", "es-ES",
 	"fr-CA", "fr-FR", "it-IT", "ja-JP", "pt-BR", "zh-CN",
+}
+
+// PixabayLanguages are the language codes Pixabay's search accepts, as its
+// API docs list them. Pixabay itself does not validate the parameter, so the
+// server does. The dashboard's language picker shows the same codes.
+var PixabayLanguages = []string{
+	"cs", "da", "de", "en", "es", "fr", "id", "it", "hu", "nl", "no", "pl",
+	"pt", "ro", "sk", "fi", "sv", "tr", "vi", "th", "bg", "ru", "el", "ja",
+	"ko", "zh",
 }
 
 // Horizontal positions of the sign-in card on wide windows.
@@ -55,7 +65,7 @@ var Schemes = []string{"graphite", "nord", "sand", "matcha", "sakura", "lavender
 // DefaultScheme is the colour scheme of an instance that has not chosen one.
 const DefaultScheme = "graphite"
 
-var sources = []string{SourceNone, SourceColor, SourceGradient, SourceBing, SourceUnsplash, SourceImages}
+var sources = []string{SourceNone, SourceColor, SourceGradient, SourceBing, SourceUnsplash, SourcePixabay, SourceImages}
 
 var (
 	cardPositions = []string{CardLeft, CardCenter, CardRight}
@@ -85,6 +95,7 @@ type Background struct {
 	Gradient string          `json:"gradient"`
 	Bing     BingOptions     `json:"bing"`
 	Unsplash UnsplashOptions `json:"unsplash"`
+	Pixabay  PixabayOptions  `json:"pixabay"`
 	Images   ImageOptions    `json:"images"`
 }
 
@@ -95,6 +106,15 @@ type BingOptions struct {
 
 type UnsplashOptions struct {
 	Query           string `json:"query"`
+	Order           string `json:"order"`
+	IntervalSeconds int    `json:"intervalSeconds"`
+}
+
+// PixabayOptions holds the Pixabay search: Lang is the language the keyword is
+// matched in (one of PixabayLanguages), so the keyword must be written in it.
+type PixabayOptions struct {
+	Query           string `json:"query"`
+	Lang            string `json:"lang"`
 	Order           string `json:"order"`
 	IntervalSeconds int    `json:"intervalSeconds"`
 }
@@ -122,8 +142,9 @@ func DefaultAppearance() Appearance {
 			Color:    "#1f6f8b",
 			Gradient: "lagoon",
 			Bing:     BingOptions{Market: "zh-CN", ShowCaption: true},
-			Unsplash: UnsplashOptions{Query: "", Order: "random", IntervalSeconds: 10},
-			Images:   ImageOptions{Order: "random", IntervalSeconds: 10},
+		Unsplash: UnsplashOptions{Query: "", Order: "random", IntervalSeconds: 10},
+		Pixabay:  PixabayOptions{Query: "", Lang: "zh", Order: "random", IntervalSeconds: 10},
+		Images:   ImageOptions{Order: "random", IntervalSeconds: 10},
 		},
 		Card:         Surface{Translucent: false, Opacity: 80, Blur: true},
 		Capsules:     Surface{Translucent: true, Opacity: 70, Blur: true},
@@ -152,6 +173,12 @@ type wireAppearance struct {
 			Order           *string `json:"order"`
 			IntervalSeconds *int    `json:"intervalSeconds"`
 		} `json:"unsplash"`
+		Pixabay *struct {
+			Query           *string `json:"query"`
+			Lang            *string `json:"lang"`
+			Order           *string `json:"order"`
+			IntervalSeconds *int    `json:"intervalSeconds"`
+		} `json:"pixabay"`
 		Images *struct {
 			Order           *string `json:"order"`
 			IntervalSeconds *int    `json:"intervalSeconds"`
@@ -198,6 +225,8 @@ func (w wireAppearance) complete() (Appearance, bool) {
 		b.Bing == nil || b.Bing.Market == nil || b.Bing.ShowCaption == nil ||
 		b.Unsplash == nil || b.Unsplash.Query == nil ||
 		b.Unsplash.Order == nil || b.Unsplash.IntervalSeconds == nil ||
+		b.Pixabay == nil || b.Pixabay.Query == nil || b.Pixabay.Lang == nil ||
+		b.Pixabay.Order == nil || b.Pixabay.IntervalSeconds == nil ||
 		b.Images == nil || b.Images.Order == nil || b.Images.IntervalSeconds == nil ||
 		w.CardPosition == nil || w.Theme == nil || w.Scheme == nil {
 		return Appearance{}, false
@@ -216,12 +245,18 @@ func (w wireAppearance) complete() (Appearance, bool) {
 			Color:    *b.Color,
 			Gradient: *b.Gradient,
 			Bing:     BingOptions{Market: *b.Bing.Market, ShowCaption: *b.Bing.ShowCaption},
-			Unsplash: UnsplashOptions{
-				Query:           *b.Unsplash.Query,
-				Order:           *b.Unsplash.Order,
-				IntervalSeconds: *b.Unsplash.IntervalSeconds,
-			},
-			Images:   ImageOptions{Order: *b.Images.Order, IntervalSeconds: *b.Images.IntervalSeconds},
+		Unsplash: UnsplashOptions{
+			Query:           *b.Unsplash.Query,
+			Order:           *b.Unsplash.Order,
+			IntervalSeconds: *b.Unsplash.IntervalSeconds,
+		},
+		Pixabay: PixabayOptions{
+			Query:           *b.Pixabay.Query,
+			Lang:            *b.Pixabay.Lang,
+			Order:           *b.Pixabay.Order,
+			IntervalSeconds: *b.Pixabay.IntervalSeconds,
+		},
+		Images: ImageOptions{Order: *b.Images.Order, IntervalSeconds: *b.Images.IntervalSeconds},
 		},
 		Card:         card,
 		Capsules:     capsules,
@@ -250,8 +285,10 @@ func ValidateAppearance(a Appearance) error {
 		return fmt.Errorf("%w: gradient", ErrInvalidAppearance)
 	case !ValidBingMarket(b.Bing.Market):
 		return fmt.Errorf("%w: market", ErrInvalidAppearance)
-	case !ValidUnsplashQuery(b.Unsplash.Query):
+	case !ValidWallpaperQuery(b.Unsplash.Query):
 		return fmt.Errorf("%w: query", ErrInvalidAppearance)
+	case !ValidWallpaperQuery(b.Pixabay.Query) || !ValidPixabayLang(b.Pixabay.Lang):
+		return fmt.Errorf("%w: pixabay query or language", ErrInvalidAppearance)
 	case !validSurface(a.Card) || !validSurface(a.Capsules):
 		return fmt.Errorf("%w: opacity", ErrInvalidAppearance)
 	case !slices.Contains(cardPositions, a.CardPosition):
@@ -265,6 +302,9 @@ func ValidateAppearance(a Appearance) error {
 		return fmt.Errorf("%w: %s", ErrInvalidAppearance, field)
 	}
 	if field, ok := validRotation(b.Unsplash.Order, b.Unsplash.IntervalSeconds); !ok {
+		return fmt.Errorf("%w: %s", ErrInvalidAppearance, field)
+	}
+	if field, ok := validRotation(b.Pixabay.Order, b.Pixabay.IntervalSeconds); !ok {
 		return fmt.Errorf("%w: %s", ErrInvalidAppearance, field)
 	}
 	return nil
@@ -291,9 +331,10 @@ func ValidScheme(s string) bool { return slices.Contains(Schemes, s) }
 // ValidBingMarket reports whether m is a market Bing publishes a picture for.
 func ValidBingMarket(m string) bool { return slices.Contains(BingMarkets, m) }
 
-// ValidUnsplashQuery accepts 0–64 characters with no surrounding whitespace
-// and no control characters. The query is never trimmed on the admin's behalf.
-func ValidUnsplashQuery(q string) bool {
+// ValidWallpaperQuery accepts 0–64 characters with no surrounding whitespace
+// and no control characters, for any picture service's keyword. The query is
+// never trimmed on the admin's behalf.
+func ValidWallpaperQuery(q string) bool {
 	if !utf8.ValidString(q) || utf8.RuneCountInString(q) > 64 {
 		return false
 	}
@@ -309,3 +350,6 @@ func ValidUnsplashQuery(q string) bool {
 	last, _ := utf8.DecodeLastRuneInString(q)
 	return !unicode.IsSpace(first) && !unicode.IsSpace(last)
 }
+
+// ValidPixabayLang reports whether lang is one of Pixabay's search languages.
+func ValidPixabayLang(lang string) bool { return slices.Contains(PixabayLanguages, lang) }

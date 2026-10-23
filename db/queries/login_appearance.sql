@@ -1,5 +1,7 @@
 -- name: GetLoginAppearance :one
-SELECT login_appearance, unsplash_key_enc, unsplash_key_nonce, unsplash_key_version
+SELECT login_appearance,
+       unsplash_key_enc, unsplash_key_nonce, unsplash_key_version,
+       pixabay_key_enc, pixabay_key_nonce, pixabay_key_version
 FROM instance_settings WHERE id = 1;
 
 -- name: SetLoginAppearance :exec
@@ -13,6 +15,16 @@ WHERE id = 1;
 -- name: ClearUnsplashKey :exec
 UPDATE instance_settings
 SET unsplash_key_enc = NULL, unsplash_key_nonce = NULL, unsplash_key_version = NULL, updated_at = now()
+WHERE id = 1;
+
+-- name: SetPixabayKey :exec
+UPDATE instance_settings
+SET pixabay_key_enc = $1, pixabay_key_nonce = $2, pixabay_key_version = $3, updated_at = now()
+WHERE id = 1;
+
+-- name: ClearPixabayKey :exec
+UPDATE instance_settings
+SET pixabay_key_enc = NULL, pixabay_key_nonce = NULL, pixabay_key_version = NULL, updated_at = now()
 WHERE id = 1;
 
 -- name: LockInstanceSettings :one

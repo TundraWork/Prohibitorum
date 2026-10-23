@@ -512,7 +512,7 @@ msgstr "访问权限还没有开通。管理员开通之后，你可以再试一
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key"
 msgstr "Access Key"
 
@@ -522,7 +522,7 @@ msgid "success.unsplash-key.removed"
 msgstr "Access Key 已移除"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.saved"
 msgstr "Access Key 已保存"
 
@@ -1169,6 +1169,22 @@ msgstr "所有使用此令牌的服务会立即失效，且无法恢复。"
 #: src/pages/admin/users/AccountTokensSection.tsx
 msgid "admin.user.tokens.revoke.body"
 msgstr "使用该令牌的一切会立即停止工作，且无法撤销。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
+msgid "settings.sign-in.pixabay.key"
+msgstr "API key"
+
+#. js-lingui-explicit-id
+#: src/api/success-messages.ts
+msgid "success.pixabay-key.removed"
+msgstr "API key 已删除"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
+msgid "settings.sign-in.pixabay.key.saved"
+msgstr "API key 已保存"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AppearancePanel.tsx
@@ -2874,6 +2890,11 @@ msgstr "无法从 Unsplash 获取照片。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
+msgid "settings.sign-in.preview.pixabay_failed"
+msgstr "无法从 Pixabay 获取图片。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.bing_failed"
 msgstr "无法从 Bing 获取图片。"
 
@@ -3897,6 +3918,11 @@ msgid "login.password.invalid"
 msgstr "请输入密码，长度不超过 1024 个 UTF-8 字节。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pixabay_key_required"
+msgstr "填写 Pixabay API key 才能使用 Pixabay 图片。"
+
+#. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.recovery.invalid"
 msgstr "请输入 XXXX-XXXX-XXXX-XXXX 格式的恢复码，仅使用大写字母 A–Z 和数字 2–7。"
@@ -3959,8 +3985,8 @@ msgstr "请输入身份验证器中的 {0} 位验证码。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
-msgid "settings.sign-in.unsplash.key.required"
-msgstr "请填写 Unsplash 应用的 Access Key。"
+msgid "settings.sign-in.key.required"
+msgstr "保存前请填写 {service} key。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -4352,6 +4378,11 @@ msgstr "来自已保存的规则"
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.column.returned.when"
 msgstr "来自<0/>的测试"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.key.hint"
+msgstr "在 <0>pixabay.com/api/docs</0> 的账户页面获取。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
@@ -5040,7 +5071,7 @@ msgid "settings.maintenance.description"
 msgstr "进行维护期间，除管理员外的所有人都无法登录。"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.keep"
 msgstr "保留已保存的 Key"
 
@@ -5062,6 +5093,11 @@ msgstr "供脚本和工具以你的身份操作的令牌。每个令牌只在创
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.unsplash.query"
+msgstr "关键词"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.query"
 msgstr "关键词"
 
 #. js-lingui-explicit-id
@@ -5775,6 +5811,11 @@ msgstr "新建访问令牌"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.label"
 msgstr "新访问令牌"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.key.new"
+msgstr "新的 API key"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -6778,6 +6819,21 @@ msgid "success.avatar.uploaded"
 msgstr "头像已上传。选中它即可显示。"
 
 #. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pixabay_unreachable"
+msgstr "连不上 Pixabay，API key 没有验证，也没有保存。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pixabay_key_invalid"
+msgstr "Pixabay 没有接受这个 API key，请检查后重新填写。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.width"
+msgstr "Pixabay 提供的图片最宽 1280 像素，在大屏上可能偏模糊。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.effective.pkce"
 msgstr "PKCE"
@@ -7243,7 +7299,7 @@ msgid "admin.user.emails.delete.action"
 msgstr "删除"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.remove"
 msgstr "移除"
 
@@ -7475,7 +7531,7 @@ msgid "profile.avatar.replace"
 msgstr "替换"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.replace"
 msgstr "替换"
 
@@ -8001,6 +8057,11 @@ msgid "settings.sign-in.preview.unsplash_key"
 msgstr "保存 Access Key 后可预览 Unsplash 图片。"
 
 #. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
+msgid "settings.sign-in.preview.pixabay_key"
+msgstr "保存 API key 后才能预览 Pixabay 图片。"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.save"
 msgstr "保存更改"
@@ -8084,6 +8145,11 @@ msgstr "搜索账号"
 #: src/components/custom/AppManagersSection.tsx
 msgid "app.managers.dialog.placeholder"
 msgstr "搜索账号"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.language"
+msgstr "搜索语言"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
@@ -8934,7 +9000,7 @@ msgid "consent.switch_account"
 msgstr "切换账号"
 
 #. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SavedUnsplashKey.tsx
+#: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.in_use"
 msgstr "先把背景换成其他来源并保存，再移除 Key。"
 
@@ -9217,6 +9283,11 @@ msgstr "该验证方式当前不可用，请选择其他方式。"
 #: src/pages/admin/settings/MailPanel.tsx
 msgid "settings.mail.test.rate_limited"
 msgstr "发得太频繁了，请稍后再试。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
+msgid "settings.sign-in.query.hidden_invalid"
+msgstr "{source} 的关键词不能用。切回 {source} 修改。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
@@ -9810,7 +9881,12 @@ msgstr "这里无法绘制登录页。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.wallpaper_not_configured"
-msgstr "登录页没有使用 Bing 或 Unsplash 图片。"
+msgstr "登录页没有使用图片服务。"
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.pixabay_key_in_use"
+msgstr "登录页还在使用 Pixabay。先把背景换成其他来源并保存，再删除 key。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9856,11 +9932,6 @@ msgstr "可信代理列表中有服务器不接受的条目。请选择 X-Forwar
 #: src/forms/password-totp-rules.ts
 msgid "security.password.mismatch"
 msgstr "两次输入的密码不一致。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
-msgid "settings.sign-in.unsplash.query.hidden_invalid"
-msgstr "Unsplash 关键词无法使用。请选择 Unsplash 进行修改。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -11549,6 +11620,11 @@ msgstr "默认语言也要写通知，这样每位访客都能看到。"
 #: src/api/errors.ts
 msgid "error.maintenance_default_notice_required"
 msgstr "默认语言也要写通知，这样每位访客都能看到。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
+msgid "settings.sign-in.pixabay.query.hint"
+msgstr "用所选的搜索语言填写；留空表示任意图片。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
