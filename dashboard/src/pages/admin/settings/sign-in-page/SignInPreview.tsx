@@ -112,7 +112,9 @@ export function SignInPreview({
               query: background.pixabay.query,
               lang: background.pixabay.lang,
             }
-          : undefined,
+          : background.source === "openverse"
+            ? { source: "openverse", query: background.openverse.query }
+            : undefined,
     400,
   );
   const needsKey =
@@ -123,7 +125,12 @@ export function SignInPreview({
     ...loginWallpaperPreviewQueryOptions(
       params ?? { source: "bing", market: "zh-CN" },
     ),
-    enabled: params !== undefined && current && !needsKey,
+    // Openverse needs a keyword; without one there is nothing to preview.
+    enabled:
+      params !== undefined &&
+      current &&
+      !needsKey &&
+      !(background.source === "openverse" && background.openverse.query === ""),
   });
   const shown = useLoginBackground(
     appearance,
@@ -133,7 +140,8 @@ export function SignInPreview({
   const loading =
     (background.source === "bing" ||
       background.source === "unsplash" ||
-      background.source === "pixabay") &&
+      background.source === "pixabay" ||
+      background.source === "openverse") &&
     !needsKey &&
     !wallpaper.isError &&
     shown.wallpaperPicture === undefined;

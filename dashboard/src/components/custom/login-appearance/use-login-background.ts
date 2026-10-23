@@ -49,7 +49,9 @@ export function useLoginBackground(
         ? background.unsplash
         : background.source === "pixabay"
           ? background.pixabay
-          : undefined;
+          : background.source === "openverse"
+            ? background.openverse
+            : undefined;
   const { current, previous } = useRotation(
     pictures,
     rotation?.order === "carousel",
