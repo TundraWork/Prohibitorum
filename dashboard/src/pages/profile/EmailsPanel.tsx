@@ -6,7 +6,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { Mail, ShieldCheck, Trash2 } from "lucide-react";
+import { Mail, MailCheck, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ApiError, isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
@@ -318,7 +318,7 @@ function EmailRow({
 }: {
   email: EmailAddress;
   deliveryAvailable: boolean;
-  /** True while the row's own Verify button is mailing the code. */
+  /** True while the row's Verify item is mailing the code. */
   verifyPending: boolean;
   /** Why the row's last code could not be sent, shown until it is tried again. */
   verifyError: string | null;
@@ -328,6 +328,11 @@ function EmailRow({
 }) {
   const { t } = useLingui();
   const address = email.address;
+
+  // The unverified address's next step rides in the menu with the rest:
+  // Verify when a code can be sent, or the standing note when it cannot.
+  const waitingForAdmin = !email.verified && !deliveryAvailable;
+  const canVerify = !email.verified && deliveryAvailable;
 
   return (
     <ItemListRow
@@ -363,56 +368,54 @@ function EmailRow({
       stackActions
       actions={
         email.primary ? undefined : (
-          <div className="flex items-center gap-2">
-            {!email.verified &&
-              (deliveryAvailable ? (
-                <span className="flex flex-col gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    pending={verifyPending}
-                    onClick={onVerify}
-                  >
-                    <Trans id="profile.emails.verify">Verify</Trans>
-                  </Button>
-                  {verifyError !== null && (
-                    <span
-                      role="alert"
-                      className="text-destructive text-caption"
-                    >
-                      {verifyError}
-                    </span>
-                  )}
-                </span>
-              ) : (
-                <span className="text-muted-foreground text-caption">
-                  <Trans id="profile.emails.awaiting_admin">
-                    Waiting for an administrator
-                  </Trans>
-                </span>
-              ))}
-            <RowMenu
-              label={t({
-                id: "profile.emails.more",
-                message: `More actions for ${address}`,
-              })}
-            >
-              {email.verified && (
-                <MenuItem onClick={onMakePrimary}>
-                  <ShieldCheck />
-                  <Trans id="profile.emails.make_primary">Make primary</Trans>
-                </MenuItem>
-              )}
-              <MenuSeparator />
-              <MenuItem variant="destructive" onClick={onRemove}>
-                <Trash2 />
-                <Trans id="profile.emails.delete.action">Remove</Trans>
+          <RowMenu
+            label={t({
+              id: "profile.emails.more",
+              message: `More actions for ${address}`,
+            })}
+          >
+            {canVerify && (
+              <MenuItem disabled={verifyPending} onClick={onVerify}>
+                <MailCheck />
+                <Trans id="profile.emails.verify">Verify</Trans>
               </MenuItem>
-            </RowMenu>
-          </div>
+            )}
+            {email.verified && (
+              <MenuItem onClick={onMakePrimary}>
+                <ShieldCheck />
+                <Trans id="profile.emails.make_primary">Make primary</Trans>
+              </MenuItem>
+            )}
+            {/* The divider separates a state-changing action from the
+                destructive one; a menu whose only action is Remove draws
+                no divider above it. */}
+            {(canVerify || email.verified) && <MenuSeparator />}
+            <MenuItem variant="destructive" onClick={onRemove}>
+              <Trash2 />
+              <Trans id="profile.emails.delete.action">Remove</Trans>
+            </MenuItem>
+          </RowMenu>
         )
       }
-    />
+    >
+      {waitingForAdmin && (
+        <p className="text-muted-foreground text-caption">
+          <Trans id="profile.emails.awaiting_admin">
+            Waiting for an administrator
+          </Trans>
+        </p>
+      )}
+      {verifyPending && (
+        <p role="status" className="text-muted-foreground text-caption">
+          <Trans id="profile.emails.sending">Sending the code…</Trans>
+        </p>
+      )}
+      {verifyError !== null && (
+        <p role="alert" className="text-destructive text-caption">
+          {verifyError}
+        </p>
+      )}
+    </ItemListRow>
   );
 }
 

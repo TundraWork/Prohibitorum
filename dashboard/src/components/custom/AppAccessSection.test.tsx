@@ -143,6 +143,18 @@ describe("the order strip", () => {
       screen.queryByRole("list", { name: "Order of checks" }),
     ).not.toBeInTheDocument();
   });
+
+  it("sits flush with the list, spaced only by the section body", async () => {
+    mount({ selected: [engineering] });
+
+    const order = await screen.findByRole("list", { name: "Order of checks" });
+    // The strip is the section body's direct child: no wrapper of its own
+    // can pad the edge beside the body's gap, and it starts on the same
+    // edge the list panel does.
+    const body = order.closest("[data-slot='section-body']");
+    expect(body).not.toBeNull();
+    expect(order.parentElement).toBe(body);
+  });
 });
 
 describe("the selected groups", () => {

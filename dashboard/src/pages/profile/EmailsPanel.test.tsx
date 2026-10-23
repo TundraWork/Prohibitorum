@@ -147,7 +147,12 @@ describe("EmailsPanel", () => {
     );
     // No dialog exists before the code is on its way.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    await user.click(await screen.findByRole("button", { name: "Verify" }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for spare@example.test",
+      }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
     await waitFor(() =>
       expect(
         fetchBoundary.mock.calls.some(
@@ -190,7 +195,10 @@ describe("EmailsPanel", () => {
         return undefined;
       },
     );
-    await user.click(await screen.findByRole("button", { name: "Verify" }));
+    await user.click(
+      screen.getByRole("button", { name: "More actions for bad@example.test" }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /could not be sent/,
     );
@@ -277,5 +285,186 @@ describe("EmailsPanel", () => {
     const menu = await screen.findByRole("menu");
     expect(within(menu).getByText("Make primary")).toBeVisible();
     expect(within(menu).getByText("Remove")).toBeVisible();
+  });
+
+  it("refetches the list after a delete, so the row leaves without a reload", async () => {
+    const user = userEvent.setup();
+    let deleted = false;
+    mount(
+      [
+        emailFixture(),
+        emailFixture({ id: 2, address: "second@example.test", primary: false }),
+      ],
+      true,
+      (request) => {
+        const path = new URL(request.url).pathname;
+        if (request.method === "GET" && path === emailsPath) {
+          // The read after the delete no longer lists the removed address.
+          const rows = deleted
+            ? [emailFixture()]
+            : [
+                emailFixture(),
+                emailFixture({
+                  id: 2,
+                  address: "second@example.test",
+                  primary: false,
+                }),
+              ];
+          return Response.json({
+            emails: rows,
+            deliveryAvailable: true,
+            limit: 10,
+          });
+        }
+        if (request.method === "DELETE" && path === `${emailsPath}/2`) {
+          deleted = true;
+          return new Response(null, { status: 204 });
+        }
+        return undefined;
+      },
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for second@example.test",
+      }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Remove",
+      }),
+    );
+
+    expect(await screen.findByText("second@example.test")).toBeVisible();
+    // The list reads again once the delete answers, and the fresh answer —
+    // which no longer carries the row — is what is on screen.
+    await waitFor(() =>
+      expect(screen.queryByText("second@example.test")).not.toBeInTheDocument(),
+    );
+    expect(deleted).toBe(true);
+  });
+
+  it("carries the row's next step in its menu, not as an inline button", async () => {
+    const user = userEvent.setup();
+    mount([
+      emailFixture({
+        id: 5,
+        address: "fresh@example.test",
+        primary: false,
+        verified: false,
+        verifiedVia: undefined,
+        verifiedAt: undefined,
+      }),
+    ]);
+    expect(
+      screen.queryByRole("button", { name: "Verify" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for fresh@example.test",
+      }),
+    );
+    const menu = await screen.findByRole("menu");
+    expect(
+      within(menu).getByRole("menuitem", { name: "Verify" }),
+    ).toBeVisible();
+    expect(
+      within(menu).getByRole("menuitem", { name: "Remove" }),
+    ).toBeVisible();
+    // Verify sits above the destructive action, so the divider between them
+    // is meaningful — and it is the menu's only divider.
+    expect(within(menu).getAllByRole("separator")).toHaveLength(1);
+    expect(within(menu).queryByText("Make primary")).not.toBeInTheDocument();
+  });
+
+  it("says an address without mail waits for an administrator, and keeps its menu to Remove alone", async () => {
+    const user = userEvent.setup();
+    mount(
+      [
+        emailFixture({
+          id: 6,
+          address: "quiet@example.test",
+          primary: false,
+          verified: false,
+          verifiedVia: undefined,
+          verifiedAt: undefined,
+        }),
+      ],
+      false,
+    );
+    expect(
+      await screen.findByText(/Waiting for an administrator/),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for quiet@example.test",
+      }),
+    );
+    const menu = await screen.findByRole("menu");
+    // Remove is the menu's only action, so no divider sits above it.
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
+    expect(within(menu).queryByRole("separator")).not.toBeInTheDocument();
+  });
+
+  it("disables Verify and shows the row sending while the code is on its way", async () => {
+    const user = userEvent.setup();
+    let releaseSend: ((value: Response) => void) | undefined;
+    mount(
+      [
+        emailFixture({
+          id: 7,
+          address: "slow@example.test",
+          primary: false,
+          verified: false,
+          verifiedVia: undefined,
+          verifiedAt: undefined,
+        }),
+      ],
+      true,
+      (request) => {
+        if (new URL(request.url).pathname === `${emailsPath}/7/send-code`) {
+          // Held open until the test lets it go, so the pending state is on
+          // screen to be read.
+          return new Promise<Response>((resolve) => {
+            releaseSend = resolve;
+          });
+        }
+        return undefined;
+      },
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for slow@example.test",
+      }),
+    );
+    const verifyItem = await screen.findByRole("menuitem", { name: "Verify" });
+    await user.click(verifyItem);
+
+    // The menu closes on click; the row itself says the code is leaving.
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Sending the code/,
+    );
+    // A reopened menu's Verify is inert until the send answers.
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for slow@example.test",
+      }),
+    );
+    const item = await screen.findByRole("menuitem", { name: "Verify" });
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for slow@example.test",
+      }),
+    );
+
+    releaseSend?.(
+      Response.json({ resendAfterSeconds: 60, expiresInSeconds: 900 }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByText(/was sent to slow@example.test/),
+    ).toBeVisible();
   });
 });

@@ -171,7 +171,7 @@ export function Section({
               : {
                   "data-slot": "section-body",
                   className:
-                    "flex flex-col rounded-none border-0 bg-transparent p-0 shadow-none before:hidden",
+                    "flex flex-col gap-3 rounded-none border-0 bg-transparent p-0 shadow-none before:hidden",
                 })}
           >
             {children}

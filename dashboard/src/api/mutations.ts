@@ -2492,7 +2492,10 @@ export function deleteMyEmailMutationOptions(queryClient: QueryClient) {
         params: { path: { id } },
       });
     },
-    onSuccess: () => invalidateAfterDelete(queryClient, ["session", "emails"]),
+    // The panel stays on the page after a removal, so the list must read
+    // again — unlike a record delete, there is no navigation away to do it.
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["session", "emails"] }),
   });
 }
 
@@ -2566,8 +2569,10 @@ export function deleteAccountEmailMutationOptions(queryClient: QueryClient) {
         params: { path: { id, emailId } },
       });
     },
+    // The section stays mounted after a removal; see
+    // deleteMyEmailMutationOptions.
     onSuccess: (_result, { id }) =>
-      invalidateAfterDelete(queryClient, ["admin", "accounts", id]),
+      queryClient.invalidateQueries({ queryKey: ["admin", "accounts", id] }),
   });
 }
 

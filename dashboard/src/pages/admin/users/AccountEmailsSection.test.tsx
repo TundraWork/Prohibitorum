@@ -192,4 +192,66 @@ describe("AccountEmailsSection", () => {
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText(/no primary address/)).toBeVisible();
   });
+
+  it("refetches the list after a delete, so the row leaves without a reload", async () => {
+    const user = userEvent.setup();
+    let deleted = false;
+    const removed = fixture({
+      id: 2,
+      address: "spare@example.test",
+      primary: false,
+    });
+    mount([fixture(), removed], (request) => {
+      const path = new URL(request.url).pathname;
+      if (
+        request.method === "GET" &&
+        path === "/api/prohibitorum/accounts/7/emails"
+      ) {
+        return Response.json({
+          emails: deleted ? [fixture()] : [fixture(), removed],
+          limit: 10,
+        });
+      }
+      if (
+        request.method === "DELETE" &&
+        path === "/api/prohibitorum/accounts/7/emails/2"
+      ) {
+        deleted = true;
+        return new Response(null, { status: 204 });
+      }
+      return undefined;
+    });
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for spare@example.test",
+      }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Remove",
+      }),
+    );
+
+    expect(await screen.findByText("spare@example.test")).toBeVisible();
+    await waitFor(() =>
+      expect(screen.queryByText("spare@example.test")).not.toBeInTheDocument(),
+    );
+    expect(deleted).toBe(true);
+  });
+
+  it("gives a primary address a menu of Remove alone, without a divider", async () => {
+    const user = userEvent.setup();
+    mount([fixture()]);
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for member@example.test",
+      }),
+    );
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
+    // Remove is the menu's only action, so no divider sits above it.
+    expect(within(menu).queryByRole("separator")).not.toBeInTheDocument();
+  });
 });
