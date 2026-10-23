@@ -176,7 +176,8 @@ type Server struct {
 	// config → built-in precedence. Admin mutation handlers call Invalidate()
 	// after writes so changes propagate immediately.
 	branding *branding.Resolver
-	// wallpaper fetches the sign-in page's Bing and Unsplash wallpapers. Tests
+	// wallpaper fetches the sign-in page's Bing and Unsplash wallpapers and
+	// downloads the pictures services forbid hotlinking (Pixabay). Tests
 	// inject a fake; nil in NewHuma.
 	wallpaper wallpaperService
 	// clientIP resolves the effective client IP under the DB-stored, peer-validated
@@ -431,7 +432,10 @@ func NewServer(ctx context.Context) (*Server, error) {
 		vrchatOperatorService: vrchatOperator,
 		Audit:                 auditWriter,
 		branding:              brandingResolver,
-		wallpaper:             wallpaper.New(wallpaper.Options{Client: federation.NewOutboundHTTPClient(false, 1<<20)}),
+		wallpaper: wallpaper.New(wallpaper.Options{
+			Client:      federation.NewOutboundHTTPClient(false, 1<<20),
+			ImageClient: federation.NewOutboundHTTPClient(false, 10<<20),
+		}),
 		clientIP:              clientIPResolver,
 		diagStore:             diagStore,
 		cursorCodec:           cursorCodec,
@@ -731,6 +735,9 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "GET", "/branding/icon", publicReq, s.handleGetBrandingIconHTTP)
 	registerOpHTTP(s.router, "GET", "/branding/login-images/{id}", publicReq, s.handleGetLoginImageHTTP)
 	registerOpHTTP(s.router, "GET", "/branding/wallpaper", publicReq, s.handleGetWallpaperHTTP)
+	// Pictures the server downloads itself (Pixabay's terms forbid
+	// hotlinking); served from this site with the source named in the path.
+	registerOpHTTP(s.router, "GET", "/branding/wallpaper/images/{source}/{id}", publicReq, s.handleGetWallpaperImageHTTP)
 	registerOpHTTP(s.router, "GET", "/icon/{kind}/{id}", publicReq, s.handleGetEntityIconHTTP)
 
 	// Native Traefik ForwardAuth (see docs/forward-auth.md). The verify endpoint
@@ -835,10 +842,11 @@ func (s *Server) registerOperations() {
 	registerOp(mgmt, contract.OperationSendTestMail, s.handleSendTestMail, admin)
 	registerOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/icon", admin, s.handlePutInstanceIconHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/icon", admin, s.handleDeleteInstanceIconHTTP)
-	// Admin: sign-in page appearance, Unsplash key, preview wallpaper, background images
+	// Admin: sign-in page appearance, picture-service keys, preview wallpaper, background images
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/admin/settings/login-appearance", admin, s.handleGetLoginAppearanceHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "PUT", "/api/prohibitorum/admin/settings/login-appearance", admin, s.handlePutLoginAppearanceHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/login-appearance/unsplash-key", admin, s.handleDeleteUnsplashKeyHTTP)
+	s.registerAdminBodyOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/login-appearance/pixabay-key", admin, s.handleDeletePixabayKeyHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/admin/settings/login-appearance/wallpaper", admin, s.handleGetWallpaperPreviewHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/admin/settings/login-images", admin, s.handlePostLoginImageHTTP)
 	s.registerAdminBodyOpHTTP(s.router, "DELETE", "/api/prohibitorum/admin/settings/login-images/{id}", admin, s.handleDeleteLoginImageHTTP)

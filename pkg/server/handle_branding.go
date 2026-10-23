@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -20,16 +21,23 @@ import (
 )
 
 // wallpaperService is the slice of pkg/wallpaper the handlers use, so tests
-// can answer without reaching Bing or Unsplash.
+// can answer without reaching Bing, Unsplash or Pixabay.
 type wallpaperService interface {
 	Bing(ctx context.Context, market string) (wallpaper.Picture, error)
 	Unsplash(ctx context.Context, key, query string) ([]wallpaper.Picture, error)
 	Verify(ctx context.Context, key string) error
+	Pixabay(ctx context.Context, key, query, lang string) ([]wallpaper.Picture, error)
+	VerifyPixabay(ctx context.Context, key string) error
+	Image(ctx context.Context, source, id string) (wallpaper.Image, error)
 	Forget()
 }
 
-// unsplashKeyName binds the sealed Unsplash key to its instance_settings column.
-const unsplashKeyName = "unsplash_access_key"
+// unsplashKeyName binds the sealed Unsplash key to its instance_settings
+// column; pixabayKeyName does the same for Pixabay's.
+const (
+	unsplashKeyName = "unsplash_access_key"
+	pixabayKeyName  = "pixabay_api_key"
+)
 
 // GET /api/prohibitorum/config (public)
 func (s *Server) handleGetPublicConfigHTTP(w http.ResponseWriter, r *http.Request) {
@@ -114,8 +122,8 @@ func (s *Server) handleGetLoginImageHTTP(w http.ResponseWriter, r *http.Request)
 	writeIconResponse(w, r, data, etag)
 }
 
-// GET /branding/wallpaper (public) — the Bing picture or the Unsplash batch for
-// the saved background source.
+// GET /branding/wallpaper (public) — the picture batch for the saved
+// background source, from Bing, Unsplash or Pixabay.
 func (s *Server) handleGetWallpaperHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	bg := s.branding.Appearance(ctx).Background
@@ -131,6 +139,11 @@ func (s *Server) handleGetWallpaperHTTP(w http.ResponseWriter, r *http.Request) 
 		if ae := authn.AsAuthError(err); ae != nil && ae.Code == "unsplash_key_required" {
 			err = authn.ErrWallpaperUnavailable()
 		}
+	case branding.SourcePixabay:
+		out, err = s.pixabayWallpaper(ctx, bg.Pixabay.Query, bg.Pixabay.Lang)
+		if ae := authn.AsAuthError(err); ae != nil && ae.Code == "pixabay_key_required" {
+			err = authn.ErrWallpaperUnavailable()
+		}
 	default:
 		err = authn.ErrWallpaperNotConfigured()
 	}
@@ -141,6 +154,31 @@ func (s *Server) handleGetWallpaperHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+// GET /branding/wallpaper/images/{source}/{id} (public) — one picture of the
+// source's cached batch, downloaded by the server (Pixabay's terms forbid
+// hotlinking) and served as this site's own bytes. The id's shape is each
+// source's; the service checks it.
+func (s *Server) handleGetWallpaperImageHTTP(w http.ResponseWriter, r *http.Request) {
+	img, err := s.wallpaper.Image(r.Context(), chi.URLParam(r, "source"), chi.URLParam(r, "id"))
+	if errors.Is(err, wallpaper.ErrImageNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		writeAuthErr(w, authn.ErrWallpaperUnavailable())
+		return
+	}
+	if r.Header.Get("If-None-Match") == `"`+img.ETag+`"` {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Type", img.ContentType)
+	w.Header().Set("ETag", `"`+img.ETag+`"`)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(img.Data)
 }
 
 func (s *Server) bingWallpaper(ctx context.Context, market string, caption bool) (contract.Wallpaper, error) {
@@ -169,7 +207,29 @@ func (s *Server) unsplashWallpaper(ctx context.Context, query string) (contract.
 	if err != nil {
 		return contract.Wallpaper{}, authn.ErrWallpaperUnavailable()
 	}
-	out := contract.Wallpaper{Source: branding.SourceUnsplash, Pictures: make([]contract.WallpaperPicture, len(batch))}
+	return pictureBatch(branding.SourceUnsplash, batch), nil
+}
+
+// pixabayWallpaper uses the saved key and the saved keyword and language; a
+// missing key reads as the wallpaper being unavailable on the public page.
+func (s *Server) pixabayWallpaper(ctx context.Context, query, lang string) (contract.Wallpaper, error) {
+	key, ok, err := s.openPixabayKey(ctx)
+	if err != nil {
+		return contract.Wallpaper{}, err
+	}
+	if !ok {
+		return contract.Wallpaper{}, authn.ErrPixabayKeyRequired()
+	}
+	batch, err := s.wallpaper.Pixabay(ctx, key, query, lang)
+	if err != nil {
+		return contract.Wallpaper{}, authn.ErrWallpaperUnavailable()
+	}
+	return pictureBatch(branding.SourcePixabay, batch), nil
+}
+
+// pictureBatch maps a service batch to the wire shape.
+func pictureBatch(source string, batch []wallpaper.Picture) contract.Wallpaper {
+	out := contract.Wallpaper{Source: source, Pictures: make([]contract.WallpaperPicture, len(batch))}
 	for i, pic := range batch {
 		out.Pictures[i] = contract.WallpaperPicture{
 			ImageURL:        pic.ImageURL,
@@ -179,12 +239,23 @@ func (s *Server) unsplashWallpaper(ctx context.Context, query string) (contract.
 			PhotoURL:        pic.PhotoURL,
 		}
 	}
-	return out, nil
+	return out
 }
 
 // openUnsplashKey decrypts the saved Unsplash key; ok is false when none is saved.
 func (s *Server) openUnsplashKey(ctx context.Context) (key string, ok bool, err error) {
-	sealed := s.branding.UnsplashKey(ctx)
+	return s.openWallpaperKey(s.branding.UnsplashKey(ctx), unsplashKeyName)
+}
+
+// openPixabayKey decrypts the saved Pixabay key; ok is false when none is saved.
+func (s *Server) openPixabayKey(ctx context.Context) (key string, ok bool, err error) {
+	return s.openWallpaperKey(s.branding.PixabayKey(ctx), pixabayKeyName)
+}
+
+// openWallpaperKey decrypts a sealed picture-service key. name binds the
+// sealed value to its column, so one service's key cannot be opened as
+// another's.
+func (s *Server) openWallpaperKey(sealed *branding.SealedKey, name string) (key string, ok bool, err error) {
 	if sealed == nil {
 		return "", false, nil
 	}
@@ -193,13 +264,13 @@ func (s *Server) openUnsplashKey(ctx context.Context) (key string, ok bool, err 
 	}
 	dek, found := s.config.DataEncryptionKeys[int(sealed.KeyVersion)]
 	if !found {
-		return "", false, errors.New("handle_branding: Unsplash key sealed with an unknown key version")
+		return "", false, fmt.Errorf("handle_branding: %s sealed with an unknown key version", name)
 	}
 	plain, err := federation.OpenInstanceSecret(dek, federation.SealedSecret{
 		Ciphertext: sealed.Ciphertext,
 		Nonce:      sealed.Nonce,
 		KeyVersion: sealed.KeyVersion,
-	}, unsplashKeyName)
+	}, name)
 	if err != nil {
 		return "", false, err
 	}

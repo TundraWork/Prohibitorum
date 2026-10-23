@@ -9,6 +9,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -25,7 +26,10 @@ import (
 	"prohibitorum/pkg/wallpaper"
 )
 
-var unsplashKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+var (
+	unsplashKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+	pixabayKeyPattern  = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
+)
 
 // GET /api/prohibitorum/admin/settings/login-appearance
 func (s *Server) handleGetLoginAppearanceHTTP(w http.ResponseWriter, r *http.Request) {
@@ -35,20 +39,23 @@ func (s *Server) handleGetLoginAppearanceHTTP(w http.ResponseWriter, r *http.Req
 	_ = json.NewEncoder(w).Encode(contract.AdminLoginAppearance{
 		Appearance:     s.branding.Appearance(ctx),
 		HasUnsplashKey: s.branding.UnsplashKey(ctx) != nil,
+		HasPixabayKey:  s.branding.PixabayKey(ctx) != nil,
 	})
 }
 
 // PUT /api/prohibitorum/admin/settings/login-appearance
 //
-//	{"appearance": {...}, "unsplashAccessKey": "..."}
+//	{"appearance": {...}, "unsplashAccessKey": "...", "pixabayApiKey": "..."}
 //
-// Both fields are decoded strictly. unsplashAccessKey is optional: left out,
-// the saved key stays. A new key is checked with Unsplash before it is sealed.
+// All fields are decoded strictly. Each key is optional: left out, the saved
+// one stays. A new key is checked with its service before it is sealed; both
+// keys may be given at once and are each verified.
 func (s *Server) handlePutLoginAppearanceHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var body struct {
 		Appearance        json.RawMessage `json:"appearance"`
 		UnsplashAccessKey *string         `json:"unsplashAccessKey"`
+		PixabayAPIKey     *string         `json:"pixabayApiKey"`
 	}
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -65,47 +72,78 @@ func (s *Server) handlePutLoginAppearanceHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}
+	if body.PixabayAPIKey != nil && !pixabayKeyPattern.MatchString(*body.PixabayAPIKey) {
+		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
 	if body.UnsplashAccessKey == nil && appearance.Background.Source == branding.SourceUnsplash &&
 		s.branding.UnsplashKey(ctx) == nil {
 		writeAuthErr(w, authn.ErrUnsplashKeyRequired())
 		return
 	}
-
-	var sealed *branding.SealedKey
-	if body.UnsplashAccessKey != nil {
-		if err := s.wallpaper.Verify(ctx, *body.UnsplashAccessKey); err != nil {
-			if errors.Is(err, wallpaper.ErrKeyRejected) {
-				writeAuthErr(w, authn.ErrUnsplashKeyInvalid())
-				return
-			}
-			writeAuthErr(w, authn.ErrUnsplashUnreachable())
-			return
-		}
-		version, dek, err := s.currentDEK()
-		if err != nil {
-			writeAuthErr(w, err)
-			return
-		}
-		secret, err := federation.SealInstanceSecret(dek, []byte(*body.UnsplashAccessKey), unsplashKeyName, version)
-		if err != nil {
-			writeAuthErr(w, err)
-			return
-		}
-		sealed = &branding.SealedKey{Ciphertext: secret.Ciphertext, Nonce: secret.Nonce, KeyVersion: secret.KeyVersion}
+	if body.PixabayAPIKey == nil && appearance.Background.Source == branding.SourcePixabay &&
+		s.branding.PixabayKey(ctx) == nil {
+		writeAuthErr(w, authn.ErrPixabayKeyRequired())
+		return
 	}
 
-	if err := s.branding.SetAppearance(ctx, appearance, sealed); err != nil {
-		if errors.Is(err, branding.ErrUnsplashKeyRequired) {
-			writeAuthErr(w, authn.ErrUnsplashKeyRequired())
+	keys := branding.NewKeys{}
+	if body.UnsplashAccessKey != nil {
+		sealed, err := s.verifyAndSealKey(ctx, *body.UnsplashAccessKey, unsplashKeyName,
+			s.wallpaper.Verify, wallpaper.ErrKeyRejected, authn.ErrUnsplashKeyInvalid(), authn.ErrUnsplashUnreachable())
+		if err != nil {
+			writeAuthErr(w, err)
 			return
 		}
-		writeAuthErr(w, err)
+		keys.Unsplash = sealed
+	}
+	if body.PixabayAPIKey != nil {
+		sealed, err := s.verifyAndSealKey(ctx, *body.PixabayAPIKey, pixabayKeyName,
+			s.wallpaper.VerifyPixabay, wallpaper.ErrPixabayKeyRejected, authn.ErrPixabayKeyInvalid(), authn.ErrPixabayUnreachable())
+		if err != nil {
+			writeAuthErr(w, err)
+			return
+		}
+		keys.Pixabay = sealed
+	}
+
+	if err := s.branding.SetAppearance(ctx, appearance, keys); err != nil {
+		switch {
+		case errors.Is(err, branding.ErrUnsplashKeyRequired):
+			writeAuthErr(w, authn.ErrUnsplashKeyRequired())
+		case errors.Is(err, branding.ErrPixabayKeyRequired):
+			writeAuthErr(w, authn.ErrPixabayKeyRequired())
+		default:
+			writeAuthErr(w, err)
+		}
 		return
 	}
 	// A new keyword or key applies on the next wallpaper request.
 	s.wallpaper.Forget()
 	s.auditBranding(r, "login_appearance_updated")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// verifyAndSealKey checks a key with its service and seals it with the
+// current data encryption key. rejected is for a key the service refuses and
+// unreachable for one that could not be checked.
+func (s *Server) verifyAndSealKey(ctx context.Context, key, name string, verify func(context.Context, string) error,
+	rejected error, rejectedErr, unreachableErr *authn.AuthError) (*branding.SealedKey, error) {
+	if err := verify(ctx, key); err != nil {
+		if errors.Is(err, rejected) {
+			return nil, rejectedErr
+		}
+		return nil, unreachableErr
+	}
+	version, dek, err := s.currentDEK()
+	if err != nil {
+		return nil, err
+	}
+	secret, err := federation.SealInstanceSecret(dek, []byte(key), name, version)
+	if err != nil {
+		return nil, err
+	}
+	return &branding.SealedKey{Ciphertext: secret.Ciphertext, Nonce: secret.Nonce, KeyVersion: secret.KeyVersion}, nil
 }
 
 // DELETE /api/prohibitorum/admin/settings/login-appearance/unsplash-key
@@ -124,13 +162,30 @@ func (s *Server) handleDeleteUnsplashKeyHTTP(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// DELETE /api/prohibitorum/admin/settings/login-appearance/pixabay-key
+// Refused while the saved background source is Pixabay.
+func (s *Server) handleDeletePixabayKeyHTTP(w http.ResponseWriter, r *http.Request) {
+	if err := s.branding.ClearPixabayKey(r.Context()); err != nil {
+		if errors.Is(err, branding.ErrPixabayKeyInUse) {
+			writeAuthErr(w, authn.ErrPixabayKeyInUse())
+			return
+		}
+		writeAuthErr(w, err)
+		return
+	}
+	s.auditBranding(r, "pixabay_key_removed")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // GET /api/prohibitorum/admin/settings/login-appearance/wallpaper
 //
 //	?source=bing&market=<market>
 //	?source=unsplash&query=<q>
+//	?source=pixabay&query=<q>&lang=<lang>
 //
 // The settings preview's wallpaper for draft parameters, before they are
-// saved. Bing's caption is always included; Unsplash uses the saved key.
+// saved. Bing's caption is always included; Unsplash and Pixabay use the
+// saved key, and Pixabay searches with the draft's keyword and language.
 func (s *Server) handleGetWallpaperPreviewHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := r.URL.Query()
@@ -148,11 +203,18 @@ func (s *Server) handleGetWallpaperPreviewHTTP(w http.ResponseWriter, r *http.Re
 		out, err = s.bingWallpaper(ctx, market, true)
 	case branding.SourceUnsplash:
 		query := q.Get("query")
-		if !branding.ValidUnsplashQuery(query) {
+		if !branding.ValidWallpaperQuery(query) {
 			writeAuthErr(w, authn.ErrBadRequest())
 			return
 		}
 		out, err = s.unsplashWallpaper(ctx, query)
+	case branding.SourcePixabay:
+		query, lang := q.Get("query"), q.Get("lang")
+		if !branding.ValidWallpaperQuery(query) || !branding.ValidPixabayLang(lang) {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
+		out, err = s.pixabayWallpaper(ctx, query, lang)
 	default:
 		writeAuthErr(w, authn.ErrBadRequest())
 		return

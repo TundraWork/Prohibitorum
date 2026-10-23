@@ -31,6 +31,7 @@ type appearanceStore struct {
 	fakeBrandingStore
 	appearance *branding.Appearance
 	key        *branding.SealedKey
+	pixabayKey *branding.SealedKey
 	images     []appearanceImage
 	nextID     int64
 }
@@ -42,18 +43,23 @@ type appearanceImage struct {
 
 func (f *appearanceStore) Get(ctx context.Context) (branding.Settings, error) {
 	s, _ := f.fakeBrandingStore.Get(ctx)
-	s.Appearance, s.UnsplashKey = f.appearance, f.key
+	s.Appearance, s.UnsplashKey, s.PixabayKey = f.appearance, f.key, f.pixabayKey
 	for _, img := range f.images {
 		s.Images = append(s.Images, img.ref)
 	}
 	return s, nil
 }
 
-func (f *appearanceStore) SetAppearance(_ context.Context, a branding.Appearance, key *branding.SealedKey) error {
-	if key != nil {
-		f.key = key
+func (f *appearanceStore) SetAppearance(_ context.Context, a branding.Appearance, keys branding.NewKeys) error {
+	if keys.Unsplash != nil {
+		f.key = keys.Unsplash
 	} else if a.Background.Source == branding.SourceUnsplash && f.key == nil {
 		return branding.ErrUnsplashKeyRequired
+	}
+	if keys.Pixabay != nil {
+		f.pixabayKey = keys.Pixabay
+	} else if a.Background.Source == branding.SourcePixabay && f.pixabayKey == nil {
+		return branding.ErrPixabayKeyRequired
 	}
 	f.appearance = &a
 	return nil
@@ -64,6 +70,14 @@ func (f *appearanceStore) ClearUnsplashKey(context.Context) error {
 		return branding.ErrUnsplashKeyInUse
 	}
 	f.key = nil
+	return nil
+}
+
+func (f *appearanceStore) ClearPixabayKey(context.Context) error {
+	if f.appearance != nil && f.appearance.Background.Source == branding.SourcePixabay {
+		return branding.ErrPixabayKeyInUse
+	}
+	f.pixabayKey = nil
 	return nil
 }
 
@@ -97,15 +111,23 @@ func (f *appearanceStore) ImageData(_ context.Context, id int64) ([]byte, string
 }
 
 type fakeWallpaper struct {
-	bing        wallpaper.Picture
-	bingErr     error
-	unsplash    []wallpaper.Picture
-	unsplashErr error
-	verifyErr   error
-	forgot      int
-	lastKey     string
-	lastQuery   string
-	lastMarket  string
+	bing             wallpaper.Picture
+	bingErr          error
+	unsplash         []wallpaper.Picture
+	unsplashErr      error
+	verifyErr        error
+	forgot           int
+	lastKey          string
+	lastQuery        string
+	lastLang         string
+	lastMarket       string
+	pixabay          []wallpaper.Picture
+	pixabayErr       error
+	verifyPixabayErr error
+	image            wallpaper.Image
+	imageErr         error
+	lastSource       string
+	lastID           string
 }
 
 func (f *fakeWallpaper) Bing(_ context.Context, market string) (wallpaper.Picture, error) {
@@ -121,6 +143,27 @@ func (f *fakeWallpaper) Unsplash(_ context.Context, key, query string) ([]wallpa
 func (f *fakeWallpaper) Verify(_ context.Context, key string) error {
 	f.lastKey = key
 	return f.verifyErr
+}
+
+func (f *fakeWallpaper) Pixabay(_ context.Context, key, query, lang string) ([]wallpaper.Picture, error) {
+	f.lastKey, f.lastQuery, f.lastLang = key, query, lang
+	return f.pixabay, f.pixabayErr
+}
+
+func (f *fakeWallpaper) VerifyPixabay(_ context.Context, key string) error {
+	f.lastKey = key
+	return f.verifyPixabayErr
+}
+
+func (f *fakeWallpaper) Image(_ context.Context, source, id string) (wallpaper.Image, error) {
+	f.lastSource, f.lastID = source, id
+	if f.imageErr != nil {
+		return wallpaper.Image{}, f.imageErr
+	}
+	if f.image.Data == nil {
+		return wallpaper.Image{}, wallpaper.ErrImageNotFound
+	}
+	return f.image, nil
 }
 
 func (f *fakeWallpaper) Forget() { f.forgot++ }
@@ -459,6 +502,7 @@ func (h *loginAppearanceHarness) save(t *testing.T, edit func(*branding.Appearan
 	edit(&a)
 	h.store.appearance = &a
 	h.store.key = nil
+	h.store.pixabayKey = nil
 	if a.Background.Source == branding.SourceUnsplash {
 		sealed, err := federation.SealInstanceSecret(testDEK, []byte("saved-key"), unsplashKeyName, 1)
 		if err != nil {
@@ -466,12 +510,20 @@ func (h *loginAppearanceHarness) save(t *testing.T, edit func(*branding.Appearan
 		}
 		h.store.key = &branding.SealedKey{Ciphertext: sealed.Ciphertext, Nonce: sealed.Nonce, KeyVersion: 1}
 	}
+	if a.Background.Source == branding.SourcePixabay {
+		sealed, err := federation.SealInstanceSecret(testDEK, []byte("saved-key"), pixabayKeyName, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h.store.pixabayKey = &branding.SealedKey{Ciphertext: sealed.Ciphertext, Nonce: sealed.Nonce, KeyVersion: 1}
+	}
 	h.resolver.Invalidate()
 }
 
-// dropKey removes the saved key behind the handlers' back.
+// dropKey removes the saved keys behind the handlers' back.
 func (h *loginAppearanceHarness) dropKey() {
 	h.store.key = nil
+	h.store.pixabayKey = nil
 	h.resolver.Invalidate()
 }
 
@@ -547,4 +599,178 @@ func TestWallpaperPreview(t *testing.T) {
 	}
 	h.wp.unsplashErr = wallpaper.ErrUnavailable
 	wantCode(t, h.do("GET", previewPath+"?source=unsplash&query=forest", "", ""), http.StatusServiceUnavailable, "wallpaper_unavailable")
+}
+
+func pixabayAppearanceBody(t *testing.T, a branding.Appearance, pixabayKey *string, unsplashKey *string) string {
+	t.Helper()
+	body := map[string]any{"appearance": a}
+	if pixabayKey != nil {
+		body["pixabayApiKey"] = *pixabayKey
+	}
+	if unsplashKey != nil {
+		body["unsplashAccessKey"] = *unsplashKey
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
+}
+
+func TestLoginAppearance_PixabayKey(t *testing.T) {
+	h := newLoginAppearanceHarness(t)
+	h.wp.pixabay = []wallpaper.Picture{{
+		ImageURL: "/branding/wallpaper/images/pixabay/1", Photographer: "作者甲",
+		PhotoURL: "https://pixabay.com/photos/ridge-1/",
+	}}
+	a := branding.DefaultAppearance()
+	a.Background.Source = branding.SourcePixabay
+
+	// No key given and none saved.
+	wantCode(t, h.do("PUT", appearancePath, pixabayAppearanceBody(t, a, nil, nil), ""), http.StatusBadRequest, "pixabay_key_required")
+
+	// Pixabay refuses the key.
+	h.wp.verifyPixabayErr = wallpaper.ErrPixabayKeyRejected
+	wantCode(t, h.do("PUT", appearancePath, pixabayAppearanceBody(t, a, ptr("bad-key"), nil), ""), http.StatusBadRequest, "pixabay_key_invalid")
+	// Pixabay cannot be reached.
+	h.wp.verifyPixabayErr = fmt.Errorf("%w: timeout", wallpaper.ErrUnavailable)
+	wantCode(t, h.do("PUT", appearancePath, pixabayAppearanceBody(t, a, ptr("any-key"), nil), ""), http.StatusBadGateway, "pixabay_unreachable")
+	if h.store.pixabayKey != nil || h.store.appearance != nil {
+		t.Fatal("a key Pixabay did not accept was saved")
+	}
+
+	// A good key is sealed under the pixabay name and saved.
+	h.wp.verifyPixabayErr = nil
+	wantCode(t, h.do("PUT", appearancePath, pixabayAppearanceBody(t, a, ptr("Good_key-1"), nil), ""), http.StatusNoContent, "")
+	if h.store.pixabayKey == nil {
+		t.Fatal("pixabay key not saved")
+	}
+	plain, err := federation.OpenInstanceSecret(testDEK, federation.SealedSecret{
+		Ciphertext: h.store.pixabayKey.Ciphertext, Nonce: h.store.pixabayKey.Nonce, KeyVersion: h.store.pixabayKey.KeyVersion,
+	}, pixabayKeyName)
+	if err != nil || string(plain) != "Good_key-1" {
+		t.Fatalf("sealed pixabay key opens to %q, err %v", plain, err)
+	}
+	if strings.Contains(h.do("GET", appearancePath, "", "").Body.String(), "Good_key-1") {
+		t.Fatal("GET echoed the pixabay key")
+	}
+
+	// Saving again without a key keeps the saved one.
+	wantCode(t, h.do("PUT", appearancePath, pixabayAppearanceBody(t, a, nil, nil), ""), http.StatusNoContent, "")
+
+	// Both keys can be given at once; each is verified.
+	h.wp.verifyErr = nil
+	unsplash := branding.DefaultAppearance()
+	wantCode(t, h.do("PUT", appearancePath, pixabayAppearanceBody(t, unsplash, ptr("Pix_key-2"), ptr("Uns_key-2")), ""), http.StatusNoContent, "")
+	if h.store.pixabayKey == nil || h.store.key == nil {
+		t.Fatal("one of the two keys was not saved")
+	}
+
+	// The key cannot be removed while Pixabay is the saved source.
+	h.save(t, func(ap *branding.Appearance) { ap.Background.Source = branding.SourcePixabay })
+	keyPath := appearancePath + "/pixabay-key"
+	wantCode(t, h.do("DELETE", keyPath, "", ""), http.StatusConflict, "pixabay_key_in_use")
+	h.save(t, func(ap *branding.Appearance) { ap.Background.Source = branding.SourceNone })
+	wantCode(t, h.do("DELETE", keyPath, "", ""), http.StatusNoContent, "")
+	if h.store.pixabayKey != nil {
+		t.Fatal("pixabay key survived DELETE")
+	}
+	// Removing a key that is not there is still a success.
+	wantCode(t, h.do("DELETE", keyPath, "", ""), http.StatusNoContent, "")
+}
+
+func TestPublicWallpaperPixabay(t *testing.T) {
+	h := newLoginAppearanceHarness(t)
+	h.wp.pixabay = []wallpaper.Picture{
+		{ImageURL: "/branding/wallpaper/images/pixabay/11", Photographer: "作者甲", PhotoURL: "https://pixabay.com/photos/a-11/"},
+		{ImageURL: "/branding/wallpaper/images/pixabay/12", Photographer: "作者乙", PhotoURL: "https://pixabay.com/photos/b-12/"},
+	}
+
+	h.save(t, func(a *branding.Appearance) {
+		a.Background.Source = branding.SourcePixabay
+		a.Background.Pixabay.Query = "雪山"
+		a.Background.Pixabay.Lang = "zh"
+	})
+	out := decodeWallpaper(t, h.anonymous("GET", "/branding/wallpaper", nil))
+	if out.Source != branding.SourcePixabay || len(out.Pictures) != 2 {
+		t.Fatalf("pixabay wallpaper = %+v", out)
+	}
+	for i, want := range h.wp.pixabay {
+		got := out.Pictures[i]
+		if got.ImageURL != want.ImageURL || got.Photographer != want.Photographer || got.PhotoURL != want.PhotoURL ||
+			got.Title != "" || got.PhotographerURL != "" {
+			t.Fatalf("pictures[%d] = %+v, want only author and photo page", i, got)
+		}
+	}
+	if h.wp.lastKey != "saved-key" || h.wp.lastQuery != "雪山" || h.wp.lastLang != "zh" {
+		t.Fatalf("pixabay search used key %q query %q lang %q", h.wp.lastKey, h.wp.lastQuery, h.wp.lastLang)
+	}
+
+	// A rejected key reads as unavailable to the public.
+	h.wp.pixabayErr = wallpaper.ErrPixabayKeyRejected
+	wantCode(t, h.anonymous("GET", "/branding/wallpaper", nil), http.StatusServiceUnavailable, "wallpaper_unavailable")
+	// No key at all reads the same way.
+	h.dropKey()
+	wantCode(t, h.anonymous("GET", "/branding/wallpaper", nil), http.StatusServiceUnavailable, "wallpaper_unavailable")
+}
+
+func TestWallpaperPreviewPixabay(t *testing.T) {
+	h := newLoginAppearanceHarness(t)
+	h.wp.pixabay = []wallpaper.Picture{{
+		ImageURL: "/branding/wallpaper/images/pixabay/1", Photographer: "作者甲",
+		PhotoURL: "https://pixabay.com/photos/a-1/",
+	}}
+	previewPath := appearancePath + "/wallpaper"
+
+	// An unknown language or keyword is refused before the key is asked for.
+	for _, q := range []string{"?source=pixabay&query=sea&lang=xx", "?source=pixabay&query=%20sea&lang=zh"} {
+		wantCode(t, h.do("GET", previewPath+q, "", ""), http.StatusBadRequest, "bad_request")
+	}
+
+	h.dropKey()
+	wantCode(t, h.do("GET", previewPath+"?source=pixabay&query=sea&lang=en", "", ""), http.StatusBadRequest, "pixabay_key_required")
+	h.save(t, func(a *branding.Appearance) { a.Background.Source = branding.SourcePixabay })
+	out := decodeWallpaper(t, h.do("GET", previewPath+"?source=pixabay&query=forest&lang=ja", "", ""))
+	if out.Source != branding.SourcePixabay || len(out.Pictures) != 1 || out.Pictures[0].ImageURL != h.wp.pixabay[0].ImageURL {
+		t.Fatalf("preview = %+v", out)
+	}
+	if h.wp.lastQuery != "forest" || h.wp.lastLang != "ja" {
+		t.Fatalf("preview searched with query %q lang %q", h.wp.lastQuery, h.wp.lastLang)
+	}
+	h.wp.pixabayErr = wallpaper.ErrUnavailable
+	wantCode(t, h.do("GET", previewPath+"?source=pixabay&query=forest&lang=ja", "", ""), http.StatusServiceUnavailable, "wallpaper_unavailable")
+}
+
+func TestWallpaperImageEndpoint(t *testing.T) {
+	h := newLoginAppearanceHarness(t)
+	h.wp.image = wallpaper.Image{Data: []byte("fake-jpeg"), ContentType: "image/jpeg", ETag: "abc123"}
+
+	rr := h.anonymous("GET", "/branding/wallpaper/images/pixabay/7", nil)
+	wantCode(t, rr, http.StatusOK, "")
+	if rr.Header().Get("Content-Type") != "image/jpeg" || rr.Header().Get("ETag") != `"abc123"` {
+		t.Fatalf("headers = %v", rr.Header())
+	}
+	if rr.Header().Get("Cache-Control") != "public, max-age=86400" {
+		t.Fatalf("Cache-Control = %q", rr.Header().Get("Cache-Control"))
+	}
+	if rr.Body.String() != "fake-jpeg" {
+		t.Fatalf("body = %q, want the served bytes", rr.Body.String())
+	}
+	if h.wp.lastSource != "pixabay" || h.wp.lastID != "7" {
+		t.Fatalf("service asked for %s/%s", h.wp.lastSource, h.wp.lastID)
+	}
+	notModified := h.anonymous("GET", "/branding/wallpaper/images/pixabay/7", http.Header{"If-None-Match": {`"abc123"`}})
+	wantCode(t, notModified, http.StatusNotModified, "")
+
+	// With no picture to serve, every shape of unknown id or source is a 404.
+	h.wp.image = wallpaper.Image{}
+	for _, path := range []string{
+		"/branding/wallpaper/images/unknown/7",
+		"/branding/wallpaper/images/pixabay/notanumber",
+		"/branding/wallpaper/images/pixabay/999",
+	} {
+		wantCode(t, h.anonymous("GET", path, nil), http.StatusNotFound, "")
+	}
+	h.wp.imageErr = wallpaper.ErrUnavailable
+	wantCode(t, h.anonymous("GET", "/branding/wallpaper/images/pixabay/7", nil), http.StatusServiceUnavailable, "wallpaper_unavailable")
 }

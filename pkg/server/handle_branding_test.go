@@ -25,16 +25,17 @@ func (f *fakeBrandingStore) Get(context.Context) (branding.Settings, error) {
 		Maintenance: f.maint, MaintenanceNotice: f.maintNotice,
 	}, nil
 }
-func (f *fakeBrandingStore) SetName(context.Context, *string) error              { return nil }
-func (f *fakeBrandingStore) SetIcon(context.Context, []byte, string) error       { return nil }
-func (f *fakeBrandingStore) ClearIcon(context.Context) error                     { return nil }
+func (f *fakeBrandingStore) SetName(context.Context, *string) error        { return nil }
+func (f *fakeBrandingStore) SetIcon(context.Context, []byte, string) error { return nil }
+func (f *fakeBrandingStore) ClearIcon(context.Context) error               { return nil }
 func (f *fakeBrandingStore) SetMaintenance(context.Context, bool, branding.MaintenanceNotice) error {
 	return nil
 }
-func (f *fakeBrandingStore) SetAppearance(context.Context, branding.Appearance, *branding.SealedKey) error {
+func (f *fakeBrandingStore) SetAppearance(context.Context, branding.Appearance, branding.NewKeys) error {
 	return nil
 }
 func (f *fakeBrandingStore) ClearUnsplashKey(context.Context) error { return nil }
+func (f *fakeBrandingStore) ClearPixabayKey(context.Context) error  { return nil }
 func (f *fakeBrandingStore) AddImage(context.Context, []byte, string) (branding.ImageRef, error) {
 	return branding.ImageRef{}, nil
 }
