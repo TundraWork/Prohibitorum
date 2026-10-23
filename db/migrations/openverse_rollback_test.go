@@ -1,10 +1,14 @@
 package migrations
 
 import (
+	"context"
+	"database/sql"
 	"reflect"
 	"testing"
 
 	"github.com/pressly/goose/v3"
+
+	"prohibitorum/pkg/branding"
 )
 
 // openverseRollbackAppearance is a document as migration 54 left it: the
@@ -65,8 +69,25 @@ func TestOpenverseRollbackMigrationPostgres(t *testing.T) {
 				"UPDATE instance_settings SET login_appearance = $1::jsonb WHERE id = 1", tc.doc); err != nil {
 				t.Fatal(err)
 			}
+			// The store treats an unreadable document as the default look, so
+			// the save would otherwise be lost silently; 055 is what makes it
+			// readable again.
+			if _, err := branding.DecodeAppearance(rawLoginAppearance(t, ctx, conn)); err == nil {
+				t.Fatal("before 055: a document with the openverse object decoded; the check below proves nothing")
+			}
 			if err := goose.UpTo(conn, ".", 55); err != nil {
 				t.Fatal(err)
+			}
+			decoded, err := branding.DecodeAppearance(rawLoginAppearance(t, ctx, conn))
+			if err != nil {
+				t.Fatalf("after 055: the saved document does not decode: %v", err)
+			}
+			wantSource := branding.SourceUnsplash
+			if tc.name == "source-openverse" {
+				wantSource = branding.SourceNone
+			}
+			if decoded.Background.Source != wantSource || decoded.Background.Unsplash.Query != "sea" || decoded.Scheme != "nord" {
+				t.Fatalf("after 055: decoded %+v, want source %q with the other saved values kept", decoded, wantSource)
 			}
 			want := decodeJSON(t, tc.doc)
 			background := want["background"].(map[string]any)
@@ -88,4 +109,14 @@ func TestOpenverseRollbackMigrationPostgres(t *testing.T) {
 			}
 		})
 	}
+}
+
+// rawLoginAppearance reads the stored document as bytes, as the store does.
+func rawLoginAppearance(t *testing.T, ctx context.Context, conn *sql.DB) []byte {
+	t.Helper()
+	var raw []byte
+	if err := conn.QueryRowContext(ctx, "SELECT login_appearance FROM instance_settings WHERE id = 1").Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	return raw
 }
