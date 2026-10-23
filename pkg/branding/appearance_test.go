@@ -76,6 +76,19 @@ func TestDecodeAppearance(t *testing.T) {
 		{"unsplash interval 3600", set(3600, "background", "unsplash", "intervalSeconds"), true},
 		{"unsplash interval 4", set(4, "background", "unsplash", "intervalSeconds"), false},
 		{"unsplash interval 3601", set(3601, "background", "unsplash", "intervalSeconds"), false},
+		{"pixabay query", set("雪山", "background", "pixabay", "query"), true},
+		{"pixabay query with leading space", set(" sea", "background", "pixabay", "query"), false},
+		{"pixabay lang en", set("en", "background", "pixabay", "lang"), true},
+		{"pixabay lang zh", set("zh", "background", "pixabay", "lang"), true},
+		{"pixabay lang ja", set("ja", "background", "pixabay", "lang"), true},
+		{"pixabay lang xx", set("xx", "background", "pixabay", "lang"), false},
+		{"pixabay lang uppercase", set("EN", "background", "pixabay", "lang"), false},
+		{"pixabay carousel", set("carousel", "background", "pixabay", "order"), true},
+		{"unknown pixabay order", set("shuffle", "background", "pixabay", "order"), false},
+		{"pixabay interval 5", set(5, "background", "pixabay", "intervalSeconds"), true},
+		{"pixabay interval 3601", set(3601, "background", "pixabay", "intervalSeconds"), false},
+		{"missing pixabay", drop("background", "pixabay"), false},
+		{"missing pixabay lang", drop("background", "pixabay", "lang"), false},
 		{"opacity 0", set(0, "card", "opacity"), true},
 		{"opacity 100", set(100, "capsules", "opacity"), true},
 		{"opacity -1", set(-1, "card", "opacity"), false},
@@ -137,6 +150,7 @@ func TestDecodeAppearanceRoundTrip(t *testing.T) {
 	want.Background.Source = SourceBing
 	want.Background.Bing = BingOptions{Market: "ja-JP", ShowCaption: false}
 	want.Background.Unsplash = UnsplashOptions{Query: "sea", Order: "carousel", IntervalSeconds: 15}
+	want.Background.Pixabay = PixabayOptions{Query: "雪山", Lang: "zh", Order: "random", IntervalSeconds: 20}
 	want.Capsules = Surface{Translucent: false, Opacity: 35, Blur: false}
 	want.CardPosition = CardRight
 	want.Theme = ThemeDark
@@ -170,5 +184,8 @@ func TestDefaultAppearanceRoundTrip(t *testing.T) {
 	}
 	if got.Background.Unsplash.Order != "random" || got.Background.Unsplash.IntervalSeconds != 10 {
 		t.Fatalf("unsplash defaults = %+v, want random every 10 seconds", got.Background.Unsplash)
+	}
+	if got.Background.Pixabay != (PixabayOptions{Query: "", Lang: "zh", Order: "random", IntervalSeconds: 10}) {
+		t.Fatalf("pixabay defaults = %+v, want zh random every 10 seconds", got.Background.Pixabay)
 	}
 }

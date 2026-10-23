@@ -25,8 +25,8 @@ type Account struct {
 	AvatarEtag         pgtype.Text        `json:"avatarEtag"`
 	AvatarSource       pgtype.Text        `json:"avatarSource"`
 	AvatarSelectedAt   pgtype.Timestamptz `json:"avatarSelectedAt"`
-	PrimaryEmailID     pgtype.Int8        `json:"primaryEmailId"`
 	Preferences        []byte             `json:"preferences"`
+	PrimaryEmailID     pgtype.Int8        `json:"primaryEmailId"`
 }
 
 type AccountAvatar struct {
@@ -153,6 +153,9 @@ type InstanceSetting struct {
 	UnsplashKeyVersion       pgtype.Int4        `json:"unsplashKeyVersion"`
 	MaintenanceMessages      []byte             `json:"maintenanceMessages"`
 	MaintenanceDefaultLocale string             `json:"maintenanceDefaultLocale"`
+	PixabayKeyEnc            []byte             `json:"pixabayKeyEnc"`
+	PixabayKeyNonce          []byte             `json:"pixabayKeyNonce"`
+	PixabayKeyVersion        pgtype.Int4        `json:"pixabayKeyVersion"`
 }
 
 type LoginBackgroundImage struct {

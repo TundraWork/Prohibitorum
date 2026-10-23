@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearPixabayKey = `-- name: ClearPixabayKey :exec
+UPDATE instance_settings
+SET pixabay_key_enc = NULL, pixabay_key_nonce = NULL, pixabay_key_version = NULL, updated_at = now()
+WHERE id = 1
+`
+
+func (q *Queries) ClearPixabayKey(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, clearPixabayKey)
+	return err
+}
+
 const clearUnsplashKey = `-- name: ClearUnsplashKey :exec
 UPDATE instance_settings
 SET unsplash_key_enc = NULL, unsplash_key_nonce = NULL, unsplash_key_version = NULL, updated_at = now()
@@ -46,7 +57,9 @@ func (q *Queries) DeleteLoginBackgroundImage(ctx context.Context, id int64) (int
 }
 
 const getLoginAppearance = `-- name: GetLoginAppearance :one
-SELECT login_appearance, unsplash_key_enc, unsplash_key_nonce, unsplash_key_version
+SELECT login_appearance,
+       unsplash_key_enc, unsplash_key_nonce, unsplash_key_version,
+       pixabay_key_enc, pixabay_key_nonce, pixabay_key_version
 FROM instance_settings WHERE id = 1
 `
 
@@ -55,6 +68,9 @@ type GetLoginAppearanceRow struct {
 	UnsplashKeyEnc     []byte      `json:"unsplashKeyEnc"`
 	UnsplashKeyNonce   []byte      `json:"unsplashKeyNonce"`
 	UnsplashKeyVersion pgtype.Int4 `json:"unsplashKeyVersion"`
+	PixabayKeyEnc      []byte      `json:"pixabayKeyEnc"`
+	PixabayKeyNonce    []byte      `json:"pixabayKeyNonce"`
+	PixabayKeyVersion  pgtype.Int4 `json:"pixabayKeyVersion"`
 }
 
 func (q *Queries) GetLoginAppearance(ctx context.Context) (GetLoginAppearanceRow, error) {
@@ -65,6 +81,9 @@ func (q *Queries) GetLoginAppearance(ctx context.Context) (GetLoginAppearanceRow
 		&i.UnsplashKeyEnc,
 		&i.UnsplashKeyNonce,
 		&i.UnsplashKeyVersion,
+		&i.PixabayKeyEnc,
+		&i.PixabayKeyNonce,
+		&i.PixabayKeyVersion,
 	)
 	return i, err
 }
@@ -147,6 +166,23 @@ UPDATE instance_settings SET login_appearance = $1, updated_at = now() WHERE id 
 
 func (q *Queries) SetLoginAppearance(ctx context.Context, loginAppearance []byte) error {
 	_, err := q.db.Exec(ctx, setLoginAppearance, loginAppearance)
+	return err
+}
+
+const setPixabayKey = `-- name: SetPixabayKey :exec
+UPDATE instance_settings
+SET pixabay_key_enc = $1, pixabay_key_nonce = $2, pixabay_key_version = $3, updated_at = now()
+WHERE id = 1
+`
+
+type SetPixabayKeyParams struct {
+	PixabayKeyEnc     []byte      `json:"pixabayKeyEnc"`
+	PixabayKeyNonce   []byte      `json:"pixabayKeyNonce"`
+	PixabayKeyVersion pgtype.Int4 `json:"pixabayKeyVersion"`
+}
+
+func (q *Queries) SetPixabayKey(ctx context.Context, arg SetPixabayKeyParams) error {
+	_, err := q.db.Exec(ctx, setPixabayKey, arg.PixabayKeyEnc, arg.PixabayKeyNonce, arg.PixabayKeyVersion)
 	return err
 }
 

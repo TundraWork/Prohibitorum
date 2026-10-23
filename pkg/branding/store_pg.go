@@ -62,6 +62,13 @@ func (s *PGStore) Get(ctx context.Context) (Settings, error) {
 			KeyVersion: look.UnsplashKeyVersion.Int32,
 		}
 	}
+	if look.PixabayKeyVersion.Valid {
+		out.PixabayKey = &SealedKey{
+			Ciphertext: look.PixabayKeyEnc,
+			Nonce:      look.PixabayKeyNonce,
+			KeyVersion: look.PixabayKeyVersion.Int32,
+		}
+	}
 	images, err := s.q.ListLoginBackgroundImages(ctx)
 	if err != nil {
 		return Settings{}, err
@@ -101,7 +108,7 @@ func (s *PGStore) ClearIcon(ctx context.Context) error {
 	return err
 }
 
-func (s *PGStore) SetAppearance(ctx context.Context, a Appearance, key *SealedKey) error {
+func (s *PGStore) SetAppearance(ctx context.Context, a Appearance, keys NewKeys) error {
 	raw, err := json.Marshal(a)
 	if err != nil {
 		return err
@@ -111,11 +118,11 @@ func (s *PGStore) SetAppearance(ctx context.Context, a Appearance, key *SealedKe
 		if _, err := q.LockInstanceSettings(ctx); err != nil {
 			return err
 		}
-		if key != nil {
+		if keys.Unsplash != nil {
 			if err := q.SetUnsplashKey(ctx, db.SetUnsplashKeyParams{
-				UnsplashKeyEnc:     key.Ciphertext,
-				UnsplashKeyNonce:   key.Nonce,
-				UnsplashKeyVersion: pgtype.Int4{Int32: key.KeyVersion, Valid: true},
+				UnsplashKeyEnc:     keys.Unsplash.Ciphertext,
+				UnsplashKeyNonce:   keys.Unsplash.Nonce,
+				UnsplashKeyVersion: pgtype.Int4{Int32: keys.Unsplash.KeyVersion, Valid: true},
 			}); err != nil {
 				return err
 			}
@@ -128,11 +135,42 @@ func (s *PGStore) SetAppearance(ctx context.Context, a Appearance, key *SealedKe
 				return ErrUnsplashKeyRequired
 			}
 		}
+		if keys.Pixabay != nil {
+			if err := q.SetPixabayKey(ctx, db.SetPixabayKeyParams{
+				PixabayKeyEnc:     keys.Pixabay.Ciphertext,
+				PixabayKeyNonce:   keys.Pixabay.Nonce,
+				PixabayKeyVersion: pgtype.Int4{Int32: keys.Pixabay.KeyVersion, Valid: true},
+			}); err != nil {
+				return err
+			}
+		} else if a.Background.Source == SourcePixabay {
+			row, err := q.GetLoginAppearance(ctx)
+			if err != nil {
+				return err
+			}
+			if !row.PixabayKeyVersion.Valid {
+				return ErrPixabayKeyRequired
+			}
+		}
 		return q.SetLoginAppearance(ctx, raw)
 	})
 }
 
 func (s *PGStore) ClearUnsplashKey(ctx context.Context) error {
+	return s.clearWallpaperKey(ctx, SourceUnsplash, func(q *db.Queries) error {
+		return q.ClearUnsplashKey(ctx)
+	})
+}
+
+func (s *PGStore) ClearPixabayKey(ctx context.Context) error {
+	return s.clearWallpaperKey(ctx, SourcePixabay, func(q *db.Queries) error {
+		return q.ClearPixabayKey(ctx)
+	})
+}
+
+// clearWallpaperKey removes one source's saved key, refusing while the saved
+// document still selects that source.
+func (s *PGStore) clearWallpaperKey(ctx context.Context, source string, clear func(q *db.Queries) error) error {
 	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		q := s.q.WithTx(tx)
 		if _, err := q.LockInstanceSettings(ctx); err != nil {
@@ -143,11 +181,14 @@ func (s *PGStore) ClearUnsplashKey(ctx context.Context) error {
 			return err
 		}
 		if row.LoginAppearance != nil {
-			if a, err := DecodeAppearance(row.LoginAppearance); err == nil && a.Background.Source == SourceUnsplash {
+			if a, err := DecodeAppearance(row.LoginAppearance); err == nil && a.Background.Source == source {
+				if source == SourcePixabay {
+					return ErrPixabayKeyInUse
+				}
 				return ErrUnsplashKeyInUse
 			}
 		}
-		return q.ClearUnsplashKey(ctx)
+		return clear(q)
 	})
 }
 
