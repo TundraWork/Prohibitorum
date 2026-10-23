@@ -1537,9 +1537,14 @@ describe("mocked logs, settings and signing keys", () => {
     ) as Wallpaper;
     expect(preview.source).toBe("pixabay");
     // No key saved: both the public page and the preview say so.
-    expect(read("/branding/wallpaper", config((draft) => {
-      draft.instance.loginAppearance.background.source = "pixabay";
-    }))).toMatchObject({ kind: "json" });
+    expect(
+      read(
+        "/branding/wallpaper",
+        config((draft) => {
+          draft.instance.loginAppearance.background.source = "pixabay";
+        }),
+      ),
+    ).toMatchObject({ kind: "json" });
     expect(
       read(
         "/api/prohibitorum/admin/settings/login-appearance/wallpaper",

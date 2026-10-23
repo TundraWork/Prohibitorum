@@ -61,9 +61,7 @@ export function SavedWallpaperKey({
               Access key saved
             </Trans>
           ) : (
-            <Trans id="settings.sign-in.pixabay.key.saved">
-              API key saved
-            </Trans>
+            <Trans id="settings.sign-in.pixabay.key.saved">API key saved</Trans>
           )}
         </span>
         <div className="flex gap-2">

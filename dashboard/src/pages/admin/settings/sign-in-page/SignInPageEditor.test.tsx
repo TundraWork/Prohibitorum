@@ -325,9 +325,7 @@ describe("the Unsplash source", () => {
 
     await user.click(saveButton());
     expect(
-      await screen.findByText(
-        "Enter the Unsplash access key before saving.",
-      ),
+      await screen.findByText("Enter the Unsplash access key before saving."),
     ).toBeVisible();
     expect(savedBody(api)).toBeUndefined();
 
@@ -557,9 +555,7 @@ describe("the Pixabay source", () => {
 
     await user.click(saveButton());
     expect(
-      await screen.findByText(
-        "Enter the Pixabay API key before saving.",
-      ),
+      await screen.findByText("Enter the Pixabay API key before saving."),
     ).toBeVisible();
     expect(savedBody(api)).toBeUndefined();
 
