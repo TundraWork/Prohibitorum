@@ -203,13 +203,19 @@ describe("AccountEmailsSection", () => {
     });
     mount([fixture(), removed], (request) => {
       const path = new URL(request.url).pathname;
-      if (request.method === "GET" && path === "/api/prohibitorum/accounts/7/emails") {
+      if (
+        request.method === "GET" &&
+        path === "/api/prohibitorum/accounts/7/emails"
+      ) {
         return Response.json({
           emails: deleted ? [fixture()] : [fixture(), removed],
           limit: 10,
         });
       }
-      if (request.method === "DELETE" && path === "/api/prohibitorum/accounts/7/emails/2") {
+      if (
+        request.method === "DELETE" &&
+        path === "/api/prohibitorum/accounts/7/emails/2"
+      ) {
         deleted = true;
         return new Response(null, { status: 204 });
       }
@@ -233,5 +239,19 @@ describe("AccountEmailsSection", () => {
       expect(screen.queryByText("spare@example.test")).not.toBeInTheDocument(),
     );
     expect(deleted).toBe(true);
+  });
+
+  it("gives a primary address a menu of Remove alone, without a divider", async () => {
+    const user = userEvent.setup();
+    mount([fixture()]);
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for member@example.test",
+      }),
+    );
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
+    // Remove is the menu's only action, so no divider sits above it.
+    expect(within(menu).queryByRole("separator")).not.toBeInTheDocument();
   });
 });

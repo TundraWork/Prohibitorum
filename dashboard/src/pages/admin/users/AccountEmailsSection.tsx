@@ -389,7 +389,10 @@ function AccountEmailRow({
               <Trans id="admin.user.emails.make_primary">Make primary</Trans>
             </MenuItem>
           )}
-          <MenuSeparator />
+          {/* The divider separates a state-changing action from the
+              destructive one; a menu whose only action is Remove draws no
+              divider above it. */}
+          {(!email.verified || !email.primary) && <MenuSeparator />}
           <MenuItem variant="destructive" onClick={onRemove}>
             <Trash2 />
             <Trans id="admin.user.emails.delete.action">Remove</Trans>

@@ -16,13 +16,13 @@ import {
   SectionFailure,
   useSectionPanel,
 } from "@/components/custom/Section";
+import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import {
   Frame,
   FrameHeader,
   FramePanel,
   FrameTitle,
 } from "@/components/ui/frame";
-import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { i18n } from "@/i18n";
 
 beforeEach(() => {
