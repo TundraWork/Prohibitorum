@@ -13,7 +13,6 @@ export const defaultLoginAppearance: LoginAppearance = {
     bing: { market: "zh-CN", showCaption: true },
     unsplash: { query: "", order: "random", intervalSeconds: 10 },
     pixabay: { query: "", lang: "zh", order: "random", intervalSeconds: 10 },
-    openverse: { query: "", order: "random", intervalSeconds: 10 },
     images: { order: "random", intervalSeconds: 10 },
   },
   card: { translucent: false, opacity: 80, blur: true },

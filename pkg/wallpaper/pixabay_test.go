@@ -307,7 +307,7 @@ func TestImageRejectsUnknownIdsAndSources(t *testing.T) {
 	}
 	for _, tc := range []struct{ source, id string }{
 		{"pixabay", "999"}, {"pixabay", "abc"}, {"pixabay", ""}, {"pixabay", "123456789012345678901"},
-		{"openverse", "7"}, {"", "7"},
+		{"unsplash", "7"}, {"", "7"},
 	} {
 		if _, err := s.Image(ctx, tc.source, tc.id); !errors.Is(err, ErrImageNotFound) {
 			t.Fatalf("Image(%q, %q) err = %v, want ErrImageNotFound", tc.source, tc.id, err)

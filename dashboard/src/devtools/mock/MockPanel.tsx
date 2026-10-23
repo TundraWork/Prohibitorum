@@ -174,7 +174,6 @@ const loginSources = [
   "bing",
   "unsplash",
   "pixabay",
-  "openverse",
   "images",
 ] as const satisfies readonly LoginBackgroundSource[];
 

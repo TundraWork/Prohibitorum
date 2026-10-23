@@ -5,7 +5,6 @@ import {
   colorError,
   intervalError,
   keyError,
-  openverseQueryError,
   queryError,
   signInPageBody,
   signInPageMessages,
@@ -36,21 +35,6 @@ describe("the sign-in page rules the server shares", () => {
     ["sea\nside", signInPageMessages.queryControl],
   ])("keyword %j", (value, expected) => {
     expect(queryError(value)).toBe(expected);
-  });
-
-  it.each([
-    ["", "openverse", false],
-    ["lake", "openverse", true],
-    ["", "unsplash", true],
-    [" bad ", "openverse", false],
-    ["a".repeat(65), "openverse", false],
-  ] as const)("openverse keyword %j (source %s)", (value, chosen, valid) => {
-    const result = openverseQueryError(value, chosen);
-    if (valid) expect(result).toBeUndefined();
-    else expect(result).toBeDefined();
-    if (value === "" && chosen === "openverse") {
-      expect(result).toBe(signInPageMessages.queryRequired);
-    }
   });
 
   it.each([

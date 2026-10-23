@@ -215,7 +215,6 @@ function allowedValues(path: string): readonly string[] | undefined {
       "bing",
       "unsplash",
       "pixabay",
-      "openverse",
       "images",
     ];
   }

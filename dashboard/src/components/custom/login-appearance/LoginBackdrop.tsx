@@ -53,7 +53,6 @@ export function LoginBackdrop({
     case "bing":
     case "unsplash":
     case "pixabay":
-    case "openverse":
     case "images":
       if (shown.pictures.length === 0) return null;
       return (

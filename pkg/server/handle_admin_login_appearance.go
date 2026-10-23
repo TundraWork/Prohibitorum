@@ -182,13 +182,10 @@ func (s *Server) handleDeletePixabayKeyHTTP(w http.ResponseWriter, r *http.Reque
 //	?source=bing&market=<market>
 //	?source=unsplash&query=<q>
 //	?source=pixabay&query=<q>&lang=<lang>
-//	?source=openverse&query=<q>
 //
 // The settings preview's wallpaper for draft parameters, before they are
 // saved. Bing's caption is always included; Unsplash and Pixabay use the
-// saved key, and Pixabay searches with the draft's keyword and language;
-// Openverse is anonymous and searches with the draft's keyword, which it
-// requires.
+// saved key, and Pixabay searches with the draft's keyword and language.
 func (s *Server) handleGetWallpaperPreviewHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	q := r.URL.Query()
@@ -218,13 +215,6 @@ func (s *Server) handleGetWallpaperPreviewHTTP(w http.ResponseWriter, r *http.Re
 			return
 		}
 		out, err = s.pixabayWallpaper(ctx, query, lang)
-	case branding.SourceOpenverse:
-		query := q.Get("query")
-		if !branding.ValidWallpaperQuery(query) || query == "" {
-			writeAuthErr(w, authn.ErrBadRequest())
-			return
-		}
-		out, err = s.openverseWallpaper(ctx, query)
 	default:
 		writeAuthErr(w, authn.ErrBadRequest())
 		return

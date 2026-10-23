@@ -4,7 +4,6 @@ import {
   BlendIcon,
   CameraIcon,
   ImagesIcon,
-  LibraryIcon,
   type LucideIcon,
   MountainIcon,
   PaintBucketIcon,
@@ -47,7 +46,6 @@ import {
   colorError,
   intervalError,
   keyError,
-  openverseQueryError,
   queryError,
   type SignInPageValues,
 } from "@/pages/admin/settings/sign-in-page/sign-in-page-form";
@@ -59,7 +57,6 @@ const sourceIcons: Record<LoginBackgroundSource, LucideIcon> = {
   bing: SunriseIcon,
   unsplash: CameraIcon,
   pixabay: MountainIcon,
-  openverse: LibraryIcon,
   images: ImagesIcon,
 };
 
@@ -306,7 +303,6 @@ export const BackgroundControls = withForm({
       bing: "Bing",
       unsplash: "Unsplash",
       pixabay: "Pixabay",
-      openverse: "Openverse",
       images: t({ id: "settings.sign-in.source.images", message: "Images" }),
     };
     const showKeyField = !hasUnsplashKey || replacingKey === "unsplash";
@@ -634,82 +630,6 @@ export const BackgroundControls = withForm({
             >
               <form.Field
                 name="appearance.background.pixabay.intervalSeconds"
-                validators={{ onSubmit: ({ value }) => intervalError(value) }}
-              >
-                {(field) => (
-                  <IntervalField
-                    value={field.state.value}
-                    disabled={submitting}
-                    errors={field.state.meta.errors.flat(
-                      Number.POSITIVE_INFINITY,
-                    )}
-                    onChange={(seconds) => field.handleChange(seconds)}
-                  />
-                )}
-              </form.Field>
-            </RotationControls>
-          </>
-        )}
-
-        {background.source === "openverse" && (
-          <>
-            <p className="text-muted-foreground text-caption">
-              <Trans id="settings.sign-in.openverse.note.sources">
-                Pictures come from Flickr and Wikimedia Commons works found
-                through Openverse, limited to CC BY, CC BY-SA, CC0 and public
-                domain. The sign-in page shows each picture's author and
-                licence.
-              </Trans>
-            </p>
-            <p className="text-muted-foreground text-caption">
-              <Trans id="settings.sign-in.openverse.note.statement">
-                This site uses Openverse but is not endorsed or certified by
-                Openverse.
-              </Trans>
-            </p>
-            <p className="text-muted-foreground text-caption">
-              <Trans id="settings.sign-in.openverse.note.width">
-                Some pictures are only 1024 pixels wide and may look soft on
-                large screens.
-              </Trans>
-            </p>
-            <form.AppField
-              name="appearance.background.openverse.query"
-              validators={{
-                onBlur: ({ value, fieldApi }) =>
-                  openverseQueryError(
-                    value,
-                    fieldApi.form.getFieldValue("appearance").background.source,
-                  ),
-                onSubmit: ({ value, fieldApi }) =>
-                  openverseQueryError(
-                    value,
-                    fieldApi.form.getFieldValue("appearance").background.source,
-                  ),
-              }}
-            >
-              {(field) => (
-                <field.FormField
-                  label={
-                    <Trans id="settings.sign-in.openverse.query">Keyword</Trans>
-                  }
-                  placeholder="landscape"
-                  autoComplete="off"
-                />
-              )}
-            </form.AppField>
-            <RotationControls
-              order={background.openverse.order}
-              disabled={submitting}
-              onOrder={(order) =>
-                form.setFieldValue(
-                  "appearance.background.openverse.order",
-                  order,
-                )
-              }
-            >
-              <form.Field
-                name="appearance.background.openverse.intervalSeconds"
                 validators={{ onSubmit: ({ value }) => intervalError(value) }}
               >
                 {(field) => (

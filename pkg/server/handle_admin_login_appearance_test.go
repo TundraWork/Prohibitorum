@@ -124,8 +124,6 @@ type fakeWallpaper struct {
 	pixabay          []wallpaper.Picture
 	pixabayErr       error
 	verifyPixabayErr error
-	openverse        []wallpaper.Picture
-	openverseErr     error
 	image            wallpaper.Image
 	imageErr         error
 	lastSource       string
@@ -155,11 +153,6 @@ func (f *fakeWallpaper) Pixabay(_ context.Context, key, query, lang string) ([]w
 func (f *fakeWallpaper) VerifyPixabay(_ context.Context, key string) error {
 	f.lastKey = key
 	return f.verifyPixabayErr
-}
-
-func (f *fakeWallpaper) Openverse(_ context.Context, query string) ([]wallpaper.Picture, error) {
-	f.lastQuery = query
-	return f.openverse, f.openverseErr
 }
 
 func (f *fakeWallpaper) Image(_ context.Context, source, id string) (wallpaper.Image, error) {
@@ -783,126 +776,4 @@ func TestWallpaperImageEndpoint(t *testing.T) {
 	}
 	h.wp.imageErr = wallpaper.ErrUnavailable
 	wantCode(t, h.anonymous("GET", "/branding/wallpaper/images/pixabay/7", nil), http.StatusServiceUnavailable, "wallpaper_unavailable")
-}
-
-func TestPublicWallpaperOpenverse(t *testing.T) {
-	h := newLoginAppearanceHarness(t)
-	h.wp.openverse = []wallpaper.Picture{
-		{
-			ImageURL:        "/branding/wallpaper/images/openverse/0f0e8d7c-6b5a-4321-9def-0123456789ab",
-			Title:           "Lake Como",
-			Photographer:    "Stan Shebs",
-			PhotographerURL: "https://commons.wikimedia.org/wiki/User:Stan_Shebs",
-			PhotoURL:        "https://commons.wikimedia.org/w/index.php?curid=87754",
-			License:         "CC BY-SA 3.0",
-			LicenseURL:      "https://creativecommons.org/licenses/by-sa/3.0/",
-		},
-		{
-			ImageURL:     "/branding/wallpaper/images/openverse/11111111-2222-3333-4444-555555555555",
-			Photographer: "作者乙",
-			PhotoURL:     "https://www.flickr.com/photos/ok/2/",
-			License:      "CC0 1.0",
-			LicenseURL:   "https://creativecommons.org/publicdomain/zero/1.0/",
-		},
-	}
-
-	h.save(t, func(a *branding.Appearance) {
-		a.Background.Source = branding.SourceOpenverse
-		a.Background.Openverse.Query = "lake"
-	})
-	out := decodeWallpaper(t, h.anonymous("GET", "/branding/wallpaper", nil))
-	if out.Source != branding.SourceOpenverse || len(out.Pictures) != 2 {
-		t.Fatalf("openverse wallpaper = %+v", out)
-	}
-	for i, want := range h.wp.openverse {
-		if got := out.Pictures[i]; got != (contract.WallpaperPicture{
-			ImageURL: want.ImageURL, Title: want.Title, Photographer: want.Photographer,
-			PhotographerURL: want.PhotographerURL, PhotoURL: want.PhotoURL,
-			License: want.License, LicenseURL: want.LicenseURL,
-		}) {
-			t.Fatalf("pictures[%d] = %+v, want the full credit with licence", i, got)
-		}
-	}
-	if h.wp.lastQuery != "lake" || h.wp.lastKey != "" {
-		t.Fatalf("openverse search used query %q key %q; want the saved query and no key", h.wp.lastQuery, h.wp.lastKey)
-	}
-
-	// An unreachable upstream reads as unavailable to the public.
-	h.wp.openverseErr = wallpaper.ErrUnavailable
-	wantCode(t, h.anonymous("GET", "/branding/wallpaper", nil), http.StatusServiceUnavailable, "wallpaper_unavailable")
-}
-
-func TestWallpaperPreviewOpenverse(t *testing.T) {
-	h := newLoginAppearanceHarness(t)
-	h.wp.openverse = []wallpaper.Picture{{
-		ImageURL:     "/branding/wallpaper/images/openverse/0f0e8d7c-6b5a-4321-9def-0123456789ab",
-		Photographer: "Stan Shebs",
-		PhotoURL:     "https://commons.wikimedia.org/w/index.php?curid=87754",
-		License:      "Public Domain Mark",
-		LicenseURL:   "https://creativecommons.org/publicdomain/mark/1.0/",
-	}}
-	previewPath := appearancePath + "/wallpaper"
-
-	// The keyword is required: empty or malformed is refused.
-	for _, q := range []string{"?source=openverse", "?source=openverse&query=", "?source=openverse&query=%20sea"} {
-		wantCode(t, h.do("GET", previewPath+q, "", ""), http.StatusBadRequest, "bad_request")
-	}
-
-	out := decodeWallpaper(t, h.do("GET", previewPath+"?source=openverse&query=landscape", "", ""))
-	if out.Source != branding.SourceOpenverse || len(out.Pictures) != 1 ||
-		out.Pictures[0].License != "Public Domain Mark" || out.Pictures[0].PhotoURL == "" {
-		t.Fatalf("preview = %+v", out)
-	}
-	if h.wp.lastQuery != "landscape" {
-		t.Fatalf("preview searched with query %q, want the draft's", h.wp.lastQuery)
-	}
-	h.wp.openverseErr = wallpaper.ErrUnavailable
-	wantCode(t, h.do("GET", previewPath+"?source=openverse&query=landscape", "", ""), http.StatusServiceUnavailable, "wallpaper_unavailable")
-}
-
-func TestLoginAppearance_OpenverseRequiresAQuery(t *testing.T) {
-	h := newLoginAppearanceHarness(t)
-	a := branding.DefaultAppearance()
-	a.Background.Source = branding.SourceOpenverse
-
-	// An empty keyword cannot be saved while Openverse is the source.
-	wantCode(t, h.do("PUT", appearancePath, appearanceBody(t, a, nil), ""), http.StatusBadRequest, "bad_request")
-	if h.store.appearance != nil {
-		t.Fatal("an openverse appearance without a keyword was saved")
-	}
-
-	// With a keyword it saves, and no key is involved.
-	a.Background.Openverse.Query = "lake"
-	wantCode(t, h.do("PUT", appearancePath, appearanceBody(t, a, nil), ""), http.StatusNoContent, "")
-	if h.store.key != nil || h.store.pixabayKey != nil {
-		t.Fatal("an openverse save touched a key")
-	}
-
-	// Unchosen, an empty keyword stays valid.
-	a.Background.Source = branding.SourceNone
-	wantCode(t, h.do("PUT", appearancePath, appearanceBody(t, a, nil), ""), http.StatusNoContent, "")
-}
-
-func TestWallpaperImageOpenverseIDs(t *testing.T) {
-	h := newLoginAppearanceHarness(t)
-	h.wp.image = wallpaper.Image{Data: []byte("fake-png"), ContentType: "image/png", ETag: "ov1"}
-
-	rr := h.anonymous("GET", "/branding/wallpaper/images/openverse/0f0e8d7c-6b5a-4321-9def-0123456789ab", nil)
-	wantCode(t, rr, http.StatusOK, "")
-	if rr.Body.String() != "fake-png" {
-		t.Fatalf("body = %q, want the served bytes", rr.Body.String())
-	}
-	if h.wp.lastSource != "openverse" || h.wp.lastID != "0f0e8d7c-6b5a-4321-9def-0123456789ab" {
-		t.Fatalf("service asked for %s/%s", h.wp.lastSource, h.wp.lastID)
-	}
-
-	// A non-UUID id never reaches the service's batch: 404.
-	h.wp.image = wallpaper.Image{}
-	for _, path := range []string{
-		"/branding/wallpaper/images/openverse/not-a-uuid",
-		"/branding/wallpaper/images/openverse/0F0E8D7C-6B5A-4321-9DEF-0123456789AB",
-		"/branding/wallpaper/images/openverse/7",
-	} {
-		wantCode(t, h.anonymous("GET", path, nil), http.StatusNotFound, "")
-	}
 }

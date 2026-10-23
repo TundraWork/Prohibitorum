@@ -49,6 +49,16 @@ func TestOpenverseSourceMigrationPostgres(t *testing.T) {
 		t.Fatalf("up: appearance = %v, want %v", got, want)
 	}
 
+	// 055 rolls the feature back: the filled-in object is dropped again, and
+	// every other saved value stays. Down through 055 is a no-op, so the
+	// document below is also what the DownTo below sees.
+	if err := goose.UpTo(conn, ".", 55); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := loginAppearance(t, ctx, conn), decodeJSON(t, openverseSourceAppearance); !reflect.DeepEqual(got, want) {
+		t.Fatalf("rollback: appearance = %v, want %v", got, want)
+	}
+
 	if err := goose.DownTo(conn, ".", 53); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +69,7 @@ func TestOpenverseSourceMigrationPostgres(t *testing.T) {
 
 func TestOpenverseSourceMigrationWithoutAppearancePostgres(t *testing.T) {
 	ctx, conn := loginAppearanceSchema(t)
-	if err := goose.UpTo(conn, ".", 54); err != nil {
+	if err := goose.UpTo(conn, ".", 55); err != nil {
 		t.Fatal(err)
 	}
 	if got := loginAppearance(t, ctx, conn); got != nil {

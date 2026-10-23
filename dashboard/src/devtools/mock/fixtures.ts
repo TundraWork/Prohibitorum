@@ -302,7 +302,7 @@ function mockLoginImages(config: MockConfig): LoginImage[] {
  * copyright out, as the public endpoint does when the caption is hidden.
  */
 function mockWallpaper(
-  source: "bing" | "unsplash" | "pixabay" | "openverse",
+  source: "bing" | "unsplash" | "pixabay",
   detail: string,
   caption: boolean,
 ): Wallpaper {
@@ -331,30 +331,6 @@ function mockWallpaper(
         imageUrl: `/branding/wallpaper/images/pixabay/${100 + i}`,
         photographer: `Mock 作者${i + 1}`,
         photoUrl: `https://pixabay.com/photos/ridge-${100 + i}/`,
-      })),
-    };
-  }
-  if (source === "openverse") {
-    // Served by this site, with the licence fields Openverse adds. One
-    // picture without a title and one whose author has no page, so the
-    // credit's optional segments can be followed too.
-    const authors = ["Mock Author 一", "Mock Author 二", "Mock Author 三"];
-    return {
-      source,
-      pictures: Array.from({ length: 3 }, (_, i) => ({
-        imageUrl: `/branding/wallpaper/images/openverse/${100 + i}`,
-        ...(i === 0 ? {} : { title: `Mock ${detail} ${i}` }),
-        photographer: authors[i],
-        ...(i === 1
-          ? {}
-          : { photographerUrl: `https://www.flickr.com/people/${i}/` }),
-        photoUrl: `https://www.flickr.com/photos/mock/${100 + i}/`,
-        license: ["CC BY-SA 4.0", "CC0 1.0", "Public Domain Mark"][i],
-        licenseUrl: [
-          "https://creativecommons.org/licenses/by-sa/4.0/",
-          "https://creativecommons.org/publicdomain/zero/1.0/",
-          "https://creativecommons.org/publicdomain/mark/1.0/",
-        ][i],
       })),
     };
   }
@@ -2760,11 +2736,6 @@ function readReply(
       if (background.source === "pixabay") {
         return json(mockWallpaper("pixabay", background.pixabay.query, true));
       }
-      if (background.source === "openverse") {
-        return json(
-          mockWallpaper("openverse", background.openverse.query, true),
-        );
-      }
       return { kind: "error", status: 404, code: "wallpaper_not_configured" };
     }
     case "/api/prohibitorum/admin/settings/login-appearance":
@@ -2797,15 +2768,6 @@ function readReply(
         }
         return guarded(config, () =>
           json(mockWallpaper("pixabay", params.get("query") ?? "", true)),
-        );
-      }
-      if (source === "openverse") {
-        // The keyword is required, as the server enforces.
-        if ((params.get("query") ?? "").trim() === "") {
-          return { kind: "error", status: 400, code: "bad_request" };
-        }
-        return guarded(config, () =>
-          json(mockWallpaper("openverse", params.get("query") ?? "", true)),
         );
       }
       return { kind: "error", status: 400, code: "bad_request" };
@@ -3679,14 +3641,6 @@ function writeReply(
         !config.instance.hasPixabayKey
       ) {
         return { kind: "error", status: 400, code: "pixabay_key_required" };
-      }
-      if (
-        appearance.background.source === "openverse" &&
-        appearance.background.openverse.query.trim() === ""
-      ) {
-        // The keyword is required once Openverse is chosen, as the server
-        // enforces.
-        return { kind: "error", status: 400, code: "bad_request" };
       }
       return empty(204, (draft) => {
         draft.instance.loginAppearance = structuredClone(appearance);

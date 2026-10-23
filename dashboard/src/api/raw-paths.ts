@@ -35,7 +35,6 @@ export type LoginBackgroundSource =
   | "bing"
   | "unsplash"
   | "pixabay"
-  | "openverse"
   | "images";
 
 export type LoginGradient =
@@ -94,15 +93,6 @@ export interface LoginAppearance {
       order: LoginImageOrder;
       intervalSeconds: number;
     };
-    /**
-     * As Unsplash, with no key and no language: Openverse is used
-     * anonymously, and `query` is required once this source is chosen.
-     */
-    openverse: {
-      query: string;
-      order: LoginImageOrder;
-      intervalSeconds: number;
-    };
     /** `intervalSeconds` is 5–3600. */
     images: { order: LoginImageOrder; intervalSeconds: number };
   };
@@ -126,24 +116,21 @@ export interface LoginImage {
 
 /**
  * `GET /branding/wallpaper`: the pictures behind the sign-in page, never
- * empty. Bing sends today's picture alone; Unsplash, Pixabay and Openverse
- * send the server's cached batch in its order, for the page to show one at
- * random or rotate through. Bing's and Unsplash's imageUrl points at their
- * own hosts; Pixabay's terms forbid hotlinking and Openverse's pictures live
- * on other sites' servers, so both use this site's
- * `/branding/wallpaper/images/{source}/{id}`.
+ * empty. Bing sends today's picture alone; Unsplash and Pixabay send the
+ * server's cached batch in its order, for the page to show one at random or
+ * rotate through. Bing's and Unsplash's imageUrl points at their own hosts;
+ * Pixabay's terms forbid hotlinking, so its imageUrl is this site's
+ * `/branding/wallpaper/images/pixabay/{id}`.
  */
 export interface Wallpaper {
-  source: "bing" | "unsplash" | "pixabay" | "openverse";
+  source: "bing" | "unsplash" | "pixabay";
   pictures: WallpaperPicture[];
 }
 
 /**
  * One wallpaper and its credit. Bing's title and copyright are left out when
  * the caption is hidden; the credit is always there. Pixabay fills only the
- * photographer and the photo page link. Openverse fills the title, author,
- * work page and licence fields (a CC licence asks for the licence to be
- * named and linked, and the work it applies to).
+ * photographer and the photo page link.
  */
 export interface WallpaperPicture {
   imageUrl: string;
@@ -153,8 +140,6 @@ export interface WallpaperPicture {
   photographer?: string;
   photographerUrl?: string;
   photoUrl?: string;
-  license?: string;
-  licenseUrl?: string;
 }
 
 export interface PasswordRequest {

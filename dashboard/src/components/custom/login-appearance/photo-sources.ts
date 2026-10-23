@@ -9,18 +9,13 @@ export const photoSources = [
   "bing",
   "unsplash",
   "pixabay",
-  "openverse",
 ] as const satisfies readonly LoginBackgroundSource[];
 
 /**
  * The services that serve a batch of pictures, so the page shows one at
  * random or rotates through them; Bing has one picture a day.
  */
-export const rotatingPhotoSources = [
-  "unsplash",
-  "pixabay",
-  "openverse",
-] as const;
+export const rotatingPhotoSources = ["unsplash", "pixabay"] as const;
 
 /**
  * Pixabay's search languages, as its API docs list them; the server accepts

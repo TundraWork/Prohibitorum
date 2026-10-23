@@ -179,9 +179,9 @@ inside it. Status colour appears only where a state needs to be read.
 The public pages (sign-in, consent, enrolment, pairing, errors) are the one
 place the system dresses up. They draw a stage that floats over a background an
 administrator chooses: the page's own canvas, a colour, a gradient preset, a
-Bing or Unsplash picture, a Pixabay batch, an Openverse batch, or uploaded
-images. The card and the toolbar capsules can be translucent and frosted. The
-console checks the text contrast of that choice before it is saved.
+Bing or Unsplash picture, a Pixabay batch, or uploaded images. The card and
+the toolbar capsules can be translucent and frosted. The console checks the
+text contrast of that choice before it is saved.
 
 The launcher, the signed-in home at `/`, sits between the two. It is not the
 console: it keeps the public pages' capsule toolbar and draws no sidebar, so

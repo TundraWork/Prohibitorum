@@ -241,8 +241,7 @@ export interface LoginAppearanceWrite {
 export type WallpaperPreviewQuery =
   | { source: "bing"; market: string }
   | { source: "unsplash"; query: string }
-  | { source: "pixabay"; query: string; lang: string }
-  | { source: "openverse"; query: string };
+  | { source: "pixabay"; query: string; lang: string };
 
 /**
  * `PUT /admin/settings/maintenance`. One notice per UI language (each at most

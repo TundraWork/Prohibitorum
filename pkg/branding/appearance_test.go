@@ -89,26 +89,6 @@ func TestDecodeAppearance(t *testing.T) {
 		{"pixabay interval 3601", set(3601, "background", "pixabay", "intervalSeconds"), false},
 		{"missing pixabay", drop("background", "pixabay"), false},
 		{"missing pixabay lang", drop("background", "pixabay", "lang"), false},
-		{"openverse source", set("openverse", "background", "source"), false},
-		{"openverse source with query", func(m map[string]any) {
-			path(m, "background")["source"] = "openverse"
-			path(m, "background", "openverse")["query"] = "landscape"
-		}, true},
-		{"openverse source without query", func(m map[string]any) {
-			path(m, "background")["source"] = "openverse"
-			path(m, "background", "openverse")["query"] = ""
-		}, false},
-		{"openverse query", set("landscape", "background", "openverse", "query"), true},
-		{"openverse query with leading space", set(" sea", "background", "openverse", "query"), false},
-		{"openverse query of 65 characters", set(strings.Repeat("a", 65), "background", "openverse", "query"), false},
-		{"openverse carousel", set("carousel", "background", "openverse", "order"), true},
-		{"unknown openverse order", set("shuffle", "background", "openverse", "order"), false},
-		{"openverse interval 4", set(4, "background", "openverse", "intervalSeconds"), false},
-		{"openverse interval 3601", set(3601, "background", "openverse", "intervalSeconds"), false},
-		{"missing openverse", drop("background", "openverse"), false},
-		{"missing openverse query", drop("background", "openverse", "query"), false},
-		{"missing openverse interval", drop("background", "openverse", "intervalSeconds"), false},
-		{"unknown openverse field", set("x", "background", "openverse", "extra"), false},
 		{"opacity 0", set(0, "card", "opacity"), true},
 		{"opacity 100", set(100, "capsules", "opacity"), true},
 		{"opacity -1", set(-1, "card", "opacity"), false},
@@ -171,7 +151,6 @@ func TestDecodeAppearanceRoundTrip(t *testing.T) {
 	want.Background.Bing = BingOptions{Market: "ja-JP", ShowCaption: false}
 	want.Background.Unsplash = UnsplashOptions{Query: "sea", Order: "carousel", IntervalSeconds: 15}
 	want.Background.Pixabay = PixabayOptions{Query: "雪山", Lang: "zh", Order: "random", IntervalSeconds: 20}
-	want.Background.Openverse = OpenverseOptions{Query: "lake", Order: "carousel", IntervalSeconds: 25}
 	want.Capsules = Surface{Translucent: false, Opacity: 35, Blur: false}
 	want.CardPosition = CardRight
 	want.Theme = ThemeDark

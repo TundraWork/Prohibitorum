@@ -6633,14 +6633,13 @@ func main() {
 		appearance := func(source, order string, interval int, card, capsules map[string]any, cardPosition, theme, scheme string) map[string]any {
 			return map[string]any{
 				"background": map[string]any{
-					"source":    source,
-					"color":     "#1f6f8b",
-					"gradient":  "lagoon",
-					"bing":      map[string]any{"market": "zh-CN", "showCaption": true},
-					"unsplash":  map[string]any{"query": "", "order": "random", "intervalSeconds": 10},
-					"pixabay":   map[string]any{"query": "", "lang": "zh", "order": "random", "intervalSeconds": 10},
-					"openverse": map[string]any{"query": "", "order": "random", "intervalSeconds": 10},
-					"images":    map[string]any{"order": order, "intervalSeconds": interval},
+					"source":   source,
+					"color":    "#1f6f8b",
+					"gradient": "lagoon",
+					"bing":     map[string]any{"market": "zh-CN", "showCaption": true},
+					"unsplash": map[string]any{"query": "", "order": "random", "intervalSeconds": 10},
+					"pixabay":  map[string]any{"query": "", "lang": "zh", "order": "random", "intervalSeconds": 10},
+					"images":   map[string]any{"order": order, "intervalSeconds": interval},
 				},
 				"card":         card,
 				"capsules":     capsules,
@@ -6740,12 +6739,6 @@ func main() {
 			if status, body := putAppearance(map[string]any{"appearance": pixabay}); status != http.StatusBadRequest || !strings.Contains(body, `"pixabay_key_required"`) {
 				log.Fatalf("look: PUT pixabay without key: want 400 pixabay_key_required, got %d — %s", status, firstN(body, 300))
 			}
-		}
-		// Openverse needs no key, but its keyword is required; nothing is
-		// fetched from Openverse either way.
-		openverse := appearance("openverse", "random", 10, surface(false, 80, true), surface(true, 70, true), "center", "switchable", "graphite")
-		if status, body := putAppearance(map[string]any{"appearance": openverse}); status != http.StatusBadRequest || !strings.Contains(body, `"bad_request"`) {
-			log.Fatalf("look: PUT openverse without keyword: want 400 bad_request, got %d — %s", status, firstN(body, 300))
 		}
 		log.Printf("  strict decoding and both key requirements hold ✓")
 

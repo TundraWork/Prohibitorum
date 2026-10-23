@@ -21,14 +21,13 @@ import (
 )
 
 // wallpaperService is the slice of pkg/wallpaper the handlers use, so tests
-// can answer without reaching Bing, Unsplash, Pixabay or Openverse.
+// can answer without reaching Bing, Unsplash or Pixabay.
 type wallpaperService interface {
 	Bing(ctx context.Context, market string) (wallpaper.Picture, error)
 	Unsplash(ctx context.Context, key, query string) ([]wallpaper.Picture, error)
 	Verify(ctx context.Context, key string) error
 	Pixabay(ctx context.Context, key, query, lang string) ([]wallpaper.Picture, error)
 	VerifyPixabay(ctx context.Context, key string) error
-	Openverse(ctx context.Context, query string) ([]wallpaper.Picture, error)
 	Image(ctx context.Context, source, id string) (wallpaper.Image, error)
 	Forget()
 }
@@ -124,7 +123,7 @@ func (s *Server) handleGetLoginImageHTTP(w http.ResponseWriter, r *http.Request)
 }
 
 // GET /branding/wallpaper (public) — the picture batch for the saved
-// background source, from Bing, Unsplash, Pixabay or Openverse.
+// background source, from Bing, Unsplash or Pixabay.
 func (s *Server) handleGetWallpaperHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	bg := s.branding.Appearance(ctx).Background
@@ -145,8 +144,6 @@ func (s *Server) handleGetWallpaperHTTP(w http.ResponseWriter, r *http.Request) 
 		if ae := authn.AsAuthError(err); ae != nil && ae.Code == "pixabay_key_required" {
 			err = authn.ErrWallpaperUnavailable()
 		}
-	case branding.SourceOpenverse:
-		out, err = s.openverseWallpaper(ctx, bg.Openverse.Query)
 	default:
 		err = authn.ErrWallpaperNotConfigured()
 	}
@@ -232,17 +229,6 @@ func (s *Server) pixabayWallpaper(ctx context.Context, query, lang string) (cont
 	return pictureBatch(branding.SourcePixabay, batch), nil
 }
 
-// openverseWallpaper searches with the saved keyword; there is no key, so an
-// unreachable upstream reads as the wallpaper being unavailable on the public
-// page.
-func (s *Server) openverseWallpaper(ctx context.Context, query string) (contract.Wallpaper, error) {
-	batch, err := s.wallpaper.Openverse(ctx, query)
-	if err != nil {
-		return contract.Wallpaper{}, authn.ErrWallpaperUnavailable()
-	}
-	return pictureBatch(branding.SourceOpenverse, batch), nil
-}
-
 // pictureBatch maps a service batch to the wire shape.
 func pictureBatch(source string, batch []wallpaper.Picture) contract.Wallpaper {
 	out := contract.Wallpaper{Source: source, Pictures: make([]contract.WallpaperPicture, len(batch))}
@@ -253,8 +239,6 @@ func pictureBatch(source string, batch []wallpaper.Picture) contract.Wallpaper {
 			Photographer:    pic.Photographer,
 			PhotographerURL: pic.PhotographerURL,
 			PhotoURL:        pic.PhotoURL,
-			License:         pic.License,
-			LicenseURL:      pic.LicenseURL,
 		}
 	}
 	return out
