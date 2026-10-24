@@ -2611,6 +2611,40 @@ describe("mocked account emails", () => {
     expect(bodyOf(verify("999999"))).toMatchObject({ verified: true });
   });
 
+  it("refuses a resend inside the cooldown with 429 and the seconds left", () => {
+    const current = writes();
+    const added = bodyOf(
+      call("POST", meEmails, current, { address: "cool@example.com" }),
+    ) as Email;
+    const send = () =>
+      at(
+        "/api/prohibitorum/me/emails/{id}/send-code",
+        { id: added.id },
+        current,
+      );
+    expect(send()).toMatchObject({ kind: "json", status: 202 });
+    expect(send()).toMatchObject({
+      kind: "error",
+      status: 429,
+      code: "rate_limited",
+      details: { retryAfterSeconds: expect.any(Number) },
+    });
+  });
+
+  it("fails the send for an address named fail, the way the server drops one", () => {
+    const current = writes();
+    const added = bodyOf(
+      call("POST", meEmails, current, { address: "fail@example.com" }),
+    ) as Email;
+    expect(
+      at(
+        "/api/prohibitorum/me/emails/{id}/send-code",
+        { id: added.id },
+        current,
+      ),
+    ).toEqual({ kind: "error", status: 502, code: "email_delivery_failed" });
+  });
+
   it("refuses the writes the server refuses, with the codes the console reads", () => {
     const current = writes();
     expect(

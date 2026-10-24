@@ -8254,11 +8254,6 @@ msgid "admin.group.exposed"
 msgstr "Send to applications"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/EmailsPanel.tsx
-msgid "profile.emails.sending"
-msgstr "Sending the code…"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.basic.hint"
 msgstr "Sends the client secret in the Authorization header."
@@ -9400,11 +9395,6 @@ msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "The client is configured with this value; it cannot change."
 
 #. js-lingui-explicit-id
-#: src/pages/profile/EmailsPanel.tsx
-msgid "profile.emails.error.row_send_failed"
-msgstr "The code could not be sent. Try again in a moment."
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
 msgid "admin.group.explain.not"
 msgstr "The condition below does not apply"
@@ -9614,7 +9604,7 @@ msgstr "The message could not be sent. Try again in a moment."
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.delivery_failed"
-msgstr "The message did not go out. Try Resend in a moment."
+msgstr "The message did not go out. Resend to try again."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx

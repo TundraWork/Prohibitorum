@@ -1335,12 +1335,15 @@ export function resetMockEmails(): void {
   edits.changed.clear();
   issuedCodes.clear();
   guessedCodes.clear();
+  lastCodeAt.clear();
   lastTestMailAt = 0;
 }
 
 /** The rows a code has been issued for; rows already guessed wrong once. */
 const issuedCodes = new Set<number>();
 const guessedCodes = new Set<number>();
+/** When each address last had a code, so a resend inside the minute is 429. */
+const lastCodeAt = new Map<number, number>();
 /** The last test mail, so a second one inside a minute is rate-limited. */
 let lastTestMailAt = 0;
 
@@ -2919,6 +2922,23 @@ function writeSendMyEmailCode(
   if (!config.instance.smtpConfigured) {
     return emailError(409, "email_delivery_unavailable");
   }
+  // An address named "fail" stands for one the server rejects, the way the
+  // test mail's recipient does.
+  if (row.address.includes("fail")) {
+    return emailError(502, "email_delivery_failed");
+  }
+  // The server's per-address cooldown: a resend inside it answers 429 with
+  // the seconds left, so the dialog's countdown can be walked through.
+  const now = Date.now();
+  const last = lastCodeAt.get(row.id) ?? 0;
+  if (now - last < codeResendAfterSeconds * 1000) {
+    return emailError(429, "rate_limited", {
+      retryAfterSeconds: Math.ceil(
+        (codeResendAfterSeconds * 1000 - (now - last)) / 1000,
+      ),
+    });
+  }
+  lastCodeAt.set(row.id, now);
   issuedCodes.add(row.id);
   guessedCodes.delete(row.id);
   return {

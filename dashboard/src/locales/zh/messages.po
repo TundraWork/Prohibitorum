@@ -8254,11 +8254,6 @@ msgid "admin.group.exposed"
 msgstr "发送给应用"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/EmailsPanel.tsx
-msgid "profile.emails.sending"
-msgstr "正在发送验证码…"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
 msgid "admin.federation.auth.basic.hint"
 msgstr "在 Authorization 请求头里发送客户端密钥。"
@@ -9400,11 +9395,6 @@ msgid "admin.oidc-apps.field.client-id.hint"
 msgstr "客户端就是按这个值配置的，无法修改。"
 
 #. js-lingui-explicit-id
-#: src/pages/profile/EmailsPanel.tsx
-msgid "profile.emails.error.row_send_failed"
-msgstr "验证码没有发出去，请稍后重试。"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
 msgid "admin.group.explain.not"
 msgstr "以下条件不满足"
@@ -9614,7 +9604,7 @@ msgstr "邮件没有发出去，请稍后重试"
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.delivery_failed"
-msgstr "邮件没有发出去，请稍后点“重新发送”。"
+msgstr "邮件没有发出去，点“重新发送”可再试一次。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx

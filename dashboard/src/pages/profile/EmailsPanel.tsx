@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { Mail, MailCheck, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ApiError, isCancellation } from "@/api/errors";
+import { ApiError, isCancellation, retryAfterSeconds } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
   addMyEmailMutationOptions,
@@ -100,10 +100,6 @@ const removedToast = msg({
   id: "profile.emails.removed_toast",
   message: "{address} was removed",
 });
-const rowSendFailedError = msg({
-  id: "profile.emails.error.row_send_failed",
-  message: "The code could not be sent. Try again in a moment.",
-});
 
 /**
  * The section's heading, drawn by the panel and by the boundary that waits for
@@ -139,49 +135,17 @@ export function EmailsPanel() {
 }
 
 function EmailsList() {
-  const { t, i18n } = useLingui();
+  const { t } = useLingui();
   const { data } = useSuspenseQuery(quietQuery(myEmailsQueryOptions()));
   const [adding, setAdding] = useState(false);
-  // The address being verified, from the add flow or from a row's button.
+  // The address being verified, from the add flow or from a row's menu.
   const [verifying, setVerifying] = useState<EmailAddress | null>(null);
-  // A code a row's button already sent, so the dialog it opens starts at the
-  // cooldown instead of mailing a second one.
-  const [presend, setPresend] = useState<number | null>(null);
   const [makingPrimary, setMakingPrimary] = useState<EmailAddress | null>(null);
   const [removing, setRemoving] = useState<EmailAddress | null>(null);
-  // The row whose Verify button is mailing a code, and the refusal that kept
-  // one from going out.
-  const [sendingRow, setSendingRow] = useState<number | null>(null);
-  const [rowError, setRowError] = useState<string | null>(null);
-  const rowSend = useMutation(
-    withInlineReport(sendMyEmailCodeMutationOptions(), true),
-  );
 
   const emails = data.emails ?? [];
   const hasPrimary = emails.some((email) => email.primary);
   const atCap = emails.length >= data.limit;
-
-  // A row's Verify sends its code before any dialog opens: only a sent code
-  // is worth entering, and a refusal stays on the row that caused it.
-  const verifyFromRow = (email: EmailAddress) => {
-    if (rowSend.isPending) return;
-    setRowError(null);
-    setSendingRow(email.id);
-    rowSend.mutate(
-      { id: email.id, locale: i18n.locale },
-      {
-        onSuccess: () => {
-          setSendingRow(null);
-          setPresend(email.id);
-          setVerifying(email);
-        },
-        onError: () => {
-          setSendingRow(null);
-          setRowError(i18n._(rowSendFailedError));
-        },
-      },
-    );
-  };
 
   return (
     <>
@@ -270,9 +234,7 @@ function EmailsList() {
               key={email.id}
               email={email}
               deliveryAvailable={data.deliveryAvailable}
-              verifyPending={sendingRow === email.id}
-              verifyError={sendingRow === null ? rowError : null}
-              onVerify={() => verifyFromRow(email)}
+              onVerify={() => setVerifying(email)}
               onMakePrimary={() => setMakingPrimary(email)}
               onRemove={() => setRemoving(email)}
             />
@@ -290,12 +252,7 @@ function EmailsList() {
 
       <VerifyEmailDialog
         address={verifying}
-        codeAlreadySent={verifying !== null && presend === verifying.id}
-        onClose={() => {
-          setVerifying(null);
-          setPresend(null);
-          setRowError(null);
-        }}
+        onClose={() => setVerifying(null)}
       />
 
       <SetPrimaryDialog
@@ -310,18 +267,12 @@ function EmailsList() {
 function EmailRow({
   email,
   deliveryAvailable,
-  verifyPending,
-  verifyError,
   onVerify,
   onMakePrimary,
   onRemove,
 }: {
   email: EmailAddress;
   deliveryAvailable: boolean;
-  /** True while the row's Verify item is mailing the code. */
-  verifyPending: boolean;
-  /** Why the row's last code could not be sent, shown until it is tried again. */
-  verifyError: string | null;
   onVerify: () => void;
   onMakePrimary: () => void;
   onRemove: () => void;
@@ -375,7 +326,7 @@ function EmailRow({
             })}
           >
             {canVerify && (
-              <MenuItem disabled={verifyPending} onClick={onVerify}>
+              <MenuItem onClick={onVerify}>
                 <MailCheck />
                 <Trans id="profile.emails.verify">Verify</Trans>
               </MenuItem>
@@ -403,16 +354,6 @@ function EmailRow({
           <Trans id="profile.emails.awaiting_admin">
             Waiting for an administrator
           </Trans>
-        </p>
-      )}
-      {verifyPending && (
-        <p role="status" className="text-muted-foreground text-caption">
-          <Trans id="profile.emails.sending">Sending the code…</Trans>
-        </p>
-      )}
-      {verifyError !== null && (
-        <p role="alert" className="text-destructive text-caption">
-          {verifyError}
         </p>
       )}
     </ItemListRow>
@@ -598,20 +539,20 @@ function AddEmailDialog({
 }
 
 /**
- * Step two: the six digits. The add flow has already sent the first code on
- * its way in, and a row's Verify button sends one before opening, so the
- * dialog only re-sends on request and counts down the cooldown the server
- * asked for. Six digits submit on their own; the footer button stays for a
- * code the reader had to leave the field for.
+ * Step two: the six digits. Opening the dialog is what sends the first code —
+ * from the add flow's step change or from a row's Verify — and a re-send is
+ * the footer button's job. The cooldown the server answers with (or a 429
+ * that says one is still running) counts down on that button, so the reader
+ * is never told a code failed to go out when it is merely on its way. A send
+ * that really failed says so beside the field, with the button to retry it.
+ * Six digits submit on their own; the footer button stays for a code the
+ * reader had to leave the field for.
  */
 function VerifyEmailDialog({
   address,
-  codeAlreadySent,
   onClose,
 }: {
   address: EmailAddress | null;
-  /** True when the caller already mailed the code, so opening skips the send. */
-  codeAlreadySent: boolean;
   onClose: () => void;
 }) {
   const { t, i18n } = useLingui();
@@ -708,14 +649,24 @@ function VerifyEmailDialog({
           form.reset();
         },
         onError: (failure) => {
-          if (
-            failure instanceof ApiError &&
-            failure.code === "email_delivery_failed"
-          ) {
-            // The address stands; only the letter failed. Step into the code
-            // anyway, so the reader can resend without losing their place.
-            setDeliveryFailed(true);
-            return;
+          if (failure instanceof ApiError) {
+            if (failure.status === 429) {
+              // A cooldown that is still running answers 429 with how long
+              // it has left: that is the countdown, not a failure.
+              const wait = retryAfterSeconds(failure);
+              if (wait !== undefined) {
+                setCooldown(wait);
+                setDeliveryFailed(false);
+                setError(null);
+                return;
+              }
+            }
+            if (failure.code === "email_delivery_failed") {
+              // The address stands; only the letter failed. The reader can
+              // resend without losing their place.
+              setDeliveryFailed(true);
+              return;
+            }
           }
           setError(i18n._(sendFailedError));
         },
@@ -723,8 +674,8 @@ function VerifyEmailDialog({
     );
   };
 
-  // Opening the dialog is what sends the first code: the row's button says it
-  // is doing that, and the add flow's step change is the same moment. The
+  // Opening the dialog is what sends the first code: the row's Verify item
+  // opens it and the add flow's step change is the same moment. The
   // dependency is the address id alone — a resend must not re-run this, and
   // the mutation/form objects are stable across renders.
   const openedFor = address?.id ?? null;
@@ -741,9 +692,7 @@ function VerifyEmailDialog({
     if (startedFor === address.id) return;
     setStartedFor(address.id);
     setCooldown(0);
-    // A row's Verify button mails the code before opening; only the add flow
-    // relies on the dialog itself to send the first one.
-    if (!codeAlreadySent) sendCode();
+    sendCode();
   }, [openedFor]);
 
   const close = () => {
@@ -785,7 +734,7 @@ function VerifyEmailDialog({
                   <SurfaceAlert.Content>
                     <SurfaceAlert.Title>
                       <Trans id="profile.emails.delivery_failed">
-                        The message did not go out. Try Resend in a moment.
+                        The message did not go out. Resend to try again.
                       </Trans>
                     </SurfaceAlert.Title>
                   </SurfaceAlert.Content>

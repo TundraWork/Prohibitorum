@@ -119,6 +119,7 @@ export function installApiMocks(application: Application): void {
       // builds it. The request ID is part of that envelope; without one the
       // client would not trust the code.
       if (reply.kind === "error") {
+        const retryAfter = reply.details?.retryAfterSeconds;
         throw await httpFailure(
           request,
           Response.json(
@@ -127,7 +128,16 @@ export function installApiMocks(application: Application): void {
               requestId: `mock-${id}`,
               ...(reply.details ? { details: reply.details } : {}),
             },
-            { status: reply.status },
+            {
+              status: reply.status,
+              // The server answers a 429 with the wait in this header rather
+              // than in the body, so the mock does both shapes alike.
+              ...(reply.status === 429 &&
+              typeof retryAfter === "number" &&
+              retryAfter > 0
+                ? { headers: { "Retry-After": String(retryAfter) } }
+                : {}),
+            },
           ),
         );
       }

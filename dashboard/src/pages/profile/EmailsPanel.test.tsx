@@ -120,7 +120,7 @@ describe("EmailsPanel", () => {
     expect(await screen.findByText(/does not send mail/)).toBeVisible();
   });
 
-  it("sends the code from the row before opening the code dialog", async () => {
+  it("opens the code dialog from the row menu and sends the code on open", async () => {
     const user = userEvent.setup();
     mount(
       [
@@ -145,7 +145,7 @@ describe("EmailsPanel", () => {
         return undefined;
       },
     );
-    // No dialog exists before the code is on its way.
+    // No dialog exists before the menu's Verify is clicked.
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.click(
       screen.getByRole("button", {
@@ -153,6 +153,12 @@ describe("EmailsPanel", () => {
       }),
     );
     await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
+    // The menu item opens the dialog at once; the dialog itself sends the
+    // code, so exactly one send goes out.
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByText(/was sent to spare@example.test/),
+    ).toBeVisible();
     await waitFor(() =>
       expect(
         fetchBoundary.mock.calls.some(
@@ -162,22 +168,16 @@ describe("EmailsPanel", () => {
         ),
       ).toBe(true),
     );
-    // The send succeeded, so the code dialog opens on the same single code.
-    expect(
-      await within(screen.getByRole("dialog")).findByText(
-        /was sent to spare@example.test/,
-      ),
-    ).toBeVisible();
     expect(fetchBoundary.mock.calls).toHaveLength(1);
   });
 
-  it("keeps the row's dialog closed and shows the error when the send fails", async () => {
+  it("counts the cooldown down in the dialog on a 429, without an error", async () => {
     const user = userEvent.setup();
     mount(
       [
         emailFixture({
           id: 4,
-          address: "bad@example.test",
+          address: "cool@example.test",
           primary: false,
           verified: false,
           verifiedVia: undefined,
@@ -187,22 +187,77 @@ describe("EmailsPanel", () => {
       true,
       (request) => {
         if (new URL(request.url).pathname === `${emailsPath}/4/send-code`) {
-          return Response.json(
-            { code: "email_delivery_failed", requestId: "r1" },
-            { status: 502 },
+          return new Response(
+            JSON.stringify({ code: "rate_limited", requestId: "r1" }),
+            { status: 429, headers: { "Retry-After": "30" } },
           );
         }
         return undefined;
       },
     );
     await user.click(
-      screen.getByRole("button", { name: "More actions for bad@example.test" }),
+      screen.getByRole("button", {
+        name: "More actions for cool@example.test",
+      }),
     );
     await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /could not be sent/,
+    const dialog = await screen.findByRole("dialog");
+    // A resend still inside its cooldown answers 429 with the wait: that is
+    // the countdown, not a failure.
+    expect(await within(dialog).findByText(/Resend in 30s/)).toBeVisible();
+    expect(within(dialog).queryAllByRole("alert")).toHaveLength(0);
+  });
+
+  it("shows a real send failure inside the dialog, with a way to retry", async () => {
+    const user = userEvent.setup();
+    let failed = true;
+    mount(
+      [
+        emailFixture({
+          id: 5,
+          address: "bad@example.test",
+          primary: false,
+          verified: false,
+          verifiedVia: undefined,
+          verifiedAt: undefined,
+        }),
+      ],
+      true,
+      (request) => {
+        if (new URL(request.url).pathname === `${emailsPath}/5/send-code`) {
+          return failed
+            ? new Response(null, { status: 503 })
+            : Response.json({
+                resendAfterSeconds: 60,
+                expiresInSeconds: 900,
+              });
+        }
+        return undefined;
+      },
     );
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for bad@example.test",
+      }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
+    const dialog = await screen.findByRole("dialog");
+    // The failure lands in the dialog, on the code step it belongs to. The
+    // open dialog hides the page behind it from role queries, so the row's
+    // cleanliness is asked of the document itself.
+    const alerts = document.querySelectorAll('p[role="alert"]');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toHaveTextContent(/could not be sent/);
+    expect(within(dialog).getByRole("alert")).toBe(alerts[0]);
+    // The rows show nothing about the send: no status line, and the only
+    // alert in the document is the dialog's.
+    expect(document.querySelectorAll('[role="status"]')).toHaveLength(0);
+    // And the dialog's own button is the way to retry the send: this one
+    // goes out and answers with the cooldown again.
+    failed = false;
+    await user.click(within(dialog).getByRole("button", { name: "Resend" }));
+    expect(await within(dialog).findByText(/Resend in 60s/)).toBeVisible();
+    expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("adds, sends, and verifies through the two-step dialog", async () => {
@@ -405,66 +460,5 @@ describe("EmailsPanel", () => {
     // Remove is the menu's only action, so no divider sits above it.
     expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
     expect(within(menu).queryByRole("separator")).not.toBeInTheDocument();
-  });
-
-  it("disables Verify and shows the row sending while the code is on its way", async () => {
-    const user = userEvent.setup();
-    let releaseSend: ((value: Response) => void) | undefined;
-    mount(
-      [
-        emailFixture({
-          id: 7,
-          address: "slow@example.test",
-          primary: false,
-          verified: false,
-          verifiedVia: undefined,
-          verifiedAt: undefined,
-        }),
-      ],
-      true,
-      (request) => {
-        if (new URL(request.url).pathname === `${emailsPath}/7/send-code`) {
-          // Held open until the test lets it go, so the pending state is on
-          // screen to be read.
-          return new Promise<Response>((resolve) => {
-            releaseSend = resolve;
-          });
-        }
-        return undefined;
-      },
-    );
-    await user.click(
-      screen.getByRole("button", {
-        name: "More actions for slow@example.test",
-      }),
-    );
-    const verifyItem = await screen.findByRole("menuitem", { name: "Verify" });
-    await user.click(verifyItem);
-
-    // The menu closes on click; the row itself says the code is leaving.
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      /Sending the code/,
-    );
-    // A reopened menu's Verify is inert until the send answers.
-    await user.click(
-      screen.getByRole("button", {
-        name: "More actions for slow@example.test",
-      }),
-    );
-    const item = await screen.findByRole("menuitem", { name: "Verify" });
-    expect(item).toHaveAttribute("aria-disabled", "true");
-    await user.click(
-      screen.getByRole("button", {
-        name: "More actions for slow@example.test",
-      }),
-    );
-
-    releaseSend?.(
-      Response.json({ resendAfterSeconds: 60, expiresInSeconds: 900 }),
-    );
-    const dialog = await screen.findByRole("dialog");
-    expect(
-      await within(dialog).findByText(/was sent to slow@example.test/),
-    ).toBeVisible();
   });
 });

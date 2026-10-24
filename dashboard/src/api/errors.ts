@@ -708,15 +708,22 @@ function federationMessage(
 
 /**
  * The whole seconds a failed response asked to wait, from its `Retry-After`.
- * The date form is not read: the server sends seconds.
+ * The date form is not read: the server sends seconds. The mock's failures
+ * carry the same number in `details.retryAfterSeconds`, so both are read.
  */
-function retryAfterSeconds(error: ApiError): number | undefined {
+export function retryAfterSeconds(error: ApiError): number | undefined {
   const header = error.exchange?.response?.headers.find(
     ([name]) => name.toLowerCase() === "retry-after",
   )?.[1];
-  if (header === undefined || !/^\d+$/.test(header.trim())) return undefined;
-  const seconds = Number(header.trim());
-  return seconds > 0 && Number.isSafeInteger(seconds) ? seconds : undefined;
+  const fromHeader =
+    header === undefined || !/^\d+$/.test(header.trim())
+      ? undefined
+      : Number(header.trim());
+  const raw = error.details?.retryAfterSeconds;
+  const fromDetails =
+    typeof raw === "number" && Number.isSafeInteger(raw) ? raw : undefined;
+  const seconds = fromDetails ?? fromHeader;
+  return seconds !== undefined && seconds > 0 ? seconds : undefined;
 }
 
 export type ErrorDescription = MessageDescriptor & { requestId?: string };
