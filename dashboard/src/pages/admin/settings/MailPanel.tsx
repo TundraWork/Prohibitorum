@@ -45,7 +45,7 @@ const sentToast = msg({
 });
 const rateLimitedError = msg({
   id: "settings.mail.test.rate_limited",
-  message: "That was too many. Try again in a moment.",
+  message: "That was too many. You can send it again later.",
 });
 const failedError = msg({
   id: "settings.mail.test.failed",

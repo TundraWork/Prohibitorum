@@ -9282,7 +9282,7 @@ msgstr "That verification method is not available. Choose another one."
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MailPanel.tsx
 msgid "settings.mail.test.rate_limited"
-msgstr "That was too many. Try again in a moment."
+msgstr "That was too many. You can send it again later."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
@@ -9594,12 +9594,12 @@ msgstr "The manual groups the new account joins when it registers."
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.error.send_failed"
-msgstr "The message could not be sent. Try again in a moment."
+msgstr "The message could not be sent. You can send it again later."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_delivery_failed"
-msgstr "The message could not be sent. Try again in a moment."
+msgstr "The message could not be sent. You can send it again later."
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx

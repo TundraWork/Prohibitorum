@@ -73,7 +73,7 @@ const codeExpiredError = msg({
 });
 const sendFailedError = msg({
   id: "profile.emails.error.send_failed",
-  message: "The message could not be sent. Try again in a moment.",
+  message: "The message could not be sent. You can send it again later.",
 });
 const verifiedToast = msg({
   id: "profile.emails.verified_toast",

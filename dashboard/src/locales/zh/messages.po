@@ -273,7 +273,7 @@ msgstr "{provider} 要求放慢请求。请等待 {seconds, plural, other {# 秒
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.upstream_rate_limited"
-msgstr "{provider} 要求放慢请求。请稍等片刻。"
+msgstr "{provider} 要求放慢请求，请稍候。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1073,7 +1073,7 @@ msgstr "管理员无法被停用。请先将他们改为用户。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.admin_cannot_be_disabled"
-msgstr "管理员无法被停用。请先将角色改为普通用户。"
+msgstr "管理员无法被停用。请先将角色改为用户。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -3935,7 +3935,7 @@ msgstr "请输入用户名。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.invalid_nickname"
-msgstr "请输入有效昵称，不要包含控制字符。"
+msgstr "请输入有效的名称，不含控制字符。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -6397,7 +6397,7 @@ msgstr "只有已验证的地址可以设为主邮箱。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_not_verified_for_primary"
-msgstr "只有已验证的地址可以做主邮箱"
+msgstr "只有已验证的地址可以设为主邮箱。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -9082,7 +9082,7 @@ msgstr "这个地址无法使用。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_unavailable"
-msgstr "这个地址无法使用"
+msgstr "这个地址无法使用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
@@ -9097,7 +9097,7 @@ msgstr "该邮箱地址已在列表中。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_exists"
-msgstr "这个邮箱地址已经在列表里"
+msgstr "这个邮箱地址已经在列表里。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
@@ -9107,12 +9107,12 @@ msgstr "这个地址已被另一个账号验证。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_taken"
-msgstr "这个地址已被另一个账号验证"
+msgstr "这个地址已被另一个账号验证。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_already_verified"
-msgstr "这个地址已经验证过了"
+msgstr "这个地址已经验证过了。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9132,7 +9132,7 @@ msgstr "验证码已失效，请重新发送。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_code_expired"
-msgstr "验证码已失效，请重新发送"
+msgstr "验证码已失效，请重新发送。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
@@ -9142,7 +9142,7 @@ msgstr "验证码不对。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_code_invalid"
-msgstr "验证码不对"
+msgstr "验证码不对。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
@@ -9197,7 +9197,7 @@ msgstr "该邀请已被吊销或已使用。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_invalid"
-msgstr "邮箱地址格式不正确"
+msgstr "邮箱地址格式不正确。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9599,7 +9599,7 @@ msgstr "邮件没有发出去，可以稍后重新发送。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_delivery_failed"
-msgstr "邮件没有发出去，请稍后重试"
+msgstr "邮件没有发出去，可以稍后重新发送。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
@@ -9685,7 +9685,7 @@ msgstr "你登录时显示的头像、名称和邮箱。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_primary_undeletable"
-msgstr "主邮箱不能删除，请先把别的地址设为主邮箱"
+msgstr "主邮箱不能删除，请先把别的地址设为主邮箱。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
@@ -9705,7 +9705,7 @@ msgstr "无法加载提供商身份，已保持原样。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.upstream_rate_limited"
-msgstr "提供商要求我们放慢速度，请稍候。"
+msgstr "提供商要求放慢请求，请稍候。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -9876,17 +9876,17 @@ msgstr "这里无法绘制登录页。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.wallpaper_not_configured"
-msgstr "登录页没有使用图片服务。"
+msgstr "登录页没有使用 Bing 或 Unsplash 图片。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.pixabay_key_in_use"
-msgstr "登录页还在使用 Pixabay。先把背景换成其他来源并保存，再删除 key。"
+msgstr "登录页还在使用 Pixabay。先把背景换成其他来源并保存，再移除 API 密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.unsplash_key_in_use"
-msgstr "登录页仍在使用 Unsplash。请先把背景换成其他来源并保存，再移除 Key。"
+msgstr "登录页仍在使用 Unsplash。请先把背景换成其他来源并保存，再移除 API 密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10032,7 +10032,7 @@ msgstr "该账号的邮箱地址数量已达上限。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_limit_reached"
-msgstr "最多 10 个邮箱地址"
+msgstr "该账号的邮箱地址数量已达上限。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
@@ -10162,7 +10162,7 @@ msgstr "本实例没有开启邮件发送。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_delivery_unavailable"
-msgstr "本实例没有开启邮件发送"
+msgstr "本实例没有开启邮件发送。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
@@ -11311,7 +11311,7 @@ msgstr "请先在 {provider} 验证你的邮箱地址。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.sudo_required"
-msgstr "请重新验证身份后继续。"
+msgstr "请重新验证你的身份后再继续。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx

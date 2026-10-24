@@ -561,7 +561,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   email_delivery_failed: msg({
     id: "error.email_delivery_failed",
-    message: "The message could not be sent. Try again in a moment.",
+    message: "The message could not be sent. You can send it again later.",
   }),
 };
 
