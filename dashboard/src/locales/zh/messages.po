@@ -1028,7 +1028,7 @@ msgstr "允许的邮箱域名"
 #. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.already_allowed"
-msgstr "已允许"
+msgstr "已授权"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -1326,7 +1326,7 @@ msgstr "通过 SAML 在此实例登录的应用。"
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.page.description"
-msgstr "你允许其用于登录的应用。移除某个应用后，它下次会重新征求你的许可。"
+msgstr "你允许其用于登录的应用。移除后，它下次会重新请求授权。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
@@ -5013,7 +5013,7 @@ msgstr "当前登录时不会提供它。"
 #. js-lingui-explicit-id
 #: src/pages/launcher/Launcher.tsx
 msgid "launcher.revoke.body"
-msgstr "下次你登录它时，它会重新请求你的授权。"
+msgstr "下次你登录它时，它会重新请求授权。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -5058,7 +5058,7 @@ msgstr "JWKS 端点"
 #. js-lingui-explicit-id
 #: src/lib/scopes.ts
 msgid "consent.scope.offline_access.description"
-msgstr "你不在时也能继续访问，直到你吊销"
+msgstr "你不在时也能保持访问，直到你吊销授权。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -6001,7 +6001,7 @@ msgstr "暂无应用"
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.empty"
-msgstr "还没有已批准的应用"
+msgstr "还没有已授权的应用"
 
 #. js-lingui-explicit-id
 #: src/pages/launcher/Launcher.tsx
@@ -8716,7 +8716,7 @@ msgstr "登录于 <0/>"
 #. js-lingui-explicit-id
 #: src/pages/public/consent/ConsentRequest.tsx
 msgid "consent.account"
-msgstr "以 <0>{displayName}</0> 的身份登录"
+msgstr "当前登录的账号：<0>{displayName}</0>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
@@ -9387,7 +9387,7 @@ msgstr "访客登录前看到的背景、卡片和工具栏。"
 #. js-lingui-explicit-id
 #: src/pages/launcher/AppTile.tsx
 msgid "launcher.copy_failed"
-msgstr "浏览器不允许复制该链接。"
+msgstr "浏览器不允许复制这个链接。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -9487,7 +9487,7 @@ msgstr "该用户组会被永久删除，连同它对谁能进入所作的判定
 #. js-lingui-explicit-id
 #: src/lib/scopes.ts
 msgid "consent.scope.groups.description"
-msgstr "你在这个应用里所属的组"
+msgstr "你在这个应用里所属的用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
@@ -10092,12 +10092,12 @@ msgstr "这个应用没有端点。"
 #. js-lingui-explicit-id
 #: src/pages/ConnectedApps.tsx
 msgid "apps.confirm.body"
-msgstr "该应用将无法再读取你的资料，下次使用时需要重新请求授权。"
+msgstr "这个应用将无法再读取你的资料，下次使用时需要重新请求授权。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/consent/ConsentExpired.tsx
 msgid "consent.expired"
-msgstr "该授权请求已过期或已使用。"
+msgstr "这个授权请求已过期或已使用。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -11743,7 +11743,7 @@ msgstr "你在 {provider} 的 ID、显示名称和资料链接"
 #. js-lingui-explicit-id
 #: src/lib/scopes.ts
 msgid "consent.scope.identity"
-msgstr "你的 {provider} 身份"
+msgstr "{provider} 身份"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ConsoleLayout.tsx
