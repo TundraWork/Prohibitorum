@@ -1942,7 +1942,7 @@ msgstr "只在你已核实这个地址属于该用户时勾选"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.validated"
-msgstr "检查于<0/>"
+msgstr "检查于 <0/>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
@@ -4171,7 +4171,7 @@ msgstr "接受所有域名。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.endpoints.all-overridden"
-msgstr "四个端点都已覆盖。"
+msgstr "所有端点都已覆盖。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasswordTotpPanel.tsx
@@ -4322,7 +4322,7 @@ msgstr "适用于没有通行密钥的设备。尚未设置。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.mode.manual.hint"
-msgstr "提供商不支持发现时使用。"
+msgstr "适用于提供商不支持自动发现的情况。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -5003,12 +5003,12 @@ msgstr "签发新密钥并废弃旧密钥。仍在使用旧密钥的客户端无
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.disable.confirm.body"
-msgstr "它会从登录页以及所有可以用它提升验证的账号上消失。不会删除任何数据。"
+msgstr "它会从登录页以及所有可以用它验证身份的账号上消失。不会删除任何数据。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.enable.hint"
-msgstr "当前登录时不会提供它。"
+msgstr "它目前不会出现在登录页。"
 
 #. js-lingui-explicit-id
 #: src/pages/launcher/Launcher.tsx
@@ -7027,12 +7027,12 @@ msgstr "提供商"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProvisioningModeField.tsx
 msgid "admin.federation.general.mode"
-msgstr "账号创建"
+msgstr "开通方式"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.signin.consequence.provisioning"
-msgstr "账号创建也会从“自动创建账号”改为“仅限邀请”，因为创建账号需要登录。"
+msgstr "开通方式也会从“自动创建账号”改为“仅限邀请”，因为创建账号需要登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
@@ -7432,7 +7432,7 @@ msgstr "请删除首尾的空格。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.value.spaces"
-msgstr "去掉两端的空格。"
+msgstr "请删除首尾的空格。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
@@ -7624,7 +7624,7 @@ msgstr "请求 ID <0>{requestId}</0>"
 #. placeholder {0}: error.requestId
 #: src/components/custom/AppNotifications.tsx
 msgid "notification.request_id"
-msgstr "请求编号：{0}"
+msgstr "请求 ID：{0}"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -9856,7 +9856,7 @@ msgstr "服务正在维护，只有管理员可以登录。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
 msgid "admin.federation.operator.note"
-msgstr "这个实例为该账号保存的会话。"
+msgstr "本实例为该账号保存的会话。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10337,7 +10337,7 @@ msgstr "这把通行密钥会立即无法用于登录。你其他的登录方式
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.upstream_idp_link_only"
-msgstr "这个提供商只能在账号中绑定，不能用来接受邀请。请选择其他提供商，或把它的账号创建方式改为“仅限邀请”。"
+msgstr "这个提供商只能在账号中绑定，不能用来接受邀请。请选择其他提供商，或把它的开通方式改为“仅限邀请”。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
@@ -10437,7 +10437,7 @@ msgstr "这次测试比预期更久。等提供商处理完成后，请再检查
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.once"
-msgstr "这个令牌只显示一次。请先妥善保存再继续。列表中只显示 prohibitorum_pat_… 加明文末尾 4 位。"
+msgstr "此令牌只显示一次。请先妥善保存再继续。列表中只显示 prohibitorum_pat_… 加明文末尾 4 位。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -11336,7 +11336,7 @@ msgstr "VRChat"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProvider.tsx
 msgid "admin.federation.operator.description"
-msgstr "VRChat 没有客户端凭据，所以这个实例用一个专属账号登录来读取个人资料。"
+msgstr "VRChat 没有客户端凭据，所以本实例用一个专属账号登录来读取个人资料。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
@@ -11427,7 +11427,7 @@ msgstr "人们看到的名称，以及客户端配置所用的标识符。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 msgid "admin.federation.new.provider.description"
-msgstr "用户看到的名称、它的标识符，以及它如何处理系统里还没有的人。"
+msgstr "用户看到的名称、它的标识符，以及它遇到没见过的人时怎么处理。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
@@ -11649,7 +11649,7 @@ msgstr "你不能删除自己的账号。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.federation_sign_in_disabled"
-msgstr "不能用{provider}登录。请用其他方式登录后，在账号中绑定它。"
+msgstr "不能用 {provider} 登录。请用其他方式登录后，在账号中绑定它。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
