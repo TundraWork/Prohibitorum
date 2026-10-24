@@ -63,7 +63,7 @@ msgstr "已添加 {address}，等待管理员确认"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.added_toast"
-msgstr "已将 {address} 添加到该账户"
+msgstr "已将 {address} 添加到该账号"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
@@ -73,7 +73,7 @@ msgstr "已移除 {address}"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.removed_toast"
-msgstr "已从该账户移除 {address}"
+msgstr "已从该账号移除 {address}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsFrame.tsx
@@ -158,7 +158,7 @@ msgstr "{count, plural, other {已达到 10 张上限，有 # 个文件没有上
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.short"
-msgstr "{count, plural, other {# 个已关联账号}}将不再匹配，下次登录时会被当作新身份。"
+msgstr "{count, plural, other {# 个已绑定账号}}将不再匹配，下次登录时会被当作新身份。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
@@ -263,7 +263,7 @@ msgstr "{name} 将失去管理页面的访问权限。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.pending"
-msgstr "通过它完成身份验证的 {pending, plural, one {# 份未完成的邀请} other {# 份未完成的邀请}}将随提供商一起删除。"
+msgstr "通过它验证过身份的 {pending, plural, one {# 份未完成的邀请} other {# 份未完成的邀请}}将随提供商一起删除。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -380,12 +380,12 @@ msgstr "用于设置该账号登录方式的链接。"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.method.federation"
-msgstr "已关联的提供商"
+msgstr "已绑定的提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroupNew.tsx
 msgid "admin.group.create.kind.manual.description"
-msgstr "手工用户组保存你手动允许或拒绝的账号。"
+msgstr "手动用户组保存你手动允许或拒绝的账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
@@ -514,17 +514,17 @@ msgstr "访问权限还没有开通。管理员开通之后，你可以再试一
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 #: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key"
-msgstr "Access Key"
+msgstr "API 密钥"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.unsplash-key.removed"
-msgstr "Access Key 已移除"
+msgstr "API 密钥已移除"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.saved"
-msgstr "Access Key 已保存"
+msgstr "API 密钥已保存"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -549,7 +549,7 @@ msgstr "个人访问令牌"
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.token.revoked"
-msgstr "访问令牌已撤销"
+msgstr "个人访问令牌已吊销"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -654,7 +654,7 @@ msgstr "账号用户名"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.column.linked-accounts"
-msgstr "关联账号"
+msgstr "绑定账号"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -1048,17 +1048,17 @@ msgstr "同时读取随 ID token 一起返回的 access token；ID token 里没�
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.theme.dark"
-msgstr "始终夜间模式"
+msgstr "始终深色"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
 msgid "settings.sign-in.theme.light"
-msgstr "始终日间模式"
+msgstr "始终浅色"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.key.invalid"
-msgstr "Access Key 只包含字母、数字、连字符和下划线，最多 128 个字符。"
+msgstr "API 密钥只包含字母、数字、连字符和下划线，最多 128 个字符。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -1118,7 +1118,7 @@ msgstr "指定请求头"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.group_slug_conflict"
-msgstr "已有另一个用户组使用了这个标识。"
+msgstr "已有另一个用户组使用了这个标识符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
@@ -1153,7 +1153,7 @@ msgstr "任意提供商"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.signin.consequence"
-msgstr "只通过这个提供商登录的人，在管理员给他们发送重置链接前将无法登录。"
+msgstr "只通过这个提供商登录的人，在管理员给他们发送注册链接前将无法登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -1174,17 +1174,17 @@ msgstr "使用该令牌的一切会立即停止工作，且无法撤销。"
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 #: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.pixabay.key"
-msgstr "API key"
+msgstr "API 密钥"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.pixabay-key.removed"
-msgstr "API key 已删除"
+msgstr "API 密钥已删除"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.pixabay.key.saved"
-msgstr "API key 已保存"
+msgstr "API 密钥已保存"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AppearancePanel.tsx
@@ -1358,7 +1358,7 @@ msgstr "满足："
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.device.approval-revoked"
-msgstr "已撤销批准"
+msgstr "已吊销批准"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -1862,12 +1862,12 @@ msgstr "修改 Subject 来源？"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.action-label"
-msgstr "更换用户标识并保存"
+msgstr "更换用户标识符并保存"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.confirm.title"
-msgstr "更换用户标识？"
+msgstr "更换用户标识符？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDecisionsSection.tsx
@@ -1897,7 +1897,7 @@ msgstr "修改 Subject 来源会让所有人退出所有客户端。"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/ForwardAuthHeadersSection.tsx
 msgid "admin.forward-auth-apps.headers.consequence"
-msgstr "更换用户标识会让服务把它已有的人都当成新账号。"
+msgstr "更换用户标识符会让服务把它已有的人都当成新账号。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/OtpField.tsx
@@ -1922,7 +1922,7 @@ msgstr "检查某个账号"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.jwks.address"
-msgstr "用 JWKS 地址校验 ID 令牌"
+msgstr "用 JWKS 地址校验 ID token"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
@@ -2148,13 +2148,13 @@ msgstr "客户端认证方式"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.field.client-id"
-msgstr "Client ID"
+msgstr "客户端 ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.client-id"
-msgstr "Client ID"
+msgstr "客户端 ID"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
@@ -2179,12 +2179,12 @@ msgstr "客户端 IP 设置已保存"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.credentials.secret"
-msgstr "客户密钥"
+msgstr "客户端密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.label"
-msgstr "客户密钥"
+msgstr "客户端密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -2377,107 +2377,107 @@ msgstr "验证你的身份"
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.add-passkey"
-msgstr "请验证身份，以向此账号添加通行密钥。"
+msgstr "请验证你的身份，以向此账号添加通行密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.approve-device"
-msgstr "请验证身份，以批准此设备。"
+msgstr "请验证你的身份，以批准此设备。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.change-account-role"
-msgstr "请验证身份，以更改此账号的角色。"
+msgstr "请验证你的身份，以更改此账号的角色。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.change-password"
-msgstr "请验证身份，以修改你的密码。"
+msgstr "请验证你的身份，以修改你的密码。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.create-token"
-msgstr "请验证身份，以创建此访问令牌。"
+msgstr "请验证你的身份，以创建此个人访问令牌。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-account"
-msgstr "请确认是你本人要删除该账号。此操作无法撤销。"
+msgstr "请验证你的身份，以删除该账号。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-application"
-msgstr "验证是你本人后即可删除这个应用。"
+msgstr "验证你的身份后即可删除这个应用。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-identity-provider"
-msgstr "验证是你本人后即可删除这个提供商，以及通过它关联的所有身份。"
+msgstr "验证你的身份后即可删除这个提供商，以及通过它绑定的所有身份。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.generate-signing-key"
-msgstr "请确认是你本人要生成签名密钥。"
+msgstr "请验证你的身份，以生成签名密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.reissue-enrollment"
-msgstr "请确认是你本人要签发新的注册链接。"
+msgstr "请验证你的身份，以签发新的注册链接。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.link-identity"
-msgstr "请验证身份，以绑定此身份。"
+msgstr "请验证你的身份，以绑定此身份。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-passkey"
-msgstr "请验证身份，以移除此通行密钥。"
+msgstr "请验证你的身份，以移除此通行密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.rotate-client-secret"
-msgstr "验证是你本人后即可更换客户端密钥。旧密钥会立即失效。"
+msgstr "验证你的身份后即可更换客户端密钥。旧密钥会立即失效。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.replace-authenticator"
-msgstr "请验证身份，以更换你的身份验证器。"
+msgstr "请验证你的身份，以更换你的身份验证器。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.recovery-codes"
-msgstr "请验证身份，以更换你的恢复码。"
+msgstr "请验证你的身份，以更换你的恢复码。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.retire-signing-key"
-msgstr "请确认是你本人要退役这个签名密钥。"
+msgstr "请验证你的身份，以退役这个签名密钥。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.revoke-token"
-msgstr "请验证身份，以撤销此访问令牌。"
+msgstr "请验证你的身份，以吊销此个人访问令牌。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.set-password-totp"
-msgstr "请验证身份，以为此账号设置密码与身份验证器。"
+msgstr "请验证你的身份，以为此账号设置密码与身份验证器。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.activate-signing-key"
-msgstr "请确认是你本人要用这个密钥签名。"
+msgstr "请验证你的身份，再用这个密钥签名。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.revoke-password-totp"
-msgstr "请验证身份，以关闭密码与身份验证器。"
+msgstr "请验证你的身份，以关闭密码与身份验证器。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.unlink-identity"
-msgstr "请验证身份，以解绑此身份。"
+msgstr "请验证你的身份，以解绑此身份。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
@@ -2542,12 +2542,12 @@ msgstr "已连接身份"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.fact.protocol"
-msgstr "关联所用协议"
+msgstr "绑定所用协议"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
 msgid "admin.group.rule.fact.provider"
-msgstr "关联的提供商"
+msgstr "绑定的提供商"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -2721,7 +2721,7 @@ msgstr "复制客户端 ID"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.title"
-msgstr "复制客户密钥"
+msgstr "复制客户端密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
@@ -2736,7 +2736,7 @@ msgstr "复制 Entity ID"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroup.tsx
 msgid "admin.group.copy-slug"
-msgstr "复制标识"
+msgstr "复制标识符"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplication.tsx
@@ -2801,7 +2801,7 @@ msgstr "复制令牌"
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.title"
-msgstr "复制你的新访问令牌"
+msgstr "复制新的个人访问令牌"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -3057,7 +3057,7 @@ msgstr "深色"
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.dark"
-msgstr "夜间模式"
+msgstr "深色"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/AuditDateRange.tsx
@@ -3550,7 +3550,7 @@ msgstr "显示名称"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.displayName"
-msgstr "显示名"
+msgstr "显示名称"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -3840,7 +3840,7 @@ msgstr "请填写声明名称。"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.client-id.required"
-msgstr "请填写 Client ID。"
+msgstr "请填写客户端 ID。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
@@ -3920,7 +3920,7 @@ msgstr "请输入密码，长度不超过 1024 个 UTF-8 字节。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.pixabay_key_required"
-msgstr "填写 Pixabay API key 才能使用 Pixabay 图片。"
+msgstr "填写 Pixabay API 密钥才能使用 Pixabay 图片。"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -3960,7 +3960,7 @@ msgstr "请填写标识符。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.unsplash_key_required"
-msgstr "使用 Unsplash 照片需要填写 Unsplash Access Key。"
+msgstr "使用 Unsplash 照片需要填写 Unsplash API 密钥。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
@@ -3975,7 +3975,7 @@ msgstr "最多填写 64 个地址段。"
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
 msgid "admin.saml-apps.new.mode.manual"
-msgstr "手工填写"
+msgstr "手动填写"
 
 #. js-lingui-explicit-id
 #. placeholder {0}: config.totp.digits
@@ -4011,7 +4011,7 @@ msgstr "请填写客户端要读取的声明名称。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.connection.client-id.required"
-msgstr "请填写 Client ID。"
+msgstr "请填写客户端 ID。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -4056,7 +4056,7 @@ msgstr "请填写 Issuer URL。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.connection.jwks.required"
-msgstr "请填写 JWKS 端点，或选择“无”跳过 ID 令牌。"
+msgstr "请填写 JWKS 端点，或选择“无”跳过 ID token。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
@@ -4151,7 +4151,7 @@ msgstr "所有客户端都无法再登录，包括本来正常工作的。你可
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.confirm.body"
-msgstr "每个曾为该账号登录过的客户端都存有它拿到的 subject。修改来源后，这些客户端会看到一个全新的账号，它们已有的会话也不再认得它。"
+msgstr "每个曾为该账号登录过的客户端都存有它拿到的 Subject。修改来源后，这些客户端会看到一个全新的账号，它们已有的会话也不再认得它。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
@@ -4161,7 +4161,7 @@ msgstr "以下条件全部满足"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.body"
-msgstr "该账号已登录的每台设备都会立即登出，需要重新登录。"
+msgstr "该账号已登录的每台设备都会立即退出登录，需要重新登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
@@ -4382,7 +4382,7 @@ msgstr "来自<0/>的测试"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.pixabay.key.hint"
-msgstr "在 <0>pixabay.com/api/docs</0> 的账户页面获取。"
+msgstr "在 <0>pixabay.com/api/docs</0> 的账号页面获取。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
@@ -4432,7 +4432,7 @@ msgstr "获取新配对码"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.displayName.required"
-msgstr "请为该账号填写显示名。"
+msgstr "请为该账号填写显示名称。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/group-validation.ts
@@ -4442,7 +4442,7 @@ msgstr "请为该用户组填写名称。"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/group-validation.ts
 msgid "admin.group.slug.required"
-msgstr "请为该用户组填写标识。"
+msgstr "请为该用户组填写标识符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderAppearanceSection.tsx
@@ -4639,7 +4639,7 @@ msgstr "色相"
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.saved"
-msgstr "我已保存此访问令牌"
+msgstr "我已保存此个人访问令牌"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -4649,7 +4649,7 @@ msgstr "我已保存恢复码"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.saved"
-msgstr "我已保存客户密钥"
+msgstr "我已保存客户端密钥"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -4720,7 +4720,7 @@ msgstr "仅 ID token"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ResponseTypeField.tsx
 msgid "admin.federation.response.description"
-msgstr "只有当提供商那边的客户端允许 response_type=id_token 时，「仅 ID token」才能使用；「ID token + access token」则需要允许 response_type=id_token token。Keycloak 里这项叫 Implicit Flow Enabled；Microsoft identity platform 里是隐式授权（implicit grant）下的 ID tokens 和 Access tokens。"
+msgstr "只有当提供商那边的客户端允许 response_type=id_token 时，“仅 ID token”才能使用；“ID token + access token”则需要允许 response_type=id_token token。Keycloak 里这项叫 Implicit Flow Enabled；Microsoft identity platform 里是隐式授权（implicit grant）下的 ID tokens 和 Access tokens。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -4731,7 +4731,7 @@ msgstr "标识符"
 #: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.slug"
-msgstr "标识"
+msgstr "标识符"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
@@ -4781,7 +4781,7 @@ msgstr "身份已解绑"
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.form.label"
-msgstr "身份验证"
+msgstr "验证你的身份"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
@@ -4947,17 +4947,17 @@ msgstr "是"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
 msgid "admin.group.explain.protocol"
-msgstr "已通过 {protocol} 关联"
+msgstr "已通过 {protocol} 绑定"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.provider"
-msgstr "已关联 <0>{provider}</0>"
+msgstr "已绑定 <0>{provider}</0>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.provider-unknown"
-msgstr "已关联 <0>{provider}</0>"
+msgstr "已绑定 <0>{provider}</0>"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/RuleBuilder.tsx
@@ -5058,7 +5058,7 @@ msgstr "JWKS 端点"
 #. js-lingui-explicit-id
 #: src/lib/scopes.ts
 msgid "consent.scope.offline_access.description"
-msgstr "你不在时也能继续访问，直到你撤销"
+msgstr "你不在时也能继续访问，直到你吊销"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -5261,7 +5261,7 @@ msgstr "明暗"
 #. js-lingui-explicit-id
 #: src/components/custom/ThemeSelect.tsx
 msgid "theme.light"
-msgstr "日间模式"
+msgstr "浅色"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
@@ -5311,7 +5311,7 @@ msgstr "已绑定"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.link"
-msgstr "已关联"
+msgstr "已绑定"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
@@ -5331,32 +5331,32 @@ msgstr "已绑定的身份"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
 msgid "admin.federation.not-ready.secret.verify"
-msgstr "设置客户端密钥之前，通过该提供商的关联和验证会失败。"
+msgstr "设置客户端密钥之前，通过该提供商的绑定和验证会失败。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
 msgid "admin.federation.not-ready.connection.verify"
-msgstr "连接配置有效之前，通过该提供商的关联和验证会失败。"
+msgstr "连接配置有效之前，通过该提供商的绑定和验证会失败。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
 msgid "admin.federation.not-ready.vrchat-check.verify"
-msgstr "检查运营账号之前，通过该提供商的关联和验证会失败。"
+msgstr "检查运营账号之前，通过该提供商的绑定和验证会失败。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
 msgid "admin.federation.not-ready.vrchat-expired.verify"
-msgstr "重新登录运营账号之前，通过该提供商的关联和验证会失败。"
+msgstr "重新登录运营账号之前，通过该提供商的绑定和验证会失败。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
 msgid "admin.federation.not-ready.vrchat-unset.verify"
-msgstr "登录运营账号之前，通过该提供商的关联和验证会失败。"
+msgstr "登录运营账号之前，通过该提供商的绑定和验证会失败。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-readiness.tsx
 msgid "admin.federation.not-ready.steam.verify"
-msgstr "设置 Web API 密钥之前，通过该提供商的关联和验证会失败。"
+msgstr "设置 Web API 密钥之前，通过该提供商的绑定和验证会失败。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-options.ts
@@ -5508,22 +5508,22 @@ msgstr "应用管理员"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.app_manager_assigned"
-msgstr "已指派管理员"
+msgstr "已指派应用管理员"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.app.manager-assigned"
-msgstr "已指派管理者"
+msgstr "已指派应用管理员"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.app_manager_removed"
-msgstr "已移除管理员"
+msgstr "已移除应用管理员"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.app.manager-removed"
-msgstr "已移除管理者"
+msgstr "已移除应用管理员"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppManagersSection.tsx
@@ -5545,12 +5545,12 @@ msgstr "手动"
 #: src/pages/admin/groups/AdminGroups.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.kind.manual"
-msgstr "手工"
+msgstr "手动"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/AdminGroup.tsx
 msgid "admin.group.kind.badge.manual"
-msgstr "手工用户组"
+msgstr "手动用户组"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
@@ -5795,27 +5795,27 @@ msgstr "永不过期"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.unsplash.key.new"
-msgstr "新的 Access Key"
+msgstr "新的 API 密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.title"
-msgstr "新建访问令牌"
+msgstr "新建个人访问令牌"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.form"
-msgstr "新建访问令牌"
+msgstr "新建个人访问令牌"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.label"
-msgstr "新访问令牌"
+msgstr "新的个人访问令牌"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
 msgid "settings.sign-in.pixabay.key.new"
-msgstr "新的 API key"
+msgstr "新的 API 密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplications.tsx
@@ -5835,7 +5835,7 @@ msgstr "新建应用"
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.reset.code"
-msgstr "新身份验证器验证码"
+msgstr "新身份验证器的验证码"
 
 #. js-lingui-explicit-id
 #: src/components/custom/TotpSetup.tsx
@@ -5946,7 +5946,7 @@ msgstr "暂无个人访问令牌"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.empty"
-msgstr "还没有访问令牌"
+msgstr "还没有个人访问令牌"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/AdminLogs.tsx
@@ -6176,7 +6176,7 @@ msgstr "无"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.jwks.none"
-msgstr "无——跳过 ID 令牌"
+msgstr "无——跳过 ID token"
 
 #. js-lingui-explicit-id
 #: src/components/custom/AppAccessSection.tsx
@@ -6206,7 +6206,7 @@ msgstr "未检测"
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.signed_in.skip"
-msgstr "以后再说"
+msgstr "暂不"
 
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
@@ -6267,7 +6267,7 @@ msgstr "未使用"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EffectiveConfigDialog.tsx
 msgid "admin.federation.diagnostics.jwks-none"
-msgstr "未使用——ID 令牌已被跳过"
+msgstr "未使用——ID token 已被跳过"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -6307,7 +6307,7 @@ msgstr "未开启"
 #. js-lingui-explicit-id
 #: src/components/custom/ValueSet.tsx
 msgid "value-set.offered"
-msgstr "此提供方支持的值"
+msgstr "此提供商支持的值"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
@@ -6347,7 +6347,7 @@ msgstr "已开启"
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.description"
-msgstr "在已登录 {instance} 的设备上打开「<0>设备</0>」，输入下面的配对码。"
+msgstr "在已登录 {instance} 的设备上打开“<0>设备</0>”，输入下面的配对码。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/OutlineRail.tsx
@@ -6367,7 +6367,7 @@ msgstr "完成后，现有的密码、身份验证器和恢复码都会被替换
 #. js-lingui-explicit-id
 #: src/pages/public/Consent.tsx
 msgid "consent.footnote"
-msgstr "允许后，{app} 之后可以直接让你登录。你可以随时在「<0>已连接应用</0>」中撤销。"
+msgstr "允许后，{app} 之后可以直接让你登录。你可以随时在“<0>已连接应用</0>”中吊销。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -6543,7 +6543,7 @@ msgstr "运营账号会话已过期"
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.username.hint"
-msgstr "可选。留空则让被邀请人在注册时自己选择。"
+msgstr "可选。留空则让受邀人在注册时自己选择。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
@@ -6821,12 +6821,12 @@ msgstr "头像已上传。选中它即可显示。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.pixabay_unreachable"
-msgstr "连不上 Pixabay，API key 没有验证，也没有保存。"
+msgstr "连不上 Pixabay，API 密钥没有验证，也没有保存。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.pixabay_key_invalid"
-msgstr "Pixabay 没有接受这个 API key，请检查后重新填写。"
+msgstr "Pixabay 没有接受这个 API 密钥，请检查后重新填写。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
@@ -6871,7 +6871,7 @@ msgstr "疑似克隆"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.post-logout"
-msgstr "登出后重定向 URI"
+msgstr "退出登录后重定向 URI"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -7180,7 +7180,7 @@ msgstr "重定向 URI"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplications.tsx
 msgid "admin.oidc-apps.column.redirect"
-msgstr "回调地址"
+msgstr "重定向 URI"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ReferenceLine.tsx
@@ -7271,7 +7271,7 @@ msgstr "重新加载"
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthApps.tsx
 msgid "admin.forward-auth-apps.column.remote-user"
-msgstr "上游身份"
+msgstr "用户标识符"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -7482,7 +7482,7 @@ msgstr "删除上传的头像"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.delete.note"
-msgstr "删除该账号及其拥有的一切：通行密钥、会话、访问令牌和已连接身份。此操作无法撤销。"
+msgstr "删除该账号及其拥有的一切：通行密钥、会话、个人访问令牌和已连接身份。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlDangerSection.tsx
@@ -7785,7 +7785,7 @@ msgstr "正在返回 {app}"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.action"
-msgstr "撤销"
+msgstr "吊销"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitations.tsx
@@ -7795,7 +7795,7 @@ msgstr "吊销"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke"
-msgstr "撤销 {name}"
+msgstr "吊销 {name}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountTokensSection.tsx
@@ -7805,7 +7805,7 @@ msgstr "吊销 {name}"
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
 msgid "devices.revoke"
-msgstr "撤销批准"
+msgstr "吊销批准"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitations.tsx
@@ -7825,7 +7825,7 @@ msgstr "要吊销该邀请吗？"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.title"
-msgstr "撤销此令牌？"
+msgstr "吊销此令牌？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountTokensSection.tsx
@@ -7840,7 +7840,7 @@ msgstr "吊销令牌"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.revoke"
-msgstr "已撤销"
+msgstr "已吊销"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
@@ -7881,7 +7881,7 @@ msgstr "轮换密钥"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/CredentialsSection.tsx
 msgid "admin.oidc-apps.rotate.title"
-msgstr "轮换客户密钥？"
+msgstr "轮换客户端密钥？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
@@ -8054,12 +8054,12 @@ msgstr "保存"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.unsplash_key"
-msgstr "保存 Access Key 后可预览 Unsplash 图片。"
+msgstr "保存 API 密钥后可预览 Unsplash 图片。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SignInPreview.tsx
 msgid "settings.sign-in.preview.pixabay_key"
-msgstr "保存 API key 后才能预览 Pixabay 图片。"
+msgstr "保存 API 密钥后才能预览 Pixabay 图片。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
@@ -8267,7 +8267,7 @@ msgstr "在请求正文里发送客户端密钥。"
 #: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.exposed.hint"
-msgstr "把本组的标识发送给选用了它的应用，包括 groups 声明、SAML 的 groups 属性和 Remote-Groups 请求头。这不会限制哪些应用可以选用本组。"
+msgstr "把本组的标识符发送给选用了它的应用，包括 groups 声明、SAML 的 groups 属性和 Remote-Groups 请求头。这不会限制哪些应用可以选用本组。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/ObjectHeader.tsx
@@ -8383,7 +8383,7 @@ msgstr "设置身份验证器"
 #. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
 msgid "enroll.password_totp.authenticator.title"
-msgstr "绑定身份验证器"
+msgstr "设置身份验证器"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRegistrationSection.tsx
@@ -8484,7 +8484,7 @@ msgstr "重新登录"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.link_required"
-msgstr "请先登录，再在「安全」中绑定 {provider}。"
+msgstr "请先登录，再在“安全”中绑定 {provider}。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDiagnosticsSection.tsx
@@ -8529,7 +8529,7 @@ msgstr "使用 {instance} 登录"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.pat_browser_session_required"
-msgstr "请在浏览器中登录后再进行此操作，访问令牌不能用于此操作。"
+msgstr "请在浏览器中登录后再进行此操作，个人访问令牌不能用于此操作。"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -8577,17 +8577,17 @@ msgstr "退出并换个账号登录"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all"
-msgstr "全部登出"
+msgstr "全部退出登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.action"
-msgstr "全部登出"
+msgstr "全部退出登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.title"
-msgstr "要将该账号在所有设备上登出吗？"
+msgstr "要将该账号在所有设备上退出登录吗？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -8726,7 +8726,7 @@ msgstr "退出登录"
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.sessions.ended"
-msgstr "已在所有设备上登出"
+msgstr "已在所有设备上退出登录"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
@@ -8796,7 +8796,7 @@ msgstr "<0/>起签名"
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/explain-labels.ts
 msgid "admin.group.explain.method.federation"
-msgstr "通过已关联的提供商登录"
+msgstr "通过已绑定的提供商登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
@@ -9087,7 +9087,7 @@ msgstr "这个地址无法使用"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.error.exists"
-msgstr "这个邮箱地址已经在这个账户上。"
+msgstr "这个邮箱地址已经在这个账号上。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
@@ -9102,12 +9102,12 @@ msgstr "这个邮箱地址已经在列表里"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.error.taken"
-msgstr "这个地址已被另一个账户验证。"
+msgstr "这个地址已被另一个账号验证。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_taken"
-msgstr "这个地址已被另一个账户验证"
+msgstr "这个地址已被另一个账号验证"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9167,7 +9167,7 @@ msgstr "该设备会立即退出登录，需要重新登录。它正在进行的
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke.body"
-msgstr "该设备会立即登出，需要重新登录。它正在进行的操作都会停止。"
+msgstr "该设备会立即退出登录，需要重新登录。它正在进行的操作都会停止。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9182,7 +9182,7 @@ msgstr "不支持该条件组类型。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.upstream_idp_already_exists"
-msgstr "该标识已被另一个提供商使用。"
+msgstr "该标识符已被另一个提供商使用。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9292,7 +9292,7 @@ msgstr "{source} 的关键词不能用。切回 {source} 修改。"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
 msgid "admin.user.delete.confirm.body"
-msgstr "该账号及其通行密钥、会话、访问令牌和已连接身份会立即被删除。此操作无法撤销。"
+msgstr "该账号及其通行密钥、会话、个人访问令牌和已连接身份会立即被删除。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/AuditFilters.tsx
@@ -9477,7 +9477,7 @@ msgstr "网关会重新接受经这个应用的请求，仍按现有的访问策
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.exposed.confirm.body"
-msgstr "该用户组仍然可以被选用来控制访问，只是应用不再收到它的标识。你可以随时重新开启。"
+msgstr "该用户组仍然可以被选用来控制访问，只是应用不再收到它的标识符。你可以随时重新开启。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupDangerSection.tsx
@@ -9513,17 +9513,17 @@ msgstr "ID token 已经定义了这个声明。"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/IdentityProjectionSection.tsx
 msgid "admin.oidc-apps.subject.explain"
-msgstr "客户端为该账号保存的标识。"
+msgstr "客户端为该账号保存的标识符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 msgid "admin.forward-auth-apps.field.client-id.hint"
-msgstr "发往这个应用的每个请求都带有这个标识。之后无法更改。"
+msgstr "发往这个应用的每个请求都带有这个标识符。之后无法更改。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/NameIdFormatField.tsx
 msgid "admin.saml-apps.identity.name-id.hint"
-msgstr "断言主体携带的标识符。"
+msgstr "断言中 Subject 携带的标识符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -9564,12 +9564,12 @@ msgstr "无法加载密钥。"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.test.failed.stale"
-msgstr "上次测试在<0/>失败，此后配置也已更改。请在「诊断」中重新运行。"
+msgstr "上次测试在<0/>失败，此后配置也已更改。请在“诊断”中重新运行。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ClaimMappingTable.tsx
 msgid "admin.federation.claims.test.failed"
-msgstr "上次测试在<0/>失败。请在「诊断」中重新运行。"
+msgstr "上次测试在<0/>失败。请在“诊断”中重新运行。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
@@ -9589,7 +9589,7 @@ msgstr "邮件服务器拒绝了这封邮件或无法连接。详细原因在服
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
 msgid "admin.invitations.new.groups.hint"
-msgstr "新账号注册后加入的手工用户组。"
+msgstr "新账号注册后加入的手动用户组。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
@@ -9610,7 +9610,7 @@ msgstr "邮件没有发出去，点“重新发送”可再试一次。"
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "admin.federation.connection.secret.hint"
-msgstr "所选的认证方式会把这个密钥发送给提供方；密钥加密存储，不会再次显示。"
+msgstr "所选的认证方式会把这个密钥发送给提供商；密钥加密存储，不会再次显示。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
@@ -9951,7 +9951,7 @@ msgstr "该用户将没有主邮箱，需要邮箱的应用可能无法让其登
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx
 msgid "admin.oidc-apps.scope.identity"
-msgstr "用户关联的 {provider} 身份。"
+msgstr "用户绑定的 {provider} 身份。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10017,17 +10017,17 @@ msgstr "该 {provider} 身份已绑定到另一个账号。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.pat_api_not_allowed"
-msgstr "这个访问令牌只能用于应用，不能用于账户。"
+msgstr "这个个人访问令牌只能用于应用，不能用于账号。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.pat_invalid"
-msgstr "这个访问令牌无效，可能已过期或已被撤销。"
+msgstr "这个个人访问令牌无效，可能已过期或已被吊销。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.error.limit"
-msgstr "该账户的邮箱地址数量已达上限。"
+msgstr "该账号的邮箱地址数量已达上限。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10047,7 +10047,7 @@ msgstr "该用户还没有主邮箱。需要邮箱的应用可能无法让其登
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.no-methods"
-msgstr "此账号无法在此验证身份。请先设置通行密钥，或设置密码与身份验证器。"
+msgstr "此账号无法在此验证你的身份。请先设置通行密钥，或设置密码与身份验证器。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
@@ -10057,7 +10057,7 @@ msgstr "该账号的角色是 {role}，控制台不提供，服务器也会拒�
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.account_disabled"
-msgstr "此账户已停用。"
+msgstr "此账号已停用。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/RouteFeedback.tsx
@@ -10157,17 +10157,17 @@ msgstr "不支持这种文件类型。请选择上面列出的格式。"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MailPanel.tsx
 msgid "settings.mail.test.delivery_unavailable"
-msgstr "本站没有开启邮件发送。"
+msgstr "本实例没有开启邮件发送。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.email_delivery_unavailable"
-msgstr "本站没有开启邮件发送"
+msgstr "本实例没有开启邮件发送"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.no_delivery"
-msgstr "本站没有开启邮件发送。你可以添加地址，但需要管理员确认后才算已验证。"
+msgstr "本实例没有开启邮件发送。你可以添加地址，但需要管理员确认后才算已验证。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -10317,7 +10317,7 @@ msgstr "该通行密钥已经注册过了。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.login_credential_unknown"
-msgstr "这个通行密钥已不在本站登记。请换用其他通行密钥或密码登录。"
+msgstr "这个通行密钥已不在本实例登记。请换用其他通行密钥或密码登录。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10337,7 +10337,7 @@ msgstr "这把通行密钥会立即无法用于登录。你其他的登录方式
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.upstream_idp_link_only"
-msgstr "这个提供商只能在账号中绑定，不能用来接受邀请。请选择其他提供商，或把它的账号创建方式改为「仅限邀请」。"
+msgstr "这个提供商只能在账号中绑定，不能用来接受邀请。请选择其他提供商，或把它的账号创建方式改为“仅限邀请”。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitationForm.tsx
@@ -10357,7 +10357,7 @@ msgstr "这个提供商已停用或已不存在。取消勾选即可不再允许
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.cross_origin_request"
-msgstr "该请求来自其他网站，已被拒绝。请从本站页面重新操作。"
+msgstr "该请求来自其他网站，已被拒绝。请从本实例页面重新操作。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10422,7 +10422,7 @@ msgstr "本次登录耗时过长。请重新输入密码开始。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.setup-signin.sudo_required"
-msgstr "该步骤已超时。请之后在「安全」中添加。"
+msgstr "该步骤已超时。请之后在“安全”中添加。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10665,7 +10665,7 @@ msgstr "解绑此身份？"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.unlink"
-msgstr "已解除关联"
+msgstr "已解绑"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -10695,12 +10695,12 @@ msgstr "“{title}”有未保存的更改"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.unsplash_unreachable"
-msgstr "无法连接 Unsplash，Access Key 没有经过检查，也没有保存。"
+msgstr "无法连接 Unsplash，API 密钥没有经过检查，也没有保存。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.unsplash_key_invalid"
-msgstr "Unsplash 不接受这个 Access Key。请检查后重新填写。"
+msgstr "Unsplash 不接受这个 API 密钥。请检查后重新填写。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
@@ -11109,7 +11109,7 @@ msgstr "新账号的用户名"
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
 msgid "admin.users.search.placeholder"
-msgstr "用户名或显示名"
+msgstr "用户名或显示名称"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
@@ -11341,7 +11341,7 @@ msgstr "VRChat 没有客户端凭据，所以这个实例用一个专属账号�
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.vrchat_operator_session_invalidated"
-msgstr "VRChat 操作员会话已失效"
+msgstr "VRChat 运营账号会话已失效"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -11417,12 +11417,12 @@ msgstr "访客登录前看到的页面。预览会随你的修改实时更新。
 #. js-lingui-explicit-id
 #: src/pages/admin/forward-auth-apps/AdminForwardAuthAppNew.tsx
 msgid "admin.forward-auth-apps.new.identity.description"
-msgstr "用户看到的名称，以及发往应用的每个请求所带的标识。"
+msgstr "用户看到的名称，以及发往应用的每个请求所带的标识符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
 msgid "admin.oidc-apps.new.identity.description"
-msgstr "人们看到的名称，以及客户端配置所用的标识。"
+msgstr "人们看到的名称，以及客户端配置所用的标识符。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
@@ -11438,7 +11438,7 @@ msgstr "客户端会得知的登录者信息。"
 #: src/pages/admin/groups/AdminGroupNew.tsx
 #: src/pages/admin/groups/GroupDetailsSection.tsx
 msgid "admin.group.details.description"
-msgstr "用户组的名称、应用引用它所用的标识，以及是否把标识发送给应用。"
+msgstr "用户组的名称、应用引用它所用的标识符，以及是否把标识符发送给应用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx
@@ -11484,7 +11484,7 @@ msgstr "本用户组在控制台中显示的名称。"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.name.hint"
-msgstr "用它做什么，便于日后知道该撤销哪个。"
+msgstr "用它做什么，便于日后知道该吊销哪个。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx
@@ -11505,7 +11505,7 @@ msgstr "关闭后，不能用这个提供商登录，只能在账号中绑定，
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.field.post-logout.description"
-msgstr "客户端登出后可以返回的地址。"
+msgstr "客户端退出登录后可以返回的地址。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AppearanceSection.tsx
@@ -11629,7 +11629,7 @@ msgstr "是"
 #. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
 msgid "setup_signin.later"
-msgstr "之后也可以在「安全」中添加。"
+msgstr "之后也可以在“安全”中添加。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
@@ -11704,12 +11704,12 @@ msgstr "你是这个应用的管理员。"
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
 msgid "saml_consent.footnote"
-msgstr "该确认只需要一次。你可以随时在「<0>已连接应用</0>」中撤销。"
+msgstr "该确认只需要一次。你可以随时在“<0>已连接应用</0>”中吊销。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink.body"
-msgstr "你将无法再通过该提供方登录。其他登录方式不受影响。"
+msgstr "你将无法再通过该提供商登录。其他登录方式不受影响。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/RequireIdentity.tsx

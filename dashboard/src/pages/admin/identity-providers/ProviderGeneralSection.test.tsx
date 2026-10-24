@@ -66,7 +66,7 @@ const signInSwitch = () =>
   screen.getByRole("switch", { name: "Allow sign-in" });
 const mode = (name: string) => screen.getByRole("radio", { name });
 const lockout =
-  "Anyone who signs in only through this provider will be locked out until an administrator sends them a reset link.";
+  "Anyone who signs in only through this provider will be locked out until an administrator sends them a registration link.";
 
 describe("the sign-in section", () => {
   it("has its own heading, no name field, and no footer until something changes", () => {
