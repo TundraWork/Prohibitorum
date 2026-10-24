@@ -1524,7 +1524,7 @@ msgstr "身份验证器验证码"
 #. js-lingui-explicit-id
 #: src/pages/public/enroll/PasswordTotpSetup.tsx
 msgid "enroll.password_totp.code"
-msgstr "验证码"
+msgstr "身份验证器验证码"
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -4836,7 +4836,7 @@ msgstr "在此用户组中"
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.proof.step.bio"
-msgstr "在 VRChat 把它加到个人简介的链接里并保存。"
+msgstr "在 VRChat 中把它加到个人简介的链接里并保存。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/FormFields.tsx
@@ -6216,7 +6216,7 @@ msgstr "暂不"
 #. js-lingui-explicit-id
 #: src/pages/public/RequireIdentity.tsx
 msgid "require-identity.not-now"
-msgstr "暂不验证，返回 {app}"
+msgstr "暂不，返回 {app}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ConnectionTestDialog.tsx
@@ -6695,7 +6695,7 @@ msgstr "当前浏览器不支持通行密钥。请使用密码登录。"
 #. js-lingui-explicit-id
 #: src/components/custom/PasskeyButton.tsx
 msgid "enroll.passkey.unsupported"
-msgstr "此浏览器或连接不支持通行密钥。"
+msgstr "当前浏览器或连接不支持通行密钥。"
 
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
@@ -7851,7 +7851,7 @@ msgstr "靠右"
 #. js-lingui-explicit-id
 #: src/pages/public/SetupSignin.tsx
 msgid "setup_signin.description"
-msgstr "现在你只能通过 {providers} 登录。再添加一种方式，{providers} 不可用时也能进入账号。"
+msgstr "现在你只能通过 {providers} 登录。再添加一种登录方式，{providers} 不可用时也能进入账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountRoleField.tsx
@@ -8861,7 +8861,7 @@ msgstr "部分匹配的账号"
 #. js-lingui-explicit-id
 #: src/pages/public/VrchatProof.tsx
 msgid "vrchat_proof.passing_by"
-msgstr "有人把该链接放进了自己的 VRChat 简介，用来向 {instance} 证明该资料属于自己。如果你只是路过，什么都不用做：该页面不会登录任何人，也不会授予任何权限。"
+msgstr "有人把这个链接放进了自己的 VRChat 简介，用来向 {instance} 证明这份资料属于自己。如果你只是路过，什么都不用做：这个页面不会登录任何人，也不会授予任何权限。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9961,7 +9961,7 @@ msgstr "还没在你的简介里找到验证链接。保存资料后稍等片刻
 #. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.proof.expires"
-msgstr "验证链接 {until} 前有效。"
+msgstr "验证链接在 {until} 前有效。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -10187,7 +10187,7 @@ msgstr "该邀请不能用 {provider} 账号接受。"
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.bound"
-msgstr "该邀请需要通过 {name} 创建账号。"
+msgstr "这个邀请需要通过 {name} 创建账号。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -11236,7 +11236,7 @@ msgstr "验证于 {when}，通过验证码"
 #. placeholder {1}: verified.providerDisplayName
 #: src/pages/public/Enroll.tsx
 msgid "enroll.verified_identity"
-msgstr "已通过 {1} 验证为 {0}"
+msgstr "已由 {1} 验证为 {0}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/principal-sources.ts
@@ -11733,7 +11733,7 @@ msgstr "你正在登录"
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.invite"
-msgstr "你受邀加入 {instance}。链接{expires}前有效。"
+msgstr "你受邀加入 {instance}。链接在 {expires} 前有效。"
 
 #. js-lingui-explicit-id
 #: src/lib/scopes.ts
@@ -11803,7 +11803,7 @@ msgstr "用户组"
 #. js-lingui-explicit-id
 #: src/pages/public/Enroll.tsx
 msgid "enroll.description.verified"
-msgstr "你的身份已验证。请选择账号名，然后设置登录方式。"
+msgstr "你的身份已验证。请选择用户名，然后设置登录方式。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx
