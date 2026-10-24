@@ -395,7 +395,7 @@ msgstr "带点的名称先按声明原文键匹配；只有没有同名声明时
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.hint"
-msgstr "便于你识别的名字，例如它所在的设备。"
+msgstr "便于你识别的名称，例如它所在的设备。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/rule-labels.ts
@@ -1163,7 +1163,7 @@ msgstr "任何持有此令牌的人都能更改你的密码、通行密钥和身
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.revoke.body"
-msgstr "所有使用此令牌的服务会立即失效，且无法恢复。"
+msgstr "令牌会立即失效，使用它的工具将无法再访问。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountTokensSection.tsx
@@ -2831,7 +2831,7 @@ msgstr "无法复制密钥。请在上方选中后手动复制，或下载它。
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.copy_failed"
-msgstr "无法复制令牌。请选中上方令牌手动复制，或下载保存。"
+msgstr "无法复制令牌。请选中上方的令牌手动复制，或下载保存。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/JsonBlock.tsx
@@ -5224,7 +5224,7 @@ msgstr "不保存就离开吗？该密钥无法再次显示。"
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.leave"
-msgstr "尚未保存就离开？此令牌无法再次显示。"
+msgstr "不保存就离开吗？此令牌无法再次显示。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
@@ -5666,7 +5666,7 @@ msgstr "多值"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.label"
-msgstr "昵称"
+msgstr "名称"
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
@@ -6332,7 +6332,7 @@ msgstr "OIDC 应用"
 #. js-lingui-explicit-id
 #: src/pages/profile/AccountPanel.tsx
 msgid "profile.oidc-subject"
-msgstr "OIDC 主体"
+msgstr "OIDC Subject"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountProfileSection.tsx
@@ -8069,7 +8069,7 @@ msgstr "保存更改"
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
 msgid "security.passkeys.rename.save"
-msgstr "保存昵称"
+msgstr "保存名称"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupRuleSection.tsx
@@ -9162,7 +9162,7 @@ msgstr "不支持该条件类型。"
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
 msgid "devices.sessions.revoke.body"
-msgstr "该设备会立即退出登录，需要重新登录。它正在进行的操作会中止。"
+msgstr "这台设备会立即退出登录，需要重新登录。它正在进行的操作会中止。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
@@ -9594,7 +9594,7 @@ msgstr "新账号注册后加入的手动用户组。"
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.error.send_failed"
-msgstr "邮件没有发出去，请稍后重试。"
+msgstr "邮件没有发出去，可以稍后重新发送。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9916,7 +9916,7 @@ msgstr "主题已在“卡片”中设定。"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.create.note"
-msgstr "令牌明文只在创建后显示一次。请当场复制；列表中只会保留末尾几位提示。"
+msgstr "令牌明文只在创建后显示一次。请当场复制；列表中只保留开头和末尾 4 位，作为识别提示。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/NetworkPanel.tsx
@@ -10437,7 +10437,7 @@ msgstr "这次测试比预期更久。等提供商处理完成后，请再检查
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.once"
-msgstr "此令牌只显示一次。请先妥善保存再继续。列表中只会保留它的提示。"
+msgstr "此令牌只显示一次。请先妥善保存再继续。列表中只保留开头和末尾 4 位，作为识别提示。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -11402,7 +11402,7 @@ msgstr "铺在卡片后面的页面背景。"
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
 msgid "security.tokens.scope"
-msgstr "可访问范围"
+msgstr "访问级别"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -11547,7 +11547,7 @@ msgstr "提供商在哪里让人登录，以及本实例如何与它通信。"
 #. js-lingui-explicit-id
 #: src/pages/Devices.tsx
 msgid "devices.page.description"
-msgstr "查看你当前在哪些设备上登录，并可让显示配对码的设备登录。"
+msgstr "查看你当前在哪些设备上登录，也可以让显示配对码的设备登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -11709,7 +11709,7 @@ msgstr "该确认只需要一次。你可以随时在“<0>已连接应用</0>�
 #. js-lingui-explicit-id
 #: src/pages/security/IdentitiesPanel.tsx
 msgid "security.identities.unlink.body"
-msgstr "你将无法再通过该提供商登录。其他登录方式不受影响。"
+msgstr "你将无法再通过这个提供商登录。其他登录方式不受影响。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/RequireIdentity.tsx
