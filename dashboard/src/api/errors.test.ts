@@ -4,6 +4,7 @@ import {
   describeError,
   describeErrorLanding,
   describeRouteFailure,
+  retryAfterSeconds,
 } from "@/api/errors";
 
 function refused(code: string) {
@@ -306,5 +307,60 @@ describe("describeRouteFailure", () => {
     expect(describeRouteFailure(cyclic).facts.exception).toBe(
       "[object Object]",
     );
+  });
+});
+
+describe("retryAfterSeconds", () => {
+  const limited = (
+    headers: [string, string][],
+    details?: Record<string, unknown>,
+  ) =>
+    new ApiError({
+      kind: "http",
+      status: 429,
+      code: "rate_limited",
+      requestId: "r1",
+      details,
+      exchange: {
+        method: "POST",
+        path: "/api/prohibitorum/me/emails/1/send-code",
+        response: { status: 429, headers },
+      },
+    });
+
+  it("reads whole seconds from the header, in any case", () => {
+    expect(retryAfterSeconds(limited([["Retry-After", "30"]]))).toBe(30);
+    expect(retryAfterSeconds(limited([["retry-after", " 7 "]]))).toBe(7);
+  });
+
+  it("prefers the body's seconds, which the server sends alongside", () => {
+    expect(
+      retryAfterSeconds(
+        limited([["retry-after", "30"]], { retryAfterSeconds: 45 }),
+      ),
+    ).toBe(45);
+  });
+
+  it("gives no wait rather than a NaN, zero or negative one", () => {
+    for (const [headers, details] of [
+      [[], undefined],
+      [[["retry-after", "soon"]], undefined],
+      [[["retry-after", "-5"]], undefined],
+      [[["retry-after", "0"]], undefined],
+      [[["retry-after", "1.5"]], undefined],
+      [[["retry-after", "Wed, 21 Oct 2026 07:28:00 GMT"]], undefined],
+      [[], { retryAfterSeconds: -3 }],
+      [[], { retryAfterSeconds: 0 }],
+      [[], { retryAfterSeconds: "12" }],
+      [[], { retryAfterSeconds: Number.NaN }],
+    ] as [[string, string][], Record<string, unknown> | undefined][]) {
+      expect(retryAfterSeconds(limited(headers, details))).toBeUndefined();
+    }
+    // A malformed body value falls back to a well-formed header.
+    expect(
+      retryAfterSeconds(
+        limited([["retry-after", "20"]], { retryAfterSeconds: "x" }),
+      ),
+    ).toBe(20);
   });
 });

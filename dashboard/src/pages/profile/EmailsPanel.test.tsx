@@ -3,6 +3,7 @@ import { I18nProvider } from "@lingui/react";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { myEmailsQueryOptions } from "@/api/queries";
 import { createQueryClient } from "@/app/query-client";
@@ -460,5 +461,126 @@ describe("EmailsPanel", () => {
     // Remove is the menu's only action, so no divider sits above it.
     expect(within(menu).getAllByRole("menuitem")).toHaveLength(1);
     expect(within(menu).queryByRole("separator")).not.toBeInTheDocument();
+  });
+  it("sends once per opening, under StrictMode and re-renders, and a reopen inside the cooldown counts down", async () => {
+    const user = userEvent.setup();
+    const sends: number[] = [];
+    queryClient.setQueryData(myEmailsQueryOptions().queryKey, {
+      emails: [
+        emailFixture({
+          id: 8,
+          address: "once@example.test",
+          primary: false,
+          verified: false,
+          verifiedVia: undefined,
+          verifiedAt: undefined,
+        }),
+      ],
+      deliveryAvailable: true,
+      limit: 10,
+    });
+    fetchBoundary.mockImplementation(async (request) => {
+      if (new URL(request.url).pathname === `${emailsPath}/8/send-code`) {
+        sends.push(Date.now());
+        // The first code goes out; any send after it is inside the server's
+        // cooldown and answers 429 with the wait in Retry-After.
+        return sends.length === 1
+          ? Response.json({ resendAfterSeconds: 60, expiresInSeconds: 900 })
+          : new Response(
+              JSON.stringify({ code: "rate_limited", requestId: "r1" }),
+              { status: 429, headers: { "Retry-After": "55" } },
+            );
+      }
+      return new Response(null, { status: 204 });
+    });
+    const tree = () => (
+      <StrictMode>
+        <I18nProvider i18n={i18n}>
+          <QueryClientProvider client={queryClient}>
+            <EmailsPanel />
+          </QueryClientProvider>
+        </I18nProvider>
+      </StrictMode>
+    );
+    const { rerender } = render(tree());
+    const menu = await screen.findByRole("button", {
+      name: "More actions for once@example.test",
+    });
+    // Nothing is sent while no dialog is open, re-render or not.
+    rerender(tree());
+    expect(sends).toHaveLength(0);
+
+    await user.click(menu);
+    await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/Resend in 60s/)).toBeVisible();
+    // A re-render of an open dialog does not send again.
+    rerender(tree());
+    expect(sends).toHaveLength(1);
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Verify later" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(sends).toHaveLength(1);
+
+    // Reopening inside the cooldown sends once more; the 429 is the countdown.
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for once@example.test",
+      }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
+    const reopened = await screen.findByRole("dialog");
+    expect(await within(reopened).findByText(/Resend in 55s/)).toBeVisible();
+    expect(sends).toHaveLength(2);
+    expect(document.querySelectorAll('[role="alert"]')).toHaveLength(0);
+  });
+  it("says in the dialog when the server could not deliver the code, and Resend tries again", async () => {
+    const user = userEvent.setup();
+    let sends = 0;
+    mount(
+      [
+        emailFixture({
+          id: 9,
+          address: "dropped@example.test",
+          primary: false,
+          verified: false,
+          verifiedVia: undefined,
+          verifiedAt: undefined,
+        }),
+      ],
+      true,
+      (request) => {
+        if (new URL(request.url).pathname === `${emailsPath}/9/send-code`) {
+          sends += 1;
+          return sends === 1
+            ? Response.json(
+                { code: "email_delivery_failed", requestId: "r1" },
+                { status: 502 },
+              )
+            : Response.json({ resendAfterSeconds: 60, expiresInSeconds: 900 });
+        }
+        return undefined;
+      },
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for dropped@example.test",
+      }),
+    );
+    await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      await within(dialog).findByText(/did not go out. Resend to try again/),
+    ).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Resend" }));
+    expect(await within(dialog).findByText(/Resend in 60s/)).toBeVisible();
+    expect(
+      within(dialog).queryByText(/did not go out/),
+    ).not.toBeInTheDocument();
+    expect(sends).toBe(2);
   });
 });
