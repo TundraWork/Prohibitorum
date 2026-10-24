@@ -4282,7 +4282,7 @@ msgstr "Fill in the provider, field, match and value to apply this filter."
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MailPanel.tsx
 msgid "settings.mail.configure.hint"
-msgstr "Fill in the server and sender in the `smtp` section of the config file, or set environment variables such as PROHIBITORUM_SMTP_HOST. See CONFIG.md."
+msgstr "Fill in the server and sender in the smtp section of the config file, or set environment variables such as PROHIBITORUM_SMTP_HOST. See CONFIG.md."
 
 #. js-lingui-explicit-id
 #: src/components/custom/FilterPopover.tsx

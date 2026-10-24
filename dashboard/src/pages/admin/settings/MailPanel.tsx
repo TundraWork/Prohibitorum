@@ -125,8 +125,8 @@ function MailSettings() {
             title={<Trans id="settings.mail.how_to_configure">Setup</Trans>}
             description={
               <Trans id="settings.mail.configure.hint">
-                Fill in the server and sender in the `smtp` section of the
-                config file, or set environment variables such as
+                Fill in the server and sender in the smtp section of the config
+                file, or set environment variables such as
                 PROHIBITORUM_SMTP_HOST. See CONFIG.md.
               </Trans>
             }

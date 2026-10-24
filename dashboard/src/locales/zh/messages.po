@@ -1179,7 +1179,7 @@ msgstr "API 密钥"
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
 msgid "success.pixabay-key.removed"
-msgstr "API 密钥已删除"
+msgstr "API 密钥已移除"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
@@ -1882,7 +1882,7 @@ msgstr "改为拒绝"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.update"
-msgstr "修改"
+msgstr "已修改"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlIdentitySection.tsx
@@ -2976,7 +2976,7 @@ msgstr "创建你的账号"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.register"
-msgstr "创建"
+msgstr "已创建"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitations.tsx
@@ -3986,7 +3986,7 @@ msgstr "请输入身份验证器中的 {0} 位验证码。"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.key.required"
-msgstr "保存前请填写 {service} key。"
+msgstr "保存前请填写 {service} 的 API 密钥。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/provider-validation.ts
@@ -5073,7 +5073,7 @@ msgstr "进行维护期间，除管理员外的所有人都无法登录。"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.keep"
-msgstr "保留已保存的 Key"
+msgstr "保留已保存的 API 密钥"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderCredentialsSection.tsx
@@ -5271,7 +5271,7 @@ msgstr "第 {line} 行不是 IPv4 或 IPv6 地址段，例如 10.0.0.0/8 或 200
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/client-ip-form.ts
 msgid "settings.network.proxies.spaces"
-msgstr "第 {line} 行：去掉地址两侧的空格。"
+msgstr "第 {line} 行：请删除地址首尾的空格。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/CallbackPreview.tsx
@@ -7437,7 +7437,7 @@ msgstr "请删除首尾的空格。"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
 msgid "settings.sign-in.unsplash.query.spaces"
-msgstr "请去掉开头或结尾的空格。"
+msgstr "请删除首尾的空格。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/sign-in-page-form.ts
@@ -8706,7 +8706,7 @@ msgstr "本实例上的登录、变更等安全事件，最新的在前。"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.session_start"
-msgstr "登录"
+msgstr "已登录"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
@@ -8721,7 +8721,7 @@ msgstr "当前登录的账号：<0>{displayName}</0>"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.session_end"
-msgstr "退出登录"
+msgstr "已退出登录"
 
 #. js-lingui-explicit-id
 #: src/api/success-messages.ts
@@ -8941,7 +8941,7 @@ msgstr "Steam"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
 msgid "settings.keys.standing.retiring"
-msgstr "在{until}前仍用于验证"
+msgstr "在 {until} 前仍用于验证"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -9002,7 +9002,7 @@ msgstr "切换账号"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SavedWallpaperKey.tsx
 msgid "settings.sign-in.unsplash.key.in_use"
-msgstr "先把背景换成其他来源并保存，再移除 Key。"
+msgstr "先把背景换成其他来源并保存，再移除 API 密钥。"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -9282,12 +9282,12 @@ msgstr "该验证方式当前不可用，请选择其他方式。"
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/MailPanel.tsx
 msgid "settings.mail.test.rate_limited"
-msgstr "发得太频繁了，请稍后再试。"
+msgstr "发得太频繁了，请稍后重新发送。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SignInPageEditor.tsx
 msgid "settings.sign-in.query.hidden_invalid"
-msgstr "{source} 的关键词不能用。切回 {source} 修改。"
+msgstr "{source} 的关键词不能用。请重新选择 {source} 后修改。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountDangerSection.tsx
@@ -10921,7 +10921,7 @@ msgstr "使用发现结果"
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.use"
-msgstr "使用"
+msgstr "已使用"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
