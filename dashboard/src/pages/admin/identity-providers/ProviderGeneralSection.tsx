@@ -39,7 +39,7 @@ function SignInOffConsequence({ provisioning }: { provisioning: boolean }) {
     <>
       <Trans id="admin.federation.signin.consequence">
         Anyone who signs in only through this provider will be locked out until
-        an administrator sends them a reset link.
+        an administrator sends them a registration link.
       </Trans>
       {provisioning && (
         <>

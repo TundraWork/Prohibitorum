@@ -1153,7 +1153,7 @@ msgstr "Any provider"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderGeneralSection.tsx
 msgid "admin.federation.signin.consequence"
-msgstr "Anyone who signs in only through this provider will be locked out until an administrator sends them a reset link."
+msgstr "Anyone who signs in only through this provider will be locked out until an administrator sends them a registration link."
 
 #. js-lingui-explicit-id
 #: src/pages/security/TokensPanel.tsx
