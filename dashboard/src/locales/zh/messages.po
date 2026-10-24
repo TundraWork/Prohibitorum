@@ -866,7 +866,7 @@ msgstr "添加提供商"
 #: src/pages/admin/identity-providers/AdminIdentityProviderNew.tsx
 #: src/pages/admin/identity-providers/ProviderConnectionSection.tsx
 msgid "form.tags.add-scope"
-msgstr "添加范围"
+msgstr "添加作用域"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -2402,17 +2402,17 @@ msgstr "请验证你的身份，以创建此个人访问令牌。"
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-account"
-msgstr "请验证你的身份，以删除该账号。此操作无法撤销。"
+msgstr "请验证你的身份，以删除这个账号。此操作无法撤销。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-application"
-msgstr "验证你的身份后即可删除这个应用。"
+msgstr "请验证你的身份，以删除这个应用。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.delete-identity-provider"
-msgstr "验证你的身份后即可删除这个提供商，以及通过它绑定的所有身份。"
+msgstr "请验证你的身份，以删除这个提供商，以及通过它绑定的所有身份。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -2437,7 +2437,7 @@ msgstr "请验证你的身份，以移除此通行密钥。"
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.rotate-client-secret"
-msgstr "验证你的身份后即可更换客户端密钥。旧密钥会立即失效。"
+msgstr "请验证你的身份，以更换客户端密钥。旧密钥会立即失效。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -2462,12 +2462,12 @@ msgstr "请验证你的身份，以吊销此个人访问令牌。"
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.set-password-totp"
-msgstr "请验证你的身份，以为此账号设置密码与身份验证器。"
+msgstr "请验证你的身份，为此账号设置密码与身份验证器。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
 msgid "sudo.reason.activate-signing-key"
-msgstr "请验证你的身份，再用这个密钥签名。"
+msgstr "请验证你的身份，以开始用这个密钥签名。"
 
 #. js-lingui-explicit-id
 #: src/api/sudo-reasons.ts
@@ -2660,7 +2660,7 @@ msgstr "已复制。"
 #. js-lingui-explicit-id
 #: src/components/custom/SecretReveal.tsx
 msgid "secret.copied"
-msgstr "已复制。"
+msgstr "已复制"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/PublicKeyDialog.tsx
@@ -2836,7 +2836,7 @@ msgstr "无法复制令牌。请选中上方令牌手动复制，或下载保存
 #. js-lingui-explicit-id
 #: src/components/custom/JsonBlock.tsx
 msgid "json-block.copy.failed"
-msgstr "无法复制，浏览器阻止了剪贴板。"
+msgstr "无法复制，浏览器阻止了剪贴板访问。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -4036,7 +4036,7 @@ msgstr "请输入身份验证器显示的验证码，只能包含 0–9。"
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.code.invalid"
-msgstr "请输入身份验证器显示的验证码，只能包含 0–9。"
+msgstr "请输入身份验证器显示的验证码，仅使用数字 0–9。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/EndpointsField.tsx
@@ -4091,7 +4091,7 @@ msgstr "请填写 Web API 密钥。"
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.password.invalid"
-msgstr "请输入当前密码，最多 1024 个 UTF-8 字节。"
+msgstr "请输入当前密码，长度不超过 1024 个 UTF-8 字节。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
@@ -4332,7 +4332,7 @@ msgstr "适用于没有可访问元数据文档的提供商。Entity ID 和端�
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.intro"
-msgstr "出于安全考虑，请重新验证身份后继续。"
+msgstr "出于安全考虑，请重新验证你的身份后再继续。"
 
 #. js-lingui-explicit-id
 #: src/pages/launcher/ProtocolCapsule.tsx
@@ -10107,7 +10107,7 @@ msgstr "授权请求已过期或已使用。请回到应用重新登录。"
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
 msgid "sudo.passkey.unsupported"
-msgstr "此浏览器或连接无法使用通行密钥。"
+msgstr "当前浏览器或连接无法使用通行密钥。"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
