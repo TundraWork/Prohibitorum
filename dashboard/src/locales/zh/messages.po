@@ -198,7 +198,7 @@ msgstr "{label} {row}"
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.description.application"
-msgstr "{label} 使用你的 {instance} 账号。登录后你会回到该应用。"
+msgstr "{label} 使用你的 {instance} 账号。登录后你会回到这个应用。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupRuleSection.tsx
@@ -508,7 +508,7 @@ msgstr "已授权"
 #. js-lingui-explicit-id
 #: src/pages/public/ErrorLanding.tsx
 msgid "error_page.denied.retry_hint"
-msgstr "访问权限还没有开通。管理员开通之后，你可以再试一次。"
+msgstr "访问权限还没有开放。管理员开放之后，你可以再试一次。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/BackgroundControls.tsx
@@ -950,7 +950,7 @@ msgstr "管理员登录"
 #. js-lingui-explicit-id
 #: src/pages/Login.tsx
 msgid "login.reset.warning"
-msgstr "提交后，旧身份验证器和恢复码都将失效。"
+msgstr "重设成功后，旧身份验证器和所有旧恢复码都会失效。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/SigningKeysPanel.tsx
@@ -1403,7 +1403,7 @@ msgstr "登录前先让账号确认这些作用域。"
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.enroll_instruction"
-msgstr "请联系运维人员，在服务器运行 <0>prohibitorum enroll-admin</0> 后再登录。"
+msgstr "请联系运维人员，在服务器上运行 <0>prohibitorum enroll-admin</0> 后再登录。"
 
 #. js-lingui-explicit-id
 #: src/pages/public/consent/ConsentRequest.tsx
@@ -2811,7 +2811,7 @@ msgstr "无法连接服务器，请检查网络连接。"
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.copy_failed"
-msgstr "无法复制恢复码。请选中上方恢复码手动复制，或下载保存。"
+msgstr "无法复制恢复码。请选中上方的恢复码手动复制，或下载保存。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -5209,7 +5209,7 @@ msgstr "留空则使用部署配置中的名称。"
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.leave"
-msgstr "要在未保存的情况下离开吗？这些恢复码无法再次查看。"
+msgstr "不保存就离开吗？这些恢复码无法再次查看。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
@@ -8751,12 +8751,12 @@ msgstr "签名证书"
 #. js-lingui-explicit-id
 #: src/pages/public/Maintenance.tsx
 msgid "maintenance.description"
-msgstr "维护期间暂停登录和使用应用。"
+msgstr "维护期间，登录和使用应用都会暂停。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.factor.account"
-msgstr "正在登录 {username}"
+msgstr "正在以 {username} 登录"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
@@ -9332,7 +9332,7 @@ msgstr "应用请求的登录提供商不可用。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.landing.require_identity_invalid_redirect_uri"
-msgstr "应用要求返回的地址没有在 {instance} 登记。"
+msgstr "应用要求返回的地址没有在 {instance} 注册。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -9766,7 +9766,7 @@ msgstr "请求失败。"
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
 msgid "login.reset.uncertain"
-msgstr "重设可能已经完成。请尝试新身份验证器或通行密钥。再次尝试验证码前，请重新输入密码；旧恢复码可能已失效。"
+msgstr "重设可能已经完成。请改用新的身份验证器或通行密钥登录。再次尝试验证码前，请重新输入密码；旧恢复码可能已失效。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AdminUsers.tsx
@@ -10072,17 +10072,17 @@ msgstr "列表中已有这个地址。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.landing.saml_idp_init_disabled"
-msgstr "该应用不允许从 {instance} 直接打开。"
+msgstr "这个应用不允许从 {instance} 直接打开。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.landing.require_identity_invalid_client"
-msgstr "这个应用没有在 {instance} 登记，或者已被停用。"
+msgstr "这个应用没有在 {instance} 注册，或者已被停用。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.landing.saml_sp_unknown"
-msgstr "该应用没有在 {instance} 注册。"
+msgstr "这个应用没有在 {instance} 注册。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/SamlMetadataSection.tsx
@@ -10412,7 +10412,7 @@ msgstr "登录链接无效，请打开新的登录链接。"
 #. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.landing.saml_replayed"
-msgstr "该登录请求已经用过。请回到应用重新登录。"
+msgstr "这个登录请求已经用过。请回到应用重新登录。"
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -11367,7 +11367,7 @@ msgstr "等待管理员确认"
 #. js-lingui-explicit-id
 #: src/pages/public/Pair.tsx
 msgid "pair.waiting"
-msgstr "等待批准… 配对码 {left} 后过期"
+msgstr "等待批准……配对码将在 {left} 后过期。"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
