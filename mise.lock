@@ -266,6 +266,9 @@ url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/453417
 provenance = "github-attestations"
 
 [tools."aqua:zizmorcore/zizmor"."platforms.linux-arm64-musl"]
+checksum = "sha256:711f5af366b299128f9a04b1470e37d990b41fbd21f14a1a4148d25004a83762"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.26.1/zizmor-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/453417983"
 provenance = "github-attestations"
 
 [tools."aqua:zizmorcore/zizmor"."platforms.linux-x64"]
@@ -275,6 +278,9 @@ url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/453417
 provenance = "github-attestations"
 
 [tools."aqua:zizmorcore/zizmor"."platforms.linux-x64-musl"]
+checksum = "sha256:8556289a64e7aaf2400cd516f61a471aa91c5902cc56ad96a82fd12f90c2ef73"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.26.1/zizmor-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/453417985"
 provenance = "github-attestations"
 
 [tools."aqua:zizmorcore/zizmor"."platforms.macos-arm64"]
@@ -410,22 +416,29 @@ version = "1.30.0"
 backend = "aqua:sqlc-dev/sqlc"
 
 [tools.sqlc."platforms.linux-arm64"]
+checksum = "sha256:dd9ab43b022ba3b3402054f99d7ae6e5efea33c949e869c3c66b214415e0c82d"
 url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_arm64.tar.gz"
 
 [tools.sqlc."platforms.linux-arm64-musl"]
+checksum = "sha256:dd9ab43b022ba3b3402054f99d7ae6e5efea33c949e869c3c66b214415e0c82d"
 url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_arm64.tar.gz"
 
 [tools.sqlc."platforms.linux-x64"]
+checksum = "sha256:468aecee071bfe55e97fcbcac52ea0208eeca444f67736f3b8f0f3d6a106132e"
 url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_amd64.tar.gz"
 
 [tools.sqlc."platforms.linux-x64-musl"]
+checksum = "sha256:468aecee071bfe55e97fcbcac52ea0208eeca444f67736f3b8f0f3d6a106132e"
 url = "https://downloads.sqlc.dev/sqlc_1.30.0_linux_amd64.tar.gz"
 
 [tools.sqlc."platforms.macos-arm64"]
+checksum = "sha256:ff18793b97715d08dde364446f43082a06da87b7797b9ec79ef2b31aeb0894e5"
 url = "https://downloads.sqlc.dev/sqlc_1.30.0_darwin_arm64.tar.gz"
 
 [tools.sqlc."platforms.macos-x64"]
+checksum = "sha256:eb065ca44f02a9500f8e51cb63594a6bbd2486af04d18c0f81efadf7eadf5e29"
 url = "https://downloads.sqlc.dev/sqlc_1.30.0_darwin_amd64.tar.gz"
 
 [tools.sqlc."platforms.windows-x64"]
+checksum = "sha256:2b4380c93b6541c46840d73b31cc88018a84ea926b49ae432f22fe48b41c8bdc"
 url = "https://downloads.sqlc.dev/sqlc_1.30.0_windows_amd64.tar.gz"
