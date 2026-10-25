@@ -196,6 +196,7 @@ describe("AccountEmailsSection", () => {
   it("refetches the list after a delete, so the row leaves without a reload", async () => {
     const user = userEvent.setup();
     let deleted = false;
+    let readAfterDelete = false;
     const removed = fixture({
       id: 2,
       address: "spare@example.test",
@@ -207,6 +208,7 @@ describe("AccountEmailsSection", () => {
         request.method === "GET" &&
         path === "/api/prohibitorum/accounts/7/emails"
       ) {
+        if (deleted) readAfterDelete = true;
         return Response.json({
           emails: deleted ? [fixture()] : [fixture(), removed],
           limit: 10,
@@ -222,6 +224,11 @@ describe("AccountEmailsSection", () => {
       return undefined;
     });
 
+    // The row is on screen before anything starts; see the EmailsPanel twin
+    // of this test for why asserting it after the confirm races the delete
+    // and the refetch settling.
+    expect(await screen.findByText("spare@example.test")).toBeVisible();
+
     await user.click(
       screen.getByRole("button", {
         name: "More actions for spare@example.test",
@@ -234,11 +241,15 @@ describe("AccountEmailsSection", () => {
       }),
     );
 
-    expect(await screen.findByText("spare@example.test")).toBeVisible();
-    await waitFor(() =>
-      expect(screen.queryByText("spare@example.test")).not.toBeInTheDocument(),
-    );
+    // The final state, not the transition: the write answered, the list read
+    // again without a reload, and neither the row nor the dialog that removed
+    // it remains.
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(screen.queryByText("spare@example.test")).not.toBeInTheDocument();
+    });
     expect(deleted).toBe(true);
+    expect(readAfterDelete).toBe(true);
   });
 
   it("gives a primary address a menu of Remove alone, without a divider", async () => {

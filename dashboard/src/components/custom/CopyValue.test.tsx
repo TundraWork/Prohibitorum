@@ -1,5 +1,11 @@
 import { I18nProvider } from "@lingui/react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CopyValue } from "@/components/custom/CopyValue";
@@ -77,7 +83,10 @@ describe("CopyValue", () => {
     expect(writeText).toHaveBeenCalledWith(value);
     expect(field().selectionStart).toBe(0);
     expect(field().selectionEnd).toBe(value.length);
-    expect(screen.getByRole("button", { name: "Copied" })).toBeVisible();
+    // The confirm lands from the clipboard promise, which may flush after the
+    // click returns; wait for it rather than sampling a lucky instant. Only
+    // setTimeout is faked, so the find's own polling still runs on real time.
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeVisible();
     expect(screen.getByRole("status")).toHaveTextContent("Copied");
 
     act(() => {
@@ -105,7 +114,12 @@ describe("CopyValue", () => {
     writeText.mockResolvedValueOnce(undefined);
     await ue.click(screen.getByRole("button", { name: "Copy" }));
 
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    // The success settles asynchronously: the promise's confirm may flush
+    // after the click returns, so the failed alert's leaving is waited for
+    // rather than sampled at a lucky instant.
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
   });
 
   it("only selects on keyboard focus, and confirms a copy made by hand", () => {
