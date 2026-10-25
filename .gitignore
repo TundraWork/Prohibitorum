@@ -6,12 +6,6 @@
 /dashboard/coverage
 /dashboard/*.tsbuildinfo
 /dashboard/src/locales/**/*.mjs
-/dashboard-old/node_modules
-/dashboard-old/dist
-/dashboard-old/.vite
-/dashboard-old/.pnpm-store
-/dashboard-old/coverage
-/dashboard-old/*.tsbuildinfo
 /.vite
 /node_modules
 /.data

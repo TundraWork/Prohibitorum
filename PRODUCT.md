@@ -84,8 +84,7 @@ web dashboard. It serves a single small organization.
 - `README.md` documents deployment, capabilities, and frontend release status;
   `TOOLING.md` documents builds and verification.
 - `api.md` and `ARCHITECTURE.md` describe API and system behavior.
-- `dashboard/` contains the current interface. `dashboard-old/` is a
-  reference-only archive excluded from application builds.
+- `dashboard/` contains the web interface.
 - The README's VRChat sign-in wording conflicts with the confirmed product
   restriction above. Preserve proof-only enrollment and recovery in future work.
 

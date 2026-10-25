@@ -61,8 +61,6 @@
   using `class-variance-authority` for shared variants.
 - HTML mockups describe wireframes and interaction flows only. Implement visual
   details with the coss components rather than copying mockup styling.
-- `dashboard-old` is a reference-only archive. Keep it outside imports, builds,
-  tests and lint scopes; do not restore its routes or vendored UI into the app.
 - The public flows, the console and the management pages are available.
 - The embedded bundle is generated, not committed. `pkg/webui/dist` is ignored
   apart from the tracked `.gitkeep` that keeps `go:embed all:dist` compiling on
