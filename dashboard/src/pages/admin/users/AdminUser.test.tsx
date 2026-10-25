@@ -39,6 +39,10 @@ function serve(
   return fakeApi({
     ...publicApi({ ...testSession, role: "admin" }),
     [`GET ${base}/accounts/${account.id}`]: () => Response.json(account),
+    // The emails section's own read, so it renders its list rather than a
+    // section failure that races every alert count on the page.
+    [`GET ${base}/accounts/${account.id}/emails`]: () =>
+      Response.json({ emails: [], limit: 10 }),
     [`GET ${base}/accounts/${account.id}/identities`]: () => Response.json([]),
     [`GET ${base}/accounts/${account.id}/credentials`]: page,
     [`GET ${base}/accounts/${account.id}/sessions`]: page,
@@ -249,6 +253,9 @@ describe("the access lists", () => {
     fakeApi({
       ...publicApi({ ...testSession, role: "admin" }),
       [`GET ${base}/accounts/${account.id}`]: () => Response.json(account),
+      // The emails read succeeds; only the sessions list is under test here.
+      [`GET ${base}/accounts/${account.id}/emails`]: () =>
+        Response.json({ emails: [], limit: 10 }),
       [`GET ${base}/accounts/${account.id}/identities`]: () =>
         Response.json([]),
       [`GET ${base}/accounts/${account.id}/credentials`]: page,
