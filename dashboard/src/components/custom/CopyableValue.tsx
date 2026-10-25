@@ -108,7 +108,7 @@ export function CopyStatus({
             {t({
               id: "copy-value.failed",
               message:
-                "Couldn't copy. Select the value above and copy it yourself.",
+                "Could not copy. Select the value above and copy it manually.",
             })}
           </AlertTitle>
         </Alert>

@@ -149,7 +149,7 @@ describe("VRChat profile verification", () => {
       }),
     ).toBeVisible();
     expect(
-      screen.getByText("This is your username on Test instance."),
+      screen.getByText("Use this username to sign in to Test instance."),
     ).toBeVisible();
   });
 

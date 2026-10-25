@@ -42,7 +42,7 @@ export const auditFactors = {
   }),
   personal_access_token: msg({
     id: "audit.factor.personal_access_token",
-    message: "Access token",
+    message: "Personal access token",
   }),
   settings: msg({ id: "audit.factor.settings", message: "Settings" }),
   diagnostic: msg({ id: "audit.factor.diagnostic", message: "Diagnostics" }),

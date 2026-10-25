@@ -24,7 +24,7 @@ export const clientSecretCopy: SecretRevealCopy = {
   once: msg({
     id: "admin.oidc-apps.secret.once",
     message:
-      "This secret is shown only once. Put it into the client's configuration now — it cannot be read back later, and a client that loses it stops signing in.",
+      "This secret is shown only once and cannot be viewed again. Add it to the client's configuration now. A client without it cannot sign users in.",
   }),
   label: msg({
     id: "admin.oidc-apps.secret.label",

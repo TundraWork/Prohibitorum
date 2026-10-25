@@ -38,15 +38,15 @@ function SignInOffConsequence({ provisioning }: { provisioning: boolean }) {
   return (
     <>
       <Trans id="admin.federation.signin.consequence">
-        Anyone who signs in only through this provider will be locked out until
-        an administrator sends them a registration link.
+        People who sign in only through this provider can't sign in until an
+        administrator sends them a registration link.
       </Trans>
       {provisioning && (
         <>
           {" "}
           <Trans id="admin.federation.signin.consequence.provisioning">
-            Provisioning also changes from Creates accounts to Invitation only,
-            because creating accounts needs sign-in.
+            Provisioning also changes from "Creates accounts" to "Invitation
+            only", because creating accounts requires sign-in.
           </Trans>
         </>
       )}
@@ -139,8 +139,8 @@ export function ProviderGeneralSection({ provider }: { provider: Provider }) {
             title={title}
             description={
               <Trans id="admin.federation.signin.description">
-                Whether this provider can be used to sign in, and what it does
-                with someone it has not seen.
+                Choose whether this provider can be used to sign in, and how it
+                handles people without a linked account.
               </Trans>
             }
             dirty={dirty}
@@ -183,18 +183,17 @@ export function ProviderGeneralSection({ provider }: { provider: Provider }) {
                         {provider.protocol === "vrchat" && (
                           <span className="mb-1 block">
                             <Trans id="admin.federation.general.sign_in.vrchat_hint">
-                              VRChat proves a profile through a link in its bio,
-                              which is weaker than an OIDC sign-in. Once this is
-                              on, anyone who can edit the profile can sign in to
-                              the account linked to it.
+                              VRChat verifies a profile through a link in its
+                              bio, which is weaker than an OIDC sign-in. When
+                              this is on, anyone who can edit the profile can
+                              sign in to the account linked to it.
                             </Trans>
                           </span>
                         )}
                         <span className="block">
                           <Trans id="admin.federation.general.sign_in.hint">
-                            When this is off, this provider can't be used to
-                            sign in. People can only link it from their account,
-                            or use it to accept an invitation.
+                            When off, this provider can only be used to link
+                            accounts and accept invitations, not to sign in.
                           </Trans>
                         </span>
                       </>
@@ -241,8 +240,8 @@ export function ProviderGeneralSection({ provider }: { provider: Provider }) {
         body={
           <p>
             <Trans id="admin.federation.general.sign_in.confirm_body">
-              People will no longer see it on the sign-in page. You can turn it
-              back on at any time.
+              The provider will no longer appear on the sign-in page. Sign-in
+              can be turned back on at any time.
             </Trans>
           </p>
         }

@@ -141,7 +141,7 @@ export function LoginImagesControl({
       <p className="text-muted-foreground text-caption">
         {count >= maxLoginImages ? (
           <Trans id="settings.sign-in.images.full">
-            10 of 10 · remove one to add another
+            10 of 10 · Remove an image to add another
           </Trans>
         ) : (
           <Trans id="settings.sign-in.images.hint">
@@ -151,7 +151,7 @@ export function LoginImagesControl({
       </p>
       <p className="text-muted-foreground text-caption">
         <Trans id="settings.sign-in.images.instant">
-          Adding or removing an image takes effect right away, without Save.
+          Adding or removing images takes effect immediately, without saving.
         </Trans>
       </p>
       {skipped !== null && <SkippedNotice skipped={skipped} />}

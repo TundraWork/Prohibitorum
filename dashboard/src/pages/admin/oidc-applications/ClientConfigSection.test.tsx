@@ -170,7 +170,7 @@ describe("the sign-in section", () => {
     expect(await scope("identity:retired")).toBeChecked();
     expect(
       screen.getByText(
-        "This provider is turned off or no longer exists. Clear it to stop allowing it.",
+        "This provider is disabled or no longer exists. Clear it to stop allowing it.",
       ),
     ).toBeVisible();
   });
@@ -182,7 +182,7 @@ describe("the sign-in section", () => {
     expect(pkce).toBeChecked();
     expect(pkce).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByText("A public client always proves the request it started."),
+      screen.getByText("Always required for public clients."),
     ).toBeVisible();
   });
 

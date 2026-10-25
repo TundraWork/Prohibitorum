@@ -125,7 +125,7 @@ describe("the page outline", () => {
         "Sign-in",
         "Access",
         "Managers",
-        "Identity",
+        "Identity projection",
         "Metadata",
         "Appearance",
         "Disable or delete",
@@ -136,7 +136,9 @@ describe("the page outline", () => {
   it("leaves Managers out for a delegated manager and says they manage it", async () => {
     await mountPage(samlAppFixture(), "user");
 
-    expect(screen.getByText("You manage this application.")).toBeVisible();
+    expect(
+      screen.getByText("You are assigned to manage this application."),
+    ).toBeVisible();
     const rail = await screen.findByRole("navigation", {
       name: "On this page",
     });

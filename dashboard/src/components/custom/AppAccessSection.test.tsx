@@ -117,8 +117,8 @@ describe("the order strip", () => {
   it("lists the selected groups under the step that uses them", async () => {
     mount({ selected: [engineering, passkeyPeople] });
 
-    const denied = await step("Accounts denied by hand in");
-    const allowed = await step("Accounts allowed by hand in");
+    const denied = await step("Manually denied");
+    const allowed = await step("Manually allowed");
     const rule = await step("Matches a rule");
     const rest = await step("Everyone else");
     expect(denied).toHaveTextContent("Engineering");
@@ -166,7 +166,7 @@ describe("the selected groups", () => {
       HTMLElement,
       HTMLElement,
     ];
-    expect(first).toHaveTextContent("Chosen by hand");
+    expect(first).toHaveTextContent("Manual");
     expect(first).toHaveTextContent("engineering");
     expect(
       within(first).getByRole("link", { name: "Engineering" }),
@@ -219,7 +219,7 @@ describe("removing a group", () => {
       name: "Remove the last group?",
     });
     expect(dialog).toHaveTextContent(
-      "Nobody can use Grafana until you select one.",
+      "No one can use Grafana until you select another group.",
     );
     expect(writes("/groups")).toHaveLength(0);
 
@@ -262,7 +262,7 @@ describe("adding a group", () => {
       await screen.findByRole("button", { name: "Choose groups" }),
     );
     const dialog = await screen.findByRole("dialog", {
-      name: "Choose the groups that take part",
+      name: "Choose user groups",
     });
     await user.click(within(dialog).getByRole("combobox"));
     await user.click(await screen.findByRole("option", { name: /Designers/ }));
@@ -345,7 +345,7 @@ describe("failures", () => {
       await screen.findByRole("button", { name: "Choose groups" }),
     );
     const dialog = await screen.findByRole("dialog", {
-      name: "Choose the groups that take part",
+      name: "Choose user groups",
     });
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -375,7 +375,7 @@ describe("failures", () => {
       await screen.findByRole("button", { name: "Choose groups" }),
     );
     const dialog = await screen.findByRole("dialog", {
-      name: "Choose the groups that take part",
+      name: "Choose user groups",
     });
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(writes("/groups")).toHaveLength(1));

@@ -71,7 +71,7 @@ export function ForwardAuthProxySection({ app }: { app: ForwardAuthApp }) {
       })}
       description={
         <Trans id="admin.forward-auth-apps.traefik.note">
-          Use this only behind a trusted reverse proxy. See{" "}
+          Use only behind a trusted reverse proxy. For entrypoint settings, see{" "}
           <a
             className={inlineLinkClass}
             href={manualUrl}
@@ -79,8 +79,8 @@ export function ForwardAuthProxySection({ app }: { app: ForwardAuthApp }) {
             rel="noreferrer"
           >
             the forward-auth guide
-          </a>{" "}
-          for the entrypoint settings.
+          </a>
+          .
         </Trans>
       }
       action={

@@ -145,7 +145,7 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
 
   const title = t({
     id: "admin.saml-apps.identity.title",
-    message: "Identity",
+    message: "Identity projection",
   });
 
   return (
@@ -158,7 +158,8 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
             title={title}
             description={
               <Trans id="admin.saml-apps.identity.description">
-                What the service provider is told about someone who signs in.
+                The user identifier and attributes the service provider
+                receives.
               </Trans>
             }
             dirty={dirty}
@@ -168,8 +169,8 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
                   consequence={
                     formatChanged ? (
                       <Trans id="admin.saml-apps.name-id.consequence">
-                        Changing the NameID format makes every service provider
-                        see a new account.
+                        Changing the NameID format makes the service provider
+                        treat existing users as new accounts.
                       </Trans>
                     ) : undefined
                   }
@@ -217,9 +218,9 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
         body={
           <p>
             <Trans id="admin.saml-apps.name-id.confirm.body">
-              Every service provider that has signed this account in before
-              stores the identifier it was given. Changing the format makes each
-              of them see a new account, so what it keeps under the old one no
+              The service provider stores the identifier it received for each
+              user who has signed in. After the format changes, it treats those
+              users as new accounts, and data stored under the old identifier no
               longer applies.
             </Trans>
           </p>

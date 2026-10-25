@@ -646,7 +646,7 @@ describe("the application the sign-in link targets", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        "Wiki uses your Test instance account. You'll go back to it after signing in.",
+        "Wiki uses your Test instance account. After signing in, you'll return to Wiki.",
       ),
     ).toBeVisible();
   });

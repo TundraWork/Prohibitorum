@@ -269,10 +269,12 @@ describe("the claim mapping", () => {
     expect(claimInput("Picture")).toHaveValue("picture");
     expect(claimInput("Subject")).toHaveValue("sub");
     expect(
-      screen.getByText("Accounts are linked by this value."),
+      screen.getByText("Accounts are linked by the value of this claim."),
     ).toBeVisible();
     expect(
-      screen.getByText(/A name with dots is read as the exact claim key/),
+      screen.getByText(
+        /Names with dots are matched against the exact claim key/,
+      ),
     ).toBeVisible();
   });
 
@@ -351,7 +353,7 @@ describe("changing the subject claim", () => {
     expect(
       await screen.findByText(/18 accounts are linked to Corporate SSO/),
     ).toHaveTextContent(
-      /by their sub claim\. After switching to node_id, those links no longer match/,
+      /by the sub claim\. After the change to node_id, these links no longer match/,
     );
     expect(subjectAction()).toBeVisible();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
@@ -387,7 +389,7 @@ describe("changing the subject claim", () => {
     // The footer carries the full consequence; the dialog only asks.
     expect(
       within(dialog).getByText(
-        /18 linked accounts stop matching and will be treated as a new identity/,
+        /18 linked accounts will no longer match and will be treated as a new identity/,
       ),
     ).toBeVisible();
     expect(within(dialog).queryByText(/are linked to/)).toBeNull();
@@ -410,7 +412,7 @@ describe("changing the subject claim", () => {
     await user.click(subjectAction());
     const dialog = await screen.findByRole("alertdialog");
     expect(
-      within(dialog).getByText(/1 linked account stops matching/),
+      within(dialog).getByText(/1 linked account will no longer match/),
     ).toBeVisible();
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 

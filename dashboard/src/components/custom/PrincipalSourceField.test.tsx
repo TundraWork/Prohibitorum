@@ -29,7 +29,7 @@ describe("PrincipalSourceField", () => {
       screen.getByRole("combobox", { name: "Subject source" }),
     ).toHaveTextContent("Username");
     expect(
-      screen.getByText("Easy to read. An administrator can change it."),
+      screen.getByText("Human-readable. An administrator can change it."),
     ).toBeInTheDocument();
   });
 });

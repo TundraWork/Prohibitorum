@@ -151,15 +151,15 @@ describe("the launcher", () => {
     await pad();
     expect(
       screen.getByRole("button", {
-        name: "OIDC — Signs you in with OpenID Connect",
+        name: "OIDC — OpenID Connect sign-in",
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "SAML — Signs you in with SAML" }),
+      screen.getByRole("button", { name: "SAML — SAML sign-in" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: "Forward auth — Protected by your sign-in",
+        name: "Forward auth — Requires sign-in to access",
       }),
     ).toBeInTheDocument();
   });
@@ -280,7 +280,9 @@ describe("the launcher", () => {
   it("asks the member to connect one when nothing is connected yet", async () => {
     mount({ apps: [wiki], grants: [] });
     expect(
-      await screen.findByText("Connect an app to get started."),
+      await screen.findByText(
+        "No connected apps yet. Choose Add app to connect one.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Add app/ })).toBeInTheDocument();
   });

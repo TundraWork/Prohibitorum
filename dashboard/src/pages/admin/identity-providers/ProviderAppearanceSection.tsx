@@ -18,7 +18,7 @@ type Provider = components["schemas"]["IdentityProviderView"];
 
 const nameRequired = msg({
   id: "admin.federation.appearance.name.required",
-  message: "Give the provider a name.",
+  message: "Enter a name.",
 });
 
 /** The form's values for a stored record, also the baseline after a save. */

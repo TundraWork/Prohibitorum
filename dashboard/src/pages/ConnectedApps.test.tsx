@@ -97,7 +97,7 @@ describe("the page", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Applications you allowed to sign you in. Removing one makes it ask again next time.",
+        "View and manage the applications you've authorized. After you remove access, an app asks for permission again the next time you sign in.",
       ),
     ).toBeInTheDocument();
   });
@@ -136,7 +136,7 @@ describe("the connected application rows", () => {
     const [row] = (await rows()) as [HTMLElement];
     const details = row.querySelector("[data-slot='item-details']");
     expect(details).toHaveTextContent(
-      "Confirm who you are, your profile, and your email address",
+      "Your account identifier, your profile, and your email address",
     );
     expect(details).not.toHaveTextContent("openid");
   });

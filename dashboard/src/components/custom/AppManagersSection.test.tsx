@@ -108,7 +108,7 @@ describe("the managers", () => {
 
     expect(
       await screen.findByText(
-        "Managers can change everything on this page except who manages it.",
+        "Managers can change every setting on this page except the list of managers.",
       ),
     ).toBeVisible();
     const list = await screen.findByRole("list", { name: "Managers" });
@@ -265,7 +265,9 @@ describe("a delegated manager", () => {
         <AppManagerNote isAdmin={false} />
       </I18nProvider>,
     );
-    expect(screen.getByText("You manage this application.")).toBeVisible();
+    expect(
+      screen.getByText("You are assigned to manage this application."),
+    ).toBeVisible();
 
     rerender(
       <I18nProvider i18n={i18n}>
@@ -273,7 +275,7 @@ describe("a delegated manager", () => {
       </I18nProvider>,
     );
     expect(
-      screen.queryByText("You manage this application."),
+      screen.queryByText("You are assigned to manage this application."),
     ).not.toBeInTheDocument();
   });
 });

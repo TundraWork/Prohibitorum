@@ -165,8 +165,8 @@ export function AccountProfileSection({ account }: { account: Account }) {
           title={title}
           description={
             <Trans id="admin.user.profile.description">
-              The name and role of the account, and the attributes applications
-              can read.
+              Edit the account's display name, role and attributes, or view its
+              OIDC subject.
             </Trans>
           }
           dirty={dirty}
@@ -249,9 +249,9 @@ export function AccountProfileSection({ account }: { account: Account }) {
                   label={<Trans id="admin.user.attributes">Attributes</Trans>}
                   description={
                     <Trans id="admin.user.attributes.hint">
-                      A JSON object stored with the account. Saving sends
-                      whatever is in this box, so anything removed here is
-                      removed from the account.
+                      A JSON object stored with the account. Saving replaces the
+                      whole object, so keys removed here are removed from the
+                      account.
                     </Trans>
                   }
                   rows={8}
@@ -267,7 +267,7 @@ export function AccountProfileSection({ account }: { account: Account }) {
               title={<Trans id="admin.user.oidcSubject">OIDC subject</Trans>}
               description={
                 <Trans id="admin.user.oidcSubject.hint">
-                  Applications identify this account by this value. It never
+                  Applications identify this account by this ID, which never
                   changes.
                 </Trans>
               }

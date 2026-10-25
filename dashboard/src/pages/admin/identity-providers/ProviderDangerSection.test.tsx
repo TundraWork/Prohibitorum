@@ -172,17 +172,17 @@ describe("enabling", () => {
   });
 
   it.each([
-    ["oidc", {}, "Needs a valid connection before it can be enabled."],
+    ["oidc", {}, "Configure a valid connection before enabling this provider."],
     [
       "oidc",
       { secretConfigured: false },
-      "Needs a client secret before it can be enabled.",
+      "Set a client secret before enabling this provider.",
     ],
-    ["steam", {}, "Set the Web API key before enabling it."],
+    ["steam", {}, "Set the Web API key before enabling this provider."],
     [
       "vrchat",
       { secretStatus: "unconfigured", secretConfigured: false },
-      "Sign in the operator account before enabling it.",
+      "Sign in the operator account before enabling this provider.",
     ],
   ])(
     "is disabled for an unready %s provider, with the reason as text",
@@ -208,7 +208,7 @@ describe("enabling", () => {
   it("gives no reason while the provider is ready", () => {
     mount(providerFixture({ disabled: true }));
     expect(screen.getByRole("button", { name: "Enable" })).toBeEnabled();
-    expect(screen.queryByText(/before it can be enabled/)).toBeNull();
+    expect(screen.queryByText(/before enabling this provider/)).toBeNull();
   });
 
   it("reports a refused enable once, on the section", async () => {
@@ -235,11 +235,11 @@ describe("the delete confirmation", () => {
 
     const dialog = await openDeleteDialog(user);
     expect(
-      within(dialog).getByText(/2 accounts lose the way they sign in/),
+      within(dialog).getByText(/2 accounts will no longer be able to sign in/),
     ).toBeVisible();
     expect(
       within(dialog).getByText(
-        /3 unfinished invitations whose identities were verified/,
+        /3 unfinished invitations verified through this provider/,
       ),
     ).toBeVisible();
     expect(within(dialog).getByText("identity:corp")).toBeVisible();
@@ -253,11 +253,11 @@ describe("the delete confirmation", () => {
 
     const dialog = await openDeleteDialog(user);
     expect(
-      within(dialog).getByText(/1 account loses the way they sign in/),
+      within(dialog).getByText(/1 account will no longer be able to sign in/),
     ).toBeVisible();
     expect(
       within(dialog).getByText(
-        /1 unfinished invitation whose identity was verified/,
+        /1 unfinished invitation verified through this provider/,
       ),
     ).toBeVisible();
   });
@@ -268,7 +268,7 @@ describe("the delete confirmation", () => {
 
     const dialog = await openDeleteDialog(user);
     expect(
-      within(dialog).getByText(/The provider and its icon are removed/),
+      within(dialog).getByText(/The provider and its icon will be deleted/),
     ).toBeVisible();
     expect(within(dialog).queryByText(/unfinished invitation/)).toBeNull();
   });

@@ -33,7 +33,7 @@ describe("the rule's footer reason", () => {
   it("states a problem with the rule as a whole", () => {
     summary([{ nodeId: null, code: "empty_rule" }]);
     expect(
-      screen.getByText("Add a condition to say who this group matches."),
+      screen.getByText("A rule needs at least one condition."),
     ).toBeVisible();
   });
 

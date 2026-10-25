@@ -181,8 +181,8 @@ function MissingPage({ leave }: { leave: Leave }) {
       title={<Trans id="route.not-found">Page not found</Trans>}
       description={
         <Trans id="route.not-found.description">
-          This address doesn't lead to a page. It may have moved or been
-          mistyped.
+          No page exists at this address. The page may have moved, or the
+          address may be incorrect.
         </Trans>
       }
     >

@@ -30,7 +30,7 @@ const username = {
   label: msg({ id: "principal-source.username", message: "Username" }),
   description: msg({
     id: "principal-source.username.hint",
-    message: "Easy to read. An administrator can change it.",
+    message: "Human-readable. An administrator can change it.",
   }),
 } as const;
 
@@ -43,7 +43,7 @@ const verifiedEmail = {
   description: msg({
     id: "principal-source.verified-email.hint",
     message:
-      "The primary address, sent only while it is verified and no other account uses it; otherwise the request is refused. Changing the primary address changes what applications see.",
+      "The user's primary address, sent only if it is verified and no other account uses it; otherwise the request is refused. If the user changes their primary address, the value applications receive changes too.",
   }),
 } as const;
 

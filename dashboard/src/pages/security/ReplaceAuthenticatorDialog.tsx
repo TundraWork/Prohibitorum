@@ -120,8 +120,8 @@ function ReplaceForm({
             <SurfaceAlert.Content>
               <SurfaceAlert.Title>
                 <Trans id="security.totp.replace.note">
-                  Your current authenticator and every existing recovery code
-                  stop working as soon as this succeeds.
+                  After the replacement, your current authenticator and all
+                  existing recovery codes stop working immediately.
                 </Trans>
               </SurfaceAlert.Title>
             </SurfaceAlert.Content>

@@ -43,7 +43,7 @@ export function ProvisioningModeField({
               values: ["auto_provision"],
               reason: (
                 <Trans id="admin.federation.mode.auto.needs-sign-in">
-                  Turn sign-in on to create accounts.
+                  Creating accounts requires sign-in to be on.
                 </Trans>
               ),
             }

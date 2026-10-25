@@ -116,7 +116,7 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
 
   const title = t({
     id: "admin.oidc-apps.identity.title",
-    message: "Identity",
+    message: "Identity projection",
   });
 
   return (
@@ -129,7 +129,7 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
             title={title}
             description={
               <Trans id="admin.oidc-apps.identity.description">
-                What the client is told about someone who signs in.
+                The user identifier and claims the client receives.
               </Trans>
             }
             dirty={dirty}
@@ -139,8 +139,8 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
                   consequence={
                     sourceChanged ? (
                       <Trans id="admin.oidc-apps.subject.consequence">
-                        Changing the subject source signs everyone out of every
-                        client.
+                        Changing the subject source makes this application treat
+                        existing users as new accounts.
                       </Trans>
                     ) : undefined
                   }
@@ -171,7 +171,7 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
                     }
                     description={
                       <Trans id="admin.oidc-apps.subject.explain">
-                        The identifier a client stores for this account.
+                        The identifier a client stores for each account.
                       </Trans>
                     }
                   />
@@ -200,10 +200,9 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
         body={
           <p>
             <Trans id="admin.oidc-apps.subject.confirm.body">
-              Every client that has signed this account in before stores the
-              subject it was given. Changing the source makes each of them see a
-              new account, so existing sessions at those clients no longer
-              recognise it.
+              Clients store the subject they received for each user who has
+              signed in. After the source changes, clients treat those users as
+              new accounts, and existing sessions no longer match them.
             </Trans>
           </p>
         }

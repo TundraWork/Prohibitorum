@@ -32,7 +32,7 @@ const noticeTooLong = msg({
 const defaultNoticeRequired = msg({
   id: "settings.maintenance.notice.default_required",
   message:
-    "Write the notice in the default language too, so every visitor sees it.",
+    "Also enter the notice in the default language. It is shown to visitors whose language has no notice.",
 });
 
 /** The form's value: one text box per language, an empty string meaning none. */
@@ -55,8 +55,8 @@ function messagesFromConfig(config: {
 function MaintenanceConsequence() {
   return (
     <Trans id="settings.maintenance.confirm.body">
-      Nobody except administrators can sign in or use applications until it is
-      turned off.
+      Until maintenance mode is turned off, only administrators can sign in and
+      use applications.
     </Trans>
   );
 }
@@ -158,8 +158,8 @@ function MaintenanceSection({ saved }: { saved: MaintenanceFormValue }) {
             title={title}
             description={
               <Trans id="settings.maintenance.description">
-                Keep everyone but administrators out while you work on the
-                instance.
+                During maintenance, only administrators can sign in and use
+                applications.
               </Trans>
             }
             dirty={dirty}
@@ -206,7 +206,7 @@ function MaintenanceSection({ saved }: { saved: MaintenanceFormValue }) {
                     })}
                     description={
                       <Trans id="settings.maintenance.default_locale.hint">
-                        Shown when a visitor's language has no notice.
+                        Used for visitors whose language has no notice.
                       </Trans>
                     }
                     options={locales.map((locale) => ({
@@ -271,9 +271,9 @@ function MaintenanceSection({ saved }: { saved: MaintenanceFormValue }) {
                         locale === defaultLocale ? (
                           <Trans id="settings.maintenance.notice.hint">
                             Shown on the sign-in page and the maintenance page
-                            while maintenance mode is on. A visitor sees the
-                            notice in their own language, or this one when
-                            theirs has none.
+                            while maintenance mode is on. Visitors see the
+                            notice in their language, or this one if their
+                            language has none.
                           </Trans>
                         ) : undefined
                       }
@@ -301,7 +301,7 @@ function MaintenanceSection({ saved }: { saved: MaintenanceFormValue }) {
         body={
           <p>
             <Trans id="settings.maintenance.confirm.short">
-              Only administrators will be able to sign in.
+              Once it is on, only administrators can sign in.
             </Trans>
           </p>
         }

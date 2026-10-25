@@ -132,7 +132,7 @@ export function AdminOidcApplications() {
         title={<Trans id="admin.oidc-apps.page.title">OIDC applications</Trans>}
         description={
           <Trans id="admin.oidc-apps.page.description">
-            Applications that sign people in through this instance with OpenID
+            Applications that use this instance for sign-in through OpenID
             Connect.
           </Trans>
         }
@@ -184,8 +184,8 @@ export function AdminOidcApplications() {
               description={
                 isAdmin ? (
                   <Trans id="admin.oidc-apps.empty.description">
-                    Register a client to let people sign in to an application
-                    with OpenID Connect.
+                    Register an application that signs people in with OpenID
+                    Connect.
                   </Trans>
                 ) : (
                   <Trans id="admin.apps.empty.managed">

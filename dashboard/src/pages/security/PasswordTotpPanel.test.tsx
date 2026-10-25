@@ -245,7 +245,7 @@ describe("password and authenticator rows", () => {
     });
     expect(
       within(dialog).getByText(
-        "Once this is done, your current password, authenticator and recovery codes are all replaced.",
+        "Completing setup replaces your current password, authenticator and recovery codes.",
       ),
     ).toBeInTheDocument();
   });
@@ -296,7 +296,7 @@ describe("password and authenticator rows", () => {
     mount(neither);
     expect(
       await screen.findByText(
-        "For a device without your passkeys. Not set up yet.",
+        "Sign in with a password and authenticator on a device that does not have your passkeys. Not set up yet.",
       ),
     ).toBeInTheDocument();
   });
@@ -305,7 +305,7 @@ describe("password and authenticator rows", () => {
     mount({ ...neither, passwordSet: true });
     expect(
       await screen.findByText(
-        "Only part of this is set up. Set it up again to use it.",
+        "The password and authenticator are only partly set up. Set them up again to use them.",
       ),
     ).toBeInTheDocument();
   });
@@ -314,7 +314,9 @@ describe("password and authenticator rows", () => {
     mount(bothSet);
     await screen.findByText("Recovery codes");
     expect(
-      screen.getByText("For a device without your passkeys."),
+      screen.getByText(
+        "Sign in with a password and authenticator on a device that does not have your passkeys.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -433,7 +435,7 @@ describe("setting up both", () => {
     await user.click(within(dialog).getByRole("button", { name: "Next" }));
     expect(
       await within(dialog).findByText(
-        "Use a password of at least 8 characters.",
+        "The password must be at least 8 characters.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -459,7 +461,7 @@ describe("setting up both", () => {
     // The code is the next step's, so it has not been asked for.
     expect(
       within(dialog).queryByText(
-        "Enter the code your authenticator shows, using only 0–9.",
+        "Enter the code shown in your authenticator, using digits 0–9 only.",
       ),
     ).not.toBeInTheDocument();
     expect(requests("/me/password-totp/verify")).toHaveLength(0);
@@ -519,7 +521,7 @@ describe("setting up both", () => {
     );
     expect(
       within(dialog).getByText(
-        "The key was made in this browser and is sent only when you confirm.",
+        "The authenticator key is generated in this browser and is sent only when you select Turn on.",
       ),
     ).toBeInTheDocument();
   });
@@ -862,7 +864,7 @@ describe("changing one factor", () => {
     });
     expect(
       within(dialog).getByText(
-        "Your current authenticator and every existing recovery code stop working as soon as this succeeds.",
+        "After the replacement, your current authenticator and all existing recovery codes stop working immediately.",
       ),
     ).toBeInTheDocument();
     // The code is what the reader does next, not the setup key.

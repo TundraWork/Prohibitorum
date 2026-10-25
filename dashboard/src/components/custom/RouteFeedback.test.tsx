@@ -287,9 +287,7 @@ describe("public pages", () => {
     });
     expect(heading).toHaveFocus();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(
-      screen.getByText("The request could not be accepted."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("The request is not valid.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Back to sign-in" }));
     expect(await screen.findByText("Sign-in page")).toBeInTheDocument();
@@ -404,7 +402,7 @@ describe("whole-window failures", () => {
     expect(heading).toHaveFocus();
     expect(heading.closest('[data-slot="stage-card"]')).not.toBeNull();
     expect(
-      screen.getByText("Something went wrong on this page."),
+      screen.getByText("An error occurred on this page."),
     ).toBeInTheDocument();
     expect(screen.getByText("Error: boom")).toBeInTheDocument();
     expect(

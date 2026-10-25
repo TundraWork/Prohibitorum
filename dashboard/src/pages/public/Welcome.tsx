@@ -87,8 +87,8 @@ export function WelcomePage() {
       title={<Trans id="welcome.title">Is this your account?</Trans>}
       description={
         <Trans id="welcome.description">
-          You're signing in through {idp} for the first time, and {instance} has
-          prepared this account for you.
+          This is your first sign-in through {idp}. {instance} has prepared the
+          account below for you.
         </Trans>
       }
       actions={

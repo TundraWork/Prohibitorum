@@ -18,9 +18,8 @@ export function AdminHome() {
         title={<Trans id="admin.home.title">Administration</Trans>}
         description={
           <Trans id="admin.home.summary">
-            Accounts, user groups, invitations, identity providers, downstream
-            applications, logs and settings are managed from the sections in the
-            sidebar.
+            Manage accounts, user groups, invitations, identity providers,
+            downstream applications, logs and settings from the sidebar.
           </Trans>
         }
       />

@@ -209,7 +209,8 @@ export function AdminSamlApplicationNew() {
         description={
           <Trans id="admin.saml-apps.new.description">
             Register a service provider that signs people in through this
-            instance. The rest of its settings are on its page once it exists.
+            instance. Other settings are available on the application's page
+            after it is created.
           </Trans>
         }
       />
@@ -231,7 +232,7 @@ export function AdminSamlApplicationNew() {
             }
             description={
               <Trans id="admin.saml-apps.new.identity.description">
-                The name people see for the application.
+                The application name shown to users.
               </Trans>
             }
           >
@@ -260,8 +261,8 @@ export function AdminSamlApplicationNew() {
             }
             description={
               <Trans id="admin.saml-apps.new.registration.description">
-                A service provider usually publishes a metadata document with
-                everything the instance needs.
+                Service providers usually publish a metadata document that
+                contains everything needed for registration.
               </Trans>
             }
           >
@@ -286,8 +287,8 @@ export function AdminSamlApplicationNew() {
                 }
                 description={
                   <Trans id="admin.saml-apps.new.mode.metadata.description">
-                    Paste the document the service provider publishes. The
-                    Entity ID, the endpoints and the certificates come from it.
+                    Paste the metadata document the service provider publishes.
+                    The Entity ID, endpoints and certificates are read from it.
                   </Trans>
                 }
               />
@@ -296,13 +297,13 @@ export function AdminSamlApplicationNew() {
                 value="manual"
                 label={
                   <Trans id="admin.saml-apps.new.mode.manual">
-                    Enter it by hand
+                    Enter manually
                   </Trans>
                 }
                 description={
                   <Trans id="admin.saml-apps.new.mode.manual.description">
-                    For a provider that publishes no document you can reach. You
-                    give the Entity ID and the endpoints yourself.
+                    For a service provider without a reachable metadata
+                    document. Enter the Entity ID and endpoints manually.
                   </Trans>
                 }
               />
@@ -320,11 +321,12 @@ export function AdminSamlApplicationNew() {
             description={
               mode === "metadata" ? (
                 <Trans id="admin.saml-apps.new.provider.metadata.description">
-                  The document the service provider publishes.
+                  The metadata document the service provider publishes.
                 </Trans>
               ) : (
                 <Trans id="admin.saml-apps.new.provider.manual.description">
-                  What the instance cannot work out without a document.
+                  The service provider's Entity ID and Assertion Consumer
+                  Service endpoints.
                 </Trans>
               )
             }
@@ -342,7 +344,7 @@ export function AdminSamlApplicationNew() {
                     }
                     description={
                       <Trans id="admin.saml-apps.field.metadata.hint">
-                        The document the service provider publishes for its
+                        The document the service provider publishes at its
                         metadata endpoint.
                       </Trans>
                     }
@@ -396,8 +398,8 @@ export function AdminSamlApplicationNew() {
                       }
                       description={
                         <Trans id="admin.saml-apps.field.acs.hint">
-                          Where the instance sends the assertion. Exactly one
-                          endpoint is the default one.
+                          Where the instance sends assertions. Exactly one
+                          endpoint must be the default.
                         </Trans>
                       }
                       emptyRow={() => ({
@@ -425,8 +427,7 @@ export function AdminSamlApplicationNew() {
             title={<Trans id="admin.saml-apps.sign-in.title">Sign-in</Trans>}
             description={
               <Trans id="admin.saml-apps.new.sign-in.description">
-                What the service provider has to send, and where people may
-                start signing in.
+                Request signing and where sign-in can start.
               </Trans>
             }
           >
@@ -441,9 +442,9 @@ export function AdminSamlApplicationNew() {
                     }
                     description={
                       <Trans id="admin.saml-apps.general.signed-request.hint">
-                        Refuse a sign-in request the service provider has not
-                        signed. Good practice for every provider that can sign
-                        one.
+                        Refuses sign-in requests the service provider has not
+                        signed. Recommended for any service provider that can
+                        sign requests.
                       </Trans>
                     }
                   />
@@ -460,8 +461,8 @@ export function AdminSamlApplicationNew() {
                     }
                     description={
                       <Trans id="admin.saml-apps.field.idp-initiated.hint">
-                        Let people start at this instance instead of at the
-                        service provider.
+                        Allow users to start sign-in from this instance instead
+                        of from the service provider.
                       </Trans>
                     }
                   />
@@ -476,8 +477,9 @@ export function AdminSamlApplicationNew() {
             title={<Trans id="app.access.title">Access</Trans>}
             description={
               <Trans id="admin.oidc-apps.new.access.description">
-                Open it to every account, or limit it to user groups. The groups
-                are chosen on the application's page.
+                Open the application to every account or limit it to user
+                groups. Groups are chosen on the application's page after it is
+                created.
               </Trans>
             }
           >

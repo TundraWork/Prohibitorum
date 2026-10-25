@@ -88,13 +88,13 @@ describe("the carousel's interval", () => {
         errors={[
           {
             id: "settings.sign-in.interval.range",
-            message: "Choose between 5 and 3600 seconds.",
+            message: "Enter a value between 5 and 3600 seconds.",
           },
         ]}
       />,
     );
     expect(
-      screen.getByText("Choose between 5 and 3600 seconds."),
+      screen.getByText("Enter a value between 5 and 3600 seconds."),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "Change every" }),

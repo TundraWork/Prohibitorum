@@ -91,7 +91,7 @@ export function FederationFlowPage() {
         }
         description={
           <Trans id="federation_flow.verified.description">
-            You can remove the verification link from your VRChat bio now.
+            You can now remove the verification link from your VRChat bio.
           </Trans>
         }
         actions={
@@ -403,12 +403,13 @@ function ProofStep({
             </Step>
             <Step number={2}>
               <Trans id="federation_flow.proof.step.bio">
-                In VRChat, add it to the links in your bio and save.
+                In VRChat, add the verification link to the links in your bio
+                and save.
               </Trans>
             </Step>
             <Step number={3}>
               <Trans id="federation_flow.proof.step.verify">
-                Come back here and press Verify.
+                Return to this page and select Verify.
               </Trans>
             </Step>
           </Steps>
@@ -435,7 +436,7 @@ function ProofStep({
                     }
                     description={
                       <Trans id="federation_flow.username.description">
-                        This is your username on {instance}.
+                        Use this username to sign in to {instance}.
                       </Trans>
                     }
                     autoComplete="username"

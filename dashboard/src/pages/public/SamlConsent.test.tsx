@@ -62,7 +62,7 @@ it("names the service and the attributes it will receive", async () => {
     await screen.findByRole("heading", { name: "Continue to Nextcloud?" }),
   ).toHaveFocus();
   expect(rows()).toEqual(["Display name", "Email address"]);
-  expect(screen.getByText(/You only need to confirm this once/)).toBeVisible();
+  expect(screen.getByText(/This is asked only once/)).toBeVisible();
 });
 
 it("says the basic account information goes when no attribute is configured", async () => {
@@ -115,7 +115,7 @@ it("reports an expired ticket as a failed page, with no restart to offer", async
   ).toBeVisible();
   expect(
     screen.getByText(
-      "This authorization request has expired or was already used. Go back to the app and sign in again.",
+      "This authorization request has expired or has already been used. Go back to the app and sign in again.",
     ),
   ).toBeVisible();
   expect(

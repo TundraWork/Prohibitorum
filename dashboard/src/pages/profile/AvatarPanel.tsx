@@ -49,7 +49,8 @@ export function AvatarPanel() {
       title={<Trans id="profile.avatar.title">Picture</Trans>}
       description={
         <Trans id="profile.avatar.description">
-          What others see next to your name.
+          Other people and the applications you authorize can see the picture
+          you set.
         </Trans>
       }
     >
@@ -119,7 +120,8 @@ function AvatarGallery() {
       title={<Trans id="profile.avatar.title">Picture</Trans>}
       description={
         <Trans id="profile.avatar.description">
-          What others see next to your name.
+          Other people and the applications you authorize can see the picture
+          you set.
         </Trans>
       }
       footer={
@@ -212,7 +214,7 @@ function AvatarGallery() {
         }
         body={
           <Trans id="profile.avatar.remove.description">
-            This can't be undone.
+            This cannot be undone.
           </Trans>
         }
         confirmLabel={<Trans id="profile.avatar.remove.confirm">Remove</Trans>}

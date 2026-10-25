@@ -82,13 +82,13 @@ export function AccountDangerSection({
           details={[
             account.disabled ? (
               <Trans key="note" id="admin.user.state.disabled.note">
-                This account cannot sign in. Enabling it restores access with
-                the sign-in methods it already had.
+                This account is disabled and cannot sign in. Once enabled, it
+                can sign in with its existing sign-in methods.
               </Trans>
             ) : (
               <Trans key="note" id="admin.user.state.enabled.note.short">
-                Disabling stops this account signing in and signs it out of
-                every session it has open.
+                A disabled account cannot sign in, and all its sessions end. It
+                can be enabled again at any time.
               </Trans>
             ),
           ]}
@@ -122,7 +122,7 @@ export function AccountDangerSection({
                 className="size-3.5 shrink-0"
               />
               <Trans id="admin.user.state.admin-blocked">
-                An admin cannot be disabled. Make them a user first.
+                Admins cannot be disabled. Change the role to User first.
               </Trans>
             </p>
           )}
@@ -135,8 +135,8 @@ export function AccountDangerSection({
           }
           details={[
             <Trans key="note" id="admin.user.delete.note">
-              Removes the account and everything it owns: passkeys, sessions,
-              access tokens and connected identities. This cannot be undone.
+              Deletes the account with its passkeys, sessions, access tokens and
+              linked identities. This cannot be undone.
             </Trans>,
           ]}
           stackActions
@@ -194,12 +194,12 @@ export function AccountDangerSection({
           <p>
             {confirming === "enable" ? (
               <Trans id="admin.user.state.enable.body">
-                They will be able to sign in again straight away.
+                The account can sign in again immediately.
               </Trans>
             ) : (
               <Trans id="admin.user.state.disable.body">
-                They will be signed out of every session they have open and will
-                not be able to sign in until you enable the account again.
+                The account is signed out of all sessions and cannot sign in
+                until it is enabled again.
               </Trans>
             )}
           </p>
@@ -236,9 +236,8 @@ export function AccountDangerSection({
         body={
           <p>
             <Trans id="admin.user.delete.confirm.body">
-              The account, its passkeys, its sessions, its access tokens and its
-              connected identities are removed immediately. This cannot be
-              undone.
+              The account and its passkeys, sessions, access tokens and linked
+              identities are deleted immediately. This cannot be undone.
             </Trans>
           </p>
         }

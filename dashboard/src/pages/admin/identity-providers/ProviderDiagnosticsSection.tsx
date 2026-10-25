@@ -173,7 +173,7 @@ function ConnectionTestRow({
       badges={<LastTestBadges test={lastTest.data?.latest} />}
       details={[
         <Trans key="hint" id="admin.federation.diagnostics.test.empty">
-          Sign in once at the provider and check each stage in turn.
+          Signs in once at the provider and checks each stage in turn.
         </Trans>,
       ]}
       stackActions

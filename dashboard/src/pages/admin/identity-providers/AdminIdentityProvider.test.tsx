@@ -81,7 +81,9 @@ describe("the provider header", () => {
     ) as HTMLElement;
     expect(within(header).getByText("corp")).toBeVisible();
     expect(within(header).getByText("OpenID Connect")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Copy the slug" })).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Copy the identifier" }),
+    ).toBeVisible();
   });
 
   it("copies the slug", async () => {
@@ -92,7 +94,9 @@ describe("the provider header", () => {
       value: { writeText },
       configurable: true,
     });
-    await user.click(screen.getByRole("button", { name: "Copy the slug" }));
+    await user.click(
+      screen.getByRole("button", { name: "Copy the identifier" }),
+    );
     expect(writeText).toHaveBeenCalledWith("corp");
   });
 
@@ -135,7 +139,7 @@ describe("the provider header", () => {
     // Visible text under the header, not a tooltip.
     const note = document.querySelector('[data-slot="provider-not-ready"]');
     expect(note).toHaveTextContent(
-      "Sign in the operator account before enabling it.",
+      "Sign in the operator account before enabling this provider.",
     );
     expect(note).toBeVisible();
   });
@@ -145,13 +149,13 @@ describe("the provider header", () => {
     expect(
       document.querySelector('[data-slot="provider-not-ready"]'),
     ).toHaveTextContent(
-      "Linking and verifying through this provider fail until the operator account is signed in again.",
+      "Linking and verification through this provider fail because the operator session has expired.",
     );
   });
 
   it("gives no reason for a ready provider", async () => {
     await mountPage(providerFixture());
-    expect(screen.queryByText(/before it can be enabled/)).toBeNull();
+    expect(screen.queryByText(/before enabling this provider/)).toBeNull();
   });
 });
 

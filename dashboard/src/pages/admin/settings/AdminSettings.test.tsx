@@ -49,7 +49,7 @@ describe("the settings page", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        "How this instance is named, signed in to and kept running.",
+        "Manage the instance name and icon, sign-in page, maintenance mode, mail, client IP and signing keys.",
       ),
     ).toBeVisible();
   });

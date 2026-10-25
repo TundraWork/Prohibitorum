@@ -42,12 +42,12 @@ export function ImageRejectedAlert({
         <SurfaceAlert.Title>
           {reason === "too_large" ? (
             <Trans id="image-upload.too_large">
-              Choose an image no larger than {limitMiB} MiB.
+              The image is larger than {limitMiB} MiB.
             </Trans>
           ) : (
             <Trans id="image-upload.wrong_type">
-              This file type is not supported. Choose one of the formats listed
-              above.
+              This file type is not supported. Choose a file in one of the
+              listed formats.
             </Trans>
           )}
         </SurfaceAlert.Title>

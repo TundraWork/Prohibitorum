@@ -130,7 +130,7 @@ describe("the account section", () => {
     await user.tab();
 
     expect(
-      await screen.findByText("Use 60 characters or fewer."),
+      await screen.findByText("The name cannot be longer than 60 characters."),
     ).toBeVisible();
     expect(field).toBeInvalid();
     await user.click(save() as HTMLElement);
@@ -145,7 +145,7 @@ describe("the account section", () => {
     fireEvent.blur(field);
 
     expect(
-      await screen.findByText("Remove control characters from the name."),
+      await screen.findByText("The name cannot contain control characters."),
     ).toBeVisible();
   });
 
@@ -159,9 +159,11 @@ describe("the account section", () => {
     expect(subject).toHaveValue(session.oidcSubject);
     expect(subject).toHaveAttribute("readonly");
     expect(subject).toHaveAccessibleDescription(
-      "Applications identify you by this value. It never changes.",
+      "Applications you authorize identify you by this ID.",
     );
-    expect(username).toHaveAccessibleDescription("What you type to sign in.");
+    expect(username).toHaveAccessibleDescription(
+      "Use this username to sign in to your account.",
+    );
   });
 
   it("copies each identifier whole", async () => {

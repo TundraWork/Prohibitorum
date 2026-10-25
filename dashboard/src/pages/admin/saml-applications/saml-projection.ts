@@ -85,19 +85,19 @@ export const accountAttributeLabel: MessageDescriptor =
 export const mappingMessages = {
   nameRequired: msg({
     id: "admin.saml-apps.mapping.name.required",
-    message: "Give this attribute a name.",
+    message: "Enter an attribute name.",
   }),
   nameDuplicate: msg({
     id: "admin.saml-apps.mapping.name.duplicate",
-    message: "Another attribute already sends under this name.",
+    message: "Another attribute already uses this name.",
   }),
   sourceUnknown: msg({
     id: "admin.saml-apps.mapping.source.unknown",
-    message: "Choose where this attribute reads from.",
+    message: "Choose a source for this attribute.",
   }),
   keyRequired: msg({
     id: "admin.saml-apps.mapping.key.required",
-    message: "Name the account attribute this reads from.",
+    message: "Enter the account attribute to read from.",
   }),
 } as const;
 

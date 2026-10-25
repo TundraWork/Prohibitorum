@@ -79,7 +79,7 @@ describe("the identity section", () => {
 
     expect(
       await screen.findByText(
-        "Changing the subject source signs everyone out of every client.",
+        "Changing the subject source makes this application treat existing users as new accounts.",
       ),
     ).toBeVisible();
     expect(

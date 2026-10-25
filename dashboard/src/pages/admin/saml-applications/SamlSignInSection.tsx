@@ -102,8 +102,7 @@ export function SamlSignInSection({ app }: { app: SamlApp }) {
           title={title}
           description={
             <Trans id="admin.saml-apps.sign-in.description">
-              How long a session lasts, and what the service provider has to
-              send.
+              Session lifetime, request signing and where sign-in can start.
             </Trans>
           }
           dirty={dirty}
@@ -130,8 +129,7 @@ export function SamlSignInSection({ app }: { app: SamlApp }) {
                   }
                   description={
                     <Trans id="admin.saml-apps.field.lifetime.hint">
-                      In minutes. Leave it empty to set no limit on how long a
-                      session lasts.
+                      In minutes. Leave empty for no limit.
                     </Trans>
                   }
                   className="max-w-lg"
@@ -150,9 +148,9 @@ export function SamlSignInSection({ app }: { app: SamlApp }) {
                     }
                     description={
                       <Trans id="admin.saml-apps.general.signed-request.hint">
-                        Refuse a sign-in request the service provider has not
-                        signed. Good practice for every provider that can sign
-                        one.
+                        Refuses sign-in requests the service provider has not
+                        signed. Recommended for any service provider that can
+                        sign requests.
                       </Trans>
                     }
                   />
@@ -169,8 +167,8 @@ export function SamlSignInSection({ app }: { app: SamlApp }) {
                     }
                     description={
                       <Trans id="admin.saml-apps.general.idp-initiated.hint">
-                        Let people start at this instance instead of at the
-                        service provider.
+                        Allow users to start sign-in from this instance instead
+                        of from the service provider.
                       </Trans>
                     }
                   />

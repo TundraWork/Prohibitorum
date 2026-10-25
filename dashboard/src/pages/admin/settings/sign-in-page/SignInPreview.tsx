@@ -141,7 +141,7 @@ export function SignInPreview({
   const note = drawFailed
     ? t({
         id: "settings.sign-in.preview.failed",
-        message: "The sign-in page could not be drawn here.",
+        message: "The sign-in page preview could not be displayed.",
       })
     : needsKey
       ? background.source === "pixabay"

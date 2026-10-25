@@ -94,7 +94,7 @@ describe("the appearance section", () => {
     await user.clear(screen.getByRole("textbox", { name: "Name" }));
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("Give the provider a name.")).toBeVisible();
+    expect(await screen.findByText("Enter a name.")).toBeVisible();
     expect(puts()).toHaveLength(0);
   });
 

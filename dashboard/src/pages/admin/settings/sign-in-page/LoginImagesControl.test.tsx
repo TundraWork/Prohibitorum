@@ -90,7 +90,7 @@ describe("the uploaded sign-in images", () => {
     mount(2);
     expect(
       screen.getByText(
-        "Adding or removing an image takes effect right away, without Save.",
+        "Adding or removing images takes effect immediately, without saving.",
       ),
     ).toBeVisible();
   });
@@ -121,7 +121,7 @@ describe("the uploaded sign-in images", () => {
       }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText("10 of 10 · remove one to add another"),
+      screen.getByText("10 of 10 · Remove an image to add another"),
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Remove image 10" }),

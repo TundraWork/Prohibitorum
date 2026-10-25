@@ -31,8 +31,7 @@ export const clientIpMessages = {
   }),
   proxiesRequired: msg({
     id: "settings.network.proxies.required",
-    message:
-      "Enter at least one trusted proxy. Without one, this method has no effect.",
+    message: "Enter at least one trusted proxy. This method requires one.",
   }),
   proxiesTooMany: msg({
     id: "settings.network.proxies.too_many",

@@ -92,11 +92,11 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           details={[
             provider.disabled ? (
               <Trans key="off" id="admin.federation.danger.enable.hint">
-                It is not offered at sign-in right now.
+                This provider is disabled and is not shown on the sign-in page.
               </Trans>
             ) : (
               <Trans key="on" id="admin.federation.danger.disable.hint">
-                Nobody can sign in with it while it is disabled.
+                It can't be used to sign in while disabled.
               </Trans>
             ),
           ]}
@@ -148,7 +148,8 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           }
           details={[
             <Trans key="delete" id="admin.federation.danger.delete.hint">
-              The accounts linked through it stay; only the link is removed.
+              Linked accounts are kept; only their link to this provider is
+              removed.
             </Trans>,
           ]}
           stackActions
@@ -182,8 +183,8 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
         body={
           <p>
             <Trans id="admin.federation.danger.disable.confirm.body">
-              It disappears from the sign-in page and from every account that
-              could step up with it. Nothing is deleted.
+              The provider is removed from the sign-in page, and accounts can no
+              longer use it to verify their identity. No data is deleted.
             </Trans>
           </p>
         }
@@ -219,13 +220,10 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
             {count > 0 && (
               <p>
                 <Trans id="admin.federation.danger.delete.confirm.linked">
-                  <Plural
-                    value={count}
-                    one="# account loses"
-                    other="# accounts lose"
-                  />{" "}
-                  the way they sign in with it. An account that can only sign in
-                  this way needs a new registration link from you.
+                  <Plural value={count} one="# account" other="# accounts" />{" "}
+                  will no longer be able to sign in with this provider. Accounts
+                  with no other way to sign in need a new registration link from
+                  you.
                 </Trans>
               </p>
             )}
@@ -234,17 +232,17 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
                 <Trans id="admin.federation.danger.delete.confirm.pending">
                   <Plural
                     value={pending}
-                    one="# unfinished invitation whose identity was verified"
-                    other="# unfinished invitations whose identities were verified"
+                    one="# unfinished invitation"
+                    other="# unfinished invitations"
                   />{" "}
-                  through it is deleted with the provider.
+                  verified through this provider will also be deleted.
                 </Trans>
               </p>
             )}
             {count === 0 && pending === 0 && (
               <p>
                 <Trans id="admin.federation.danger.delete.confirm.empty">
-                  The provider and its icon are removed.
+                  The provider and its icon will be deleted.
                 </Trans>
               </p>
             )}
@@ -252,8 +250,8 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
               <Trans id="admin.federation.danger.delete.confirm.scope">
                 Applications allowed{" "}
                 <span className="font-mono">{identityScope}</span> lose that
-                scope, and what users agreed to for it is cleared, so a provider
-                added later with the same identifier starts fresh.
+                scope, and users' consent to it is cleared. A provider added
+                later with the same identifier needs new consent.
               </Trans>
             </p>
           </div>

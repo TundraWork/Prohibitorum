@@ -85,16 +85,15 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   invalid_nickname: msg({
     id: "error.invalid_nickname",
-    message: "Enter a valid nickname without control characters.",
+    message: "Enter a name of up to 60 characters, without control characters.",
   }),
   bad_request: msg({
     id: "error.bad_request",
-    message: "The request could not be accepted.",
+    message: "The request is not valid.",
   }),
   maintenance_default_notice_required: msg({
     id: "error.maintenance_default_notice_required",
-    message:
-      "Write the notice in the default language too, so every visitor sees it.",
+    message: "A notice in the default language is required.",
   }),
   request_too_large: msg({
     id: "error.request_too_large",
@@ -128,16 +127,17 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   pat_api_not_allowed: msg({
     id: "error.pat_api_not_allowed",
     message:
-      "This access token can only be used for applications, not for the account.",
+      "This access token can only be used for applications, not for account operations.",
   }),
   cross_origin_request: msg({
     id: "error.cross_origin_request",
     message:
-      "This request came from another website, so it was refused. Start again from a page on this site.",
+      "Requests from other websites are refused. Start again from a page on this site.",
   }),
   pat_browser_session_required: msg({
     id: "error.pat_browser_session_required",
-    message: "Sign in with a browser to do this. An access token cannot.",
+    message:
+      "This action cannot be performed with an access token. Sign in with a browser to do it.",
   }),
   sudo_method_unavailable: msg({
     id: "error.sudo_method_unavailable",
@@ -146,16 +146,16 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   last_passkey: msg({
     id: "error.last_passkey",
     message:
-      "Keep at least one passkey on the account. Add another one before removing this one.",
+      "This is the only passkey on the account and cannot be removed. Add another passkey first.",
   }),
   last_sign_in_method: msg({
     id: "error.last_sign_in_method",
     message:
-      "This is your only way to sign in, so it cannot be removed. Add another method first.",
+      "This is your only sign-in method and cannot be removed. Add another method first.",
   }),
   credential_not_found: msg({
     id: "error.credential_not_found",
-    message: "That passkey is already gone.",
+    message: "This passkey no longer exists.",
   }),
   session_not_found: msg({
     id: "error.session_not_found",
@@ -163,24 +163,25 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   cannot_revoke_current_session: msg({
     id: "error.cannot_revoke_current_session",
-    message: "This is the session you are using. Sign out instead.",
+    message: "The current session cannot be ended here. Sign out instead.",
   }),
   pairing_not_found: msg({
     id: "error.pairing_not_found",
     message:
-      "That pairing code is not valid. It may have been used already, or it may have expired.",
+      "This pairing code is not valid, has already been used, or has expired.",
   }),
   pairing_expired: msg({
     id: "error.pairing_expired",
-    message: "That pairing code has expired. Generate a new one on the device.",
+    message:
+      "This pairing code has expired. Generate a new code on the new device.",
   }),
   pairing_not_approved: msg({
     id: "error.pairing_not_approved",
-    message: "This pairing is not ready to be approved yet.",
+    message: "This pairing has not been approved yet.",
   }),
   pairing_state: msg({
     id: "error.pairing_state",
-    message: "This pairing is no longer in a state that allows that action.",
+    message: "This pairing's current state does not allow this action.",
   }),
   avatar_too_large: msg({
     id: "error.avatar_too_large",
@@ -188,7 +189,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   avatar_invalid_image: msg({
     id: "error.avatar_invalid_image",
-    message: "That file is not an image this instance can use.",
+    message: "This file is not a supported image.",
   }),
   avatar_source_unavailable: msg({
     id: "error.avatar_source_unavailable",
@@ -197,7 +198,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   would_remove_last_factor: msg({
     id: "error.would_remove_last_factor",
     message:
-      "This is your only way to sign in, so it cannot be removed. Add another method first.",
+      "This is your only sign-in method and cannot be removed. Add another method first.",
   }),
   bad_credentials: msg({
     id: "error.bad_credentials",
@@ -221,44 +222,44 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   ceremony_missing: msg({
     id: "error.ceremony_missing",
-    message: "This passkey sign-in could not be found.",
+    message: "This passkey operation is no longer valid.",
   }),
   ceremony_expired: msg({
     id: "error.ceremony_expired",
-    message: "The passkey sign-in attempt has expired.",
+    message: "The passkey operation timed out.",
   }),
   ceremony_state_invalid: msg({
     id: "error.ceremony_state_invalid",
-    message: "The passkey sign-in attempt could not be verified.",
+    message: "This passkey operation could not be verified.",
   }),
   login_failed: msg({
     id: "error.login_failed",
-    message: "Passkey sign-in failed. You can use your password instead.",
+    message:
+      "Passkey sign-in failed. You can sign in with your password instead.",
   }),
   login_verification_failed: msg({
     id: "error.login_verification_failed",
     message:
-      "The passkey could not be verified. You can use your password instead.",
+      "The passkey could not be verified. You can sign in with your password instead.",
   }),
   login_credential_unknown: msg({
     id: "error.login_credential_unknown",
     message:
-      "This passkey is no longer registered here. Use another passkey or your password.",
+      "This passkey is not registered with this instance. Use another passkey or your password.",
   }),
   not_bootstrapped: msg({
     id: "error.not_bootstrapped",
     message:
-      "This instance is not ready for sign-in. Contact its administrator.",
+      "This instance has not been set up yet, so sign-in is unavailable. Contact its administrator.",
   }),
   passkey_incomplete: msg({
     id: "error.passkey_incomplete",
     message:
-      "Verification was not completed. You can use your password instead.",
+      "Passkey verification was not completed. You can sign in with your password instead.",
   }),
   passkey_unsupported: msg({
     id: "error.passkey_unsupported",
-    message:
-      "Passkeys are unavailable in this browser. Use your password instead.",
+    message: "This browser does not support passkeys.",
   }),
   invalid_login_link: msg({
     id: "error.invalid_login_link",
@@ -271,7 +272,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   invalid_consent_ticket: msg({
     id: "error.invalid_consent_ticket",
     message:
-      "This authorization request has expired or was already used. Go back to the app and sign in again.",
+      "This authorization request has expired or has already been used. Go back to the app and sign in again.",
   }),
   require_identity_ticket_expired: msg({
     id: "error.require_identity_ticket_expired",
@@ -279,23 +280,23 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   invalid_return_to: msg({
     id: "error.invalid_return_to",
-    message: "Invalid return address.",
+    message: "The return address is not valid.",
   }),
 
   /* Enrollment and the public federation pages. */
   enrollment_consumed: msg({
     id: "error.enrollment_consumed",
     message:
-      "This link was already used or has expired. Ask your administrator for a new one.",
+      "This link has already been used or has expired. Ask your administrator for a new one.",
   }),
   enrollment_expired: msg({
     id: "error.enrollment_expired",
     message:
-      "This link was already used or has expired. Ask your administrator for a new one.",
+      "This link has already been used or has expired. Ask your administrator for a new one.",
   }),
   enrollment_method_not_allowed: msg({
     id: "error.enrollment_method_not_allowed",
-    message: "This link can't be used to set up that sign-in method.",
+    message: "This sign-in method cannot be set up with this link.",
   }),
   invalid_display_name: msg({
     id: "error.invalid_display_name",
@@ -308,7 +309,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   registration_failed: msg({
     id: "error.registration_failed",
-    message: "The passkey couldn't be created.",
+    message: "The passkey could not be created.",
   }),
   federation_action_invalid: msg({
     id: "error.federation_action_invalid",
@@ -317,7 +318,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   username_collision: msg({
     id: "error.username_collision",
     message:
-      "An account with this username already exists, so one can't be created automatically. Contact your administrator.",
+      "The username is already used by another account, so the account cannot be created automatically. Contact your administrator.",
   }),
   vrchat_identity_invalid: msg({
     id: "error.vrchat_identity_invalid",
@@ -326,7 +327,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   vrchat_proof_missing: msg({
     id: "error.vrchat_proof_missing",
     message:
-      "The verification link isn't in your bio yet. Save your profile, wait a moment, then verify.",
+      "The verification link was not found in your VRChat bio. Save your profile, wait a moment, then verify.",
   }),
   local_username_required: msg({
     id: "error.local_username_required",
@@ -339,20 +340,21 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   last_admin: msg({
     id: "error.last_admin",
     message:
-      "This is the only administrator. Make another account an administrator first.",
+      "This account is the only administrator. Make another account an administrator first.",
   }),
   admin_cannot_be_disabled: msg({
     id: "error.admin_cannot_be_disabled",
     message:
-      "An administrator cannot be disabled. Change the role to user first.",
+      "Administrator accounts cannot be disabled. Change the role to User first.",
   }),
   cannot_delete_self: msg({
     id: "error.cannot_delete_self",
-    message: "You cannot delete your own account. Ask another administrator.",
+    message:
+      "You cannot delete your own account. Another administrator must do it.",
   }),
   invalid_role: msg({
     id: "error.invalid_role",
-    message: "That role is not one this instance accepts.",
+    message: "This role is not valid.",
   }),
   username_immutable: msg({
     id: "error.username_immutable",
@@ -360,7 +362,8 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   invalid_username: msg({
     id: "error.invalid_username",
-    message: "That username is not in a format this instance accepts.",
+    message:
+      "Usernames must be 2–32 characters and use only lowercase letters, digits, underscores and hyphens.",
   }),
   username_taken: msg({
     id: "error.username_taken",
@@ -389,67 +392,65 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   group_slug_conflict: msg({
     id: "error.group_slug_conflict",
-    message: "Another user group already uses this identifier.",
+    message: "This identifier is already used by another user group.",
   }),
   group_in_use: msg({
     id: "error.group_in_use",
     message:
-      "One or more applications still use this user group. Remove it from them before deleting it.",
+      "This user group is still used by one or more applications. Remove it from those applications first.",
   }),
   invalid_group_rule: msg({
     id: "error.invalid_group_rule",
-    message: "The server did not accept this rule.",
+    message: "This rule is not valid.",
   }),
   login_images_full: msg({
     id: "error.login_images_full",
     message:
-      "The sign-in page already has 10 images. Remove one to add another.",
+      "The sign-in page already has the maximum of 10 images. Remove one first.",
   }),
   login_image_not_found: msg({
     id: "error.login_image_not_found",
-    message: "That image has already been removed.",
+    message: "This image has already been removed.",
   }),
   unsplash_key_required: msg({
     id: "error.unsplash_key_required",
-    message: "Enter an Unsplash access key to use Unsplash photos.",
+    message: "An Unsplash access key is required to use Unsplash photos.",
   }),
   unsplash_key_invalid: msg({
     id: "error.unsplash_key_invalid",
     message:
-      "Unsplash did not accept this access key. Check it and enter it again.",
+      "Unsplash rejected this access key. Check the key and enter it again.",
   }),
   unsplash_unreachable: msg({
     id: "error.unsplash_unreachable",
     message:
-      "Unsplash could not be reached, so the access key was not checked or saved.",
+      "Could not reach Unsplash. The access key was not verified or saved.",
   }),
   unsplash_key_in_use: msg({
     id: "error.unsplash_key_in_use",
     message:
-      "The sign-in page still uses Unsplash. Switch the background to another source and save before removing the key.",
+      "The sign-in page uses Unsplash, so the access key cannot be removed. Change the background to another source and save first.",
   }),
   pixabay_key_required: msg({
     id: "error.pixabay_key_required",
-    message: "Enter a Pixabay API key to use Pixabay pictures.",
+    message: "A Pixabay API key is required to use Pixabay pictures.",
   }),
   pixabay_key_invalid: msg({
     id: "error.pixabay_key_invalid",
-    message:
-      "Pixabay did not accept this API key. Check it and enter it again.",
+    message: "Pixabay rejected this API key. Check the key and enter it again.",
   }),
   pixabay_unreachable: msg({
     id: "error.pixabay_unreachable",
-    message:
-      "Pixabay could not be reached, so the API key was not checked or saved.",
+    message: "Could not reach Pixabay. The API key was not verified or saved.",
   }),
   pixabay_key_in_use: msg({
     id: "error.pixabay_key_in_use",
     message:
-      "The sign-in page still uses Pixabay. Switch the background to another source and save before removing the key.",
+      "The sign-in page uses Pixabay, so the API key cannot be removed. Change the background to another source and save first.",
   }),
   wallpaper_not_configured: msg({
     id: "error.wallpaper_not_configured",
-    message: "The sign-in page does not use a picture service.",
+    message: "The sign-in page does not use an image service.",
   }),
   wallpaper_unavailable: msg({
     id: "error.wallpaper_unavailable",
@@ -457,16 +458,17 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   active_key_no_replacement: msg({
     id: "error.active_key_no_replacement",
-    message: "Activate another key first, then retire this one.",
+    message:
+      "This key cannot be retired without a replacement. Activate another key first.",
   }),
   upstream_idp_already_exists: msg({
     id: "error.upstream_idp_already_exists",
-    message: "That identifier is already taken by another provider.",
+    message: "This identifier is already used by another provider.",
   }),
   provider_not_ready: msg({
     id: "error.provider_not_ready",
     message:
-      "This provider is not ready yet. Finish setting up its credentials before enabling it.",
+      "This provider is not fully set up. Finish setting up its credentials before enabling it.",
   }),
   oidc_client_already_exists: msg({
     id: "error.oidc_client_already_exists",
@@ -482,24 +484,24 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   invalid_manager_role: msg({
     id: "error.invalid_manager_role",
-    message: "A disabled account cannot manage an application.",
+    message: "A disabled account cannot be assigned as a manager.",
   }),
   // VRChat operator sign-in: the code is wrong, or the whole challenge expired.
   vrchat_operator_code_invalid: msg({
     id: "error.vrchat_operator_code_invalid",
-    message: "That code is not valid.",
+    message: "The verification code is not valid.",
   }),
   vrchat_operator_credentials_invalid: msg({
     id: "error.vrchat_operator_credentials_invalid",
-    message: "Those VRChat credentials were not accepted.",
+    message: "VRChat did not accept the username or password.",
   }),
   vrchat_operator_challenge_invalid: msg({
     id: "error.vrchat_operator_challenge_invalid",
-    message: "This sign-in took too long. Start again with your password.",
+    message: "The VRChat sign-in has timed out. Enter the password again.",
   }),
   upstream_rate_limited: msg({
     id: "error.upstream_rate_limited",
-    message: "The provider is asking us to slow down. Wait a moment.",
+    message: "The provider is limiting requests. Wait a moment.",
   }),
   upstream_temporarily_unavailable: msg({
     id: "error.upstream_temporarily_unavailable",
@@ -541,15 +543,15 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   email_primary_undeletable: msg({
     id: "error.email_primary_undeletable",
     message:
-      "The primary address cannot be removed. Make another address the primary first.",
+      "The primary address cannot be removed. Make another address primary first.",
   }),
   email_code_invalid: msg({
     id: "error.email_code_invalid",
-    message: "That code is not correct.",
+    message: "The code is incorrect.",
   }),
   email_code_expired: msg({
     id: "error.email_code_expired",
-    message: "That code has expired. Send a new one.",
+    message: "The code has expired. Send a new one.",
   }),
   email_already_verified: msg({
     id: "error.email_already_verified",
@@ -561,7 +563,7 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   email_delivery_failed: msg({
     id: "error.email_delivery_failed",
-    message: "The message could not be sent. You can send it again later.",
+    message: "The email could not be sent.",
   }),
 };
 
@@ -600,7 +602,8 @@ const scopedErrorMessages: Readonly<
   "setup-signin": {
     sudo_required: msg({
       id: "error.setup-signin.sudo_required",
-      message: "This step has timed out. Add it later from Security.",
+      message:
+        "This step has timed out. You can add a sign-in method later from Security.",
     }),
   },
   // A connection test is single-use and short-lived.
@@ -617,7 +620,7 @@ const scopedErrorMessages: Readonly<
     enrollment_federation_required: msg({
       id: "error.federation.enrollment_federation_required",
       message:
-        "This invitation needs the account to be created through {provider}.",
+        "This invitation requires the account to be created through {provider}.",
     }),
     invite_required: msg({
       id: "error.federation.invite_required",
@@ -635,7 +638,7 @@ const scopedErrorMessages: Readonly<
     upstream_idp_link_only: msg({
       id: "error.federation.upstream_idp_link_only",
       message:
-        "This provider can only be linked from an account, so it can't accept an invitation. Choose another provider, or set its provisioning to invitation-only.",
+        'This provider can only be linked from an existing account and can\'t be used to accept an invitation. Choose another provider, or change its provisioning to "Invitation only".',
     }),
     federation_identity_conflict: msg({
       id: "error.federation.federation_identity_conflict",
@@ -655,7 +658,7 @@ const scopedErrorMessages: Readonly<
     }),
     upstream_rate_limited: msg({
       id: "error.federation.upstream_rate_limited",
-      message: "{provider} is asking us to slow down. Wait a moment.",
+      message: "{provider} is limiting requests. Wait a moment.",
     }),
     upstream_temporarily_unavailable: msg({
       id: "error.federation.upstream_temporarily_unavailable",
@@ -672,13 +675,13 @@ const scopedErrorMessages: Readonly<
 const upstreamRateLimitedFor = msg({
   id: "error.federation.upstream_rate_limited.seconds",
   message:
-    "{provider} is asking us to slow down. Wait {seconds, plural, one {# second} other {# seconds}}.",
+    "{provider} is limiting requests. Try again in {seconds, plural, one {# second} other {# seconds}}.",
 });
 
 /** A sign-in that failed with nothing more specific to say. */
 const signInFailure = msg({
   id: "error.sign_in_failed",
-  message: "Something went wrong while signing in.",
+  message: "An error occurred during sign-in.",
 });
 
 /**
@@ -777,58 +780,58 @@ export function describeError(
 const landingMessages: Readonly<Record<string, MessageDescriptor>> = {
   invalid_request: msg({
     id: "error.landing.invalid_request",
-    message: "The app sent a request that can't be used.",
+    message: "The app sent an invalid request.",
   }),
   saml_request_invalid: msg({
     id: "error.landing.saml_request_invalid",
-    message: "The app sent a sign-in request that can't be used.",
+    message: "The app sent an invalid sign-in request.",
   }),
   saml_request_expired: msg({
     id: "error.landing.saml_request_expired",
     message:
-      "The sign-in took too long and the app's request has expired. Go back to the app and sign in again.",
+      "The app's sign-in request has expired. Go back to the app and sign in again.",
   }),
   saml_sp_unknown: msg({
     id: "error.landing.saml_sp_unknown",
-    message: "This app isn't registered with {instance}.",
+    message: "This app is not registered with {instance}.",
   }),
   saml_replayed: msg({
     id: "error.landing.saml_replayed",
     message:
-      "This sign-in request was already used. Go back to the app and sign in again.",
+      "This sign-in request has already been used. Go back to the app and sign in again.",
   }),
   saml_idp_init_disabled: msg({
     id: "error.landing.saml_idp_init_disabled",
-    message: "This app can't be opened directly from {instance}.",
+    message: "This app cannot be opened directly from {instance}.",
   }),
   federation_sign_in_disabled: msg({
     id: "error.landing.federation_sign_in_disabled",
     message:
-      "You can't sign in with this provider. Sign in another way, then link it from your account.",
+      "This provider cannot be used to sign in. Sign in another way, then link it from your account.",
   }),
   require_identity_invalid_client: msg({
     id: "error.landing.require_identity_invalid_client",
-    message: "This app isn't registered with {instance}, or it's turned off.",
+    message: "This app is not registered with {instance}, or it is disabled.",
   }),
   require_identity_invalid_redirect_uri: msg({
     id: "error.landing.require_identity_invalid_redirect_uri",
     message:
-      "The app asked to come back to an address it hasn't registered with {instance}.",
+      "The return address the app specified is not registered with {instance}.",
   }),
   require_identity_invalid_providers: msg({
     id: "error.landing.require_identity_invalid_providers",
-    message: "The app asked for a sign-in provider that isn't available.",
+    message: "The app requested a sign-in provider that is not available.",
   }),
   require_identity_invalid_id_token: msg({
     id: "error.landing.require_identity_invalid_id_token",
     message:
-      "The app sent account details that couldn't be checked. Go back to the app and try again.",
+      "The account details sent by the app could not be verified. Go back to the app and start again.",
   }),
 };
 
 const appAccessDenied = msg({
   id: "error.landing.app_access_denied",
-  message: "An administrator hasn't given your account access to this app.",
+  message: "An administrator has not granted your account access to this app.",
 });
 
 /**
@@ -890,7 +893,7 @@ export interface RouteFailure {
 
 const pageCrashed = msg({
   id: "route.error.crashed",
-  message: "Something went wrong on this page.",
+  message: "An error occurred on this page.",
 });
 
 /**

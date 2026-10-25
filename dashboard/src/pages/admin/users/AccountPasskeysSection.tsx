@@ -42,8 +42,8 @@ export function AccountPasskeysSection({ accountId }: { accountId: number }) {
         title={<Trans id="admin.user.passkeys.title">Passkeys</Trans>}
         description={
           <Trans id="admin.user.passkeys.description">
-            The passkeys they sign in with. Removing one stops it working
-            straight away.
+            Passkeys this account signs in with. A removed passkey stops working
+            immediately.
           </Trans>
         }
         label={t({ id: "admin.user.passkeys.table", message: "Passkeys" })}
@@ -129,8 +129,8 @@ export function AccountPasskeysSection({ accountId }: { accountId: number }) {
         body={
           <p>
             <Trans id="admin.user.passkeys.revoke.body">
-              This passkey stops working immediately. If it is the only way this
-              account signs in, they will need a new registration link.
+              The passkey stops working immediately. If it is this account's
+              only sign-in method, the account needs a new registration link.
             </Trans>
           </p>
         }

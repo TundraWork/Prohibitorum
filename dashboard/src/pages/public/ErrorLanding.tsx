@@ -125,8 +125,8 @@ export function ErrorLandingPage() {
           {deniedRetry && (
             <SurfaceAlert.Description>
               <Trans id="error_page.denied.retry_hint">
-                Access hasn't been granted yet. Once an administrator grants it,
-                you can try again.
+                An administrator hasn't granted you access yet. Once access is
+                granted, you can try again.
               </Trans>
             </SurfaceAlert.Description>
           )}

@@ -69,7 +69,9 @@ describe("adding a sign-in after a first federated one", () => {
   ])("refuses %s before asking anything", async (_, path) => {
     const api = setupApi();
     renderApp(path, queryClient);
-    expect(await screen.findByText("Invalid return address.")).toBeVisible();
+    expect(
+      await screen.findByText("The return address is not valid."),
+    ).toBeVisible();
     expect(api.sent("GET", "/api/prohibitorum/me/identities")).toHaveLength(0);
   });
 
@@ -103,7 +105,7 @@ describe("adding a sign-in after a first federated one", () => {
     ).toHaveFocus();
     expect(
       screen.getByText(
-        "Right now you can only sign in through GitLab and GitHub. Add another way to sign in, so losing access to GitLab and GitHub doesn't lock you out.",
+        "Your account can currently sign in only through GitLab and GitHub. Add another sign-in method so you can still sign in if GitLab and GitHub is unavailable.",
       ),
     ).toBeVisible();
   });

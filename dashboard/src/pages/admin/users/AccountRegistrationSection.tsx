@@ -51,7 +51,7 @@ export function AccountRegistrationSection({
       title={<Trans id="admin.user.enrollment.title">Registration link</Trans>}
       description={
         <Trans id="admin.user.enrollment.description">
-          A link for setting up how this account signs in.
+          Set up how this account signs in with a registration link.
         </Trans>
       }
     >
@@ -61,8 +61,8 @@ export function AccountRegistrationSection({
         }
         description={
           <Trans id="admin.user.enrollment.note">
-            Issues a new link this account can use to set up how they sign in.
-            The link is shown once, and any earlier link stops working.
+            Issues a new registration link. The link is shown once, and any
+            earlier link stops working.
           </Trans>
         }
       >

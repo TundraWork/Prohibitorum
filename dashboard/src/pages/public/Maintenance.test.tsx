@@ -71,7 +71,7 @@ describe("the maintenance page", () => {
     expect(router.state.location.searchStr).toBe("?admin=1");
     expect(
       screen.getByText(
-        "The service is undergoing maintenance. Only administrators can sign in.",
+        "Maintenance is in progress. Only administrators can sign in.",
       ),
     ).toBeVisible();
   });

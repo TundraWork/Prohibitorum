@@ -66,7 +66,7 @@ const signInSwitch = () =>
   screen.getByRole("switch", { name: "Allow sign-in" });
 const mode = (name: string) => screen.getByRole("radio", { name });
 const lockout =
-  "Anyone who signs in only through this provider will be locked out until an administrator sends them a registration link.";
+  "People who sign in only through this provider can't sign in until an administrator sends them a registration link.";
 
 describe("the sign-in section", () => {
   it("has its own heading, no name field, and no footer until something changes", () => {
@@ -88,17 +88,17 @@ describe("the sign-in section", () => {
     expect(mode("Invitation only")).toBeChecked();
     expect(
       within(group).getByText(
-        "Creates an account the first time someone without one signs in.",
+        "Creates an account for anyone who signs in without one.",
       ),
     ).toBeVisible();
     expect(
       within(group).getByText(
-        "Only linked accounts can sign in. New accounts need an invitation.",
+        "Only linked accounts can sign in. New accounts require an invitation.",
       ),
     ).toBeVisible();
     expect(
       within(group).getByText(
-        "Links to existing accounts only. Never creates one, not even from an invitation.",
+        "Links to existing accounts only. Never creates an account and can't be used to accept an invitation.",
       ),
     ).toBeVisible();
   });
@@ -106,23 +106,25 @@ describe("the sign-in section", () => {
   it("says VRChat is a weaker proof as its own sentence, and only for VRChat", () => {
     const { unmount } = mount(providerFixture({ protocol: "vrchat" }));
     const warning = screen.getByText(
-      /VRChat proves a profile through a link in its bio/,
+      /VRChat verifies a profile through a link in its bio/,
     );
     expect(warning).toBeVisible();
     expect(
-      screen.getByText(/this provider can't be used to sign in/),
+      screen.getByText(/this provider can only be used to link accounts/),
     ).toBeVisible();
     // The two sentences are separate blocks, not one glued run of text.
     expect(warning.textContent).not.toMatch(/linked to it\.When/);
-    expect(warning.textContent).not.toContain("can't be used to sign in");
+    expect(warning.textContent).not.toContain(
+      "can only be used to link accounts",
+    );
     unmount();
 
     mount(providerFixture({ protocol: "oidc" }));
     expect(
-      screen.queryByText(/VRChat proves a profile through a link in its bio/),
+      screen.queryByText(/VRChat verifies a profile through a link in its bio/),
     ).toBeNull();
     expect(
-      screen.getByText(/this provider can't be used to sign in/),
+      screen.getByText(/this provider can only be used to link accounts/),
     ).toBeVisible();
   });
 
@@ -149,7 +151,9 @@ describe("with sign-in off", () => {
     mount(providerFixture({ allowSignIn: false }));
 
     expect(mode("Creates accounts")).toHaveAttribute("aria-disabled", "true");
-    const reason = screen.getByText("Turn sign-in on to create accounts.");
+    const reason = screen.getByText(
+      "Creating accounts requires sign-in to be on.",
+    );
     expect(reason).toBeVisible();
     // Outside the dimmed card, so it keeps its own contrast, and tied to the
     // group as its description.
@@ -157,7 +161,9 @@ describe("with sign-in off", () => {
     expect(reason.closest("label")).toBeNull();
     expect(
       screen.getByRole("radiogroup", { name: "Provisioning" }),
-    ).toHaveAccessibleDescription("Turn sign-in on to create accounts.");
+    ).toHaveAccessibleDescription(
+      "Creating accounts requires sign-in to be on.",
+    );
     expect(mode("Invitation only")).not.toHaveAttribute(
       "aria-disabled",
       "true",
@@ -171,7 +177,7 @@ describe("with sign-in off", () => {
       "true",
     );
     expect(
-      screen.queryByText("Turn sign-in on to create accounts."),
+      screen.queryByText("Creating accounts requires sign-in to be on."),
     ).toBeNull();
   });
 
@@ -209,7 +215,7 @@ describe("turning sign-in off", () => {
 
     expect(
       screen.getByText(
-        `${lockout} Provisioning also changes from Creates accounts to Invitation only, because creating accounts needs sign-in.`,
+        `${lockout} Provisioning also changes from "Creates accounts" to "Invitation only", because creating accounts requires sign-in.`,
       ),
     ).toBeVisible();
   });
@@ -237,7 +243,7 @@ describe("turning sign-in off", () => {
     // The footer said what it costs; the dialog only asks.
     expect(within(dialog).queryByText(lockout)).toBeNull();
     expect(
-      within(dialog).getByText(/You can turn it back on at any time/),
+      within(dialog).getByText(/Sign-in can be turned back on at any time/),
     ).toBeVisible();
     expect(puts()).toHaveLength(0);
 

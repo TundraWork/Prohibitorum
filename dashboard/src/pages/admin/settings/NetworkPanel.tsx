@@ -39,8 +39,8 @@ export const clientIpSection = {
   title: <Trans id="settings.network.title">Client IP</Trans>,
   description: (
     <Trans id="settings.network.description">
-      Where the server reads each request's address from. Audit logs, sessions
-      and rate limits record it.
+      Set where the server reads each request's client address from. The address
+      is recorded in audit logs and sessions and used for rate limiting.
     </Trans>
   ),
 };
@@ -48,15 +48,16 @@ export const clientIpSection = {
 const hiddenListMessage = msg({
   id: "settings.network.proxies.hidden_invalid",
   message:
-    "The trusted proxies list has an entry the server will not accept. Choose X-Forwarded-For to correct it.",
+    "The trusted proxies list contains an invalid entry. Select X-Forwarded-For to correct it.",
 });
 
 /** What changing the address does, in the footer. */
 function ClientIpConsequence() {
   return (
     <Trans id="settings.network.confirm.body">
-      Audit logs, sessions and rate limits use the new address for every request
-      from now on. A wrong setting can lock everyone into one shared limit.
+      After saving, audit logs, sessions and rate limits use the client address
+      read this way for all new requests. An incorrect setting can put all
+      requests under one shared rate limit.
     </Trans>
   );
 }
@@ -197,8 +198,8 @@ function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
                         }
                         description={
                           <Trans id="settings.network.strategy.direct.description">
-                            Use the address the connection comes from. Right
-                            when nothing sits in front of this server.
+                            Use the source address of the connection. For
+                            deployments with no proxy in front of the server.
                           </Trans>
                         }
                       />
@@ -212,8 +213,8 @@ function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
                         }
                         description={
                           <Trans id="settings.network.strategy.forwarded.description">
-                            Use the address a proxy adds to this header,
-                            trusting only the proxies you list.
+                            Use the address a proxy adds to this header. Only
+                            the listed trusted proxies are trusted.
                           </Trans>
                         }
                       />
@@ -227,11 +228,11 @@ function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
                         }
                         description={
                           <Trans id="settings.network.strategy.header.description">
-                            Use the address in a header you name, such as{" "}
+                            Use the address in a specified header, such as{" "}
                             <code className="whitespace-nowrap font-mono text-[0.9em]">
                               CF-Connecting-IP
                             </code>
-                            , trusting only the proxies you list.
+                            . Only the listed trusted proxies are trusted.
                           </Trans>
                         }
                         attached={
@@ -313,7 +314,8 @@ function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
         body={
           <p>
             <Trans id="settings.network.confirm.short">
-              Requests are read the new way as soon as you confirm.
+              Client addresses are read the new way immediately after you
+              confirm.
             </Trans>
           </p>
         }

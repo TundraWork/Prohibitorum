@@ -64,7 +64,9 @@ function rowTitles(list: HTMLElement) {
 }
 
 function factNames() {
-  return rowTitles(screen.getByRole("list", { name: "Wiki will be able to" }));
+  return rowTitles(
+    screen.getByRole("list", { name: "Wiki will have access to" }),
+  );
 }
 
 function inStageFooter(name: string) {
@@ -87,14 +89,14 @@ describe("OIDC consent", () => {
     );
     const names = factNames();
     expect(names).toEqual([
-      "Confirm who you are",
+      "Your account identifier",
       "Your profile",
       "Your email address",
       "wiki:write",
     ]);
     expect(screen.getByText("wiki:write")).toHaveClass("font-mono");
     expect(
-      screen.getByText("Know which Test instance account is yours"),
+      screen.getByText("Used to identify your Test instance account"),
     ).toBeVisible();
     expect(screen.getByText(/Signed in as/)).toHaveTextContent(
       "Signed in as Alice",
@@ -122,7 +124,7 @@ describe("OIDC consent", () => {
       name: "Allow Wiki to access your account?",
     });
     expect(factNames()).toEqual([
-      "Confirm who you are",
+      "Your account identifier",
       "Your VRChat identity",
       "Your gone identity",
       "Your constructor identity",
@@ -148,7 +150,7 @@ describe("OIDC consent", () => {
     await user.click(screen.getByRole("button", { name: /Already allowed/ }));
     expect(
       rowTitles(screen.getByRole("list", { name: /Already allowed/ })),
-    ).toEqual(["Confirm who you are", "Your VRChat identity"]);
+    ).toEqual(["Your account identifier", "Your VRChat identity"]);
   });
 
   it("lists only the new scopes, with the allowed ones folded away until asked for", async () => {
@@ -176,7 +178,7 @@ describe("OIDC consent", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     const allowed = screen.getByRole("list", { name: /Already allowed/ });
     expect(rowTitles(allowed)).toEqual([
-      "Confirm who you are",
+      "Your account identifier",
       "Your profile",
       "Your email address",
     ]);
@@ -348,7 +350,7 @@ describe("OIDC consent", () => {
       ).toBeVisible();
       expect(
         screen.getByText(
-          "This authorization request has expired or was already used. Go back to the app and sign in again.",
+          "This authorization request has expired or has already been used. Go back to the app and sign in again.",
         ),
       ).toBeVisible();
       expect(api.sent("GET", "/api/prohibitorum/consent")).toHaveLength(0);

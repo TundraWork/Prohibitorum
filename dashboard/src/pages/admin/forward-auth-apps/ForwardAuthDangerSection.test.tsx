@@ -309,7 +309,7 @@ describe("disabling and deleting", () => {
     const dialog = await screen.findByRole("alertdialog");
 
     expect(dialog).toHaveTextContent(
-      "removed along with its icon and its access policy. Requests",
+      "its icon and its access policy are deleted. Requests",
     );
     expect(dialog).not.toHaveTextContent("including its selection");
   });

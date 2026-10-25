@@ -29,7 +29,7 @@ let sent: { method: string; path: string; body: unknown }[];
 
 const reason = msg({
   id: "sudo.reason.add-passkey",
-  message: "Confirm it is you to add a passkey to this account.",
+  message: "Verify your identity to add a passkey to this account.",
 });
 
 function publicConfig(digits: number) {
@@ -145,11 +145,11 @@ describe("sudo dialog", () => {
     const { dialog } = await intercept(async () => "done");
 
     expect(
-      within(dialog).getByRole("heading", { name: "Confirm it is you" }),
+      within(dialog).getByRole("heading", { name: "Verify your identity" }),
     ).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        "Confirm it is you to add a passkey to this account.",
+        "Verify your identity to add a passkey to this account.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -218,7 +218,7 @@ describe("sudo dialog", () => {
 
     expect(
       within(dialog).getByText(
-        /This account has no way to confirm your identity from here/,
+        /This account has no way to verify your identity/,
       ),
     ).toBeInTheDocument();
     expect(within(dialog).queryAllByRole("button")).toHaveLength(1);
@@ -484,7 +484,7 @@ describe("sudo dialog", () => {
     await user.tab();
     expect(
       await within(dialog).findByText(
-        "Enter the code your authenticator shows, using only 0–9.",
+        "Enter the code shown in your authenticator, using digits 0–9 only.",
       ),
     ).toBeInTheDocument();
   });

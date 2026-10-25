@@ -75,8 +75,7 @@ export function RuleJsonTab({
       />
       <p className="text-muted-foreground text-caption">
         <Trans id="admin.group.rule.json.applies">
-          Applied when you leave the box. The builder then shows what the
-          document says.
+          The document is applied to the builder when you leave the box.
         </Trans>
       </p>
       {problem !== null && (
@@ -98,28 +97,28 @@ export function RuleJsonProblem({ problem }: { problem: RuleDocumentProblem }) {
     case "unreadable":
       return (
         <Trans id="admin.group.rule.json.unreadable">
-          This is not valid JSON. The builder still holds your rule.
+          This is not valid JSON. The rule in the builder is unchanged.
         </Trans>
       );
     case "unknown-condition":
       return (
         <Trans id="admin.group.rule.json.unknown">
-          This rule uses a condition this console does not know. The builder
-          still holds your rule.
+          This rule uses a condition the console does not recognise. The rule in
+          the builder is unchanged.
         </Trans>
       );
     case "nested-negation":
       return (
         <Trans id="admin.group.rule.json.nested-negation">
-          A negation can only wrap one condition, not another negation. The
-          builder still holds your rule.
+          A negation can contain only one condition, not another negation. The
+          rule in the builder is unchanged.
         </Trans>
       );
     case "not-a-document":
       return (
         <Trans id="admin.group.rule.json.nodocument">
-          A rule document needs a version and a condition. The builder still
-          holds your rule.
+          A rule document needs a version and a condition. The rule in the
+          builder is unchanged.
         </Trans>
       );
   }

@@ -25,7 +25,9 @@ const heading = {
   id: "check-account",
   title: <Trans id="admin.group.explain.title">Check an account</Trans>,
   description: (
-    <Trans id="admin.group.explain.description">Why someone is in or out</Trans>
+    <Trans id="admin.group.explain.description">
+      See whether an account is in this group, and why
+    </Trans>
   ),
   icon: <ScanSearchIcon />,
 };
@@ -178,7 +180,7 @@ function SentenceText({ sentence }: { sentence: ExplainSentence }) {
     const { provider } = sentence;
     return (
       <Trans id="admin.group.explain.provider">
-        Is connected to{" "}
+        Is linked to{" "}
         <span
           data-slot="explain-provider"
           className="inline-block max-w-full wrap-anywhere"
@@ -191,7 +193,7 @@ function SentenceText({ sentence }: { sentence: ExplainSentence }) {
   const provider = sentence.unknownProvider;
   return (
     <Trans id="admin.group.explain.provider-unknown">
-      Is connected to{" "}
+      Is linked to{" "}
       <span data-literal="" className="break-all font-mono text-xs">
         {provider}
       </span>

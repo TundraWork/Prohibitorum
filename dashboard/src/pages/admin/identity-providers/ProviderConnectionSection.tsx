@@ -199,8 +199,8 @@ export function ProviderConnectionSection({
           title={title}
           description={
             <Trans id="admin.federation.connection.description">
-              Where this provider signs people in, and how this instance talks
-              to it.
+              Set how this instance connects to the provider, such as the issuer
+              URL, client credentials and scopes.
             </Trans>
           }
           dirty={dirty}
@@ -288,8 +288,8 @@ export function ProviderConnectionSection({
                     }
                     description={
                       <Trans id="admin.federation.connection.secret.hint">
-                        The method chosen sends this to the provider; it is
-                        stored encrypted and never shown again.
+                        Sent to the provider using the selected authentication
+                        method. Stored encrypted and never shown again.
                       </Trans>
                     }
                     type="password"

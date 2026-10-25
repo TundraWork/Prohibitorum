@@ -36,9 +36,10 @@ const signingKeysSection = {
   title: <Trans id="settings.keys.section">Signing keys</Trans>,
   description: (
     <Trans id="settings.keys.description">
-      A new key is published as soon as it is generated and starts signing when
-      you activate it. The key it replaces keeps verifying through a grace
-      period, then is retired.
+      Manage the keys that sign tokens and SAML assertions. A new key is
+      published when it is generated and starts signing once activated. The key
+      it replaces is still used for verification during a grace period, then
+      retired.
     </Trans>
   ),
 };
@@ -140,7 +141,7 @@ export function SigningKeysPanel() {
                     <>
                       <p className="text-pretty text-center text-muted-foreground text-sm">
                         <Trans id="settings.keys.more_failed">
-                          The rest of the keys could not be loaded.
+                          More keys could not be loaded.
                         </Trans>
                       </p>
                       <InlineFailure error={list.error} />
@@ -213,8 +214,8 @@ export function SigningKeysPanel() {
         body={
           <p>
             <Trans id="settings.keys.activate.body">
-              New tokens and SAML assertions are signed with this key. The
-              current key keeps verifying what it signed until it is retired.
+              New tokens and SAML assertions will be signed with this key. The
+              current key still verifies what it has signed until it is retired.
             </Trans>
           </p>
         }

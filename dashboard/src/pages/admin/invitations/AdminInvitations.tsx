@@ -220,8 +220,8 @@ export function AdminInvitations() {
         title={<Trans id="admin.invitations.page.title">Invitations</Trans>}
         description={
           <Trans id="admin.invitations.page.description">
-            Invitations waiting to be used. Used or expired ones leave this
-            list.
+            View and manage invitations that have not been used yet. Accepted,
+            expired and revoked invitations are removed from this list.
           </Trans>
         }
         actions={
@@ -247,8 +247,8 @@ export function AdminInvitations() {
         {providers.isError && (
           <p className="text-muted-foreground text-sm">
             <Trans id="admin.invitations.providers-failed">
-              Provider names could not be loaded, so providers are shown by
-              their identifier.
+              Provider names could not be loaded. Providers are shown by
+              identifier.
             </Trans>
           </p>
         )}
@@ -290,8 +290,7 @@ export function AdminInvitations() {
                 }
                 description={
                   <Trans id="admin.invitations.empty.description">
-                    Invite someone and their link appears here until they use
-                    it.
+                    Invitations are listed here until they are used.
                   </Trans>
                 }
               />
@@ -333,8 +332,8 @@ export function AdminInvitations() {
         body={
           <p>
             <Trans id="admin.invitations.revoke.body">
-              The registration link stops working immediately, and the
-              invitation no longer appears in this list. This cannot be undone.
+              The registration link stops working immediately and the invitation
+              is removed from this list. This cannot be undone.
             </Trans>
           </p>
         }

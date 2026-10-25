@@ -119,13 +119,16 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
         id="decisions"
         icon={<UsersIcon />}
         title={
-          <Trans id="admin.group.decisions.title">Who this group decides</Trans>
+          <Trans id="admin.group.decisions.title">
+            Allowed and denied accounts
+          </Trans>
         }
         description={
           <Trans id="admin.group.decisions.description">
-            Accounts allowed here can use the applications that select this
-            group; accounts denied here cannot, whatever else matches. Everyone
-            else is neutral.
+            Allow or deny individual accounts. Allowed accounts can use the
+            applications that select this group. Denied accounts cannot, and a
+            deny overrides any other match. Other accounts are not affected by
+            this group.
           </Trans>
         }
         action={
@@ -163,8 +166,7 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
             empty={
               <ItemListEmpty>
                 <Trans id="admin.group.decisions.empty">
-                  No decisions yet. Nobody is allowed or denied through this
-                  group.
+                  No accounts have been allowed or denied yet.
                 </Trans>
               </ItemListEmpty>
             }
@@ -309,7 +311,8 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
         body={
           <p>
             <Trans id="admin.group.decisions.clear.body">
-              They may get in through another group or rule.
+              The account is no longer denied, but may still get access through
+              another group or rule.
             </Trans>
           </p>
         }

@@ -151,8 +151,7 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
             title={title}
             description={
               <Trans id="admin.oidc-apps.sign-in.description">
-                Where this application may send people back to, and what it may
-                ask for.
+                Redirect URIs, scopes and sign-in requirements.
               </Trans>
             }
             dirty={dirty}
@@ -202,7 +201,7 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
                     })}
                     description={
                       <Trans id="admin.oidc-apps.field.post-logout.description">
-                        Where the client may return after signing out.
+                        Addresses the client may return to after signing out.
                       </Trans>
                     }
                     addLabel={

@@ -50,7 +50,7 @@ const factSentences: Readonly<Record<string, MessageDescriptor>> = {
 
 const protocolSentence = msg({
   id: "admin.group.explain.protocol",
-  message: "Is connected through {protocol}",
+  message: "Is linked through {protocol}",
 });
 
 /**

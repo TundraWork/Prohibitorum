@@ -94,8 +94,8 @@ export function SavedWallpaperKey({
       {inUse && !replacing && (
         <p id={reasonId} className="text-muted-foreground text-caption">
           <Trans id="settings.sign-in.unsplash.key.in_use">
-            Switch the background to another source and save before removing the
-            key.
+            The current background uses this key. To remove it, switch the
+            background to another source and save first.
           </Trans>
         </p>
       )}

@@ -83,13 +83,17 @@ describe("the form's shape", () => {
     const kinds = screen.getByRole("radiogroup", { name: "Kind" });
     const manual = within(kinds).getByRole("radio", { name: "Manual" });
     expect(manual).toBeChecked();
-    expect(manual).toHaveAccessibleDescription(/allow or deny by hand/);
+    expect(manual).toHaveAccessibleDescription(
+      /Allow or deny individual accounts by hand/,
+    );
     expect(
       within(kinds).getByRole("radio", { name: "Rule" }),
     ).not.toBeChecked();
     expect(
       within(kinds).getByRole("radio", { name: "Rule" }),
-    ).toHaveAccessibleDescription(/keeps itself up to date/);
+    ).toHaveAccessibleDescription(
+      /Matches accounts with a rule, evaluated on every access/,
+    );
     expect(screen.getByText(/cannot be changed/)).toBeVisible();
   });
 
@@ -104,7 +108,7 @@ describe("the form's shape", () => {
     ).toEqual(["Kind", "Details"]);
     expect(
       screen.getByText(
-        "You choose who this group allows or denies on its page after you create it.",
+        "After the group is created, allow or deny accounts on its page.",
       ),
     ).toBeVisible();
     expect(
@@ -119,14 +123,16 @@ describe("the form's shape", () => {
     await user.click(screen.getByRole("radio", { name: "Rule" }));
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Who this group matches" }),
+      screen.getByRole("heading", { level: 2, name: "Matching rule" }),
     ).toBeVisible();
     expect(
-      screen.getByText("Matching accounts appear once the group is saved."),
+      screen.getByText(
+        "Matching accounts are shown here after the group is saved.",
+      ),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Add condition" })).toBeVisible();
     expect(
-      screen.queryByText(/You choose who this group allows or denies/),
+      screen.queryByText(/After the group is created, allow or deny accounts/),
     ).toBeNull();
   });
 });
@@ -239,9 +245,7 @@ describe("a rule that cannot be saved", () => {
     await user.click(
       within(added as HTMLElement).getByRole("combobox", { name: "Condition" }),
     );
-    await user.click(
-      await screen.findByRole("option", { name: "Connected to" }),
-    );
+    await user.click(await screen.findByRole("option", { name: "Linked to" }));
 
     expect(createButton()).toBeDisabled();
     expect(createButton()).toHaveAccessibleDescription(

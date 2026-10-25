@@ -45,7 +45,7 @@ describe("the readability line", () => {
     const line = screen.getByRole("status");
     expect(line).toHaveTextContent("Hard to read");
     expect(line).toHaveTextContent(
-      "Body text contrast 3.2 : 1 — raise the card's opacity or pick another background",
+      "Body text contrast 3.2 : 1 — increase the card opacity or choose another background",
     );
   });
 
@@ -101,7 +101,7 @@ describe("the readability line", () => {
       />,
     );
     expect(screen.getByRole("status")).toHaveTextContent(
-      "正文对比度 3.2 : 1，请调高卡片的不透明度或换一个背景",
+      "正文对比度 3.2 : 1，请提高卡片不透明度或更换背景",
     );
   });
 });

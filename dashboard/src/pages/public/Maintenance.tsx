@@ -58,7 +58,7 @@ export function MaintenancePage() {
       title={<Trans id="maintenance.title">{name} is under maintenance</Trans>}
       description={
         <Trans id="maintenance.description">
-          Signing in and using apps are paused during maintenance.
+          Sign-in and app access are paused during maintenance.
         </Trans>
       }
       actions={

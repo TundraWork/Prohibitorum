@@ -33,9 +33,9 @@ afterEach(() => {
 
 const maintenancePath = "/api/prohibitorum/admin/settings/maintenance";
 const consequence =
-  "Nobody except administrators can sign in or use applications until it is turned off.";
+  "Until maintenance mode is turned off, only administrators can sign in and use applications.";
 const defaultRequired =
-  "Write the notice in the default language too, so every visitor sees it.";
+  "Also enter the notice in the default language. It is shown to visitors whose language has no notice.";
 
 function puts() {
   return fetchBoundary.mock.calls
@@ -123,7 +123,7 @@ describe("the maintenance section", () => {
     // The explanation names the default language's role, so it belongs to
     // whichever box is the default — not to the first one.
     const hint = await screen.findByText(
-      "Shown on the sign-in page and the maintenance page while maintenance mode is on. A visitor sees the notice in their own language, or this one when theirs has none.",
+      "Shown on the sign-in page and the maintenance page while maintenance mode is on. Visitors see the notice in their language, or this one if their language has none.",
     );
     expect(noticeBox("中文").closest("[data-slot=field]")?.contains(hint)).toBe(
       true,
@@ -162,7 +162,9 @@ describe("the maintenance section", () => {
     });
     expect(puts()).toHaveLength(0);
     expect(
-      within(dialog).getByText("Only administrators will be able to sign in."),
+      within(dialog).getByText(
+        "Once it is on, only administrators can sign in.",
+      ),
     ).toBeVisible();
 
     await user.click(within(dialog).getByRole("button", { name: "Turn on" }));
@@ -297,7 +299,9 @@ describe("the maintenance section", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(puts()).toHaveLength(1));
-    const error = await screen.findByText(defaultRequired);
+    const error = await screen.findByText(
+      "A notice in the default language is required.",
+    );
     expect(error).toBeVisible();
     expect(notifyError).not.toHaveBeenCalled();
   });
@@ -318,7 +322,7 @@ describe("the maintenance section", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(puts()).toHaveLength(1));
-    const error = await screen.findByText("The request could not be accepted.");
+    const error = await screen.findByText("The request is not valid.");
     const enField = noticeBox("English").closest("[data-slot=field]");
     const zhField = noticeBox("中文").closest("[data-slot=field]");
     expect(enField?.contains(error)).toBe(true);

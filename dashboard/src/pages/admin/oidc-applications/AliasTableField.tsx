@@ -64,8 +64,8 @@ export function AliasTableField() {
         label={<Trans id="admin.oidc-apps.aliases">Claim aliases</Trans>}
         description={
           <Trans id="admin.oidc-apps.aliases.hint">
-            Publish a granted claim under a second name, for a client that
-            expects one the specification does not define.
+            Publishes a granted claim under a second name, for clients that
+            expect a claim name the specification does not define.
           </Trans>
         }
         removePlacement="inRow"

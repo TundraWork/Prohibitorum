@@ -86,7 +86,9 @@ describe("the headers table", () => {
     expect(within(table).getByText("Display name")).toBeVisible();
     expect(within(table).getByText("Primary email")).toBeVisible();
     expect(
-      within(table).getByText("User groups this application exposes"),
+      within(table).getByText(
+        "The account's user groups that this application selected and that are sent to applications",
+      ),
     ).toBeVisible();
   });
 
@@ -122,7 +124,7 @@ describe("changing Remote-User", () => {
 
     expect(
       await screen.findByText(
-        "Changing the user identifier makes the service treat everyone it already knows as a new account.",
+        "Changing the user identifier makes the service treat existing users as new accounts.",
       ),
     ).toBeVisible();
     expect(

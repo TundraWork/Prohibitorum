@@ -44,7 +44,7 @@ export const oidcScopes: readonly {
     value: "profile",
     description: msg({
       id: "admin.oidc-apps.scope.profile",
-      message: "Name, username and picture.",
+      message: "Display name, username and avatar.",
     }),
   },
   {
@@ -58,14 +58,15 @@ export const oidcScopes: readonly {
     value: "offline_access",
     description: msg({
       id: "admin.oidc-apps.scope.offline-access",
-      message: "A refresh token, so the client stays signed in.",
+      message: "A refresh token for keeping the client signed in.",
     }),
   },
   {
     value: "groups",
     description: msg({
       id: "admin.oidc-apps.scope.groups",
-      message: "User groups this application exposes.",
+      message:
+        "The account's user groups that this application selected and that are sent to applications.",
     }),
   },
 ];

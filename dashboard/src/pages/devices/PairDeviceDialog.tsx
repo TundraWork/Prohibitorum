@@ -312,7 +312,7 @@ function ReviewStep({
               <SurfaceAlert.Content>
                 <SurfaceAlert.Title>
                   <Trans id="devices.review.expired">
-                    Start again on the new device.
+                    Start pairing again on the new device.
                   </Trans>
                 </SurfaceAlert.Title>
               </SurfaceAlert.Content>
@@ -354,7 +354,7 @@ function ReviewStep({
         {!pairing.alreadyBound && !expired && (
           <p className="text-sm">
             <Trans id="devices.review.consequence">
-              Once approved, this device is signed in to your account.
+              After approval, this device is signed in to your account.
             </Trans>
           </p>
         )}

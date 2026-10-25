@@ -320,7 +320,7 @@ describe("the connection form's sign-in response", () => {
   it("keeps the Keycloak and Microsoft note beside the choices", () => {
     mount(publicProvider());
     expect(
-      screen.getByText(/Keycloak calls this Implicit Flow Enabled/),
+      screen.getByText(/In Keycloak this is Implicit Flow Enabled/),
     ).toBeVisible();
   });
 
@@ -393,9 +393,7 @@ describe("the connection form's endpoints", () => {
 
     expect(radio("Discover automatically")).toBeChecked();
     expect(
-      screen.getByText(
-        "The addresses entered here replace what discovery finds.",
-      ),
+      screen.getByText("Addresses entered here replace the discovered ones."),
     ).toBeVisible();
     expect(screen.getByLabelText("Authorization endpoint")).toHaveValue(
       "https://idp.example.com/authorize",
@@ -530,7 +528,7 @@ describe("the connection form's endpoints", () => {
     await user.click(save());
     expect(
       await screen.findByText(
-        "Enter the UserInfo endpoint. With JWKS set to none, people are identified through it.",
+        "Enter the UserInfo endpoint. It is used to identify people when JWKS is set to None.",
       ),
     ).toBeVisible();
     expect(api.sent("PUT", putPath)).toHaveLength(0);
@@ -605,7 +603,7 @@ describe("the callback addresses", () => {
         `${origin}/api/prohibitorum/auth/federation/${slug}/callback`,
       ],
       [
-        "Copy the link-an-account address",
+        "Copy the account linking address",
         `${origin}/api/prohibitorum/me/identities/link/${slug}/callback`,
       ],
       [

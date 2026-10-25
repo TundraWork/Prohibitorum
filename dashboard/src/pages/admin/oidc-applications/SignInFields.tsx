@@ -22,7 +22,7 @@ export function RedirectUriList() {
       minRows={1}
       minRowsReason={
         <Trans id="admin.oidc-apps.field.redirect.required">
-          A client needs at least one redirect URI.
+          At least one redirect URI is required.
         </Trans>
       }
     />
@@ -41,7 +41,7 @@ export function PkceSwitch({ isPublic }: { isPublic: boolean }) {
       label={label}
       description={
         <Trans id="admin.oidc-apps.field.pkce.public">
-          A public client always proves the request it started.
+          Always required for public clients.
         </Trans>
       }
       isDisabled
@@ -58,7 +58,7 @@ export function ConsentSwitch() {
       label={<Trans id="admin.oidc-apps.field.consent">Require consent</Trans>}
       description={
         <Trans id="admin.oidc-apps.field.consent.hint">
-          Ask the account to approve the scopes before signing them in.
+          Ask users to approve the requested scopes before signing in.
         </Trans>
       }
     />

@@ -75,7 +75,7 @@ const isKeyRefusal = (error: unknown) =>
 /** A keyword kept for a hidden source would be rejected by the server. */
 const hiddenKeywordInvalid = msg({
   id: "settings.sign-in.query.hidden_invalid",
-  message: "The {source} keyword can't be used. Choose {source} to correct it.",
+  message: "The {source} keyword is invalid. Switch to {source} to correct it.",
 });
 
 /**
@@ -99,8 +99,8 @@ export function SignInPageEditor() {
           title={<Trans id="settings.sign-in.title">Sign-in page</Trans>}
           description={
             <Trans id="settings.sign-in.page.description">
-              What people see before they sign in. The preview shows your
-              changes as you make them.
+              Customize the background, card and toolbar of the sign-in page.
+              The preview updates as you make changes.
             </Trans>
           }
         />
@@ -234,7 +234,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
         t({
           id: "settings.sign-in.leave",
           message:
-            "You have unsaved changes to the sign-in page. Leave without saving them?",
+            "The sign-in page has unsaved changes. Leave without saving?",
         }),
       ),
     enableBeforeUnload: () => changes > 0,
@@ -270,7 +270,8 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
               title={<Trans id="settings.sign-in.preview">Preview</Trans>}
               description={
                 <Trans id="settings.sign-in.preview.description">
-                  The sign-in page at these settings, as visitors see it.
+                  Preview of the sign-in page with the current settings,
+                  including unsaved changes.
                 </Trans>
               }
               action={
@@ -324,7 +325,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
               title={<Trans id="settings.sign-in.background">Background</Trans>}
               description={
                 <Trans id="settings.sign-in.background.description">
-                  What fills the page behind the card.
+                  Set the page background behind the sign-in card.
                 </Trans>
               }
             >
@@ -354,8 +355,8 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
               title={<Trans id="settings.sign-in.card">Card</Trans>}
               description={
                 <Trans id="settings.sign-in.card.description">
-                  Where the sign-in card sits, which theme the page uses and how
-                  the card looks.
+                  Set the sign-in card's position and appearance, and the page
+                  theme.
                 </Trans>
               }
               footer={readability && <ReadabilityLine result={readability} />}
@@ -393,8 +394,8 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
               title={<Trans id="settings.sign-in.toolbar">Toolbar</Trans>}
               description={
                 <Trans id="settings.sign-in.toolbar.description">
-                  The instance name and the language and theme buttons at the
-                  top of the page.
+                  Set the look of the instance name and the language and theme
+                  buttons at the top of the page.
                 </Trans>
               }
             >
@@ -468,7 +469,7 @@ function PreviewToggles({
       {theme.forced && (
         <span className="text-muted-foreground text-xs">
           <Trans id="settings.sign-in.preview.theme_forced">
-            The theme is set in Card.
+            The theme is fixed in the Card settings.
           </Trans>
         </span>
       )}

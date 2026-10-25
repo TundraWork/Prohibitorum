@@ -66,8 +66,8 @@ export function AccountRoleField({
       {!known && (
         <FieldDescription className="text-pretty text-warning-foreground">
           <Trans id="admin.user.role.unknown">
-            This account has the role {role}, which the console does not offer
-            and the server refuses. Change it to User or Admin before saving.
+            This account has the role {role}, which is not supported and is
+            rejected by the server. Change it to User or Admin before saving.
           </Trans>
         </FieldDescription>
       )}

@@ -53,8 +53,8 @@ export function CredentialsSection({ app }: { app: OidcApp }) {
       {isPublic ? (
         <p className="text-muted-foreground text-sm">
           <Trans id="admin.oidc-apps.credentials.public">
-            A public client has no secret. It proves each sign-in request with
-            PKCE instead.
+            Public clients have no client secret. Each sign-in request is
+            verified with PKCE.
           </Trans>
         </p>
       ) : (
@@ -75,8 +75,8 @@ export function CredentialsSection({ app }: { app: OidcApp }) {
               }
               details={[
                 <Trans key="note" id="admin.oidc-apps.rotate.note">
-                  Issues a new secret and discards the old one. Clients still
-                  using the old secret stop signing accounts in until they are
+                  Issues a new secret and invalidates the old one. Clients that
+                  still use the old secret cannot sign users in until they are
                   updated.
                 </Trans>,
               ]}
@@ -115,10 +115,10 @@ export function CredentialsSection({ app }: { app: OidcApp }) {
         body={
           <p>
             <Trans id="admin.oidc-apps.rotate.body">
-              The current secret stops working the moment this is confirmed. Any
-              client still configured with it stops signing accounts in until
-              you give it the new one, so have somewhere to put the new secret
-              before you go ahead.
+              The current secret stops working as soon as you confirm. Clients
+              still configured with it cannot sign users in until they get the
+              new secret. Decide where to store the new secret before you
+              continue.
             </Trans>
           </p>
         }

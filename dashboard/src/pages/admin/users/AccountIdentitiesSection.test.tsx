@@ -51,7 +51,7 @@ describe("the connected identities section", () => {
     );
 
     const list = await screen.findByRole("list", {
-      name: "Connected identities",
+      name: "Linked identities",
     });
     const rows = within(list).getAllByRole("listitem");
     expect(rows).toHaveLength(4);
@@ -64,7 +64,11 @@ describe("the connected identities section", () => {
     expect(rows[2]).toHaveTextContent("VRChat");
     expect(rows[3]).toHaveTextContent("SAML");
     expect(within(list).queryByRole("button")).toBeNull();
-    expect(screen.getByText(/Administrators cannot unlink them/)).toBeVisible();
+    expect(
+      screen.getByText(
+        /Only the account holder can unlink them; administrators cannot/,
+      ),
+    ).toBeVisible();
   });
 
   it("breaks a long subject after its separators and leaves its text as it was", async () => {
@@ -76,7 +80,7 @@ describe("the connected identities section", () => {
     );
 
     const row = (
-      await screen.findByRole("list", { name: "Connected identities" })
+      await screen.findByRole("list", { name: "Linked identities" })
     ).querySelector("li") as HTMLElement;
     const value = row.querySelector("[data-slot=subject]") as HTMLElement;
     expect(value.textContent).toBe(subject);
@@ -92,7 +96,7 @@ describe("the connected identities section", () => {
   it("says so when the account has none", async () => {
     harness.mount(<AccountIdentitiesSection accountId={2} />, serve([]));
 
-    expect(await screen.findByText("No connected identities")).toBeVisible();
+    expect(await screen.findByText("No linked identities")).toBeVisible();
   });
 
   it("tells a failed read once, in the section, and not as a toast", async () => {

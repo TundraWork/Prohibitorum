@@ -110,7 +110,7 @@ export function AdminGroupNew() {
         title={<Trans id="admin.group.create.title">New user group</Trans>}
         description={
           <Trans id="admin.group.create.description">
-            Create a group applications can use to decide who gets in.
+            Create a group that applications can use to control access.
           </Trans>
         }
       />
@@ -146,7 +146,7 @@ export function AdminGroupNew() {
                 label={<Trans id="admin.group.kind.manual">Manual</Trans>}
                 description={
                   <Trans id="admin.group.create.kind.manual.description">
-                    A manual group holds the accounts you allow or deny by hand.
+                    Allow or deny individual accounts by hand.
                   </Trans>
                 }
               />
@@ -156,7 +156,7 @@ export function AdminGroupNew() {
                 label={<Trans id="admin.group.kind.rule">Rule</Trans>}
                 description={
                   <Trans id="admin.group.create.kind.rule.description">
-                    A rule group keeps itself up to date as accounts change.
+                    Matches accounts with a rule, evaluated on every access.
                   </Trans>
                 }
               />
@@ -169,8 +169,8 @@ export function AdminGroupNew() {
             title={<Trans id="admin.group.details.title">Details</Trans>}
             description={
               <Trans id="admin.group.details.description">
-                What the group is called, how applications name it, and whether
-                they are sent that name.
+                Set the group's name and identifier, and whether the identifier
+                is sent to applications.
               </Trans>
             }
           >
@@ -186,7 +186,7 @@ export function AdminGroupNew() {
                     label={<Trans id="admin.group.display-name">Name</Trans>}
                     description={
                       <Trans id="admin.group.display-name.hint">
-                        What this group is called in the console.
+                        The name shown in the console.
                       </Trans>
                     }
                     autoComplete="off"
@@ -205,8 +205,8 @@ export function AdminGroupNew() {
                     label={<Trans id="admin.group.slug">Identifier</Trans>}
                     description={
                       <Trans id="admin.group.slug.hint">
-                        Lowercase letters, digits and hyphens. Applications name
-                        this group by it.
+                        Lowercase letters, digits and hyphens. Applications
+                        refer to the group by this identifier.
                       </Trans>
                     }
                     autoComplete="off"
@@ -226,8 +226,7 @@ export function AdminGroupNew() {
                     }
                     description={
                       <Trans id="admin.group.description.hint">
-                        Optional. What this group is for, for whoever reads it
-                        next.
+                        Optional. Describe what this group is for.
                       </Trans>
                     }
                     rows={3}
@@ -261,15 +260,11 @@ export function AdminGroupNew() {
             <Section
               id="rule"
               icon={<ListFilterIcon />}
-              title={
-                <Trans id="admin.group.rule.heading">
-                  Who this group matches
-                </Trans>
-              }
+              title={<Trans id="admin.group.rule.heading">Matching rule</Trans>}
               description={
                 <Trans id="admin.group.rule.description">
-                  Checked every time someone asks for access, so the group is
-                  always current.
+                  Define which accounts this group matches. The rule is
+                  evaluated on every access.
                 </Trans>
               }
             >
@@ -284,7 +279,7 @@ export function AdminGroupNew() {
                 />
                 <p className="text-muted-foreground text-sm">
                   <Trans id="admin.group.create.rule.preview">
-                    Matching accounts appear once the group is saved.
+                    Matching accounts are shown here after the group is saved.
                   </Trans>
                 </p>
               </div>
@@ -292,8 +287,7 @@ export function AdminGroupNew() {
           ) : (
             <p className="text-pretty text-muted-foreground text-sm">
               <Trans id="admin.group.create.manual.note">
-                You choose who this group allows or denies on its page after you
-                create it.
+                After the group is created, allow or deny accounts on its page.
               </Trans>
             </p>
           )}

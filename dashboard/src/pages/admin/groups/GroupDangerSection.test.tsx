@@ -102,7 +102,7 @@ describe("while applications use the group", () => {
     mount(groupFixture(), apps(2));
 
     const reason =
-      "2 applications use this group. Remove it from their access first.";
+      "2 applications use this group. Remove the group from their access settings first.";
     expect(await screen.findByText(reason)).toBeVisible();
     expect(deleteButton()).toBeDisabled();
     expect(deleteButton()).not.toContainElement(screen.getByText(reason));
@@ -114,7 +114,7 @@ describe("while applications use the group", () => {
 
     expect(
       await screen.findByText(
-        "1 application uses this group. Remove it from its access first.",
+        "1 application uses this group. Remove the group from its access settings first.",
       ),
     ).toBeVisible();
     expect(deleteButton()).toBeDisabled();
@@ -167,7 +167,9 @@ describe("the delete confirmation", () => {
     });
     expect(within(dialog).getByText("Staff")).toBeVisible();
     expect(
-      within(dialog).getByText(/The group is removed for good/),
+      within(dialog).getByText(
+        /The group and its membership settings will be deleted/,
+      ),
     ).toBeVisible();
     expect(deletes()).toHaveLength(0);
     await user.click(
@@ -244,7 +246,7 @@ describe("the delete confirmation", () => {
     const alerts = await screen.findAllByRole("alert");
     expect(alerts).toHaveLength(1);
     expect(alerts[0]).toHaveTextContent(
-      "One or more applications still use this user group.",
+      "This user group is still used by one or more applications.",
     );
     expect(notifyError).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();

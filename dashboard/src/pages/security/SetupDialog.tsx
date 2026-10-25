@@ -214,8 +214,8 @@ function SetupForm({
                 <SurfaceAlert.Content>
                   <SurfaceAlert.Title>
                     <Trans id="security.setup.replacing">
-                      Once this is done, your current password, authenticator
-                      and recovery codes are all replaced.
+                      Completing setup replaces your current password,
+                      authenticator and recovery codes.
                     </Trans>
                   </SurfaceAlert.Title>
                 </SurfaceAlert.Content>
@@ -278,8 +278,8 @@ function SetupForm({
             <>
               <span className="max-sm:order-last sm:me-auto sm:self-center text-muted-foreground text-xs">
                 <Trans id="security.setup.key_note">
-                  The key was made in this browser and is sent only when you
-                  confirm.
+                  The authenticator key is generated in this browser and is sent
+                  only when you select Turn on.
                 </Trans>
               </span>
               <Button

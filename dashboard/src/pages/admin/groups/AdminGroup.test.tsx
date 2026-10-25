@@ -113,7 +113,7 @@ describe("the page's sections", () => {
     expect(
       screen.queryByRole("heading", {
         level: 2,
-        name: "Who this group matches",
+        name: "Matching rule",
       }),
     ).toBeNull();
   });
@@ -124,7 +124,7 @@ describe("the page's sections", () => {
     expect(
       screen.getByRole("heading", {
         level: 2,
-        name: "Who this group matches",
+        name: "Matching rule",
       }),
     ).toBeVisible();
     expect(screen.getByRole("tab", { name: "Builder" })).toBeVisible();
@@ -177,7 +177,10 @@ describe("the page's sections", () => {
     const main = screen
       .getAllByRole("heading", { level: 2 })
       .map((heading) => heading.textContent);
-    expect(main.slice(0, 2)).toEqual(["Details", "Who this group decides"]);
+    expect(main.slice(0, 2)).toEqual([
+      "Details",
+      "Allowed and denied accounts",
+    ]);
     const side = screen.getByRole("complementary", { name: "Group context" });
     expect(await within(side).findByText("1 allowed · 1 denied")).toBeVisible();
     expect(
@@ -191,7 +194,7 @@ describe("the page's sections", () => {
     await mountPage(ruleGroupFixture());
 
     expect(
-      screen.queryByRole("heading", { name: "Who this group decides" }),
+      screen.queryByRole("heading", { name: "Allowed and denied accounts" }),
     ).toBeNull();
   });
 

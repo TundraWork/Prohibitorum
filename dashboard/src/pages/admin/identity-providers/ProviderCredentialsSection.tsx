@@ -52,7 +52,7 @@ export function ProviderCredentialsSection({
       }
       description={
         <Trans id="admin.federation.credentials.steam.description">
-          The key stays encrypted and is never shown again.
+          The key is stored encrypted and never shown again.
         </Trans>
       }
     >
@@ -100,11 +100,11 @@ export function ProviderSecretRow({ provider }: { provider: Provider }) {
         description={
           steam ? (
             <Trans id="admin.federation.credentials.steam.note">
-              How this instance reads the Steam profile of someone who signs in.
+              Used to read the Steam profile of the person signing in.
             </Trans>
           ) : (
             <Trans id="admin.federation.credentials.oidc.note">
-              The secret this instance signs in to the provider with.
+              The secret this instance uses to authenticate to the provider.
             </Trans>
           )
         }

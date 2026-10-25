@@ -129,7 +129,7 @@ describe("signing keys", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        "A new key is published as soon as it is generated and starts signing when you activate it. The key it replaces keeps verifying through a grace period, then is retired.",
+        "Manage the keys that sign tokens and SAML assertions. A new key is published when it is generated and starts signing once activated. The key it replaces is still used for verification during a grace period, then retired.",
       ),
     ).toBeVisible();
   });
@@ -245,7 +245,7 @@ describe("signing keys", () => {
       name: "Sign with this key?",
     });
     expect(dialog).toHaveAccessibleDescription(
-      `${kids.pending} New tokens and SAML assertions are signed with this key. The current key keeps verifying what it signed until it is retired.`,
+      `${kids.pending} New tokens and SAML assertions will be signed with this key. The current key still verifies what it has signed until it is retired.`,
     );
     expect(requests("/activate")).toHaveLength(0);
 
@@ -384,7 +384,9 @@ describe("signing keys", () => {
       }),
     );
     const dialog = await screen.findByRole("dialog", { name: "Public key" });
-    expect(dialog).toHaveTextContent(`This is ${kids.active} as the instance`);
+    expect(dialog).toHaveTextContent(
+      `The public key of ${kids.active}, published by the instance`,
+    );
     const jwk = JSON.stringify(
       { kty: "RSA", kid: kids.active, e: "AQAB" },
       null,
@@ -503,9 +505,7 @@ describe("signing keys", () => {
       await user.click(screen.getByRole("button", { name: "Load more" }));
 
       expect(await screen.findByRole("alert")).toBeVisible();
-      expect(
-        screen.getByText("The rest of the keys could not be loaded."),
-      ).toBeVisible();
+      expect(screen.getByText("More keys could not be loaded.")).toBeVisible();
       expect(screen.getByText(kids.active)).toBeVisible();
       expect(screen.getByText(kids.pending)).toBeVisible();
       expect(notifyError).not.toHaveBeenCalled();

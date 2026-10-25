@@ -174,7 +174,7 @@ describe("enrollment", () => {
     renderApp(address, queryClient);
     expect(
       await screen.findByText(
-        "Your identity is verified. Choose your account name, then set up how you'll sign in.",
+        "Your identity is verified. Choose a username, then set up how you'll sign in.",
       ),
     ).toBeVisible();
     expect(screen.getByText("Verified as Alice VR by GitLab")).toBeVisible();
@@ -282,7 +282,7 @@ describe("enrollment", () => {
     renderApp(address, queryClient);
     expect(
       await screen.findByText(
-        "This invitation needs the account to be created through GitLab.",
+        "This invitation requires the account to be created through GitLab.",
       ),
     ).toBeVisible();
     const buttons = within(screen.getByRole("main")).getAllByRole("button");
@@ -356,7 +356,7 @@ describe("enrollment", () => {
     [
       "invalid_username",
       "Username",
-      "That username is not in a format this instance accepts.",
+      "Usernames must be 2–32 characters and use only lowercase letters, digits, underscores and hyphens.",
     ],
     [
       "username_immutable",
@@ -535,7 +535,7 @@ describe("enrollment", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        "This link was already used or has expired. Ask your administrator for a new one.",
+        "This link has already been used or has expired. Ask your administrator for a new one.",
       ),
     ).toBeVisible();
     expect(

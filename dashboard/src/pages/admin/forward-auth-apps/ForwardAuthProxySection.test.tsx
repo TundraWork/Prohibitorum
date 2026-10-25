@@ -55,7 +55,7 @@ describe("the Traefik configuration", () => {
     mount();
 
     expect(
-      screen.getByText(/Use this only behind a trusted reverse proxy/),
+      screen.getByText(/Use only behind a trusted reverse proxy/),
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: "the forward-auth guide" }),
@@ -76,7 +76,7 @@ describe("the Traefik configuration", () => {
     expect(
       screen.getByRole("button", { name: "Copy the Traefik configuration" }),
     ).toBeVisible();
-    expect(screen.queryByText(/Couldn't copy/)).toBeNull();
+    expect(screen.queryByText(/Could not copy/)).toBeNull();
   });
 
   it("says so when the clipboard refuses", async () => {
@@ -89,7 +89,7 @@ describe("the Traefik configuration", () => {
       screen.getByRole("button", { name: "Copy the Traefik configuration" }),
     );
 
-    expect(await screen.findByText(/Couldn't copy/)).toBeVisible();
+    expect(await screen.findByText(/Could not copy/)).toBeVisible();
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });

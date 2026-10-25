@@ -107,14 +107,13 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           details={[
             app.disabled ? (
               <Trans key="note" id="admin.forward-auth-apps.enable.note">
-                Requests through its router are accepted again, under the access
-                policy it already has.
+                Requests through its router are accepted again under its
+                existing access policy.
               </Trans>
             ) : (
               <Trans key="note" id="admin.forward-auth-apps.disable.note">
-                Every request through its router is turned away, including ones
-                from people who are signed in. The record and its access policy
-                are kept.
+                Every request through its router is refused, including requests
+                from signed-in users. Its record and access policy are kept.
               </Trans>
             ),
           ]}
@@ -190,14 +189,14 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           <p>
             {confirming === "enable" ? (
               <Trans id="admin.forward-auth-apps.enable.confirm.body">
-                The gateway starts accepting requests through this application
-                again, under the access policy it already has.
+                The gateway accepts requests to this application again under its
+                existing access policy.
               </Trans>
             ) : (
               <Trans id="admin.forward-auth-apps.disable.confirm.body">
-                The gateway refuses every request through this application,
-                including ones from people who are signed in. Nothing is
-                deleted, and enabling it again restores access.
+                The gateway refuses every request to this application, including
+                requests from signed-in users. Nothing is deleted, and enabling
+                it again restores access.
               </Trans>
             )}
           </p>
@@ -236,16 +235,15 @@ export function ForwardAuthDangerSection({ app }: { app: ForwardAuthApp }) {
           <p>
             {count === 0 ? (
               <Trans id="admin.forward-auth-apps.delete.confirm.open">
-                The application is removed along with its icon and its access
-                policy. Requests through its router are turned away immediately.
-                This cannot be undone.
+                The application, its icon and its access policy are deleted.
+                Requests through its router are refused immediately. This cannot
+                be undone.
               </Trans>
             ) : (
               <Trans id="admin.forward-auth-apps.delete.confirm.groups">
-                The application is removed along with its icon and its access
-                policy — including its selection of {count} user groups.
-                Requests through its router are turned away immediately. This
-                cannot be undone.
+                The application, its icon and its access policy are deleted,
+                including its selection of {count} user groups. Requests through
+                its router are refused immediately. This cannot be undone.
               </Trans>
             )}
           </p>

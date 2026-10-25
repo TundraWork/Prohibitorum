@@ -109,7 +109,7 @@ describe("the rule section", () => {
     mount(ruleGroupFixture());
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "Who this group matches" }),
+      screen.getByRole("heading", { level: 2, name: "Matching rule" }),
     ).toBeVisible();
     expect(
       screen.getByRole("tab", { name: "Builder", selected: true }),
@@ -152,7 +152,7 @@ describe("the rule section", () => {
     await user.click(addCondition());
 
     expect(
-      screen.getByText("Saving changes who is in this group right away."),
+      screen.getByText("Saving updates the group's members immediately."),
     ).toBeVisible();
     await user.click(saveButton());
 
@@ -314,7 +314,7 @@ describe("the live preview", () => {
 
     await user.click(addCondition());
 
-    const row = await screen.findByRole("group", { name: /Connected to/ });
+    const row = await screen.findByRole("group", { name: /Linked to/ });
     expect(
       await within(row).findByText(
         "That provider is not available on this instance.",
@@ -427,9 +427,7 @@ describe("a rule the builder knows is invalid", () => {
     await user.click(
       within(added).getByRole("combobox", { name: "Condition" }),
     );
-    await user.click(
-      await screen.findByRole("option", { name: "Connected to" }),
-    );
+    await user.click(await screen.findByRole("option", { name: "Linked to" }));
 
     expect(
       screen.getByText("Choose a provider for the highlighted condition."),
@@ -439,13 +437,13 @@ describe("a rule the builder knows is invalid", () => {
       "Choose a provider for the highlighted condition.",
     );
     const value = within(
-      screen.getByRole("group", { name: /Connected to/ }),
+      screen.getByRole("group", { name: /Linked to/ }),
     ).getByRole("combobox", { name: "Value" });
     expect(value).toBeInvalid();
     await new Promise((resolve) => setTimeout(resolve, 500));
     // Adding the row makes a valid two-passkey draft first, and under load
     // the 400ms preview debounce can run out before the row becomes
-    // "Connected to"; previewing that draft is right. The invalid draft is
+    // "Linked to"; previewing that draft is right. The invalid draft is
     // the one that must never go out.
     const sent = await Promise.all(
       previews().map((request) => request.clone().json()),
@@ -471,10 +469,10 @@ describe("a rule the builder knows is invalid", () => {
 
     expect(saveButton()).toBeDisabled();
     expect(saveButton()).toHaveAccessibleDescription(
-      "Add a condition to say who this group matches.",
+      "A rule needs at least one condition.",
     );
     expect(
-      screen.getAllByText("Add a condition to say who this group matches."),
+      screen.getAllByText("A rule needs at least one condition."),
     ).not.toHaveLength(0);
   });
 
@@ -533,11 +531,11 @@ describe("a JSON document that was refused", () => {
 
     expect(saveButton()).toBeDisabled();
     expect(saveButton()).toHaveAccessibleDescription(
-      /This is not valid JSON\. The builder still holds your rule\./,
+      /This is not valid JSON\. The rule in the builder is unchanged\./,
     );
     expect(
       screen
-        .getByRole("heading", { level: 2, name: /Who this group matches/ })
+        .getByRole("heading", { level: 2, name: /Matching rule/ })
         .closest("section"),
     ).toHaveAttribute("data-dirty", "true");
     expect(previews()).toHaveLength(0);

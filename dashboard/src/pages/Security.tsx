@@ -31,7 +31,7 @@ export function Security() {
         title={<Trans id="security.page.title">Security</Trans>}
         description={
           <Trans id="security.page.description">
-            How you sign in to {name}.
+            Manage how you sign in to {name}, and your access tokens.
           </Trans>
         }
       />

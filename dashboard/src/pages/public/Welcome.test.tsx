@@ -63,7 +63,7 @@ describe("the account a first federated sign-in prepared", () => {
     ).toHaveFocus();
     expect(
       screen.getByText(
-        "You're signing in through GitLab for the first time, and Test instance has prepared this account for you.",
+        "This is your first sign-in through GitLab. Test instance has prepared the account below for you.",
       ),
     ).toBeVisible();
     expect(screen.getByText("Alice Liddell")).toBeVisible();

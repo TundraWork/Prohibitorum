@@ -99,8 +99,8 @@ describe("a condition row", () => {
       ),
     ).toEqual([
       "Signs in with",
-      "Connected to",
-      "Connected through",
+      "Linked to",
+      "Linked through",
       "Profile picture",
     ]);
     await user.keyboard("{Escape}");
@@ -126,17 +126,17 @@ describe("a condition row", () => {
     );
     expect(
       screen.getByRole("group", {
-        name: "Connected through is OpenID Connect",
+        name: "Linked through is OpenID Connect",
       }),
     ).toBeVisible();
     expect(
       screen.getByRole("group", {
-        name: "Profile picture is Uploaded by them",
+        name: "Profile picture is Uploaded by the user",
       }),
     ).toBeVisible();
 
     await user.click(
-      within(rowNamed(/Connected through/)).getByRole("combobox", {
+      within(rowNamed(/Linked through/)).getByRole("combobox", {
         name: "Value",
       }),
     );
@@ -155,10 +155,10 @@ describe("a condition row", () => {
     await choose(
       user,
       within(row).getByRole("combobox", { name: "Condition" }),
-      "Connected to",
+      "Linked to",
     );
 
-    const changed = rowNamed(/Connected to/);
+    const changed = rowNamed(/Linked to/);
     expect(
       within(changed).getByRole("combobox", { name: "Value" }),
     ).toHaveTextContent("Choose a provider");
@@ -225,7 +225,7 @@ describe("a condition row", () => {
   it("notes a disabled provider, and one with sign-in off, beside its name", async () => {
     const user = userEvent.setup();
     mount(doc({ op: "all", children: [github] }));
-    const row = rowNamed(/Connected to/);
+    const row = rowNamed(/Linked to/);
 
     await user.click(within(row).getByRole("combobox", { name: "Value" }));
 
@@ -249,7 +249,7 @@ describe("a condition row", () => {
       }),
     );
 
-    const value = within(rowNamed(/Connected to/)).getByRole("combobox", {
+    const value = within(rowNamed(/Linked to/)).getByRole("combobox", {
       name: "Value",
     });
     expect(value).toHaveTextContent("Unknown provider (gone)");
@@ -338,7 +338,7 @@ describe("the root and nested groups", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Remove the condition: Connected to is GitHub",
+        name: "Remove the condition: Linked to is GitHub",
       }),
     );
 
@@ -357,7 +357,7 @@ describe("the root and nested groups", () => {
     );
 
     expect(
-      screen.getAllByText("Add a condition to say who this group matches."),
+      screen.getAllByText("A rule needs at least one condition."),
     ).not.toHaveLength(0);
   });
 
@@ -378,7 +378,7 @@ describe("the root and nested groups", () => {
     expect(buttons[0]).toBeDisabled();
     for (const button of buttons.slice(1)) expect(button).toBeEnabled();
     const reason =
-      "Conditions sit at most 8 levels deep, so no group fits here.";
+      "Conditions can be nested at most 8 levels deep. No more groups can be added here.";
     expect(screen.getAllByText(reason)).toHaveLength(1);
     expect(buttons[0]).toHaveAccessibleDescription(reason);
     // The group one level up still takes a condition, and its group button has no reason to give.
@@ -400,7 +400,7 @@ describe("the root and nested groups", () => {
     }
     expect(
       screen.queryByText(
-        "Conditions sit at most 8 levels deep, so no group fits here.",
+        "Conditions can be nested at most 8 levels deep. No more groups can be added here.",
       ),
     ).toBeNull();
   });
@@ -416,10 +416,10 @@ describe("the root group", () => {
     const root = screen.getAllByRole("combobox", { name: "Match" })[0];
     expect(root).toBeValid();
     expect(root).toHaveAccessibleDescription(
-      "A group can hold at most 32 conditions.",
+      "Each group can contain at most 32 conditions.",
     );
     expect(
-      screen.getAllByText("A group can hold at most 32 conditions."),
+      screen.getAllByText("Each group can contain at most 32 conditions."),
     ).toHaveLength(1);
     expect(root?.closest("[data-invalid]")).not.toBeNull();
     // The disabled add buttons point at that same message.
@@ -428,7 +428,9 @@ describe("the root group", () => {
     ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Add condition" }),
-    ).toHaveAccessibleDescription("A group can hold at most 32 conditions.");
+    ).toHaveAccessibleDescription(
+      "Each group can contain at most 32 conditions.",
+    );
   });
 
   it("stops offering conditions and groups once a group holds 32, and says why", () => {
@@ -439,10 +441,10 @@ describe("the root group", () => {
     expect(add).toBeDisabled();
     expect(group).toBeDisabled();
     expect(add).toHaveAccessibleDescription(
-      "A group can hold at most 32 conditions.",
+      "Each group can contain at most 32 conditions.",
     );
     expect(group).toHaveAccessibleDescription(
-      "A group can hold at most 32 conditions.",
+      "Each group can contain at most 32 conditions.",
     );
   });
 
@@ -471,7 +473,7 @@ describe("a saved provider before the list can name it", () => {
         />
       </I18nProvider>,
     );
-    return within(rowNamed(/Connected to/)).getByRole("combobox", {
+    return within(rowNamed(/Linked to/)).getByRole("combobox", {
       name: "Value",
     });
   }
@@ -538,7 +540,7 @@ describe("problems on their rows", () => {
       }),
     );
 
-    const row = rowNamed(/Connected to/);
+    const row = rowNamed(/Linked to/);
     expect(within(row).getByRole("combobox", { name: "Value" })).toBeInvalid();
     expect(
       within(row).getByText("Choose a provider for this condition."),
@@ -602,14 +604,16 @@ describe("limit problems", () => {
 
     const well = screen.getByRole("group", { name: "Group" });
     expect(well).toHaveAccessibleDescription(
-      "A group can hold at most 32 conditions.",
+      "Each group can contain at most 32 conditions.",
     );
     expect(within(well).getByRole("combobox", { name: "Match" })).toBeValid();
     expect(
-      screen.getAllByText("A group can hold at most 32 conditions."),
+      screen.getAllByText("Each group can contain at most 32 conditions."),
     ).toHaveLength(1);
     expect(
       within(well).getByRole("button", { name: "Add condition" }),
-    ).toHaveAccessibleDescription("A group can hold at most 32 conditions.");
+    ).toHaveAccessibleDescription(
+      "Each group can contain at most 32 conditions.",
+    );
   });
 });

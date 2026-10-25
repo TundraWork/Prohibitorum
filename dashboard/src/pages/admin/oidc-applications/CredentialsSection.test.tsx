@@ -74,7 +74,9 @@ describe("the credentials section", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Credentials" }),
     ).toBeVisible();
-    expect(screen.getByText(/A public client has no secret/)).toBeVisible();
+    expect(
+      screen.getByText(/Public clients have no client secret/),
+    ).toBeVisible();
     expect(screen.queryByRole("button", { name: /Rotate/ })).toBeNull();
   });
 

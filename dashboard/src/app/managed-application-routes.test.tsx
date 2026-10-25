@@ -257,7 +257,7 @@ it("lets an application's manager allow a provider's identities, and clear one w
   ).toBeVisible();
   expect(
     screen.getByText(
-      "This provider is turned off or no longer exists. Clear it to stop allowing it.",
+      "This provider is disabled or no longer exists. Clear it to stop allowing it.",
     ),
   ).toBeVisible();
 });
@@ -303,6 +303,6 @@ it("tells an admin that deleting a provider clears its identity scope", async ()
   await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
   const dialog = await screen.findByRole("alertdialog");
   expect(dialog).toHaveTextContent(
-    "Applications allowed identity:vrchat lose that scope, and what users agreed to for it is cleared, so a provider added later with the same identifier starts fresh.",
+    "Applications allowed identity:vrchat lose that scope, and users' consent to it is cleared. A provider added later with the same identifier needs new consent.",
   );
 });

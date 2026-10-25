@@ -42,7 +42,8 @@ export function AdminSettings() {
           title={<Trans id="console.admin.settings">Settings</Trans>}
           description={
             <Trans id="settings.page.description">
-              How this instance is named, signed in to and kept running.
+              Manage the instance name and icon, sign-in page, maintenance mode,
+              mail, client IP and signing keys.
             </Trans>
           }
         />

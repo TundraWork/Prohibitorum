@@ -58,26 +58,22 @@ export function AccountIdentitiesSection({ accountId }: { accountId: number }) {
     <AccessSection
       id="identities"
       icon={<Link2 />}
-      title={
-        <Trans id="admin.user.identities.title">Connected identities</Trans>
-      }
+      title={<Trans id="admin.user.identities.title">Linked identities</Trans>}
       description={
         <Trans id="admin.user.identities.description">
-          Accounts at other providers they can sign in with. Administrators
-          cannot unlink them; only the account holder can.
+          Accounts at other providers linked to this account for signing in.
+          Only the account holder can unlink them; administrators cannot.
         </Trans>
       }
       label={t({
         id: "admin.user.identities.table",
-        message: "Connected identities",
+        message: "Linked identities",
       })}
       query={identities}
       writeError={null}
       empty={
         <ItemListEmpty>
-          <Trans id="admin.user.identities.empty">
-            No connected identities
-          </Trans>
+          <Trans id="admin.user.identities.empty">No linked identities</Trans>
         </ItemListEmpty>
       }
     >

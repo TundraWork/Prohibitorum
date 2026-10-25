@@ -207,8 +207,7 @@ function Pad({ query, isAdmin }: { query: string; isAdmin: boolean }) {
           </EmptyTitle>
           <EmptyDescription>
             <Trans id="launcher.empty.description">
-              When an administrator gives you access to an application, it
-              appears here.
+              Applications an administrator gives you access to appear here.
             </Trans>
           </EmptyDescription>
         </EmptyHeader>
@@ -267,7 +266,7 @@ function Pad({ query, isAdmin }: { query: string; isAdmin: boolean }) {
       {needle === "" && connected.length === 0 && (
         <p role="status" className="text-muted-foreground text-sm">
           <Trans id="launcher.connect_first">
-            Connect an app to get started.
+            No connected apps yet. Choose Add app to connect one.
           </Trans>
         </p>
       )}
@@ -283,8 +282,7 @@ function Pad({ query, isAdmin }: { query: string; isAdmin: boolean }) {
         body={
           <p>
             <Trans id="launcher.revoke.body">
-              It will ask for your permission again the next time you sign in to
-              it.
+              You'll need to authorize it again the next time you sign in to it.
             </Trans>
           </p>
         }
@@ -326,7 +324,8 @@ function AddAppDialog({
           </DialogTitle>
           <DialogDescription>
             <Trans id="launcher.add.description">
-              Open one to sign in to it. It joins your apps once you have.
+              You can use the following apps. After you sign in to an app, it's
+              added to your apps.
             </Trans>
           </DialogDescription>
         </DialogHeader>

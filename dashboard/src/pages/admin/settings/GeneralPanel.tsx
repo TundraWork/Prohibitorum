@@ -107,8 +107,8 @@ function GeneralSection({
           title={title}
           description={
             <Trans id="settings.general.description">
-              The name and icon people see in the console, on the sign-in page
-              and in the browser tab.
+              Set the instance name and icon shown in the console, on the
+              sign-in page and in the browser tab.
             </Trans>
           }
           dirty={dirty}
@@ -137,7 +137,7 @@ function GeneralSection({
                   label={<Trans id="settings.general.name.label">Name</Trans>}
                   description={
                     <Trans id="settings.general.name.hint">
-                      Leave it empty to use the name from the deployment
+                      Leave empty to use the name from the deployment
                       configuration.
                     </Trans>
                   }

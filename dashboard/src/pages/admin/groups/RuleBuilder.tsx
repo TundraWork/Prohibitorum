@@ -239,7 +239,8 @@ function Children({
               i18n._(issueMessage("max_children_exceeded"))
             ) : (
               <Trans id="admin.group.rule.depth-limit">
-                Conditions sit at most 8 levels deep, so no group fits here.
+                Conditions can be nested at most 8 levels deep. No more groups
+                can be added here.
               </Trans>
             )}
           </span>

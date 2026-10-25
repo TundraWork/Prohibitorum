@@ -57,7 +57,7 @@ export function CallbackPreview({
           }
           copyLabel={t({
             id: "admin.federation.callback.link.copy",
-            message: "Copy the link-an-account address",
+            message: "Copy the account linking address",
           })}
           value={`${origin}/api/prohibitorum/me/identities/link/${slug}/callback`}
         />

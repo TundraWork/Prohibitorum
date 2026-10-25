@@ -145,7 +145,7 @@ describe("AccountEmailsSection", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
     const dialog = await screen.findByRole("alertdialog");
     expect(
-      within(dialog).getByText(/next@example.test.*will become/),
+      within(dialog).getByText(/address, next@example.test, becomes/),
     ).toBeVisible();
   });
 

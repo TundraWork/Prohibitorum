@@ -79,7 +79,7 @@ describe("the page", () => {
 
     expect(await screen.findByText("No user groups yet")).toBeVisible();
     expect(
-      screen.getByText(/Create one to choose accounts by hand/),
+      screen.getByText(/Create a group to pick accounts by hand/),
     ).toBeVisible();
     expect(screen.getAllByRole("link", { name: "New group" })).toHaveLength(1);
   });

@@ -25,9 +25,7 @@ describe("AdminHome", () => {
     });
     expect(heading).toBeInTheDocument();
     const header = heading.closest("header") as HTMLElement;
-    expect(
-      within(header).getByText(/managed from the sections/i),
-    ).toBeVisible();
+    expect(within(header).getByText(/from the sidebar/i)).toBeVisible();
   });
 
   it("sits in the page column with a single heading", () => {

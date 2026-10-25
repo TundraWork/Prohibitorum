@@ -12,11 +12,11 @@ export const factLabels: Readonly<Record<RuleFact, MessageDescriptor>> = {
   }),
   "connection.provider": msg({
     id: "admin.group.rule.fact.provider",
-    message: "Connected to",
+    message: "Linked to",
   }),
   "connection.protocol": msg({
     id: "admin.group.rule.fact.protocol",
-    message: "Connected through",
+    message: "Linked through",
   }),
   avatar: msg({
     id: "admin.group.rule.fact.avatar",
@@ -43,7 +43,7 @@ const sourceLabels: Readonly<Record<string, MessageDescriptor>> = {
   any: msg({ id: "admin.group.rule.source.any", message: "Any picture" }),
   user_uploaded: msg({
     id: "admin.group.rule.source.user_uploaded",
-    message: "Uploaded by them",
+    message: "Uploaded by the user",
   }),
 };
 
@@ -69,11 +69,11 @@ export function valueLabel(
 export const issueMessages: Readonly<Record<string, MessageDescriptor>> = {
   empty_rule: msg({
     id: "admin.group.rule.empty",
-    message: "Add a condition to say who this group matches.",
+    message: "A rule needs at least one condition.",
   }),
   invalid_shape: msg({
     id: "admin.group.rule.reason.invalid_shape",
-    message: "This condition mixes fields that do not belong together.",
+    message: "This condition combines fields that cannot be used together.",
   }),
   invalid_op: msg({
     id: "admin.group.rule.reason.invalid_op",
@@ -89,11 +89,11 @@ export const issueMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   max_nodes_exceeded: msg({
     id: "admin.group.rule.reason.max_nodes_exceeded",
-    message: "This rule has too many conditions. Use at most 64 in total.",
+    message: "A rule can contain at most 64 conditions in total.",
   }),
   max_children_exceeded: msg({
     id: "admin.group.rule.reason.max_children_exceeded",
-    message: "A group can hold at most 32 conditions.",
+    message: "Each group can contain at most 32 conditions.",
   }),
   empty_children: msg({
     id: "admin.group.rule.reason.empty_children",
@@ -105,7 +105,7 @@ export const issueMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   not_requires_fact: msg({
     id: "admin.group.rule.reason.not_requires_fact",
-    message: "A negated row must hold one condition, not another group.",
+    message: "A negation must contain a single condition, not a group.",
   }),
   missing_provider: msg({
     id: "admin.group.rule.reason.missing_provider",
@@ -129,7 +129,7 @@ export const issueMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   unsupported_version: msg({
     id: "admin.group.rule.reason.unsupported_version",
-    message: "This rule was written for another version of the server.",
+    message: "This rule was written for a different server version.",
   }),
   invalid_json: msg({
     id: "admin.group.rule.reason.invalid_json",
@@ -141,7 +141,7 @@ export const issueMessages: Readonly<Record<string, MessageDescriptor>> = {
   }),
   trailing_json: msg({
     id: "admin.group.rule.reason.trailing_json",
-    message: "The document has content after the rule.",
+    message: "The document has extra content after the rule.",
   }),
   missing_version: msg({
     id: "admin.group.rule.reason.missing_version",

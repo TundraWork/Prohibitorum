@@ -90,7 +90,9 @@ describe("the page", () => {
   it("says there are no applications when the list is empty", async () => {
     await mountList([]);
     expect(await screen.findByText("No OIDC applications yet")).toBeVisible();
-    expect(screen.getByText(/Register a client to let people/)).toBeVisible();
+    expect(
+      screen.getByText(/Register an application that signs people in/),
+    ).toBeVisible();
     // One way to the create page: the header's.
     expect(
       screen.getAllByRole("link", { name: "New application" }),

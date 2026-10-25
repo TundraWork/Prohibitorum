@@ -119,7 +119,7 @@ function Verdict({ ratio, readable }: { ratio: string; readable: boolean }) {
       </Badge>
       <span>
         <Trans id="settings.sign-in.readability.contrast_hint">
-          Body text contrast {ratio} : 1 — raise the card's opacity or pick
+          Body text contrast {ratio} : 1 — increase the card opacity or choose
           another background
         </Trans>
       </span>

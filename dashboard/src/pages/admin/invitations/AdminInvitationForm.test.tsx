@@ -192,7 +192,7 @@ describe("the local sign-in requirement", () => {
     expect(switchEl).toBeChecked();
     expect(switchEl).toHaveAttribute("aria-disabled", "true");
     expect(
-      screen.getByText(/can't be used to sign in, so a local/),
+      screen.getByText(/Sign-in is turned off for this provider, so a local/),
     ).toBeVisible();
 
     // Switching back to an ordinary provider unlocks it again.

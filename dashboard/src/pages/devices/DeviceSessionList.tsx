@@ -135,7 +135,7 @@ export function DeviceSessionList({
                 session.isCurrent ? (
                   <span className="max-w-28 text-end text-muted-foreground text-xs leading-snug sm:max-w-none">
                     <Trans id="devices.sessions.use_sign_out">
-                      Use sign out to end this one
+                      Sign out to end this session
                     </Trans>
                   </span>
                 ) : (
@@ -172,8 +172,8 @@ export function DeviceSessionList({
         body={
           <p>
             <Trans id="devices.sessions.revoke.body">
-              That device is signed out immediately and will need to sign in
-              again. Anything it is doing right now stops.
+              That device is signed out immediately. Anything in progress on it
+              stops.
             </Trans>
           </p>
         }

@@ -74,7 +74,7 @@ export function TokenAccessBadge({ token }: { token: Pick<Token, "access"> }) {
   if (token.access !== "sudo") return null;
   return (
     <Badge variant="warning">
-      <Trans id="token.access.sudo.badge">Skips confirming it is you</Trans>
+      <Trans id="token.access.sudo.badge">Skips verifying your identity</Trans>
     </Badge>
   );
 }

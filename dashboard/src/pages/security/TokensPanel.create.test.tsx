@@ -148,7 +148,7 @@ describe("creating an access token", () => {
     await user.type(within(dialog).getByLabelText("Name"), "CI");
     await user.click(
       within(dialog).getByRole("radio", {
-        name: "Full access, without confirming it is you",
+        name: "Full access without verifying your identity",
       }),
     );
     await user.click(
@@ -156,7 +156,7 @@ describe("creating an access token", () => {
     );
 
     const confirm = await screen.findByRole("alertdialog", {
-      name: "Create a token that skips confirming it is you?",
+      name: "Create a token that skips verifying your identity?",
     });
     expect(creates()).toHaveLength(0);
 
@@ -185,7 +185,9 @@ describe("creating an access token", () => {
       plaintext,
     );
     expect(
-      within(reveal).getByText("Send it in the X-Prohibitorum-PAT header."),
+      within(reveal).getByText(
+        "Send the token in the X-Prohibitorum-PAT request header.",
+      ),
     ).toBeInTheDocument();
     expect(reveal).toContainElement(document.activeElement as HTMLElement);
   });
@@ -204,7 +206,7 @@ describe("creating an access token", () => {
     const group = within(dialog).getByRole("group", { name: "Applications" });
     expect(
       await within(group).findByText(
-        "Choose at least one application, or pick another level of access.",
+        "Select at least one application, or choose a different access level.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -212,16 +214,14 @@ describe("creating an access token", () => {
     ).toHaveAttribute("aria-invalid", "true");
     // Both fields say what is missing at once, not one per attempt.
     expect(
-      within(dialog).getByText(
-        "Give the token a name so you can recognise it later.",
-      ),
+      within(dialog).getByText("Enter a name for the token."),
     ).toBeInTheDocument();
     expect(creates()).toHaveLength(0);
 
     await user.click(within(group).getByRole("checkbox", { name: "Wiki" }));
     expect(
       within(group).queryByText(
-        "Choose at least one application, or pick another level of access.",
+        "Select at least one application, or choose a different access level.",
       ),
     ).not.toBeInTheDocument();
   });
@@ -235,7 +235,7 @@ describe("creating an access token", () => {
     });
     await waitFor(() => expect(radio).toHaveAttribute("aria-disabled", "true"));
     expect(
-      within(dialog).getByText("You have no applications to choose from."),
+      within(dialog).getByText("No applications are available to choose from."),
     ).toBeInTheDocument();
   });
 
@@ -245,7 +245,7 @@ describe("creating an access token", () => {
     const dialog = await openDialog(user);
     expect(
       await within(dialog).findByText(
-        "Applications, your account and what you manage as an administrator. Anything that asks you to confirm it is you is refused.",
+        "Access to applications, your account and what you manage as an administrator, except actions that require verifying your identity.",
       ),
     ).toBeInTheDocument();
   });
@@ -256,7 +256,7 @@ describe("creating an access token", () => {
     const dialog = await openDialog(user);
     await user.click(
       within(dialog).getByText(
-        "Applications and your account. Anything that asks you to confirm it is you is refused.",
+        "Access to applications and your account, except actions that require verifying your identity.",
       ),
     );
     expect(
@@ -297,13 +297,13 @@ describe("the access levels", () => {
     expect(radios).toHaveLength(4);
     expect(radios[0]).toHaveAccessibleName("Applications you choose");
     expect(radios[0]).toHaveAccessibleDescription(
-      "Works only on the applications you pick.",
+      "Can be used only with the selected applications.",
     );
     expect(radios[3]).toHaveAccessibleName(
-      "Full access, without confirming it is you",
+      "Full access without verifying your identity",
     );
     expect(radios[3]).toHaveAccessibleDescription(
-      "Everything, including changing how you sign in, without being asked to confirm it is you.",
+      "All actions, including changing how you sign in, without verifying your identity.",
     );
   });
 
@@ -374,7 +374,7 @@ describe("the access levels", () => {
 
     await user.click(
       within(dialog).getByRole("radio", {
-        name: "Full access, without confirming it is you",
+        name: "Full access without verifying your identity",
       }),
     );
     expect(submit).toHaveAttribute("data-variant", "destructive");
@@ -457,7 +457,7 @@ describe("the token list", () => {
     ).toBeInTheDocument();
     // The hint is the server's own display string, drawn as it comes.
     expect(row).toHaveTextContent("prohibitorum_pat_…a1b2");
-    expect(row).toHaveTextContent("Skips confirming it is you");
+    expect(row).toHaveTextContent("Skips verifying your identity");
     expect(row).toHaveTextContent("Full access");
   });
 
@@ -501,7 +501,9 @@ describe("the token list", () => {
     expect(open.querySelector("[data-slot='item-meta']")).toHaveTextContent(
       "Never expires",
     );
-    expect(within(dated).queryByText("Skips confirming it is you")).toBeNull();
+    expect(
+      within(dated).queryByText("Skips verifying your identity"),
+    ).toBeNull();
   });
 
   it("marks a token whose expiry has passed", async () => {
@@ -534,7 +536,7 @@ describe("the token list", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        "Keys for scripts and tools that act as you. Each is shown once, when you create it.",
+        "Create tokens that let scripts and tools act as you. Each token is shown only once, when you create it.",
       ),
     ).toBeVisible();
   });
@@ -583,11 +585,13 @@ describe("the token list read", () => {
 
     expect(
       await within(dialog).findByText(
-        "Your applications could not be loaded. Close this and try again.",
+        "Could not load your applications. Close this dialog and open it again.",
       ),
     ).toBeVisible();
     expect(
-      within(dialog).queryByText("You have no applications to choose from."),
+      within(dialog).queryByText(
+        "No applications are available to choose from.",
+      ),
     ).not.toBeInTheDocument();
     expect(notifyError).not.toHaveBeenCalled();
   });
