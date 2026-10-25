@@ -346,6 +346,7 @@ describe("EmailsPanel", () => {
   it("refetches the list after a delete, so the row leaves without a reload", async () => {
     const user = userEvent.setup();
     let deleted = false;
+    let readAfterDelete = false;
     mount(
       [
         emailFixture(),
@@ -355,6 +356,7 @@ describe("EmailsPanel", () => {
       (request) => {
         const path = new URL(request.url).pathname;
         if (request.method === "GET" && path === emailsPath) {
+          if (deleted) readAfterDelete = true;
           // The read after the delete no longer lists the removed address.
           const rows = deleted
             ? [emailFixture()]
@@ -380,6 +382,14 @@ describe("EmailsPanel", () => {
       },
     );
 
+    // The row is on screen before anything starts, so the delete's effect is
+    // measured against a state that cannot race it. The old check ran after
+    // the confirm, where the row is transient: the delete and the refetch it
+    // triggers can settle before (or while) the find polls, and a poll that
+    // catches the closing dialog's copy of the address fails toBeVisible
+    // outside the find's retry loop.
+    expect(await screen.findByText("second@example.test")).toBeVisible();
+
     await user.click(
       screen.getByRole("button", {
         name: "More actions for second@example.test",
@@ -392,13 +402,16 @@ describe("EmailsPanel", () => {
       }),
     );
 
-    expect(await screen.findByText("second@example.test")).toBeVisible();
-    // The list reads again once the delete answers, and the fresh answer —
-    // which no longer carries the row — is what is on screen.
-    await waitFor(() =>
-      expect(screen.queryByText("second@example.test")).not.toBeInTheDocument(),
-    );
+    // The final state, not the transition: the write answered, the list read
+    // again without a reload, and neither the row nor the dialog that removed
+    // it remains. A list that only refreshed on reload keeps the row, and
+    // this waits out the load tolerance instead of a lucky instant.
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(screen.queryByText("second@example.test")).not.toBeInTheDocument();
+    });
     expect(deleted).toBe(true);
+    expect(readAfterDelete).toBe(true);
   });
 
   it("carries the row's next step in its menu, not as an inline button", async () => {
