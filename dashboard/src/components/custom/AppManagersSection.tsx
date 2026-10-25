@@ -51,7 +51,9 @@ export function AppManagerNote({ isAdmin }: { isAdmin: boolean }) {
   return (
     <p className="flex items-center gap-2 text-muted-foreground text-sm">
       <UserCheck aria-hidden="true" className="size-4 shrink-0" />
-      <Trans id="app.managers.self">You manage this application.</Trans>
+      <Trans id="app.managers.self">
+        You are assigned to manage this application.
+      </Trans>
     </p>
   );
 }
@@ -113,7 +115,8 @@ export function AppManagersSection({
         title={<Trans id="app.managers.label">Managers</Trans>}
         description={
           <Trans id="app.managers.description">
-            Managers can change everything on this page except who manages it.
+            Managers can change every setting on this page except the list of
+            managers.
           </Trans>
         }
         action={
@@ -233,8 +236,8 @@ export function AppManagersSection({
         body={
           <p>
             <Trans id="app.managers.confirm.body">
-              They will no longer be able to change this application. Their
-              account is not affected.
+              This account can no longer change this application. The account
+              itself is not affected.
             </Trans>
           </p>
         }

@@ -106,8 +106,8 @@ export function GroupDetailsSection({ group }: { group: AppGroupView }) {
             title={title}
             description={
               <Trans id="admin.group.details.description">
-                What the group is called, how applications name it, and whether
-                they are sent that name.
+                Set the group's name and identifier, and whether the identifier
+                is sent to applications.
               </Trans>
             }
             dirty={dirty}
@@ -117,8 +117,8 @@ export function GroupDetailsSection({ group }: { group: AppGroupView }) {
                   consequence={
                     turningOff ? (
                       <Trans id="admin.group.exposed.consequence">
-                        Applications that selected {name} stop receiving
-                        {slug} at the next sign-in.
+                        Applications that selected {name} stop receiving {slug}{" "}
+                        at the next sign-in.
                       </Trans>
                     ) : undefined
                   }
@@ -151,7 +151,7 @@ export function GroupDetailsSection({ group }: { group: AppGroupView }) {
                     label={<Trans id="admin.group.display-name">Name</Trans>}
                     description={
                       <Trans id="admin.group.display-name.hint">
-                        What this group is called in the console.
+                        The name shown in the console.
                       </Trans>
                     }
                     autoComplete="off"
@@ -170,8 +170,8 @@ export function GroupDetailsSection({ group }: { group: AppGroupView }) {
                     label={<Trans id="admin.group.slug">Identifier</Trans>}
                     description={
                       <Trans id="admin.group.slug.hint">
-                        Lowercase letters, digits and hyphens. Applications name
-                        this group by it.
+                        Lowercase letters, digits and hyphens. Applications
+                        refer to the group by this identifier.
                       </Trans>
                     }
                     autoComplete="off"
@@ -191,8 +191,7 @@ export function GroupDetailsSection({ group }: { group: AppGroupView }) {
                     }
                     description={
                       <Trans id="admin.group.description.hint">
-                        Optional. What this group is for, for whoever reads it
-                        next.
+                        Optional. Describe what this group is for.
                       </Trans>
                     }
                     rows={3}
@@ -240,9 +239,9 @@ export function GroupDetailsSection({ group }: { group: AppGroupView }) {
         body={
           <p>
             <Trans id="admin.group.exposed.confirm.body">
-              The group can still be selected for access. Applications just stop
-              receiving its identifier, and you can turn this back on at any
-              time.
+              Applications stop receiving the group's identifier. The group can
+              still be selected for access, and this can be turned back on at
+              any time.
             </Trans>
           </p>
         }
@@ -270,7 +269,7 @@ function ReadOnlyKind({ kind }: { kind: string }) {
   return (
     <dl className="flex flex-col items-start gap-2">
       <dt className="font-medium text-base/4.5 sm:text-sm/4">
-        <Trans id="admin.group.kind.label">How it fills</Trans>
+        <Trans id="admin.group.kind.label">Membership</Trans>
       </dt>
       <dd className="text-base sm:text-sm">
         {kind === "rule"

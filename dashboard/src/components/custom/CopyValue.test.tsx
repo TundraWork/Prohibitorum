@@ -98,7 +98,7 @@ describe("CopyValue", () => {
     await ue.click(screen.getByRole("button", { name: "Copy" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Couldn't copy. Select the value above and copy it yourself.",
+      "Could not copy. Select the value above and copy it manually.",
     );
     expect(screen.getByRole("button", { name: "Copy" })).toBeVisible();
 

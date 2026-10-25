@@ -83,14 +83,13 @@ export function DangerSection({ app }: { app: OidcApp }) {
           details={[
             app.disabled ? (
               <Trans key="note" id="admin.oidc-apps.enable.note">
-                Clients can sign accounts in again. Nothing else about the
-                application changes.
+                Users can sign in through this application again. Nothing else
+                changes.
               </Trans>
             ) : (
               <Trans key="note" id="admin.oidc-apps.disable.note">
-                Every client of this application stops being able to sign
-                accounts in. The record, its secret and its access policy are
-                kept.
+                Users can no longer sign in through this application. Its
+                record, client secret and access policy are kept.
               </Trans>
             ),
           ]}
@@ -162,15 +161,15 @@ export function DangerSection({ app }: { app: OidcApp }) {
           confirming === "enable" ? (
             <p>
               <Trans id="admin.oidc-apps.enable.body">
-                Clients can sign accounts in again straight away. Accounts that
-                signed in while it was disabled were not affected.
+                Users can sign in through this application again immediately.
               </Trans>
             </p>
           ) : (
             <p>
               <Trans id="admin.oidc-apps.disable.body">
-                Every client stops being able to sign accounts in, including the
-                ones that are working. You can enable it again at any time.
+                Users can no longer sign in through any client of this
+                application, including clients that are currently working. You
+                can enable it again at any time.
               </Trans>
             </p>
           )
@@ -208,8 +207,8 @@ export function DangerSection({ app }: { app: OidcApp }) {
         body={
           <p>
             <Trans id="admin.oidc-apps.delete.body">
-              The application stops being able to sign anyone in, and its icon,
-              secret and access policy go with it. This cannot be undone.
+              Sign-in through this application stops, and its icon, client
+              secret and access policy are deleted. This cannot be undone.
             </Trans>
           </p>
         }

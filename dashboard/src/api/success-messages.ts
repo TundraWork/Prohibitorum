@@ -29,7 +29,7 @@ export const successMessage = {
   }),
   uploadAvatar: msg({
     id: "success.avatar.uploaded",
-    message: "Picture uploaded. Select it to show it.",
+    message: "Picture uploaded. Select it to use it as your avatar.",
   }),
   removeAvatarUpload: msg({
     id: "success.avatar.upload-removed",
@@ -62,7 +62,7 @@ export const successMessage = {
   }),
   approveDevice: msg({
     id: "success.device.approved",
-    message: "Approved. Continue on the new device.",
+    message: "Pairing approved. Continue on the new device.",
   }),
   declineDevice: msg({
     id: "success.device.declined",
@@ -112,7 +112,7 @@ export const successMessage = {
   }),
   maintenanceOn: msg({
     id: "success.maintenance.on",
-    message: "Maintenance mode is on",
+    message: "Maintenance mode turned on",
   }),
   maintenanceSaved: msg({
     id: "success.maintenance.saved",
@@ -160,7 +160,7 @@ export const successMessage = {
   }),
   retireSigningKey: msg({
     id: "success.signing-key.retired",
-    message: "Signing key is being retired",
+    message: "Signing key retirement started",
   }),
   createIdentityProvider: msg({
     id: "success.identity-provider.created",
@@ -222,11 +222,11 @@ export const successMessage = {
   }),
   openAppAccess: msg({
     id: "success.app.access-opened",
-    message: "Access opened to every account",
+    message: "Access opened to all accounts",
   }),
   saveAppGroups: msg({
     id: "success.app.groups-saved",
-    message: "User groups saved",
+    message: "User group selection saved",
   }),
   assignAppManager: msg({
     id: "success.app.manager-assigned",
@@ -238,6 +238,6 @@ export const successMessage = {
   }),
   validateOperatorSession: msg({
     id: "success.operator-session.validated",
-    message: "Session is still valid",
+    message: "Operator session is still valid",
   }),
 };

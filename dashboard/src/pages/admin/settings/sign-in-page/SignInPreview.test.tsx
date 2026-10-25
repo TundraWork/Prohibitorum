@@ -156,12 +156,12 @@ describe("the sign-in page preview", () => {
     const page = await pageDocument();
     // Said once, outside the inert frame where a reader can reach it.
     const note = await screen.findByText(
-      "The sign-in page could not be drawn here.",
+      "The sign-in page preview could not be displayed.",
     );
     expect(page.body).not.toContainElement(note);
-    expect(page.body).not.toHaveTextContent("could not be drawn");
+    expect(page.body).not.toHaveTextContent("could not be displayed");
     expect(
-      screen.getAllByText("The sign-in page could not be drawn here."),
+      screen.getAllByText("The sign-in page preview could not be displayed."),
     ).toHaveLength(1);
     expect(page.querySelector('[data-slot="stage-card"]')).toBeNull();
     // The failed read is not also toasted.

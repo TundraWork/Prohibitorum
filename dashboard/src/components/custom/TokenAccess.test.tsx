@@ -63,7 +63,9 @@ describe("TokenAccessBadge", () => {
         <TokenAccessBadge token={{ access: "sudo" }} />
       </I18nProvider>,
     );
-    expect(screen.getByText("Skips confirming it is you")).toBeInTheDocument();
+    expect(
+      screen.getByText("Skips verifying your identity"),
+    ).toBeInTheDocument();
     for (const access of ["selected_apps", "all_apps", "full"] as const) {
       rerender(
         <I18nProvider i18n={i18n}>

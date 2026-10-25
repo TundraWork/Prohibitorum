@@ -118,8 +118,9 @@ export function SetupSigninPage() {
       title={<Trans id="setup_signin.title">Add a way to sign in</Trans>}
       description={
         <Trans id="setup_signin.description">
-          Right now you can only sign in through {providers}. Add another way to
-          sign in, so losing access to {providers} doesn't lock you out.
+          Your account can currently sign in only through {providers}. Add
+          another sign-in method so you can still sign in if {providers} is
+          unavailable.
         </Trans>
       }
       actions={

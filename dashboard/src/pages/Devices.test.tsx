@@ -146,7 +146,7 @@ describe("signed-in devices", () => {
 
     // The current row says how to end it instead of offering a dead button.
     expect(
-      within(current as HTMLElement).getByText("Use sign out to end this one"),
+      within(current as HTMLElement).getByText("Sign out to end this session"),
     ).toBeInTheDocument();
     expect(
       within(current as HTMLElement).queryByRole("button", {
@@ -159,7 +159,7 @@ describe("signed-in devices", () => {
       }),
     ).toBeEnabled();
     expect(
-      within(other as HTMLElement).queryByText("Use sign out to end this one"),
+      within(other as HTMLElement).queryByText("Sign out to end this session"),
     ).not.toBeInTheDocument();
   });
 
@@ -354,7 +354,7 @@ describe("signing in a new device", () => {
     expect(within(dialog).getByText("Same as this device")).toBeInTheDocument();
     expect(
       within(dialog).getByText(
-        "Once approved, this device is signed in to your account.",
+        "After approval, this device is signed in to your account.",
       ),
     ).toBeInTheDocument();
     // The code is what the reader just typed, so it is not shown back.
@@ -388,7 +388,7 @@ describe("signing in a new device", () => {
     await waitFor(() => expect(approve()).toBeDisabled());
     // The reason is on the page, not only in a tooltip on the disabled button.
     expect(
-      within(dialog).getByText("Start again on the new device."),
+      within(dialog).getByText("Start pairing again on the new device."),
     ).toBeVisible();
     expect(dialog).toHaveAccessibleName("This pairing code has expired");
   });

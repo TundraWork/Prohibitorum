@@ -145,7 +145,7 @@ export function AdminSamlApplications() {
         title={<Trans id="admin.saml-apps.page.title">SAML applications</Trans>}
         description={
           <Trans id="admin.saml-apps.page.description">
-            Applications that sign people in through this instance with SAML.
+            Applications that use this instance for sign-in through SAML.
           </Trans>
         }
         actions={
@@ -196,8 +196,7 @@ export function AdminSamlApplications() {
               description={
                 isAdmin ? (
                   <Trans id="admin.saml-apps.empty.description">
-                    Register a service provider to let people sign in to it with
-                    SAML.
+                    Register a service provider that signs people in with SAML.
                   </Trans>
                 ) : (
                   <Trans id="admin.apps.empty.managed">

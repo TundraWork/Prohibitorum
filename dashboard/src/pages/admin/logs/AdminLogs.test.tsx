@@ -608,7 +608,7 @@ describe("paging", () => {
     renderApp("/admin/logs?range=all", queryClient);
     await user.click(await screen.findByRole("button", { name: "Load more" }));
     expect(
-      await screen.findByText("The rest of the audit log could not be loaded."),
+      await screen.findByText("More audit log entries could not be loaded."),
     ).toBeVisible();
     const sent = api.sent("GET", listPath).length;
 
@@ -621,7 +621,7 @@ describe("paging", () => {
       await screen.findByText("Choose a start and an end date"),
     ).toBeVisible();
     expect(
-      screen.queryByText("The rest of the audit log could not be loaded."),
+      screen.queryByText("More audit log entries could not be loaded."),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
     expect(api.sent("GET", listPath)).toHaveLength(sent);
@@ -662,14 +662,18 @@ describe("the states", () => {
   it("says there are no events in the range", async () => {
     await mount([]);
 
-    expect(await screen.findByText("No events in this range")).toBeVisible();
+    expect(
+      await screen.findByText("No events in this time range"),
+    ).toBeVisible();
     expect(screen.queryByRole("button", { name: "Clear filters" })).toBeNull();
   });
 
   it("offers the way back out when filters are what emptied it", async () => {
     await mount([], "/admin/logs?factor=totp");
 
-    expect(await screen.findByText("No events in this range")).toBeVisible();
+    expect(
+      await screen.findByText("No events in this time range"),
+    ).toBeVisible();
     expect(
       within(await screen.findByRole("table")).getByRole("button", {
         name: "Clear filters",
@@ -692,7 +696,7 @@ describe("the states", () => {
     expect(alert).toBeVisible();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
-    expect(screen.queryByText("No events in this range")).toBeNull();
+    expect(screen.queryByText("No events in this time range")).toBeNull();
     expect(screen.getByRole("button", { name: /^Filters/ })).toBeVisible();
 
     failing = false;

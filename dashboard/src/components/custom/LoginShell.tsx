@@ -163,8 +163,7 @@ export function LoginShell({
           <SurfaceAlert.Content>
             <SurfaceAlert.Title>
               <Trans id="login.maintenance.admin_only">
-                The service is undergoing maintenance. Only administrators can
-                sign in.
+                Maintenance is in progress. Only administrators can sign in.
               </Trans>
             </SurfaceAlert.Title>
             {notice && (
@@ -257,8 +256,8 @@ export function LoginShell({
           description={
             step === "password" && !complete && label !== undefined ? (
               <Trans id="login.description.application">
-                {label} uses your {instance} account. You'll go back to it after
-                signing in.
+                {label} uses your {instance} account. After signing in, you'll
+                return to {label}.
               </Trans>
             ) : undefined
           }
@@ -274,15 +273,15 @@ export function LoginShell({
                   <SurfaceAlert.Description>
                     {failure.reset ? (
                       <Trans id="login.reset.uncertain">
-                        The reset may already have completed. Try your new
+                        The reset may have completed, and your old recovery
+                        codes may no longer work. Sign in with your new
                         authenticator or a passkey. Enter your password again
-                        before another code attempt; your old codes may no
-                        longer work.
+                        before entering another code.
                       </Trans>
                     ) : (
                       <Trans id="login.factor.restart">
-                        Enter your password again before trying another code.
-                        This verification attempt cannot be reused.
+                        An unfinished sign-in can't be reused. Enter your
+                        password again, then enter a code.
                       </Trans>
                     )}
                   </SurfaceAlert.Description>

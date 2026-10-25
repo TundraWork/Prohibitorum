@@ -138,7 +138,7 @@ describe("the passkey rows", () => {
     );
 
     expect(second).toHaveTextContent("Unnamed passkey");
-    expect(second).toHaveTextContent("This device only");
+    expect(second).toHaveTextContent("Single device");
     expect(second.querySelector("[data-slot='item-meta']")).toHaveTextContent(
       "Not used yet",
     );
@@ -151,7 +151,7 @@ describe("the passkey rows", () => {
     expect(screen.getByRole("heading", { name: "Passkeys" })).toBeVisible();
     expect(
       screen.getByText(
-        "The way in. Your device keeps the key, so there's nothing to type or leak.",
+        "Sign in with a passkey. It is convenient, and there is no password to leak. Passkeys are tied to your devices.",
       ),
     ).toBeVisible();
   });
@@ -235,7 +235,7 @@ describe("adding a passkey", () => {
     await user.click(screen.getByRole("button", { name: "Add a passkey" }));
 
     expect(
-      await screen.findByText("The passkey couldn't be created."),
+      await screen.findByText("The passkey could not be created."),
     ).toBeVisible();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
@@ -276,7 +276,7 @@ describe("renaming a passkey", () => {
     expect(field).toHaveValue("MacBook Pro");
     expect(
       within(dialog).getByText(
-        "A name you will recognise, such as the device it lives on.",
+        "Use a name that is easy to identify, such as the name of the device it is on.",
       ),
     ).toBeVisible();
 
@@ -479,7 +479,7 @@ describe("removing a passkey", () => {
     await user.click(within(dialog).getByRole("button", { name: "Remove" }));
 
     expect(
-      await screen.findByText(/Keep at least one passkey on the account/),
+      await screen.findByText(/This is the only passkey on the account/),
     ).toBeVisible();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();

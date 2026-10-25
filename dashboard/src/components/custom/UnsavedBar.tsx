@@ -116,9 +116,9 @@ export function UnsavedBar({
       </span>
       <Button onClick={jump} variant="ghost" size="sm" className="shrink-0">
         {saveIn === undefined ? (
-          <Trans id="unsaved-bar.jump">Jump to it</Trans>
+          <Trans id="unsaved-bar.jump">Go to section</Trans>
         ) : (
-          <Trans id="unsaved-bar.jump_save">Jump to Save</Trans>
+          <Trans id="unsaved-bar.jump_save">Go to Save</Trans>
         )}
       </Button>
     </div>

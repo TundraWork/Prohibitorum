@@ -44,8 +44,8 @@ export function ConnectedApps() {
         title={<Trans id="apps.page.title">Connected applications</Trans>}
         description={
           <Trans id="apps.page.description">
-            Applications you allowed to sign you in. Removing one makes it ask
-            again next time.
+            View and manage the applications you've authorized. After you remove
+            access, an app asks for permission again the next time you sign in.
           </Trans>
         }
       />
@@ -141,8 +141,8 @@ function ConnectedAppList() {
         body={
           <p>
             <Trans id="apps.confirm.body">
-              This application will no longer read your profile. It will need to
-              ask for permission again.
+              This application will lose access to your profile. You'll need to
+              authorize it again the next time you sign in to it.
             </Trans>
           </p>
         }

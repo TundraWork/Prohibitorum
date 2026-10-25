@@ -68,8 +68,8 @@ export function AttributeMapField() {
         label={<Trans id="admin.saml-apps.mapping.title">Attribute map</Trans>}
         description={
           <Trans id="admin.saml-apps.mapping.hint">
-            Publish the account's own facts under the names the service provider
-            expects.
+            Sends account information under the attribute names the service
+            provider expects.
           </Trans>
         }
         removePlacement="inRow"
@@ -82,9 +82,7 @@ export function AttributeMapField() {
           sourceKey: "",
           multi: false,
         })}
-        addLabel={
-          <Trans id="admin.saml-apps.mapping.add">Add an attribute</Trans>
-        }
+        addLabel={<Trans id="admin.saml-apps.mapping.add">Add attribute</Trans>}
         renderRow={(_row, index, error, problem, remove) => (
           <MappingRowFields
             index={index}
@@ -443,7 +441,7 @@ function MappingRowFields({
             onCheckedChange={(multi) => update({ multi })}
           />
           <FieldLabel className="@2xl/mapping:sr-only">
-            <Trans id="admin.saml-apps.mapping.multi">Send every value</Trans>
+            <Trans id="admin.saml-apps.mapping.multi">Send all values</Trans>
           </FieldLabel>
         </div>
       </Field>

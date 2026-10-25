@@ -3,7 +3,7 @@ import { isValidLoginPassword } from "@/api/auth";
 
 export const passwordInvalid = msg({
   id: "security.password.invalid",
-  message: "Use a password of at least 8 characters.",
+  message: "The password must be at least 8 characters.",
 });
 
 export const passwordMismatch = msg({
@@ -24,5 +24,5 @@ export function checkPassword(value: string) {
 
 export const totpCodeInvalid = msg({
   id: "security.totp.invalid",
-  message: "Enter the code your authenticator shows, using only 0–9.",
+  message: "Enter the code shown in your authenticator, using digits 0–9 only.",
 });

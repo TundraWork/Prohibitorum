@@ -96,7 +96,7 @@ describe("the general section", () => {
     expect(nameField()).toHaveValue("Acme ID");
     expect(
       screen.getByText(
-        "Leave it empty to use the name from the deployment configuration.",
+        "Leave empty to use the name from the deployment configuration.",
       ),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
@@ -162,9 +162,7 @@ describe("the general section", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(requests("PUT", settingsPath)).toHaveLength(1));
-    expect(
-      await screen.findByText("The request could not be accepted."),
-    ).toBeVisible();
+    expect(await screen.findByText("The request is not valid.")).toBeVisible();
     // The refusal is the name field's own error, not a form-level one.
     expect(nameField()).toBeInvalid();
     expect(notifyError).not.toHaveBeenCalled();
@@ -229,7 +227,7 @@ describe("the general section", () => {
     );
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("The request could not be accepted.");
+    expect(alert).toHaveTextContent("The request is not valid.");
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(notifyError).not.toHaveBeenCalled();
   });

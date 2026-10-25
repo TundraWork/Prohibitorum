@@ -63,7 +63,7 @@ function slugAccepted(value: string): boolean {
 const slugInvalid = msg({
   id: "admin.federation.new.slug.invalid",
   message:
-    "Use lowercase letters, digits and single hyphens — the identifier appears in the callback address.",
+    "The identifier is used in the callback addresses and can contain only lowercase letters, digits and single hyphens.",
 });
 
 /**
@@ -180,8 +180,8 @@ export function AdminIdentityProviderNew() {
         }
         description={
           <Trans id="admin.federation.new.description">
-            Connect an outside account service. The rest of its settings are on
-            its page once it exists.
+            Add an external identity provider. Its other settings are on the
+            provider's page after it is created.
           </Trans>
         }
       />
@@ -201,8 +201,8 @@ export function AdminIdentityProviderNew() {
             title={<Trans id="admin.federation.new.protocol">Protocol</Trans>}
             description={
               <Trans id="admin.federation.new.protocol.description">
-                What the provider speaks decides what it needs. It cannot be
-                changed once the provider exists.
+                The protocol determines which settings the provider needs. It
+                can't be changed after the provider is created.
               </Trans>
             }
           >
@@ -249,8 +249,8 @@ export function AdminIdentityProviderNew() {
             title={<Trans id="admin.federation.new.provider">Provider</Trans>}
             description={
               <Trans id="admin.federation.new.provider.description">
-                What people see, the identifier it is known by, and what it does
-                with someone it has not seen.
+                Set the provider's name and identifier, whether it can be used
+                to sign in, and how it handles people without a linked account.
               </Trans>
             }
           >
@@ -296,8 +296,8 @@ export function AdminIdentityProviderNew() {
                     description={
                       <Trans id="admin.federation.new.slug.hint">
                         Lowercase letters, digits and single hyphens, up to 64
-                        characters. Appears in the callback addresses and cannot
-                        be changed later.
+                        characters. Used in the callback addresses and can't be
+                        changed after creation.
                       </Trans>
                     }
                     isMonospace
@@ -322,18 +322,17 @@ export function AdminIdentityProviderNew() {
                         {protocol === "vrchat" && (
                           <span className="mb-1 block">
                             <Trans id="admin.federation.general.sign_in.vrchat_hint">
-                              VRChat proves a profile through a link in its bio,
-                              which is weaker than an OIDC sign-in. Once this is
-                              on, anyone who can edit the profile can sign in to
-                              the account linked to it.
+                              VRChat verifies a profile through a link in its
+                              bio, which is weaker than an OIDC sign-in. When
+                              this is on, anyone who can edit the profile can
+                              sign in to the account linked to it.
                             </Trans>
                           </span>
                         )}
                         <span className="block">
                           <Trans id="admin.federation.general.sign_in.hint">
-                            When this is off, this provider can't be used to
-                            sign in. People can only link it from their account,
-                            or use it to accept an invitation.
+                            When off, this provider can only be used to link
+                            accounts and accept invitations, not to sign in.
                           </Trans>
                         </span>
                       </>
@@ -375,7 +374,8 @@ export function AdminIdentityProviderNew() {
               }
               description={
                 <Trans id="admin.federation.new.callback.description">
-                  Where the provider sends people back to this instance.
+                  The addresses on this instance that the provider redirects
+                  people back to.
                 </Trans>
               }
             >
@@ -392,8 +392,8 @@ export function AdminIdentityProviderNew() {
               }
               description={
                 <Trans id="admin.federation.connection.description">
-                  Where this provider signs people in, and how this instance
-                  talks to it.
+                  Set how this instance connects to the provider, such as the
+                  issuer URL, client credentials and scopes.
                 </Trans>
               }
             >
@@ -463,8 +463,9 @@ export function AdminIdentityProviderNew() {
                         }
                         description={
                           <Trans id="admin.federation.connection.secret.hint">
-                            The method chosen sends this to the provider; it is
-                            stored encrypted and never shown again.
+                            Sent to the provider using the selected
+                            authentication method. Stored encrypted and never
+                            shown again.
                           </Trans>
                         }
                         type="password"
@@ -528,7 +529,7 @@ export function AdminIdentityProviderNew() {
               }
               description={
                 <Trans id="admin.federation.credentials.steam.description">
-                  The key stays encrypted and is never shown again.
+                  The key is stored encrypted and never shown again.
                 </Trans>
               }
             >

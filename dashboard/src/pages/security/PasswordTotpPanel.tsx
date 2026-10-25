@@ -41,7 +41,8 @@ const lowRecoveryCodes = 3;
 
 const plainDescription = (
   <Trans id="security.password.description.both">
-    For a device without your passkeys.
+    Sign in with a password and authenticator on a device that does not have
+    your passkeys.
   </Trans>
 );
 
@@ -174,11 +175,13 @@ function PasswordTotpFactors() {
           plainDescription
         ) : passwordSet || totpEnrolled ? (
           <Trans id="security.password.description.partial">
-            Only part of this is set up. Set it up again to use it.
+            The password and authenticator are only partly set up. Set them up
+            again to use them.
           </Trans>
         ) : (
           <Trans id="security.password.description.none">
-            For a device without your passkeys. Not set up yet.
+            Sign in with a password and authenticator on a device that does not
+            have your passkeys. Not set up yet.
           </Trans>
         )
       }
@@ -332,7 +335,7 @@ function PasswordTotpFactors() {
         body={
           <p>
             <Trans id="security.recovery.confirm.body">
-              Every recovery code you have now stops working.
+              All your existing recovery codes stop working immediately.
             </Trans>
           </p>
         }

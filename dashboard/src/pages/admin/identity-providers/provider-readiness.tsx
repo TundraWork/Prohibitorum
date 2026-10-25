@@ -68,111 +68,112 @@ export function notReadyReason(provider: Provider, brief = false): ReactNode {
       if (mood === "enable") {
         return (
           <Trans id="admin.federation.not-ready.connection.enable">
-            Needs a valid connection before it can be enabled.
+            Configure a valid connection before enabling this provider.
           </Trans>
         );
       }
       return mood === "sign-in" ? (
         <Trans id="admin.federation.not-ready.connection.sign-in">
-          Sign-in through this provider fails until it has a valid connection.
+          Sign-in through this provider fails because the connection is not
+          valid.
         </Trans>
       ) : (
         <Trans id="admin.federation.not-ready.connection.verify">
-          Linking and verifying through this provider fail until it has a valid
-          connection.
+          Linking and verification through this provider fail because the
+          connection is not valid.
         </Trans>
       );
     case "secret":
       if (mood === "enable") {
         return (
           <Trans id="admin.federation.not-ready.secret.enable">
-            Needs a client secret before it can be enabled.
+            Set a client secret before enabling this provider.
           </Trans>
         );
       }
       return mood === "sign-in" ? (
         <Trans id="admin.federation.not-ready.secret.sign-in">
-          Sign-in through this provider fails until a client secret is set.
+          Sign-in through this provider fails because no client secret is set.
         </Trans>
       ) : (
         <Trans id="admin.federation.not-ready.secret.verify">
-          Linking and verifying through this provider fail until a client secret
-          is set.
+          Linking and verification through this provider fail because no client
+          secret is set.
         </Trans>
       );
     case "steam-key":
       if (mood === "enable") {
         return (
           <Trans id="admin.federation.not-ready.steam.enable">
-            Set the Web API key before enabling it.
+            Set the Web API key before enabling this provider.
           </Trans>
         );
       }
       return mood === "sign-in" ? (
         <Trans id="admin.federation.not-ready.steam.sign-in">
-          Sign-in through this provider fails until the Web API key is set.
+          Sign-in through this provider fails because no Web API key is set.
         </Trans>
       ) : (
         <Trans id="admin.federation.not-ready.steam.verify">
-          Linking and verifying through this provider fail until the Web API key
-          is set.
+          Linking and verification through this provider fail because no Web API
+          key is set.
         </Trans>
       );
     case "vrchat-unset":
       if (mood === "enable") {
         return (
           <Trans id="admin.federation.not-ready.vrchat-unset.enable">
-            Sign in the operator account before enabling it.
+            Sign in the operator account before enabling this provider.
           </Trans>
         );
       }
       return mood === "sign-in" ? (
         <Trans id="admin.federation.not-ready.vrchat-unset.sign-in">
-          Sign-in through this provider fails until the operator account is
-          signed in.
+          Sign-in through this provider fails because the operator account is
+          not signed in.
         </Trans>
       ) : (
         <Trans id="admin.federation.not-ready.vrchat-unset.verify">
-          Linking and verifying through this provider fail until the operator
-          account is signed in.
+          Linking and verification through this provider fail because the
+          operator account is not signed in.
         </Trans>
       );
     case "vrchat-expired":
       if (mood === "enable") {
         return (
           <Trans id="admin.federation.not-ready.vrchat-expired.enable">
-            Sign in the operator account again before enabling it.
+            Sign in the operator account again before enabling this provider.
           </Trans>
         );
       }
       return mood === "sign-in" ? (
         <Trans id="admin.federation.not-ready.vrchat-expired.sign-in">
-          Sign-in through this provider fails until the operator account is
-          signed in again.
+          Sign-in through this provider fails because the operator session has
+          expired.
         </Trans>
       ) : (
         <Trans id="admin.federation.not-ready.vrchat-expired.verify">
-          Linking and verifying through this provider fail until the operator
-          account is signed in again.
+          Linking and verification through this provider fail because the
+          operator session has expired.
         </Trans>
       );
     case "vrchat-check":
       if (mood === "enable") {
         return (
           <Trans id="admin.federation.not-ready.vrchat-check.enable">
-            Check the operator account before enabling it.
+            Check the operator account before enabling this provider.
           </Trans>
         );
       }
       return mood === "sign-in" ? (
         <Trans id="admin.federation.not-ready.vrchat-check.sign-in">
-          Sign-in through this provider fails until the operator account has
-          been checked.
+          Sign-in through this provider fails because the operator account has
+          not been checked.
         </Trans>
       ) : (
         <Trans id="admin.federation.not-ready.vrchat-check.verify">
-          Linking and verifying through this provider fail until the operator
-          account has been checked.
+          Linking and verification through this provider fail because the
+          operator account has not been checked.
         </Trans>
       );
   }

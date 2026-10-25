@@ -142,8 +142,8 @@ export function AdminForwardAuthApps() {
         }
         description={
           <Trans id="admin.forward-auth-apps.page.description">
-            Services behind your reverse proxy that this instance signs people
-            in to.
+            Services behind your reverse proxy that use this instance for
+            sign-in.
           </Trans>
         }
         actions={
@@ -194,8 +194,8 @@ export function AdminForwardAuthApps() {
               description={
                 isAdmin ? (
                   <Trans id="admin.forward-auth-apps.empty.description">
-                    Add a service behind your reverse proxy to let people sign
-                    in to it.
+                    Add a service behind your reverse proxy that requires
+                    sign-in.
                   </Trans>
                 ) : (
                   <Trans id="admin.apps.empty.managed">

@@ -189,7 +189,7 @@ describe("PasswordTotpSetup", () => {
     await user.type(screen.getByLabelText("Confirm password"), "other");
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(
-      await screen.findByText("Use a password of at least 8 characters."),
+      await screen.findByText("The password must be at least 8 characters."),
     ).toBeVisible();
     expect(screen.getByText("The two passwords do not match.")).toBeVisible();
     expect(

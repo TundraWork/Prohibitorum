@@ -123,7 +123,7 @@ describe("the new-provider callback preview", () => {
         `${origin}/api/prohibitorum/auth/federation/corp/callback`,
       ],
       [
-        "Copy the link-an-account address",
+        "Copy the account linking address",
         `${origin}/api/prohibitorum/me/identities/link/corp/callback`,
       ],
       [

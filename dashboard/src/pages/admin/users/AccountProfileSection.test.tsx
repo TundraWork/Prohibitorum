@@ -102,7 +102,7 @@ describe("the profile section", () => {
     ).toHaveClass("font-mono");
     expect(screen.getByText("Attributes")).not.toHaveClass("font-mono");
     expect(
-      screen.getByText(/Saving sends whatever is in this box/),
+      screen.getByText(/Saving replaces the whole object/),
     ).not.toHaveClass("font-mono");
   });
 
@@ -234,9 +234,7 @@ describe("the profile section", () => {
         within(group).getByRole("radio", { name: "member" }),
       ).toBeChecked();
       expect(
-        screen.getByText(
-          /has the role member, which the console does not offer/,
-        ),
+        screen.getByText(/has the role member, which is not supported/),
       ).toBeVisible();
     });
 

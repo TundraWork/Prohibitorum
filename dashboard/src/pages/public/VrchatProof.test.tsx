@@ -23,14 +23,14 @@ describe("the verification link's page", () => {
     renderApp(`/verify/vrchat/${proof}`, queryClient);
     expect(
       await screen.findByRole("heading", {
-        name: "This is a verification link",
+        name: "VRChat profile verification link",
       }),
     ).toHaveFocus();
     expect(
-      screen.getByText(/to prove to Test instance that the profile is theirs/),
+      screen.getByText(/proves ownership of a VRChat profile to Test instance/),
     ).toBeVisible();
     expect(
-      screen.getByText(/If this is your profile, go back to Test instance/),
+      screen.getByText(/If this is your profile, return to Test instance/),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: /verify/i })).toBeNull();
     expect(document.body.innerHTML).not.toContain(proof);

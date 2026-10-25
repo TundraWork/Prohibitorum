@@ -429,7 +429,7 @@ export function EnrollPage() {
 function BoundInvitation({ name }: { name: string }) {
   return (
     <Trans id="enroll.bound">
-      This invitation needs the account to be created through {name}.
+      This invitation requires the account to be created through {name}.
     </Trans>
   );
 }
@@ -475,8 +475,8 @@ function EnrollDescription({
       if (preview.verifiedIdentity) {
         return (
           <Trans id="enroll.description.verified">
-            Your identity is verified. Choose your account name, then set up how
-            you'll sign in.
+            Your identity is verified. Choose a username, then set up how you'll
+            sign in.
           </Trans>
         );
       }
@@ -490,7 +490,7 @@ function EnrollDescription({
       return (
         <>
           <Trans id="enroll.description.reset">
-            You can sign in with it as soon as it's set up.
+            You can use the new sign-in method as soon as it's set up.
           </Trans>
           <span className="block">@{username}</span>
         </>

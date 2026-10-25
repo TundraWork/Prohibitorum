@@ -127,7 +127,9 @@ describe("UnsavedBar", () => {
     const section = document.getElementById("accounts-and-claims") as Element;
     report(section, false);
 
-    await userEvent.click(screen.getByRole("button", { name: "Jump to it" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Go to section" }),
+    );
 
     expect(section.scrollIntoView).toHaveBeenCalled();
     expect(document.activeElement).toBe(
@@ -148,7 +150,7 @@ describe("UnsavedBar", () => {
 
     report(save, false);
     expect(screen.getByText("You have unsaved changes.")).toBeTruthy();
-    await userEvent.click(screen.getByRole("button", { name: "Jump to Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Go to Save" }));
     expect(save.scrollIntoView).toHaveBeenCalled();
   });
 });

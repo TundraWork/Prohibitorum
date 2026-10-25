@@ -69,19 +69,21 @@ type Token = components["schemas"]["PersonalAccessTokenView"];
 
 const nameRequired = msg({
   id: "security.tokens.name.required",
-  message: "Give the token a name so you can recognise it later.",
+  message: "Enter a name for the token.",
 });
 const chooseApp = msg({
   id: "security.tokens.apps.required",
-  message: "Choose at least one application, or pick another level of access.",
+  message:
+    "Select at least one application, or choose a different access level.",
 });
 const appsFailedMessage = msg({
   id: "security.tokens.apps_failed",
-  message: "Your applications could not be loaded. Close this and try again.",
+  message:
+    "Could not load your applications. Close this dialog and open it again.",
 });
 const noApps = msg({
   id: "security.tokens.no_forward_auth",
-  message: "You have no applications to choose from.",
+  message: "No applications are available to choose from.",
 });
 
 /**
@@ -103,7 +105,7 @@ const accessOptions: {
     }),
     description: msg({
       id: "security.tokens.access.selected_apps.hint",
-      message: "Works only on the applications you pick.",
+      message: "Can be used only with the selected applications.",
     }),
   },
   {
@@ -114,7 +116,7 @@ const accessOptions: {
     }),
     description: msg({
       id: "security.tokens.access.all_apps.hint",
-      message: "Works on each application you can use.",
+      message: "Can be used with every application you have access to.",
     }),
   },
   {
@@ -126,29 +128,29 @@ const accessOptions: {
     description: msg({
       id: "security.tokens.access.full.hint",
       message:
-        "Applications and your account. Anything that asks you to confirm it is you is refused.",
+        "Access to applications and your account, except actions that require verifying your identity.",
     }),
     adminDescription: msg({
       id: "security.tokens.access.full.hint.admin",
       message:
-        "Applications, your account and what you manage as an administrator. Anything that asks you to confirm it is you is refused.",
+        "Access to applications, your account and what you manage as an administrator, except actions that require verifying your identity.",
     }),
   },
   {
     value: "sudo",
     label: msg({
       id: "security.tokens.access.sudo",
-      message: "Full access, without confirming it is you",
+      message: "Full access without verifying your identity",
     }),
     description: msg({
       id: "security.tokens.access.sudo.hint",
       message:
-        "Everything, including changing how you sign in, without being asked to confirm it is you.",
+        "All actions, including changing how you sign in, without verifying your identity.",
     }),
     adminDescription: msg({
       id: "security.tokens.access.sudo.hint.admin",
       message:
-        "Everything, including what you manage as an administrator and changing how you sign in, without being asked to confirm it is you.",
+        "All actions, including what you manage as an administrator and changing how you sign in, without verifying your identity.",
     }),
   },
 ];
@@ -185,8 +187,8 @@ function TokensTitle() {
 function TokensDescription() {
   return (
     <Trans id="security.tokens.description">
-      Keys for scripts and tools that act as you. Each is shown once, when you
-      create it.
+      Create tokens that let scripts and tools act as you. Each token is shown
+      only once, when you create it.
     </Trans>
   );
 }
@@ -308,8 +310,8 @@ function TokenList() {
         body={
           <p>
             <Trans id="security.tokens.revoke.body">
-              Anything using this token stops working immediately. This cannot
-              be undone.
+              The token stops working immediately, and any tool using it loses
+              access. This cannot be undone.
             </Trans>
           </p>
         }
@@ -593,8 +595,9 @@ function CreateTokenForm({
         </DialogTitle>
         <DialogDescription>
           <Trans id="security.tokens.create.note">
-            The token itself is shown once, right after you create it. Copy it
-            then; the list will only ever show the last few characters.
+            The token is shown only once, right after you create it. The token
+            list shows only prohibitorum_pat_… and the token's last 4
+            characters.
           </Trans>
         </DialogDescription>
       </DialogHeader>
@@ -619,7 +622,8 @@ function CreateTokenForm({
                 label={<Trans id="security.tokens.name">Name</Trans>}
                 description={
                   <Trans id="security.tokens.name.hint">
-                    What will use this token, so you know what to revoke later.
+                    The tool or purpose this token is for, so you can identify
+                    it later.
                   </Trans>
                 }
                 autoComplete="off"
@@ -664,7 +668,7 @@ function CreateTokenForm({
             {(field) => (
               <div className="flex flex-col gap-2">
                 <span id={levelId} className="font-medium text-sm">
-                  <Trans id="security.tokens.scope">What it may access</Trans>
+                  <Trans id="security.tokens.scope">Access level</Trans>
                 </span>
                 <RadioGroup
                   aria-labelledby={levelId}
@@ -731,14 +735,14 @@ function CreateTokenForm({
         status="warning"
         title={
           <Trans id="security.tokens.sudo.confirm.title">
-            Create a token that skips confirming it is you?
+            Create a token that skips verifying your identity?
           </Trans>
         }
         body={
           <p>
             <Trans id="security.tokens.sudo.confirm.body">
               Anyone with this token can change your password, passkeys and
-              authenticator without being asked to confirm it is you.
+              authenticator without verifying your identity.
             </Trans>
           </p>
         }

@@ -26,7 +26,7 @@ const heading = {
   id: "matches",
   title: <Trans id="admin.group.matches.title">Matches right now</Trans>,
   description: (
-    <Trans id="admin.group.matches.description">From the saved rule</Trans>
+    <Trans id="admin.group.matches.description">Based on the saved rule</Trans>
   ),
   icon: <UsersIcon />,
 };
@@ -124,7 +124,7 @@ export function GroupMatchesFrame({
       {error !== null && (
         <p className="text-muted-foreground text-caption">
           <Trans id="admin.group.matches.stale">
-            The latest check failed, so this may be out of date.
+            The latest check failed. This data may be out of date.
           </Trans>
         </p>
       )}

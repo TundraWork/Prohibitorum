@@ -36,7 +36,7 @@ import { providerProtocolLabel } from "@/pages/admin/identity-providers/provider
  */
 const groupIdInvalid = msg({
   id: "admin.invitations.new.groups.invalid",
-  message: "Choose the groups again — one of them is not a valid group.",
+  message: "One of the selected groups is not valid. Choose the groups again.",
 });
 
 /**
@@ -168,8 +168,9 @@ export function AdminInvitationForm() {
           title={<Trans id="admin.invitations.new.title">New invitation</Trans>}
           description={
             <Trans id="admin.invitations.new.description">
-              Decide what the new account starts with. You get a link to send to
-              the person once you create it.
+              Set the new account's role, username, groups and sign-in
+              requirements. Creating the invitation generates a registration
+              link to send to the invitee.
             </Trans>
           }
         />
@@ -189,7 +190,7 @@ export function AdminInvitationForm() {
               title={<Trans id="admin.invitations.new.role">Role</Trans>}
               description={
                 <Trans id="admin.invitations.new.role.description">
-                  What the new account may do once it exists.
+                  Choose the new account's role.
                 </Trans>
               }
             >
@@ -212,7 +213,7 @@ export function AdminInvitationForm() {
                       }
                       description={
                         <Trans id="admin.invitations.new.role.user.description">
-                          An ordinary account that signs in to applications.
+                          An ordinary account for signing in to applications.
                         </Trans>
                       }
                     />
@@ -242,7 +243,7 @@ export function AdminInvitationForm() {
               }
               description={
                 <Trans id="admin.invitations.new.account.description">
-                  The name and groups the account is created with.
+                  Set the new account's username and groups.
                 </Trans>
               }
             >
@@ -257,8 +258,8 @@ export function AdminInvitationForm() {
                       }
                       description={
                         <Trans id="admin.invitations.new.username.hint">
-                          Optional. Leave it empty to let the invited person
-                          choose their own when they register.
+                          Optional. If left empty, the invitee chooses one when
+                          registering.
                         </Trans>
                       }
                       autoComplete="off"
@@ -286,8 +287,8 @@ export function AdminInvitationForm() {
                     <field.GroupPicker
                       description={
                         <Trans id="admin.invitations.new.groups.hint">
-                          The manual groups the new account joins when it
-                          registers.
+                          The new account joins these groups when it registers.
+                          Only manual groups can be selected.
                         </Trans>
                       }
                       loading={groups.isPending}
@@ -310,8 +311,8 @@ export function AdminInvitationForm() {
               }
               description={
                 <Trans id="admin.invitations.new.sign-in.description">
-                  Which provider the invited person must use, and whether they
-                  also set up a local way to sign in.
+                  Choose the provider the invitee must use, and whether a local
+                  sign-in method is required.
                 </Trans>
               }
             >
@@ -332,9 +333,10 @@ export function AdminInvitationForm() {
                     <field.IdentityProviderPicker
                       description={
                         <Trans id="admin.invitations.new.provider.hint">
-                          Optional. Providers that are disabled, not ready or
-                          link-only are not offered; the invited person must
-                          sign in through the one chosen here.
+                          Optional. The invitee must register through the
+                          selected provider. Providers that are disabled, not
+                          ready or set to link existing accounts only are not
+                          listed.
                         </Trans>
                       }
                       loading={providers.isPending}
@@ -358,14 +360,14 @@ export function AdminInvitationForm() {
                       description={
                         enforced ? (
                           <Trans id="admin.invitations.new.require_local.enforced">
-                            This provider can't be used to sign in, so a local
-                            sign-in method is always required.
+                            Sign-in is turned off for this provider, so a local
+                            sign-in method is required.
                           </Trans>
                         ) : (
                           <Trans id="admin.invitations.new.require_local.hint">
-                            After verifying with a provider, the invitee also
-                            sets up a passkey or a password and an authenticator
-                            before the account is created.
+                            After verifying with the provider, the invitee must
+                            also set up a passkey, or a password and an
+                            authenticator, before the account is created.
                           </Trans>
                         )
                       }

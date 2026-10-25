@@ -38,23 +38,23 @@ describe("what a provider that is not ready is told", () => {
       const text = said(
         unready({ config: publicOidcConfig, ...overrides }),
       ).toLowerCase();
-      expect(text).toContain("valid connection");
+      expect(text).toMatch(/valid connection|connection is not valid/);
       expect(text).not.toContain("secret");
     }
   });
 
   it("names the secret of a confidential client only when none is stored", () => {
     expect(said(unready({ secretConfigured: false }))).toBe(
-      "Sign-in through this provider fails until a client secret is set.",
+      "Sign-in through this provider fails because no client secret is set.",
     );
     expect(said(unready({ secretConfigured: true }))).toBe(
-      "Sign-in through this provider fails until it has a valid connection.",
+      "Sign-in through this provider fails because the connection is not valid.",
     );
   });
 
   it("names the missing Steam key", () => {
     expect(said(unready({ protocol: "steam" }))).toBe(
-      "Sign-in through this provider fails until the Web API key is set.",
+      "Sign-in through this provider fails because no Web API key is set.",
     );
   });
 
@@ -62,27 +62,27 @@ describe("what a provider that is not ready is told", () => {
     const vrchat = { protocol: "vrchat", allowSignIn: false };
     expect(
       said(unready({ ...vrchat, secretStatus: "unconfigured" })),
-    ).toContain("operator account is signed in.");
+    ).toContain("operator account is not signed in.");
     expect(said(unready({ ...vrchat, secretStatus: "invalid" }))).toContain(
-      "signed in again.",
+      "operator session has expired.",
     );
     // A valid session is never called signed out or expired.
     const valid = said(unready({ ...vrchat, secretStatus: "valid" }));
     expect(valid).not.toMatch(/signed in|expired/);
-    expect(valid).toContain("has been checked");
+    expect(valid).toContain("has not been checked");
   });
 
   it("says what stops working when sign-in is off, not that sign-in fails", () => {
     const text = said(unready({ allowSignIn: false, secretConfigured: false }));
     expect(text).toBe(
-      "Linking and verifying through this provider fail until a client secret is set.",
+      "Linking and verification through this provider fail because no client secret is set.",
     );
     expect(text).not.toContain("Sign-in");
   });
 
   it("tells a disabled provider what to do before it can be enabled", () => {
     expect(said(unready({ disabled: true, secretConfigured: false }))).toBe(
-      "Needs a client secret before it can be enabled.",
+      "Set a client secret before enabling this provider.",
     );
   });
 

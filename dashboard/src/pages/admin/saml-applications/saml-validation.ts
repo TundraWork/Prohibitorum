@@ -45,7 +45,7 @@ export const acsDefaultRequired = msg({
 
 export const acsDefaultDuplicate = msg({
   id: "admin.saml-apps.acs.default.duplicate",
-  message: "Only one endpoint can be the default one.",
+  message: "Only one endpoint can be the default.",
 });
 
 export const acsRequired = msg({
@@ -76,7 +76,7 @@ export const metadataRequired = msg({
 export const metadataTooLarge = msg({
   id: "admin.saml-apps.metadata.too_large",
   message:
-    "This document is too large to send. It and the rest of the form have to stay under 64 KiB.",
+    "This document is too large. Together with the rest of the form, it must be under 64 KiB.",
 });
 
 /**

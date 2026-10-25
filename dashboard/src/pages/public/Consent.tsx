@@ -96,7 +96,7 @@ export function ConsentPage() {
             <Badge variant="info">{asked.length}</Badge>
           </>
         ) : (
-          <Trans id="consent.facts">{app} will be able to</Trans>
+          <Trans id="consent.facts">{app} will have access to</Trans>
         )
       }
       rows={asked.map(rowOf)}
@@ -131,8 +131,8 @@ export function ConsentPage() {
       footnote={
         <>
           <Trans id="consent.footnote">
-            Once you allow it, {app} can sign you in directly. You can revoke
-            this at any time in{" "}
+            This authorization stays in effect, and {app} won't ask again when
+            you sign in. You can revoke it at any time in{" "}
             <RouterLink to="/apps" className={inlineLinkClass}>
               Connected applications
             </RouterLink>

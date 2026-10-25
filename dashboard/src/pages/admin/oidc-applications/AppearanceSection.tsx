@@ -126,8 +126,8 @@ export function AppearanceSection({ app }: { app: OidcApp }) {
                   }
                   description={
                     <Trans id="admin.oidc-apps.field.launch.hint">
-                      Where the console links when the application is opened
-                      from here. Leave it empty to link nowhere.
+                      The address used to open this application from Home. If
+                      left empty, Home uses the root of the first redirect URI.
                     </Trans>
                   }
                   autoComplete="off"

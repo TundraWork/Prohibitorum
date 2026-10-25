@@ -192,7 +192,7 @@ describe("the page", () => {
     await open();
     expect(
       screen.getByText(
-        "What people see before they sign in. The preview shows your changes as you make them.",
+        "Customize the background, card and toolbar of the sign-in page. The preview updates as you make changes.",
       ),
     ).toBeVisible();
     expect(backLink()).toHaveAttribute("href", "/admin/settings");
@@ -241,7 +241,7 @@ describe("the background source", () => {
     ).toBeChecked();
     expect(
       screen.getByText(
-        "The page's own background, which follows light and dark mode.",
+        "Uses the page's default background, which follows light or dark mode.",
       ),
     ).toBeVisible();
   });
@@ -346,7 +346,7 @@ describe("the Unsplash source", () => {
     await user.click(saveButton());
     expect(
       await screen.findByText(
-        "An access key has only letters, digits, hyphens and underscores, up to 128 of them.",
+        "The access key can contain only letters, digits, hyphens and underscores, up to 128 characters.",
       ),
     ).toBeVisible();
     expect(savedBody(api)).toBeUndefined();
@@ -364,7 +364,7 @@ describe("the Unsplash source", () => {
     await user.click(saveButton());
     expect(
       await screen.findByText(
-        "Unsplash did not accept this access key. Check it and enter it again.",
+        "Unsplash rejected this access key. Check the key and enter it again.",
       ),
     ).toBeVisible();
     expect(screen.getByLabelText("Access key")).toHaveAttribute(
@@ -381,7 +381,7 @@ describe("the Unsplash source", () => {
     const remove = screen.getByRole("button", { name: "Remove" });
     expect(remove).toBeDisabled();
     expect(remove).toHaveAccessibleDescription(
-      "Switch the background to another source and save before removing the key.",
+      "The current background uses this key. To remove it, switch the background to another source and save first.",
     );
     expect(screen.getByRole("button", { name: "Replace" })).toBeEnabled();
   });
@@ -400,7 +400,7 @@ describe("the Unsplash source", () => {
     expect(remove).toBeEnabled();
     expect(
       screen.queryByText(
-        "Switch the background to another source and save before removing the key.",
+        "The current background uses this key. To remove it, switch the background to another source and save first.",
       ),
     ).not.toBeInTheDocument();
     await user.click(remove);
@@ -464,7 +464,7 @@ describe("the Unsplash source", () => {
     const api = await open({ appearance: unsplash, hasUnsplashKey: true });
     const order = screen.getByRole("radiogroup", { name: "Order" });
     expect(
-      within(order).getByRole("radio", { name: "A random one each visit" }),
+      within(order).getByRole("radio", { name: "Random on each visit" }),
     ).toBeChecked();
     expect(screen.queryByLabelText("Change every")).toBeNull();
 
@@ -502,7 +502,7 @@ describe("the Unsplash source", () => {
     await user.tab();
     await user.click(saveButton());
     expect(
-      await screen.findByText("Choose between 5 and 3600 seconds."),
+      await screen.findByText("Enter a value between 5 and 3600 seconds."),
     ).toBeVisible();
     expect(interval).toHaveAttribute("aria-invalid", "true");
     expect(savedBody(api)).toBeUndefined();
@@ -530,7 +530,7 @@ describe("the Unsplash source", () => {
     await user.click(saveButton());
     expect(
       await screen.findByText(
-        "The Unsplash keyword can't be used. Choose Unsplash to correct it.",
+        "The Unsplash keyword is invalid. Switch to Unsplash to correct it.",
       ),
     ).toBeVisible();
     expect(savedBody(api)).toBeUndefined();
@@ -580,7 +580,7 @@ describe("the Pixabay source", () => {
     await user.click(saveButton());
     expect(
       await screen.findByText(
-        "Pixabay did not accept this API key. Check it and enter it again.",
+        "Pixabay rejected this API key. Check the key and enter it again.",
       ),
     ).toBeVisible();
     expect(api.sent("PUT", appearancePath)).toHaveLength(1);
@@ -593,7 +593,7 @@ describe("the Pixabay source", () => {
     const remove = screen.getByRole("button", { name: "Remove" });
     expect(remove).toBeDisabled();
     expect(remove).toHaveAccessibleDescription(
-      "Switch the background to another source and save before removing the key.",
+      "The current background uses this key. To remove it, switch the background to another source and save first.",
     );
     expect(screen.getByRole("button", { name: "Replace" })).toBeEnabled();
   });
@@ -652,7 +652,7 @@ describe("the Pixabay source", () => {
     await user.click(saveButton());
     expect(
       await screen.findByText(
-        "The Pixabay keyword can't be used. Choose Pixabay to correct it.",
+        "The Pixabay keyword is invalid. Switch to Pixabay to correct it.",
       ),
     ).toBeVisible();
     expect(savedBody(api)).toBeUndefined();
@@ -662,7 +662,7 @@ describe("the Pixabay source", () => {
     await open({ appearance: pixabay, hasPixabayKey: true });
     expect(
       screen.getByText(
-        "Pixabay pictures are at most 1280 pixels wide, so they can look soft on large screens.",
+        "Pixabay pictures are at most 1280 pixels wide and may look blurry on large screens.",
       ),
     ).toBeVisible();
   });
@@ -682,7 +682,7 @@ describe("the Images source", () => {
     await user.upload(input, new File(["x"], "a.png", { type: "image/png" }));
     await waitFor(() => expect(uploadedFiles).toEqual(["a.png"]));
     expect(api.sent("PUT", appearancePath)).toHaveLength(0);
-    expect(screen.queryByText(/unsaved change/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\d+ unsaved change/)).not.toBeInTheDocument();
   });
 
   it("offers order and interval only with two or more images", async () => {
@@ -711,7 +711,7 @@ describe("the Images source", () => {
       }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByText("10 of 10 · remove one to add another"),
+      screen.getByText("10 of 10 · Remove an image to add another"),
     ).toBeVisible();
   });
 
@@ -795,7 +795,7 @@ describe("the readability of the card", () => {
     expect(await within(card).findByText("Hard to read")).toBeInTheDocument();
     expect(
       within(card).getByText(
-        "Body text contrast 2.8 : 1 — raise the card's opacity or pick another background",
+        "Body text contrast 2.8 : 1 — increase the card opacity or choose another background",
       ),
     ).toBeInTheDocument();
   });
@@ -943,7 +943,7 @@ describe("saving and discarding", () => {
     await open();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Discard" })).toBeNull();
-    expect(screen.queryByText(/unsaved change/)).toBeNull();
+    expect(screen.queryByText(/\d+ unsaved change/)).toBeNull();
   });
 
   it("counts the unsaved changes in the preview's footer", async () => {
@@ -1028,7 +1028,7 @@ describe("saving and discarding", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: "Save" })).toBeNull(),
     );
-    expect(screen.queryByText(/unsaved change/)).toBeNull();
+    expect(screen.queryByText(/\d+ unsaved change/)).toBeNull();
   });
 
   it("reports a failed save once and keeps the changes", async () => {
@@ -1079,7 +1079,7 @@ describe("the unsaved bar", () => {
       within(frame("Toolbar")).getByRole("switch", { name: "Frosted glass" }),
     );
     expect(await screen.findByText("You have unsaved changes.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Jump to Save" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Go to Save" })).toBeVisible();
   });
 
   it("goes once the changes are discarded", async () => {

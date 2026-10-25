@@ -153,8 +153,8 @@ export function AdminGroups() {
         title={<Trans id="admin.groups.page.title">User groups</Trans>}
         description={
           <Trans id="admin.groups.page.description">
-            Groups decide which accounts an application lets in, and are the
-            names applications receive for them.
+            Manage the groups that control access to applications. A group's
+            identifier can also be sent to applications.
           </Trans>
         }
         actions={
@@ -194,7 +194,7 @@ export function AdminGroups() {
               title={<Trans id="admin.groups.empty">No user groups yet</Trans>}
               description={
                 <Trans id="admin.groups.empty.description">
-                  Create one to choose accounts by hand or to match them with a
+                  Create a group to pick accounts by hand or match them with a
                   rule.
                 </Trans>
               }

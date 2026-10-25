@@ -32,7 +32,7 @@ afterEach(() => {
 
 const clientIpPath = "/api/prohibitorum/admin/settings/client-ip";
 const consequence =
-  "Audit logs, sessions and rate limits use the new address for every request from now on. A wrong setting can lock everyone into one shared limit.";
+  "After saving, audit logs, sessions and rate limits use the client address read this way for all new requests. An incorrect setting can put all requests under one shared rate limit.";
 const forwarded: ClientIpSettings = {
   strategy: "forwarded",
   header: "",
@@ -96,7 +96,7 @@ describe("the client IP section", () => {
     expect(source("X-Forwarded-For")).toBeChecked();
     expect(source("Another header")).not.toBeChecked();
     expect(source("The connection")).toHaveAccessibleDescription(
-      "Use the address the connection comes from. Right when nothing sits in front of this server.",
+      "Use the source address of the connection. For deployments with no proxy in front of the server.",
     );
     expect(proxies()).toHaveValue("10.0.0.0/8\n192.168.0.0/16");
     expect(screen.queryByRole("textbox", { name: "Header name" })).toBeNull();
@@ -340,7 +340,7 @@ describe("the client IP section", () => {
     );
     expect(
       await screen.findByText(
-        "Enter at least one trusted proxy. Without one, this method has no effect.",
+        "Enter at least one trusted proxy. This method requires one.",
       ),
     ).toBeVisible();
 
@@ -365,7 +365,7 @@ describe("the client IP section", () => {
     await user.click(source("The connection"));
 
     const blocked =
-      "The trusted proxies list has an entry the server will not accept. Choose X-Forwarded-For to correct it.";
+      "The trusted proxies list contains an invalid entry. Select X-Forwarded-For to correct it.";
     expect(screen.getByText(blocked)).toBeVisible();
     expect(
       screen.getByRole("button", {
@@ -387,9 +387,7 @@ describe("the client IP section", () => {
     await user.type(proxies2(), "\nnot-a-range");
     await user.click(screen.getAllByRole("radio")[0] as HTMLElement);
 
-    expect(
-      screen.getByText(/^可信代理列表中有服务器不接受的条目/),
-    ).toBeVisible();
+    expect(screen.getByText(/^可信代理列表包含无效条目/)).toBeVisible();
   });
 
   it("reports a refused save once, on the form and not as a toast", async () => {

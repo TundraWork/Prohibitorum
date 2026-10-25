@@ -22,7 +22,8 @@ export function Profile() {
         title={<Trans id="profile.page.title">Profile</Trans>}
         description={
           <Trans id="profile.page.description">
-            The picture, name and email address shown wherever you sign in.
+            View and change your display name, picture, email addresses and
+            other personal details.
           </Trans>
         }
       />

@@ -93,7 +93,8 @@ function PasskeysTitle() {
 function PasskeysDescription() {
   return (
     <Trans id="security.passkeys.description">
-      The way in. Your device keeps the key, so there's nothing to type or leak.
+      Sign in with a passkey. It is convenient, and there is no password to
+      leak. Passkeys are tied to your devices.
     </Trans>
   );
 }
@@ -208,8 +209,8 @@ function PasskeyList() {
         body={
           <p>
             <Trans id="security.passkeys.delete.body">
-              This passkey will stop working for sign-in right away. Any other
-              way you have to sign in is unaffected.
+              This passkey stops working for sign-in immediately. Your other
+              sign-in methods are not affected.
             </Trans>
           </p>
         }
@@ -285,7 +286,7 @@ function PasskeyRow({
           </Badge>
         ) : (
           <Badge variant="outline">
-            <Trans id="security.passkeys.device_bound">This device only</Trans>
+            <Trans id="security.passkeys.device_bound">Single device</Trans>
           </Badge>
         )
       }
@@ -403,7 +404,8 @@ function RenameForm({
           />
           <FieldDescription>
             <Trans id="security.passkeys.rename.hint">
-              A name you will recognise, such as the device it lives on.
+              Use a name that is easy to identify, such as the name of the
+              device it is on.
             </Trans>
           </FieldDescription>
         </Field>

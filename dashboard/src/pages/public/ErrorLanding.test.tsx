@@ -36,7 +36,7 @@ describe("the error landing page", () => {
     ).toHaveFocus();
     expect(
       screen.getByText(
-        "An administrator hasn't given your account access to this app.",
+        "An administrator has not granted your account access to this app.",
       ),
     ).toBeVisible();
   });
@@ -66,7 +66,7 @@ describe("the error landing page", () => {
       screen.getByRole("heading", { name: "Unable to continue" }),
     ).toBeVisible();
     expect(
-      screen.getByText("This app isn't registered with Test instance."),
+      screen.getByText("This app is not registered with Test instance."),
     ).toBeVisible();
   });
 
@@ -82,9 +82,7 @@ describe("the error landing page", () => {
     "/error",
   ])("falls back to a plain sentence for %s", async (path) => {
     await open(path);
-    expect(
-      screen.getByText("Something went wrong while signing in."),
-    ).toBeVisible();
+    expect(screen.getByText("An error occurred during sign-in.")).toBeVisible();
   });
 
   it("shows a reference an administrator can look up", async () => {
@@ -181,7 +179,7 @@ describe("the error landing page", () => {
     );
     expect(
       screen.getByText(
-        "Access hasn't been granted yet. Once an administrator grants it, you can try again.",
+        "An administrator hasn't granted you access yet. Once access is granted, you can try again.",
       ),
     ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Try again" }));
@@ -328,7 +326,7 @@ describe("the error landing page", () => {
     await open("/error?error=saml_request_expired&ref=abcd1234");
     expect(
       screen.getByText(
-        "The sign-in took too long and the app's request has expired. Go back to the app and sign in again.",
+        "The app's sign-in request has expired. Go back to the app and sign in again.",
       ),
     ).toBeVisible();
   });

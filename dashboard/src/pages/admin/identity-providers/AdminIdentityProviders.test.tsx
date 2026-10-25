@@ -59,7 +59,8 @@ function rowOf(table: HTMLElement, name: string): HTMLElement {
 
 // The list carries the short form; the page says the whole sentence.
 const oidcReason = "Needs a valid connection";
-const oidcDisabledReason = "Needs a valid connection before it can be enabled.";
+const oidcDisabledReason =
+  "Configure a valid connection before enabling this provider.";
 
 describe("the page", () => {
   it("heads the list with what it is for and offers New provider", async () => {
@@ -79,7 +80,7 @@ describe("the page", () => {
 
     expect(await screen.findByText("No providers yet")).toBeVisible();
     expect(
-      screen.getByText(/Add a provider so people can sign in/),
+      screen.getByText(/Add a provider to let people sign in/),
     ).toBeVisible();
     expect(screen.getAllByRole("link", { name: "New provider" })).toHaveLength(
       1,
@@ -162,7 +163,9 @@ describe("a row", () => {
     const steam = rowOf(table, "Steam login");
     expect(within(steam).getByText("Needs a Web API key")).toBeVisible();
     expect(
-      within(steam).queryByText("Set the Web API key before enabling it."),
+      within(steam).queryByText(
+        "Set the Web API key before enabling this provider.",
+      ),
     ).toBeNull();
 
     const fine = rowOf(table, "Fine");

@@ -288,8 +288,8 @@ export function RowsField<T>({
 export function RowsFieldHint() {
   return (
     <Trans id="form.rows.hint">
-      One value per line. Blank lines are ignored; a line with spaces at either
-      end is refused rather than trimmed.
+      One value per line. Blank lines are ignored. A line cannot start or end
+      with a space.
     </Trans>
   );
 }

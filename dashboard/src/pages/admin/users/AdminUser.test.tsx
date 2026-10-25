@@ -112,7 +112,7 @@ describe("the header", () => {
   it("says when the account joined, and nothing about sign-ins it does not know", async () => {
     await openAccount(accountFixture());
     expect(screen.getByText(/^Joined .*2026/)).toBeVisible();
-    expect(screen.queryByText(/signed in/)).toBeNull();
+    expect(screen.queryByText(/Last signed in/)).toBeNull();
   });
 
   it("says when it last signed in if the record says so", async () => {
@@ -266,7 +266,7 @@ describe("the access lists", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(screen.getByText("No passkeys")).toBeVisible();
     expect(screen.getByText("No access tokens")).toBeVisible();
-    expect(screen.getByText("No connected identities")).toBeVisible();
+    expect(screen.getByText("No linked identities")).toBeVisible();
     expect(notifyError).not.toHaveBeenCalled();
   });
 
@@ -275,7 +275,7 @@ describe("the access lists", () => {
     expect(screen.getByText("No passkeys")).toBeVisible();
     expect(screen.getByText("No active sessions")).toBeVisible();
     expect(screen.getByText("No access tokens")).toBeVisible();
-    expect(screen.getByText("No connected identities")).toBeVisible();
+    expect(screen.getByText("No linked identities")).toBeVisible();
   });
 
   it("are five sections between the profile and the registration link", async () => {
@@ -286,7 +286,7 @@ describe("the access lists", () => {
     expect(headings).toEqual([
       "Profile",
       "Email addresses",
-      "Connected identities",
+      "Linked identities",
       "Passkeys",
       "Active sessions",
       "Access tokens",

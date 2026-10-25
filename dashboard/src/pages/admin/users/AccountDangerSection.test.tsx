@@ -99,7 +99,7 @@ describe("disabling", () => {
       name: "Disable this account?",
     });
     expect(dialog).toHaveTextContent(
-      "They will be signed out of every session they have open and will not be able to sign in until you enable the account again.",
+      "The account is signed out of all sessions and cannot sign in until it is enabled again.",
     );
     expect(posts("/set-disabled")).toHaveLength(0);
     await user.click(within(dialog).getByRole("button", { name: "Disable" }));
@@ -156,11 +156,11 @@ describe("disabling", () => {
     const disable = screen.getByRole("button", { name: "Disable" });
     expect(disable).toBeDisabled();
     const reason = screen.getByText(
-      "An admin cannot be disabled. Make them a user first.",
+      "Admins cannot be disabled. Change the role to User first.",
     );
     expect(reason).toBeVisible();
     expect(disable).toHaveAccessibleDescription(
-      "An admin cannot be disabled. Make them a user first.",
+      "Admins cannot be disabled. Change the role to User first.",
     );
   });
 
@@ -168,7 +168,7 @@ describe("disabling", () => {
     mount(accountFixture());
     expect(
       screen.getByText(
-        "Disabling stops this account signing in and signs it out of every session it has open.",
+        "A disabled account cannot sign in, and all its sessions end. It can be enabled again at any time.",
       ),
     ).toBeVisible();
   });

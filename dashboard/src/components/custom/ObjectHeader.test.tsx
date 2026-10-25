@@ -163,7 +163,7 @@ describe("ObjectHeader", () => {
     await user.click(screen.getByRole("button", { name: "Copy the slug" }));
     expect(
       await screen.findByText(
-        "Couldn't copy. Select the value above and copy it yourself.",
+        "Could not copy. Select the value above and copy it manually.",
       ),
     ).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("");

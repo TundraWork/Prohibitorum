@@ -159,9 +159,9 @@ describe("the account check", () => {
     const name = within(tree).getByText("GitHub");
     expect(name).toBeVisible();
     expect(name).toHaveAttribute("data-slot", "explain-provider");
-    expect(name.parentElement).toHaveTextContent("Is connected to GitHub");
+    expect(name.parentElement).toHaveTextContent("Is linked to GitHub");
     expect(
-      within(tree).getByText("Is connected through OpenID Connect"),
+      within(tree).getByText("Is linked through OpenID Connect"),
     ).toBeVisible();
   });
 
@@ -237,7 +237,7 @@ describe("the account check", () => {
 
     const slug = await screen.findByText("retired");
     expect(slug).toHaveAttribute("data-literal");
-    expect(slug.parentElement).toHaveTextContent("Is connected to retired");
+    expect(slug.parentElement).toHaveTextContent("Is linked to retired");
   });
 
   it("reads the next account when another is chosen", async () => {

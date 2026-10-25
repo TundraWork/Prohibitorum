@@ -124,8 +124,8 @@ export function AdminForwardAuthAppNew() {
         }
         description={
           <Trans id="admin.forward-auth-apps.new.description">
-            Register a service behind your reverse proxy. The rest of its
-            settings are on its page once it exists.
+            Register a service behind your reverse proxy. Other settings are
+            available on the application's page after it is created.
           </Trans>
         }
       />
@@ -147,8 +147,7 @@ export function AdminForwardAuthAppNew() {
             }
             description={
               <Trans id="admin.forward-auth-apps.new.identity.description">
-                What people see, and the identifier every request to the
-                application carries.
+                The application's display name and identifier.
               </Trans>
             }
           >
@@ -192,8 +191,7 @@ export function AdminForwardAuthAppNew() {
                     }
                     description={
                       <Trans id="admin.forward-auth-apps.field.client-id.hint">
-                        The identifier every request to this application
-                        carries. It cannot change later.
+                        Identifies this application. It cannot be changed later.
                       </Trans>
                     }
                     autoComplete="off"
@@ -212,7 +210,7 @@ export function AdminForwardAuthAppNew() {
             title={<Trans id="admin.forward-auth-apps.service">Service</Trans>}
             description={
               <Trans id="admin.forward-auth-apps.new.service.description">
-                The host the gateway protects.
+                The host protected by the gateway.
               </Trans>
             }
           >
@@ -232,7 +230,7 @@ export function AdminForwardAuthAppNew() {
                   description={
                     <Trans id="admin.forward-auth-apps.field.host.hint">
                       The host the application is served on, as Traefik matches
-                      it — no scheme and no port.
+                      it, without scheme or port.
                     </Trans>
                   }
                   autoComplete="off"
@@ -251,8 +249,9 @@ export function AdminForwardAuthAppNew() {
             title={<Trans id="app.access.title">Access</Trans>}
             description={
               <Trans id="admin.oidc-apps.new.access.description">
-                Open it to every account, or limit it to user groups. The groups
-                are chosen on the application's page.
+                Open the application to every account or limit it to user
+                groups. Groups are chosen on the application's page after it is
+                created.
               </Trans>
             }
           >

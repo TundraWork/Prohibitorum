@@ -33,28 +33,28 @@ export const mailSection = {
   title: <Trans id="settings.mail.title">Mail</Trans>,
   description: (
     <Trans id="settings.mail.description">
-      Used to send email verification codes. Set in the config file; takes
-      effect after a restart.
+      Sends email verification codes. Configured in the config file; changes
+      take effect after a restart.
     </Trans>
   ),
 };
 
 const sentToast = msg({
   id: "settings.mail.test.sent",
-  message: "Test mail sent. Check {to} for it.",
+  message: "Test mail sent to {to}",
 });
 const rateLimitedError = msg({
   id: "settings.mail.test.rate_limited",
-  message: "That was too many. You can send it again later.",
+  message: "Too many test emails. Wait a while before sending another.",
 });
 const failedError = msg({
   id: "settings.mail.test.failed",
   message:
-    "The mail server refused this message or could not be reached. The reason is in the server log.",
+    "The mail server rejected the message or could not be reached. See the server log for the reason.",
 });
 const deliveryUnavailableError = msg({
   id: "settings.mail.test.delivery_unavailable",
-  message: "This instance cannot send email.",
+  message: "Email sending is not enabled on this instance.",
 });
 
 /** What the config's `security` value is called on the page. */

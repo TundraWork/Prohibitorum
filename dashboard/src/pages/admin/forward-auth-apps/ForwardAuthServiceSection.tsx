@@ -95,8 +95,8 @@ export function ForwardAuthServiceSection({ app }: { app: ForwardAuthApp }) {
           title={title}
           description={
             <Trans id="admin.forward-auth-apps.service.description">
-              The host the gateway protects. The Client ID, shown above, is what
-              every request to this application carries and cannot change.
+              The host protected by the gateway. The client ID shown above
+              identifies this application and cannot be changed.
             </Trans>
           }
           dirty={dirty}
@@ -131,7 +131,7 @@ export function ForwardAuthServiceSection({ app }: { app: ForwardAuthApp }) {
                   description={
                     <Trans id="admin.forward-auth-apps.field.host.hint">
                       The host the application is served on, as Traefik matches
-                      it — no scheme and no port.
+                      it, without scheme or port.
                     </Trans>
                   }
                   autoComplete="off"

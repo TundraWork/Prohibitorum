@@ -173,7 +173,7 @@ function AddDecisionForm({
     : walkFailed
       ? t({
           id: "admin.group.decisions.dialog.check-failed",
-          message: `The current decision for ${name} could not be read, so saving may replace one that exists.`,
+          message: `The current decision for ${name} could not be read. Saving may overwrite an existing one.`,
         })
       : existing === undefined
         ? null
@@ -286,7 +286,7 @@ function AddDecisionForm({
               label={<Trans id="admin.group.decisions.effect.deny">Deny</Trans>}
               description={
                 <Trans id="admin.group.decisions.dialog.deny-hint">
-                  Cannot use them, whatever else matches.
+                  Cannot use them, regardless of any other match.
                 </Trans>
               }
             />

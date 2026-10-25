@@ -49,31 +49,32 @@ const codeLength = 6;
 
 const addLimitError = msg({
   id: "profile.emails.error.limit",
-  message: "At most {limit} addresses. Remove one before adding another.",
+  message:
+    "You can add up to {limit} addresses. Remove one before adding another.",
 });
 const addExistsError = msg({
   id: "profile.emails.error.exists",
-  message: "That address is already on this list.",
+  message: "This address is already in your list.",
 });
 const addUnavailableError = msg({
   id: "profile.emails.error.unavailable",
-  message: "That address cannot be used.",
+  message: "This address cannot be used.",
 });
 const codeAttemptsError = msg({
   id: "profile.emails.code_attempts",
-  message: "That code is not correct. {attempts} attempts left.",
+  message: "The code is incorrect. {attempts} attempts left.",
 });
 const codeWrongError = msg({
   id: "profile.emails.code_wrong",
-  message: "That code is not correct.",
+  message: "The code is incorrect.",
 });
 const codeExpiredError = msg({
   id: "profile.emails.code_expired",
-  message: "That code has expired. Send a new one.",
+  message: "The code has expired. Send a new one.",
 });
 const sendFailedError = msg({
   id: "profile.emails.error.send_failed",
-  message: "The message could not be sent. You can send it again later.",
+  message: "The code could not be sent.",
 });
 const verifiedToast = msg({
   id: "profile.emails.verified_toast",
@@ -81,11 +82,11 @@ const verifiedToast = msg({
 });
 const verifiedPrimaryToast = msg({
   id: "profile.emails.verified_toast.primary",
-  message: "Verified {address}. Apps will now see this address.",
+  message: "Verified {address} and set it as your primary address.",
 });
 const primaryToast = msg({
   id: "profile.emails.primary_toast",
-  message: "{address} is now your primary address",
+  message: "Set {address} as your primary address",
 });
 /** The limit refusal needs the count, which the form error path cannot close over. */
 const addLimitErrorWith = (limit: number) => ({
@@ -94,11 +95,11 @@ const addLimitErrorWith = (limit: number) => ({
 });
 const addedToast = msg({
   id: "profile.emails.added_toast",
-  message: "{address} was added and is waiting for an administrator",
+  message: "Added {address}. Waiting for an administrator to confirm it",
 });
 const removedToast = msg({
   id: "profile.emails.removed_toast",
-  message: "{address} was removed",
+  message: "Removed {address}",
 });
 
 /**
@@ -111,7 +112,7 @@ export const emailsSection = {
   title: <Trans id="profile.emails.title">Email addresses</Trans>,
   description: (
     <Trans id="profile.emails.description">
-      Apps see your primary address; the others are never sent to them.
+      If you authorize an application, your primary address is shared with it.
     </Trans>
   ),
 };
@@ -172,8 +173,8 @@ function EmailsList() {
               </TooltipTrigger>
               <TooltipPopup>
                 <Trans id="profile.emails.cap">
-                  At most {data.limit} addresses. Remove one before adding
-                  another.
+                  You can add up to {data.limit} addresses. Remove one before
+                  adding another.
                 </Trans>
               </TooltipPopup>
             </Tooltip>
@@ -193,9 +194,8 @@ function EmailsList() {
             <SurfaceAlert.Content>
               <SurfaceAlert.Title>
                 <Trans id="profile.emails.no_delivery">
-                  This instance does not send mail. You can still add an
-                  address, but an administrator has to confirm it before it
-                  counts as verified.
+                  This instance does not send email. An address you add is
+                  marked as verified only after an administrator confirms it.
                 </Trans>
               </SurfaceAlert.Title>
             </SurfaceAlert.Content>
@@ -206,9 +206,9 @@ function EmailsList() {
             <SurfaceAlert.Content>
               <SurfaceAlert.Title>
                 <Trans id="profile.emails.no_primary">
-                  You have no primary address. Apps that need one may not let
-                  you sign in; once you verify an address, it becomes the
-                  primary on its own.
+                  You have no primary address, so some applications may not let
+                  you sign in. The first address you verify becomes your primary
+                  address.
                 </Trans>
               </SurfaceAlert.Title>
             </SurfaceAlert.Content>
@@ -223,7 +223,7 @@ function EmailsList() {
               title={<Trans id="profile.emails.empty">No addresses yet</Trans>}
               description={
                 <Trans id="profile.emails.empty.hint">
-                  Some apps need an address before they let you sign in.
+                  Some applications require an email address to sign in.
                 </Trans>
               }
             />
@@ -392,7 +392,7 @@ function VerifiedDetail({ email }: { email: EmailAddress }) {
   }
   return (
     <Trans id="profile.emails.verified_by_code">
-      Verified {when} with a code
+      Verified {when} with an email code
     </Trans>
   );
 }
@@ -734,7 +734,7 @@ function VerifyEmailDialog({
                   <SurfaceAlert.Content>
                     <SurfaceAlert.Title>
                       <Trans id="profile.emails.delivery_failed">
-                        The message did not go out. Resend to try again.
+                        The email with the code could not be delivered.
                       </Trans>
                     </SurfaceAlert.Title>
                   </SurfaceAlert.Content>
@@ -821,8 +821,9 @@ function SetPrimaryDialog({
       body={
         <p>
           <Trans id="profile.emails.primary.body">
-            Apps will see this address the next time you sign in. An app that
-            knows users by their address may take you for someone else.
+            Applications receive this address the next time you sign in. An
+            application that identifies users by email address may treat you as
+            a different user.
           </Trans>
         </p>
       }
@@ -869,7 +870,7 @@ function RemoveDialog({
       body={
         <p>
           <Trans id="profile.emails.delete.body">
-            To use this address again, add it back and verify it once more.
+            To use this address again, you need to add and verify it again.
           </Trans>
         </p>
       }

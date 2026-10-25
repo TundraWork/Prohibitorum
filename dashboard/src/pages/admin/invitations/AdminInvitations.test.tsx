@@ -75,7 +75,7 @@ describe("the page", () => {
 
     expect(
       screen.getByText(
-        "Invitations waiting to be used. Used or expired ones leave this list.",
+        "View and manage invitations that have not been used yet. Accepted, expired and revoked invitations are removed from this list.",
       ),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "Invite a user" })).toHaveAttribute(
@@ -89,7 +89,7 @@ describe("the page", () => {
 
     expect(await screen.findByText("No invitations waiting")).toBeVisible();
     expect(
-      screen.getByText(/Invite someone and their link appears here/),
+      screen.getByText(/Invitations are listed here until they are used/),
     ).toBeVisible();
   });
 

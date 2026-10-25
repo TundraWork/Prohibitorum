@@ -57,7 +57,7 @@ function kindLabel(group: AppGroupView): ReactNode {
   return isRule(group) ? (
     <Trans id="app.groups.kind.rule">Rule</Trans>
   ) : (
-    <Trans id="app.groups.kind.manual">Chosen by hand</Trans>
+    <Trans id="app.groups.kind.manual">Manual</Trans>
   );
 }
 
@@ -151,7 +151,7 @@ export function AppAccessSection({
     description: i18n._(
       isRule(group)
         ? msg({ id: "app.groups.kind.rule", message: "Rule" })
-        : msg({ id: "app.groups.kind.manual", message: "Chosen by hand" }),
+        : msg({ id: "app.groups.kind.manual", message: "Manual" }),
     ),
   }));
 
@@ -174,8 +174,7 @@ export function AppAccessSection({
 
   const note = !restricted && selected.length > 0 && (
     <Trans id="app.access.open.kept">
-      The user groups below are kept and apply again when you restrict this
-      application.
+      The user groups below are kept and apply again when access is restricted.
     </Trans>
   );
 
@@ -188,8 +187,7 @@ export function AppAccessSection({
         description={
           restricted ? (
             <Trans id="app.access.order.description">
-              Checked in this order. The first step that matches someone
-              decides.
+              Checked in this order. The first matching step decides access.
             </Trans>
           ) : undefined
         }
@@ -320,7 +318,7 @@ export function AppAccessSection({
         body={
           <p>
             <Trans id="app.groups.last.body">
-              Nobody can use {appName} until you select one.
+              No one can use {appName} until you select another group.
             </Trans>
           </p>
         }
@@ -351,16 +349,16 @@ export function AppAccessSection({
           target === "restricted" ? (
             <p>
               <Trans id="app.access.restrict.body">
-                Only accounts in the user groups you select can use this
-                application. Until you select one, nobody can.
+                Only accounts in the selected user groups can use this
+                application. Until you select one, no one can.
               </Trans>
             </p>
           ) : (
             <p>
               <Trans id="app.access.open.body">
-                Every account on this instance can use this application. The
-                selected user groups stay where they are, ready if you restrict
-                it again.
+                Every account on this instance will be able to use this
+                application. The selected user groups are kept and apply again
+                if you restrict access later.
               </Trans>
             </p>
           )
@@ -398,7 +396,7 @@ function StateRow({
     <div className="flex items-center gap-3 px-4 py-4 text-muted-foreground text-sm">
       <Lock aria-hidden="true" className="size-4 shrink-0" />
       <Trans id="app.access.restricted.none">
-        No user groups selected yet. Nobody can use this application until you
+        No user groups selected. No one can use this application until you
         select one.
       </Trans>
     </div>
@@ -422,16 +420,12 @@ function OrderStrip({ groups }: { groups: AppGroupView[] }) {
   const steps: { key: string; title: ReactNode; detail: ReactNode }[] = [
     {
       key: "denied",
-      title: (
-        <Trans id="app.access.order.denied">Accounts denied by hand in</Trans>
-      ),
+      title: <Trans id="app.access.order.denied">Manually denied</Trans>,
       detail: names(manual),
     },
     {
       key: "allowed",
-      title: (
-        <Trans id="app.access.order.allowed">Accounts allowed by hand in</Trans>
-      ),
+      title: <Trans id="app.access.order.allowed">Manually allowed</Trans>,
       detail: names(manual),
     },
     {
@@ -553,7 +547,7 @@ function GroupPickerForm({
       className="flex min-h-0 flex-1 flex-col"
       aria-label={t({
         id: "app.groups.dialog.title",
-        message: "Choose the groups that take part",
+        message: "Choose user groups",
       })}
       onSubmit={(event) => {
         event.preventDefault();
@@ -562,16 +556,14 @@ function GroupPickerForm({
     >
       <DialogHeader>
         <DialogTitle>
-          <Trans id="app.groups.dialog.title">
-            Choose the groups that take part
-          </Trans>
+          <Trans id="app.groups.dialog.title">Choose user groups</Trans>
         </DialogTitle>
       </DialogHeader>
       <DialogPanel className="flex flex-col gap-4">
         <p className="text-muted-foreground text-sm">
           <Trans id="app.groups.dialog.hint">
-            The selection replaces the current one. Only accounts in the groups
-            you choose can use this application.
+            Saving replaces the current selection. Only accounts in the chosen
+            groups can use this application.
           </Trans>
         </p>
         <InlineFailure error={error} />

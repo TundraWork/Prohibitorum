@@ -58,7 +58,7 @@ function mount(
 
 const nameField = () => screen.getByRole("textbox", { name: "Name" });
 const kindFact = () =>
-  screen.getByText("How it fills").closest("dl") as HTMLElement;
+  screen.getByText("Membership").closest("dl") as HTMLElement;
 const slugField = () => screen.getByRole("textbox", { name: "Identifier" });
 const descriptionField = () =>
   screen.getByRole("textbox", { name: "Description" });
@@ -78,7 +78,7 @@ describe("the details section", () => {
     expect(slugField()).toHaveValue("staff");
     expect(descriptionField()).toHaveValue("Everyone employed here");
     expect(sendSwitch()).toBeChecked();
-    expect(screen.queryByRole("textbox", { name: "How it fills" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Membership" })).toBeNull();
     expect(kindFact()).toHaveTextContent("Manual");
     expect(
       screen.getByText(
@@ -156,12 +156,14 @@ describe("the details section", () => {
 
     expect(
       await screen.findByText(
-        "Another user group already uses this identifier.",
+        "This identifier is already used by another user group.",
       ),
     ).toBeVisible();
     expect(slugField()).toBeInvalid();
     expect(
-      screen.getAllByText("Another user group already uses this identifier."),
+      screen.getAllByText(
+        "This identifier is already used by another user group.",
+      ),
     ).toHaveLength(1);
     expect(screen.queryByText("Unable to submit")).toBeNull();
     expect(notifyError).not.toHaveBeenCalled();

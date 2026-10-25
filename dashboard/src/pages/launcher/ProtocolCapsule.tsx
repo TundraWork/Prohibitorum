@@ -26,13 +26,13 @@ export function ProtocolCapsule({
       name: "OIDC",
       hint: t({
         id: "launcher.kind.oidc",
-        message: "Signs you in with OpenID Connect",
+        message: "OpenID Connect sign-in",
       }),
     },
     saml: {
       Icon: FileKey,
       name: "SAML",
-      hint: t({ id: "launcher.kind.saml", message: "Signs you in with SAML" }),
+      hint: t({ id: "launcher.kind.saml", message: "SAML sign-in" }),
     },
     forward_auth: {
       Icon: Route,
@@ -42,7 +42,7 @@ export function ProtocolCapsule({
       }),
       hint: t({
         id: "launcher.kind.forward_auth",
-        message: "Protected by your sign-in",
+        message: "Requires sign-in to access",
       }),
     },
   }[kind];

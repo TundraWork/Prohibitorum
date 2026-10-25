@@ -240,7 +240,7 @@ describe("the sign-in dialog", () => {
 
     expect(
       await within(dialog).findAllByText(
-        "Those VRChat credentials were not accepted.",
+        "VRChat did not accept the username or password.",
       ),
     ).toHaveLength(1);
     expect(screen.getByRole("dialog")).toBeVisible();
@@ -265,7 +265,7 @@ describe("the sign-in dialog", () => {
     await user.click(within(dialog).getByRole("button", { name: "Verify" }));
 
     expect(
-      await within(dialog).findAllByText("That code is not valid."),
+      await within(dialog).findAllByText("The verification code is not valid."),
     ).toHaveLength(1);
     expect(screen.getByRole("dialog")).toBeVisible();
     expect(notifyError).not.toHaveBeenCalled();

@@ -195,7 +195,7 @@ describe("the page outline", () => {
         "Sign-in",
         "Access",
         "Managers",
-        "Identity",
+        "Identity projection",
         "Appearance",
         "Credentials",
         "Disable or delete",
@@ -206,7 +206,9 @@ describe("the page outline", () => {
   it("leaves Managers out for a delegated manager and says they manage it", async () => {
     await mountPage(oidcAppFixture(), "user");
 
-    expect(screen.getByText("You manage this application.")).toBeVisible();
+    expect(
+      screen.getByText("You are assigned to manage this application."),
+    ).toBeVisible();
     const rail = await screen.findByRole("navigation", {
       name: "On this page",
     });
@@ -225,7 +227,7 @@ describe("the credentials of a public client", () => {
     await mountPage(oidcAppFixture({ clientAuthMethod: "none" }));
 
     expect(
-      await screen.findByText(/A public client has no secret/),
+      await screen.findByText(/Public clients have no client secret/),
     ).toBeVisible();
     expect(screen.queryByRole("button", { name: "Rotate secret" })).toBeNull();
   });

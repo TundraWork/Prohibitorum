@@ -37,7 +37,7 @@ export function AppearancePanel() {
       title={<Trans id="profile.appearance.title">Appearance</Trans>}
       description={
         <Trans id="profile.appearance.description">
-          How the pages look to you, on every device you sign in on.
+          Choose the theme you like. The setting syncs across your devices.
         </Trans>
       }
     >

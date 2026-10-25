@@ -54,19 +54,19 @@ const addressLimitError = msg({
 });
 const addressExistsError = msg({
   id: "admin.user.emails.error.exists",
-  message: "That address is already on this account.",
+  message: "This account already has that address.",
 });
 const addedToast = msg({
   id: "admin.user.emails.added_toast",
-  message: "{address} was added to the account",
+  message: "{address} added",
 });
 const removedToast = msg({
   id: "admin.user.emails.removed_toast",
-  message: "{address} was removed from the account",
+  message: "{address} removed",
 });
 const primaryToast = msg({
   id: "admin.user.emails.primary_toast",
-  message: "{address} is now the user's primary address",
+  message: "{address} set as primary address",
 });
 
 /**
@@ -79,8 +79,8 @@ export const accountEmailsSection = {
   title: <Trans id="admin.user.emails.title">Email addresses</Trans>,
   description: (
     <Trans id="admin.user.emails.description">
-      The addresses on this account. Apps see the primary one; the others are
-      never sent to them.
+      Manage this account's email addresses. Applications receive only the
+      primary address.
     </Trans>
   ),
 };
@@ -140,9 +140,9 @@ function AccountEmailsList({ accountId }: { accountId: number }) {
             <SurfaceAlert.Content>
               <SurfaceAlert.Title>
                 <Trans id="admin.user.emails.no_primary">
-                  This account has no primary address. Apps that need one may
-                  not let the user sign in; verify an address to make it the
-                  primary.
+                  This account has no primary address and may be unable to sign
+                  in to apps that require one. The first verified address
+                  becomes the primary address.
                 </Trans>
               </SurfaceAlert.Title>
             </SurfaceAlert.Content>
@@ -162,7 +162,7 @@ function AccountEmailsList({ accountId }: { accountId: number }) {
               }
               description={
                 <Trans id="admin.user.emails.empty.hint">
-                  Some apps need an address before they let the user sign in.
+                  Some apps require an email address to sign in.
                 </Trans>
               }
             />
@@ -235,8 +235,8 @@ function AccountEmailsList({ accountId }: { accountId: number }) {
         body={
           <p>
             <Trans id="admin.user.emails.primary.body">
-              Apps will see this address the next time the user signs in. An app
-              that knows users by their address may take them for someone else.
+              Apps receive this address the next time the user signs in. Apps
+              that identify users by email may treat them as a different user.
             </Trans>
           </p>
         }
@@ -277,22 +277,22 @@ function AccountEmailsList({ accountId }: { accountId: number }) {
             nextPrimary ? (
               <p>
                 <Trans id="admin.user.emails.delete.fallback">
-                  {nextPrimary.address} — the earliest verified remaining
-                  address — will become the new primary address.
+                  The earliest verified remaining address, {nextPrimary.address}
+                  , becomes the primary address.
                 </Trans>
               </p>
             ) : (
               <p>
                 <Trans id="admin.user.emails.delete.no_fallback">
-                  The user will have no primary address. Apps that need one may
-                  not let them sign in.
+                  The user will have no primary address and may be unable to
+                  sign in to apps that require one.
                 </Trans>
               </p>
             )
           ) : (
             <p>
               <Trans id="admin.user.emails.delete.body">
-                To use this address again, add it back and verify it once more.
+                To use this address again, add and verify it again.
               </Trans>
             </p>
           )
@@ -536,7 +536,7 @@ function AddAccountEmailDialog({
 
   const verifiedHelp = t({
     id: "admin.user.emails.verified_help",
-    message: "Check this only if you have confirmed the address is the user's.",
+    message: "Check only after confirming the address belongs to the user.",
   });
   const primaryHelp = t({
     id: "admin.user.emails.primary_help",

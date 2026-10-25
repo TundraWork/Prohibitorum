@@ -48,8 +48,8 @@ export function PublicKeyDialog({
           <DialogDescription>
             {shown !== null && (
               <Trans id="settings.keys.jwk.description">
-                This is <KeyId kid={shown.kid} /> as the instance publishes it
-                for verifying tokens and assertions.
+                The public key of <KeyId kid={shown.kid} />, published by the
+                instance to verify tokens and assertions.
               </Trans>
             )}
           </DialogDescription>

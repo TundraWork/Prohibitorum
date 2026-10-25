@@ -104,8 +104,8 @@ export function RequireIdentityPage() {
         }
         description={
           <Trans id="require-identity.mismatch.description">
-            {app} is using another account than the one signed in here. Sign in
-            with that account to verify it, or go back to {app}.
+            The account signed in to {app} differs from the one signed in here.
+            Switch to that account to verify, or return to {app}.
           </Trans>
         }
         actions={

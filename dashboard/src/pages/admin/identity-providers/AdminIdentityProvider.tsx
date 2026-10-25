@@ -85,7 +85,7 @@ export function AdminIdentityProvider({
               value: provider.slug,
               label: t({
                 id: "admin.federation.copy-slug",
-                message: "Copy the slug",
+                message: "Copy the identifier",
               }),
             }}
             facts={
@@ -140,8 +140,8 @@ export function AdminIdentityProvider({
           }
           description={
             <Trans id="admin.federation.operator.description">
-              VRChat has no client credentials, so this instance signs in as an
-              account of its own to read profiles.
+              VRChat has no client credentials. This instance signs in with a
+              dedicated VRChat account to read profiles.
             </Trans>
           }
         >

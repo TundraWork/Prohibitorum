@@ -50,7 +50,7 @@ const passwordInvalid = msg({
 });
 const codeInvalid = msg({
   id: "sudo.code.invalid",
-  message: "Enter the code your authenticator shows, using only 0–9.",
+  message: "Enter the code shown in your authenticator, using digits 0–9 only.",
 });
 
 /**
@@ -269,8 +269,8 @@ function SudoStep({
           <SurfaceAlert.Content>
             <SurfaceAlert.Title>
               <Trans id="sudo.no-methods">
-                This account has no way to confirm your identity from here. Set
-                up a passkey, or a password and authenticator, first.
+                This account has no way to verify your identity. Set up a
+                passkey, or a password and authenticator, first.
               </Trans>
             </SurfaceAlert.Title>
           </SurfaceAlert.Content>
@@ -365,7 +365,7 @@ function SudoStep({
             <ShieldCheck size={20} strokeWidth={1.75} aria-hidden="true" />
           </span>
           <DialogTitle>
-            <Trans id="sudo.title">Confirm it is you</Trans>
+            <Trans id="sudo.title">Verify your identity</Trans>
           </DialogTitle>
         </div>
         <DialogDescription>
@@ -373,7 +373,7 @@ function SudoStep({
             t(request.reason)
           ) : (
             <Trans id="sudo.intro">
-              For your security, verify your identity again to continue.
+              Verify your identity again to continue.
             </Trans>
           )}
         </DialogDescription>

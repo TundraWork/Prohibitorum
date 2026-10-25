@@ -58,7 +58,7 @@ export function SignInPageSummary() {
       title={<Trans id="settings.sign-in.title">Sign-in page</Trans>}
       description={
         <Trans id="settings.sign-in.summary.description">
-          The background, card and toolbar people see before they sign in.
+          Customize the background, card and toolbar of the sign-in page.
         </Trans>
       }
       action={

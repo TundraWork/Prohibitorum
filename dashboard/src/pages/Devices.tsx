@@ -54,8 +54,8 @@ export function Devices({ code }: { code?: string }) {
         title={<Trans id="devices.page.title">Devices</Trans>}
         description={
           <Trans id="devices.page.description">
-            Where you are signed in right now, and a way to sign in a device
-            that shows a pairing code.
+            View the devices signed in to your account, or sign in a new device
+            with a pairing code.
           </Trans>
         }
         actions={

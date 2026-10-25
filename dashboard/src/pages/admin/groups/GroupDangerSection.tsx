@@ -65,8 +65,8 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
           }
           details={[
             <Trans key="note" id="admin.group.danger.delete-note">
-              Removes the group and what it decides about who gets in. This
-              cannot be undone.
+              Deletes the group and its membership settings. This cannot be
+              undone.
             </Trans>,
           ]}
           stackActions
@@ -97,8 +97,8 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
               <Plural
                 id="admin.group.danger.in-use"
                 value={used}
-                one="# application uses this group. Remove it from its access first."
-                other="# applications use this group. Remove it from their access first."
+                one="# application uses this group. Remove the group from its access settings first."
+                other="# applications use this group. Remove the group from their access settings first."
               />
             </p>
           )}
@@ -120,8 +120,8 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
         body={
           <p>
             <Trans id="admin.group.danger.delete.body">
-              The group is removed for good, together with what it decides about
-              who gets in. This cannot be undone.
+              The group and its membership settings will be deleted. This cannot
+              be undone.
             </Trans>
           </p>
         }

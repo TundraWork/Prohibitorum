@@ -160,8 +160,8 @@ export function AdminUsers() {
         title={<Trans id="admin.users.page.title">Users</Trans>}
         description={
           <Trans id="admin.users.page.description">
-            The accounts that can sign in to this instance. Invite someone to
-            add an account.
+            View and manage the accounts that can sign in to this instance. Add
+            accounts by inviting people.
           </Trans>
         }
         actions={
@@ -262,8 +262,8 @@ export function AdminUsers() {
                   title={<Trans id="admin.users.empty">No accounts yet</Trans>}
                   description={
                     <Trans id="admin.users.empty.description">
-                      Invite someone and their account appears here once they
-                      accept.
+                      Accounts appear here once invitees accept their
+                      invitations.
                     </Trans>
                   }
                 />

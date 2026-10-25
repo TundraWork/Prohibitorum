@@ -128,8 +128,8 @@ export function AdminLogs() {
         title={<Trans id="admin.logs.page.title">Logs</Trans>}
         description={
           <Trans id="admin.logs.page.description">
-            Sign-ins, changes and other security events recorded on this
-            instance, newest first.
+            View sign-ins, changes and other security events on this instance,
+            newest first.
           </Trans>
         }
       />
@@ -249,7 +249,9 @@ export function AdminLogs() {
                     />
                   }
                   title={
-                    <Trans id="admin.logs.empty">No events in this range</Trans>
+                    <Trans id="admin.logs.empty">
+                      No events in this time range
+                    </Trans>
                   }
                   {...(count > 0
                     ? {
@@ -273,7 +275,7 @@ export function AdminLogs() {
             onRetry={list.loadMore}
             title={
               <Trans id="admin.logs.more_failed">
-                The rest of the audit log could not be loaded.
+                More audit log entries could not be loaded.
               </Trans>
             }
           />

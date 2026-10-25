@@ -87,7 +87,7 @@ async function pasteDocument(
 }
 
 async function chooseManual(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("radio", { name: "Enter it by hand" }));
+  await user.click(screen.getByRole("radio", { name: "Enter manually" }));
 }
 
 const submit = () => screen.getByRole("button", { name: "Create application" });
@@ -122,7 +122,7 @@ describe("the form's shape", () => {
     });
     expect(metadata).toBeChecked();
     expect(
-      within(group).getByRole("radio", { name: "Enter it by hand" }),
+      within(group).getByRole("radio", { name: "Enter manually" }),
     ).not.toBeChecked();
     expect(screen.getByRole("textbox", { name: "Metadata XML" })).toBeVisible();
     expect(screen.queryByRole("textbox", { name: /^Entity ID/ })).toBeNull();
@@ -220,7 +220,9 @@ describe("validation", () => {
     await pasteDocument(user, "x".repeat(70 * 1024));
     await user.click(submit());
 
-    expect(await screen.findByText(/too large to send/)).toBeVisible();
+    expect(
+      await screen.findByText(/This document is too large\./),
+    ).toBeVisible();
     expect(api.sent("POST", `${base}/saml-applications`)).toHaveLength(0);
   });
 });

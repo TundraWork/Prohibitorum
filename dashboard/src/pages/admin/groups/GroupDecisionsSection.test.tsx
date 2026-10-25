@@ -146,12 +146,12 @@ describe("the decisions", () => {
     expect(
       await screen.findByRole("heading", {
         level: 2,
-        name: "Who this group decides",
+        name: "Allowed and denied accounts",
       }),
     ).toBeVisible();
     expect(
       screen.getByText(
-        "Accounts allowed here can use the applications that select this group; accounts denied here cannot, whatever else matches. Everyone else is neutral.",
+        "Allow or deny individual accounts. Allowed accounts can use the applications that select this group. Denied accounts cannot, and a deny overrides any other match. Other accounts are not affected by this group.",
       ),
     ).toBeVisible();
     const [first, second] = (await rows()) as [HTMLElement, HTMLElement];
@@ -191,9 +191,7 @@ describe("the decisions", () => {
     mount({ pages: { "": { items: [], nextCursor: "" } } });
 
     expect(
-      await screen.findByText(
-        "No decisions yet. Nobody is allowed or denied through this group.",
-      ),
+      await screen.findByText("No accounts have been allowed or denied yet."),
     ).toBeVisible();
     expect(
       screen.getAllByRole("button", { name: /Add an account/ }),
@@ -579,7 +577,7 @@ describe("clearing a decision", () => {
       dialog.querySelector('[data-slot="confirm-subject"]'),
     ).toHaveTextContent("Cy Dunn");
     expect(dialog).toHaveTextContent(
-      "They may get in through another group or rule.",
+      "The account is no longer denied, but may still get access through another group or rule.",
     );
     expect(writes("/decisions/clear")).toHaveLength(0);
 
@@ -766,12 +764,12 @@ describe("an account whose decision is on a page not yet loaded", () => {
 
     expect(
       await within(dialog).findByText(
-        "The current decision for Cy Dunn could not be read, so saving may replace one that exists.",
+        "The current decision for Cy Dunn could not be read. Saving may overwrite an existing one.",
       ),
     ).toBeVisible();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(
-      within(dialog).getByText(/could not be read, so saving may replace/),
+      within(dialog).getByText(/could not be read\. Saving may overwrite/),
     ).toHaveAttribute("role", "alert");
     expect(notifyError).not.toHaveBeenCalled();
     await user.click(
@@ -865,12 +863,12 @@ describe("an account whose decision is on a page not yet loaded", () => {
 
     expect(
       await within(dialog).findByText(
-        "The current decision for Cy Dunn could not be read, so saving may replace one that exists.",
+        "The current decision for Cy Dunn could not be read. Saving may overwrite an existing one.",
       ),
     ).toBeVisible();
     // The section already reports the unreadable list, so this is a status.
     expect(
-      within(dialog).getByText(/could not be read, so saving may replace/),
+      within(dialog).getByText(/could not be read\. Saving may overwrite/),
     ).toHaveAttribute("role", "status");
     expect(within(dialog).queryByRole("alert")).toBeNull();
     expect(notifyError).not.toHaveBeenCalled();

@@ -29,10 +29,13 @@ export interface ScopeDescription {
 const knownScopes: Readonly<Record<string, ScopeDescription>> = {
   openid: {
     icon: IdCard,
-    name: msg({ id: "consent.scope.openid", message: "Confirm who you are" }),
+    name: msg({
+      id: "consent.scope.openid",
+      message: "Your account identifier",
+    }),
     description: msg({
       id: "consent.scope.openid.description",
-      message: "Know which {instance} account is yours",
+      message: "Used to identify your {instance} account",
     }),
   },
   profile: {
@@ -48,7 +51,7 @@ const knownScopes: Readonly<Record<string, ScopeDescription>> = {
     name: msg({ id: "consent.scope.email", message: "Your email address" }),
     description: msg({
       id: "consent.scope.email.description",
-      message: "Your email address and whether it is verified",
+      message: "Your primary email address and its verification status",
     }),
   },
   groups: {
@@ -67,7 +70,8 @@ const knownScopes: Readonly<Record<string, ScopeDescription>> = {
     }),
     description: msg({
       id: "consent.scope.offline_access.description",
-      message: "Keep access while you're away, until you revoke it",
+      message:
+        "Ongoing access until you revoke it, including while you're offline",
     }),
   },
 };

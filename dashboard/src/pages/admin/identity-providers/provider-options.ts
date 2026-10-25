@@ -34,8 +34,7 @@ export const providerModes: readonly ProviderOption<ProviderMode>[] = [
     }),
     description: msg({
       id: "admin.federation.mode.auto.hint",
-      message:
-        "Creates an account the first time someone without one signs in.",
+      message: "Creates an account for anyone who signs in without one.",
     }),
   },
   {
@@ -47,7 +46,7 @@ export const providerModes: readonly ProviderOption<ProviderMode>[] = [
     description: msg({
       id: "admin.federation.mode.invite.hint",
       message:
-        "Only linked accounts can sign in. New accounts need an invitation.",
+        "Only linked accounts can sign in. New accounts require an invitation.",
     }),
   },
   {
@@ -59,7 +58,7 @@ export const providerModes: readonly ProviderOption<ProviderMode>[] = [
     description: msg({
       id: "admin.federation.mode.link.hint",
       message:
-        "Links to existing accounts only. Never creates one, not even from an invitation.",
+        "Links to existing accounts only. Never creates an account and can't be used to accept an invitation.",
     }),
   },
 ];
@@ -88,7 +87,7 @@ export const providerProtocolOptions: readonly ProviderOption<ProviderProtocol>[
       label: msg({ id: "admin.federation.protocol.steam", message: "Steam" }),
       description: msg({
         id: "admin.federation.protocol.steam.hint",
-        message: "Sign in with a Steam account. Needs a Steam Web API key.",
+        message: "Sign in with a Steam account. Requires a Steam Web API key.",
       }),
     },
     {
@@ -97,7 +96,7 @@ export const providerProtocolOptions: readonly ProviderOption<ProviderProtocol>[
       description: msg({
         id: "admin.federation.protocol.vrchat.hint",
         message:
-          "Links VRChat identities to existing accounts. Needs a VRChat operator account.",
+          "Links VRChat identities to existing accounts. Requires a VRChat operator account.",
       }),
     },
   ];
@@ -136,7 +135,7 @@ export const clientAuthMethods: readonly (ProviderOption<ClientAuthMethod> & {
     description: msg({
       id: "admin.federation.auth.discovery.hint",
       message:
-        "Uses what the provider publishes. Not available with manual endpoints.",
+        "Uses the method the provider publishes in its discovery document. Not available with manual endpoints.",
     }),
   },
   {
@@ -170,7 +169,7 @@ export const clientAuthMethods: readonly (ProviderOption<ClientAuthMethod> & {
     description: msg({
       id: "admin.federation.auth.none.hint",
       message:
-        "Uses no client secret; sign-in with an authorization code always uses PKCE.",
+        "Uses no client secret. Sign-in with an authorization code always uses PKCE.",
     }),
   },
 ];
@@ -195,7 +194,7 @@ export const responseTypes: readonly ProviderOption<ResponseType>[] = [
     description: msg({
       id: "admin.federation.response.code.hint",
       message:
-        "Exchanges the code at the token endpoint, with PKCE when it is on. Most providers allow only this.",
+        "Exchanges the code at the token endpoint, with PKCE when it is on. Most providers support only this.",
     }),
   },
   {
@@ -219,7 +218,7 @@ export const responseTypes: readonly ProviderOption<ResponseType>[] = [
     description: msg({
       id: "admin.federation.response.id-token-token.hint",
       message:
-        "Also reads the access token sent back with the ID token, and uses it for UserInfo when the ID token has no picture.",
+        "Also reads the access token returned with the ID token, and uses it to request UserInfo when the ID token has no picture.",
     }),
   },
 ];

@@ -354,7 +354,7 @@ describe("the matches frame", () => {
 
     expect(
       await screen.findByText(
-        "The latest check failed, so this may be out of date.",
+        "The latest check failed. This data may be out of date.",
       ),
     ).toBeVisible();
     expect(screen.getByText("4")).toBeVisible();

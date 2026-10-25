@@ -233,7 +233,7 @@ function RotationControls({
             value: "random",
             label: t({
               id: "settings.sign-in.order.random",
-              message: "A random one each visit",
+              message: "Random on each visit",
             }),
           },
           {
@@ -338,7 +338,8 @@ export const BackgroundControls = withForm({
         {background.source === "none" && (
           <p className="text-muted-foreground text-sm">
             <Trans id="settings.sign-in.none.hint">
-              The page's own background, which follows light and dark mode.
+              Uses the page's default background, which follows light or dark
+              mode.
             </Trans>
           </p>
         )}
@@ -451,7 +452,7 @@ export const BackgroundControls = withForm({
                     compactValue
                     description={
                       <Trans id="settings.sign-in.unsplash.key.hint">
-                        From your application on{" "}
+                        Find it in your application at{" "}
                         <a
                           href="https://unsplash.com/developers"
                           target="_blank"
@@ -483,7 +484,7 @@ export const BackgroundControls = withForm({
                   autoComplete="off"
                   description={
                     <Trans id="settings.sign-in.unsplash.query.hint">
-                      Leave it empty for any photo.
+                      Leave empty to use any photo.
                     </Trans>
                   }
                 />
@@ -567,7 +568,7 @@ export const BackgroundControls = withForm({
                     compactValue
                     description={
                       <Trans id="settings.sign-in.pixabay.key.hint">
-                        From your account on{" "}
+                        Find it in your Pixabay account at{" "}
                         <a
                           href="https://pixabay.com/api/docs/"
                           target="_blank"
@@ -585,8 +586,8 @@ export const BackgroundControls = withForm({
             )}
             <p className="text-muted-foreground text-caption">
               <Trans id="settings.sign-in.pixabay.width">
-                Pixabay pictures are at most 1280 pixels wide, so they can look
-                soft on large screens.
+                Pixabay pictures are at most 1280 pixels wide and may look
+                blurry on large screens.
               </Trans>
             </p>
             <form.AppField
@@ -605,8 +606,8 @@ export const BackgroundControls = withForm({
                   autoComplete="off"
                   description={
                     <Trans id="settings.sign-in.pixabay.query.hint">
-                      Written in the chosen search language; leave it empty for
-                      any picture.
+                      Enter it in the selected search language. Leave empty to
+                      use any picture.
                     </Trans>
                   }
                 />
@@ -653,7 +654,7 @@ export const BackgroundControls = withForm({
             {images.length === 0 && (
               <p className="text-muted-foreground text-sm">
                 <Trans id="settings.sign-in.images.none_hint">
-                  Until you add an image, visitors see the page's own
+                  Until an image is added, the sign-in page uses its default
                   background.
                 </Trans>
               </p>

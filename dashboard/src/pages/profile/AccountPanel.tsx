@@ -32,11 +32,11 @@ function nicknameError(value: string): "too_long" | "control" | null {
 
 const tooLong = msg({
   id: "profile.display-name.too_long",
-  message: "Use 60 characters or fewer.",
+  message: "The name cannot be longer than 60 characters.",
 });
 const hasControl = msg({
   id: "profile.display-name.control",
-  message: "Remove control characters from the name.",
+  message: "The name cannot contain control characters.",
 });
 
 /**
@@ -111,7 +111,7 @@ function AccountForm({
           title={<Trans id="profile.account.title">Account</Trans>}
           description={
             <Trans id="profile.account.description">
-              Your name is shown to others; the identifiers below are fixed.
+              Change your display name, or view your username and OIDC subject.
             </Trans>
           }
           dirty={dirty}
@@ -161,7 +161,7 @@ function AccountForm({
               title={<Trans id="console.username">Username</Trans>}
               description={
                 <Trans id="profile.username.hint">
-                  What you type to sign in.
+                  Use this username to sign in to your account.
                 </Trans>
               }
             >
@@ -179,7 +179,7 @@ function AccountForm({
               title={<Trans id="profile.oidc-subject">OIDC subject</Trans>}
               description={
                 <Trans id="profile.oidc-subject.hint">
-                  Applications identify you by this value. It never changes.
+                  Applications you authorize identify you by this ID.
                 </Trans>
               }
             >

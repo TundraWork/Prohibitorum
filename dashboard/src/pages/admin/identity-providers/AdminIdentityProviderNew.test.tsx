@@ -152,13 +152,15 @@ describe("the form's shape", () => {
     const { user } = await mountForm();
 
     const field = screen.getByLabelText("Identifier");
-    expect(field).toHaveAccessibleDescription(/cannot be changed later/);
+    expect(field).toHaveAccessibleDescription(
+      /can't be changed after creation/,
+    );
     await user.type(field, "Corp SSO");
     await user.click(screen.getByRole("button", { name: "Add provider" }));
 
     expect(
       await screen.findByText(
-        /Use lowercase letters, digits and single hyphens/,
+        /can contain only lowercase letters, digits and single hyphens/,
       ),
     ).toBeVisible();
   });
@@ -190,13 +192,13 @@ describe("the new provider form's sign-in switch", () => {
 
     await chooseProtocol(user, "VRChat");
     expect(
-      screen.getByText(/VRChat proves a profile through a link in its bio/),
+      screen.getByText(/VRChat verifies a profile through a link in its bio/),
     ).toBeInTheDocument();
     // The note stays even if the operator turns sign-in back on: what it
     // warns about is the proof, not the button.
     await user.click(screen.getByRole("switch", { name: "Allow sign-in" }));
     expect(
-      screen.getByText(/VRChat proves a profile through a link in its bio/),
+      screen.getByText(/VRChat verifies a profile through a link in its bio/),
     ).toBeInTheDocument();
   });
 
@@ -212,7 +214,7 @@ describe("the new provider form's sign-in switch", () => {
     );
     // The reason is written outside the dimmed card.
     expect(
-      screen.getByText("Turn sign-in on to create accounts."),
+      screen.getByText("Creating accounts requires sign-in to be on."),
     ).toBeVisible();
   });
 

@@ -309,9 +309,7 @@ function PairingStep({
       )}
       {pairing !== undefined && !expired && (
         <p className="text-center text-muted-foreground text-sm">
-          <Trans id="pair.qr_hint">
-            Or scan it with that device to open it there.
-          </Trans>
+          <Trans id="pair.qr_hint">Or scan the QR code with that device.</Trans>
         </p>
       )}
       {expired ? (
@@ -394,7 +392,7 @@ function SignedIn({ redirect }: { redirect: string }) {
       title={<Trans id="pair.signed_in.title">This device is signed in</Trans>}
       description={
         <Trans id="pair.signed_in.description">
-          Add a passkey to sign in on this device directly next time.
+          Add a passkey to sign in directly on this device next time.
         </Trans>
       }
       actions={

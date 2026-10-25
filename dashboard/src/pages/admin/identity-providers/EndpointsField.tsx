@@ -180,7 +180,7 @@ export function EndpointsField() {
           }
           description={
             <Trans id="admin.federation.connection.mode.manual.hint">
-              For a provider that does not publish discovery.
+              For providers that don't publish a discovery document.
             </Trans>
           }
         />
@@ -194,7 +194,7 @@ export function EndpointsField() {
       {discovery && shown.length > 0 && (
         <p className="text-muted-foreground text-caption">
           <Trans id="admin.federation.endpoints.override.note">
-            The addresses entered here replace what discovery finds.
+            Addresses entered here replace the discovered ones.
           </Trans>
         </p>
       )}

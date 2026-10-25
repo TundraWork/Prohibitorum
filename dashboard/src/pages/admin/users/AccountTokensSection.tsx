@@ -43,8 +43,8 @@ export function AccountTokensSection({ accountId }: { accountId: number }) {
         title={<Trans id="admin.user.tokens.title">Access tokens</Trans>}
         description={
           <Trans id="admin.user.tokens.description">
-            Keys for scripts and tools that act as them. Revoking one stops it
-            working straight away.
+            Access tokens this account uses for scripts and tools. A revoked
+            token stops working immediately.
           </Trans>
         }
         label={t({ id: "admin.user.tokens.table", message: "Access tokens" })}
@@ -104,8 +104,8 @@ export function AccountTokensSection({ accountId }: { accountId: number }) {
         body={
           <p>
             <Trans id="admin.user.tokens.revoke.body">
-              Anything using this token stops working immediately. This cannot
-              be undone.
+              The token stops working immediately, and tools using it lose
+              access. This cannot be undone.
             </Trans>
           </p>
         }

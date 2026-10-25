@@ -75,7 +75,7 @@ async function pickSource(user: UserEvent, row: number, name: string) {
 
 async function addAttribute(user: UserEvent) {
   await user.click(
-    await screen.findByRole("button", { name: "Add an attribute" }),
+    await screen.findByRole("button", { name: "Add attribute" }),
   );
 }
 
@@ -96,7 +96,7 @@ describe("the NameID format", () => {
 
     expect(
       await screen.findByText(
-        "Changing the NameID format makes every service provider see a new account.",
+        "Changing the NameID format makes the service provider treat existing users as new accounts.",
       ),
     ).toBeVisible();
     expect(
@@ -381,9 +381,7 @@ describe("the attribute map", () => {
     await addAttribute(user);
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(
-      await screen.findByText("Give this attribute a name."),
-    ).toBeVisible();
+    expect(await screen.findByText("Enter an attribute name.")).toBeVisible();
     expect(
       screen.getByRole("textbox", { name: "Attribute name" }),
     ).toBeInvalid();
@@ -400,9 +398,7 @@ describe("the attribute map", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(
-      await screen.findByText(
-        "Another attribute already sends under this name.",
-      ),
+      await screen.findByText("Another attribute already uses this name."),
     ).toBeVisible();
     expect(puts()).toHaveLength(0);
   });
@@ -420,7 +416,7 @@ describe("the attribute map", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     expect(
-      await screen.findByText("Name the account attribute this reads from."),
+      await screen.findByText("Enter the account attribute to read from."),
     ).toBeVisible();
     expect(
       screen.getByRole("textbox", { name: "Attribute key" }),

@@ -110,7 +110,7 @@ describe("EmailsPanel", () => {
 
   it("shows the no-mail notice instead when delivery is unavailable", async () => {
     mount([emailFixture({ primary: false })], false);
-    expect(await screen.findByText(/does not send mail/)).toBeVisible();
+    expect(await screen.findByText(/does not send email/)).toBeVisible();
     expect(
       screen.queryByText(/You have no primary address/),
     ).not.toBeInTheDocument();
@@ -118,7 +118,7 @@ describe("EmailsPanel", () => {
 
   it("shows the no-mail notice with no addresses at all", async () => {
     mount([], false);
-    expect(await screen.findByText(/does not send mail/)).toBeVisible();
+    expect(await screen.findByText(/does not send email/)).toBeVisible();
   });
 
   it("opens the code dialog from the row menu and sends the code on open", async () => {
@@ -574,12 +574,14 @@ describe("EmailsPanel", () => {
     await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
     const dialog = await screen.findByRole("dialog");
     expect(
-      await within(dialog).findByText(/did not go out. Resend to try again/),
+      await within(dialog).findByText(
+        /The email with the code could not be delivered/,
+      ),
     ).toBeVisible();
     await user.click(within(dialog).getByRole("button", { name: "Resend" }));
     expect(await within(dialog).findByText(/Resend in 60s/)).toBeVisible();
     expect(
-      within(dialog).queryByText(/did not go out/),
+      within(dialog).queryByText(/could not be delivered/),
     ).not.toBeInTheDocument();
     expect(sends).toBe(2);
   });

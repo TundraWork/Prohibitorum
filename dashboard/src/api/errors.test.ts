@@ -111,7 +111,8 @@ describe("the enrollment and public federation codes", () => {
       describeError(refused("sudo_required"), "setup-signin"),
     ).toMatchObject({
       id: "error.setup-signin.sudo_required",
-      message: "This step has timed out. Add it later from Security.",
+      message:
+        "This step has timed out. You can add a sign-in method later from Security.",
     });
     expect(describeError(refused("sudo_required")).id).toBe(
       "error.sudo_required",

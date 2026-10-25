@@ -168,8 +168,8 @@ export function ProviderClaimsSection({ provider }: { provider: Provider }) {
             title={title}
             description={
               <Trans id="admin.federation.claims.description">
-                Who may come in through this provider, and which of its fields
-                fill in the account.
+                Control who can use this provider, and which provider claims
+                fill in account fields.
               </Trans>
             }
             dirty={dirty}
@@ -216,8 +216,8 @@ export function ProviderClaimsSection({ provider }: { provider: Provider }) {
                     })}
                     description={
                       <Trans id="admin.federation.claims.domains.hint">
-                        Only addresses on one of these domains can come in.
-                        Leave it empty to accept every domain.
+                        Only email addresses on these domains are accepted.
+                        Leave empty to accept all domains.
                       </Trans>
                     }
                     emptyText={t({
@@ -312,7 +312,7 @@ export function ProviderClaimsSection({ provider }: { provider: Provider }) {
                       })}
                       hint={
                         <Trans id="admin.federation.claims.subject.hint">
-                          Accounts are linked by this value.
+                          Accounts are linked by the value of this claim.
                         </Trans>
                       }
                       testField="subject"
@@ -342,11 +342,11 @@ export function ProviderClaimsSection({ provider }: { provider: Provider }) {
             <Trans id="admin.federation.claims.subject.confirm.short">
               <Plural
                 value={count}
-                one="# linked account stops"
-                other="# linked accounts stop"
+                one="# linked account"
+                other="# linked accounts"
               />{" "}
-              matching and will be treated as a new identity at the next
-              sign-in.
+              will no longer match and will be treated as a new identity at the
+              next sign-in.
             </Trans>
           </p>
         }
@@ -382,11 +382,10 @@ function SubjectConsequence({
   return (
     <Trans id="admin.federation.claims.subject.confirm.body">
       <Plural value={count} one="# account is" other="# accounts are" /> linked
-      to {name} by their <code className="font-mono text-xs">{current}</code>{" "}
-      claim. After switching to{" "}
-      <code className="font-mono text-xs">{next}</code>, those links no longer
-      match, and each person is treated as a new identity the next time they
-      sign in.
+      to {name} by the <code className="font-mono text-xs">{current}</code>{" "}
+      claim. After the change to{" "}
+      <code className="font-mono text-xs">{next}</code>, these links no longer
+      match, and each person is treated as a new identity at their next sign-in.
     </Trans>
   );
 }

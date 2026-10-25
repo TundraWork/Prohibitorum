@@ -28,7 +28,7 @@ const identityDescription = msg({
 const unavailableIdentityDescription = msg({
   id: "admin.oidc-apps.scope.identity.unavailable",
   message:
-    "This provider is turned off or no longer exists. Clear it to stop allowing it.",
+    "This provider is disabled or no longer exists. Clear it to stop allowing it.",
 });
 
 /**
@@ -151,8 +151,7 @@ export function OidcScopesField({
       {providers.isError && (
         <p className="text-muted-foreground text-sm">
           <Trans id="admin.oidc-apps.scopes.providers-failed">
-            The provider identities could not be loaded, so they are left as
-            saved.
+            Could not load provider identities. The saved selection is kept.
           </Trans>
         </p>
       )}

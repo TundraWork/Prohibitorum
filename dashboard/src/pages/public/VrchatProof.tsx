@@ -11,20 +11,23 @@ export function VrchatProofPage() {
   const { name: instance } = useInstanceBranding();
   return (
     <PublicStep
-      title={<Trans id="vrchat_proof.title">This is a verification link</Trans>}
+      title={
+        <Trans id="vrchat_proof.title">VRChat profile verification link</Trans>
+      }
     >
       <div className="flex flex-col gap-3 text-sm">
         <p>
           <Trans id="vrchat_proof.passing_by">
-            Someone put this link in their VRChat bio to prove to {instance}{" "}
-            that the profile is theirs. If you're just passing by, there's
-            nothing to do: this page doesn't sign anyone in or grant any access.
+            This link proves ownership of a VRChat profile to {instance}. The
+            profile's owner added it to their bio. If you're just passing by, no
+            action is needed. This page doesn't sign anyone in or grant any
+            access.
           </Trans>
         </p>
         <p>
           <Trans id="vrchat_proof.owner">
-            If this is your profile, go back to {instance} and press Verify.
-            Once it's verified, remove the link from your bio.
+            If this is your profile, return to {instance} and select Verify.
+            After verification, remove the link from your bio.
           </Trans>
         </p>
       </div>

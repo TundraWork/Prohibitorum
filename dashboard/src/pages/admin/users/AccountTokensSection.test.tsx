@@ -63,7 +63,7 @@ describe("the access tokens section", () => {
     expect(rows[0]).toHaveTextContent("Wiki");
     expect(rows[0]).toHaveTextContent(/Expires/);
     expect(rows[0]).toHaveTextContent("Last used yesterday");
-    expect(rows[1]).toHaveTextContent("Skips confirming it is you");
+    expect(rows[1]).toHaveTextContent("Skips verifying your identity");
     expect(rows[1]).toHaveTextContent("Expired");
     expect(rows[1]).toHaveTextContent("Not used yet");
     expect(rows[2]).toHaveTextContent("Every application");

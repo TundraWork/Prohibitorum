@@ -51,7 +51,7 @@ export function SamlConsentPage() {
       rows={rows}
       footnote={
         <Trans id="saml_consent.footnote">
-          You only need to confirm this once. You can revoke it at any time in{" "}
+          This is asked only once. You can revoke it at any time in{" "}
           <RouterLink to="/apps" className={inlineLinkClass}>
             Connected applications
           </RouterLink>

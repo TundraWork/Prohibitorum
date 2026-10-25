@@ -138,9 +138,7 @@ describe("the PKCE switch", () => {
     expect(pkce).not.toHaveAttribute("aria-disabled", "true");
     expect(pkce).toBeChecked();
     expect(
-      screen.queryByText(
-        "A public client always proves the request it started.",
-      ),
+      screen.queryByText("Always required for public clients."),
     ).toBeNull();
   });
 
@@ -154,7 +152,7 @@ describe("the PKCE switch", () => {
     expect(pkce).toHaveAttribute("aria-disabled", "true");
     expect(pkce).toBeChecked();
     expect(
-      screen.getByText("A public client always proves the request it started."),
+      screen.getByText("Always required for public clients."),
     ).toBeVisible();
   });
 });

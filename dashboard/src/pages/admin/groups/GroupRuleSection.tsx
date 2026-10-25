@@ -199,7 +199,7 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
             <RuleIssueSummary issues={issues} />
           ) : (
             <Trans id="admin.group.rule.consequence">
-              Saving changes who is in this group right away.
+              Saving updates the group's members immediately.
             </Trans>
           )}
           <span role="status" className="block text-muted-foreground">
@@ -225,13 +225,11 @@ export function GroupRuleSection({ group }: { group: AppGroupView }) {
         <Section
           id="rule"
           icon={<ListFilterIcon />}
-          title={
-            <Trans id="admin.group.rule.heading">Who this group matches</Trans>
-          }
+          title={<Trans id="admin.group.rule.heading">Matching rule</Trans>}
           description={
             <Trans id="admin.group.rule.description">
-              Checked every time someone asks for access, so the group is always
-              current.
+              Define which accounts this group matches. The rule is evaluated on
+              every access.
             </Trans>
           }
           action={

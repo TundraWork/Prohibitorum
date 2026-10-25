@@ -21,10 +21,10 @@ export function ResponseTypeField() {
       options={responseTypes}
       description={
         <Trans id="admin.federation.response.description">
-          ID token only works when the provider's client allows
-          response_type=id_token, and ID token + access token needs
-          response_type=id_token token. Keycloak calls this Implicit Flow
-          Enabled; the Microsoft identity platform lists them as ID tokens and
+          ID token only requires the provider's client to allow
+          response_type=id_token, and ID token + access token requires
+          response_type=id_token token. In Keycloak this is Implicit Flow
+          Enabled; in the Microsoft identity platform, it is ID tokens and
           Access tokens under implicit grant.
         </Trans>
       }

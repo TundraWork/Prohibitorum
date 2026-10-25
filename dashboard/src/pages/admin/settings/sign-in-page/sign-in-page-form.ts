@@ -101,11 +101,11 @@ export const signInPageMessages = {
   keyInvalid: msg({
     id: "settings.sign-in.unsplash.key.invalid",
     message:
-      "An access key has only letters, digits, hyphens and underscores, up to 128 of them.",
+      "The access key can contain only letters, digits, hyphens and underscores, up to 128 characters.",
   }),
   intervalRange: msg({
     id: "settings.sign-in.interval.range",
-    message: "Choose between 5 and 3600 seconds.",
+    message: "Enter a value between 5 and 3600 seconds.",
   }),
 } as const;
 

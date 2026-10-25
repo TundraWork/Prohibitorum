@@ -121,7 +121,7 @@ const urlScheme = msg({
 
 const urlFragment = msg({
   id: "admin.federation.url.fragment",
-  message: "Remove the part from # onwards.",
+  message: "Remove # and everything after it from the address.",
 });
 
 const urlUserinfo = msg({
@@ -289,7 +289,7 @@ const endpointRequired: Record<
 const userinfoNeededWithoutJwks = msg({
   id: "admin.federation.connection.userinfo.required",
   message:
-    "Enter the UserInfo endpoint. With JWKS set to none, people are identified through it.",
+    "Enter the UserInfo endpoint. It is used to identify people when JWKS is set to None.",
 });
 
 const overrideRequired = msg({
@@ -367,7 +367,7 @@ const authNeedsExplicit = msg({
 const authPublicNeedsS256 = msg({
   id: "admin.federation.auth.public-needs-s256",
   message:
-    "A public client needs S256 PKCE, and this provider is set to use a different PKCE method.",
+    "Public clients require S256 PKCE, but this provider is set to a different PKCE method.",
 });
 
 /**

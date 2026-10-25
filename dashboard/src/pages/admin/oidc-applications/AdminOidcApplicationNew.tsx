@@ -168,7 +168,8 @@ export function AdminOidcApplicationNew() {
           description={
             <Trans id="admin.oidc-apps.new.description">
               Register an application that signs people in through this
-              instance. The rest of its settings are on its page once it exists.
+              instance. Other settings are available on the application's page
+              after it is created.
             </Trans>
           }
         />
@@ -190,8 +191,8 @@ export function AdminOidcApplicationNew() {
               }
               description={
                 <Trans id="admin.oidc-apps.new.identity.description">
-                  What people see, and the identifier the client is configured
-                  with.
+                  The application's display name and the client ID used in the
+                  client's configuration.
                 </Trans>
               }
             >
@@ -233,8 +234,8 @@ export function AdminOidcApplicationNew() {
                       }
                       description={
                         <Trans id="admin.oidc-apps.field.client-id.hint">
-                          The client is configured with this value; it cannot
-                          change.
+                          The value used in the client's configuration. It
+                          cannot be changed later.
                         </Trans>
                       }
                       autoComplete="off"
@@ -253,8 +254,8 @@ export function AdminOidcApplicationNew() {
               title={<Trans id="admin.oidc-apps.field.kind">Client type</Trans>}
               description={
                 <Trans id="admin.oidc-apps.new.type.description">
-                  Whether the application can keep a secret decides how it
-                  proves who it is.
+                  Whether the application can keep a secret determines how it
+                  authenticates.
                 </Trans>
               }
             >
@@ -286,8 +287,9 @@ export function AdminOidcApplicationNew() {
                   }
                   description={
                     <Trans id="admin.oidc-apps.new.kind.confidential.description">
-                      A server-side application that can keep a secret. It signs
-                      in with a client secret, shown once after you create it.
+                      A server-side application that can keep a secret. It
+                      authenticates with a client secret, which is shown once
+                      after creation.
                     </Trans>
                   }
                 />
@@ -298,7 +300,7 @@ export function AdminOidcApplicationNew() {
                   description={
                     <Trans id="admin.oidc-apps.new.kind.public.description">
                       A browser or mobile app that cannot keep a secret. It has
-                      none, and proves each request with PKCE instead.
+                      no client secret and uses PKCE for every request.
                     </Trans>
                   }
                 />
@@ -311,8 +313,7 @@ export function AdminOidcApplicationNew() {
               title={<Trans id="admin.oidc-apps.sign-in.title">Sign-in</Trans>}
               description={
                 <Trans id="admin.oidc-apps.sign-in.description">
-                  Where this application may send people back to, and what it
-                  may ask for.
+                  Redirect URIs, scopes and sign-in requirements.
                 </Trans>
               }
             >
@@ -343,8 +344,9 @@ export function AdminOidcApplicationNew() {
               title={<Trans id="app.access.title">Access</Trans>}
               description={
                 <Trans id="admin.oidc-apps.new.access.description">
-                  Open it to every account, or limit it to user groups. The
-                  groups are chosen on the application's page.
+                  Open the application to every account or limit it to user
+                  groups. Groups are chosen on the application's page after it
+                  is created.
                 </Trans>
               }
             >

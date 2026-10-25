@@ -85,13 +85,13 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
           details={[
             app.disabled ? (
               <Trans key="note" id="admin.saml-apps.danger.disabled-note">
-                Everyone is turned away at the service provider until it is
-                enabled again.
+                No one can sign in to the service provider until the application
+                is enabled again.
               </Trans>
             ) : (
               <Trans key="note" id="admin.saml-apps.danger.enabled-note">
-                Disabling turns everyone away at the service provider. It can be
-                undone.
+                Disabling stops everyone from signing in to the service
+                provider. It can be undone.
               </Trans>
             ),
           ]}
@@ -167,8 +167,8 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
           confirming === "enable" ? (
             <p>
               <Trans id="admin.saml-apps.danger.enable.body">
-                People can sign in to the service provider again straight away.
-                Nothing else about the application changes.
+                Users can sign in to the service provider again immediately.
+                Other settings are unchanged.
               </Trans>
             </p>
           ) : (
@@ -214,8 +214,8 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
         body={
           <p>
             <Trans id="admin.saml-apps.danger.delete.body">
-              The application and its certificates are removed, and anyone who
-              signs in through it is turned away. This cannot be undone.
+              The application and its certificates are deleted, and sign-in
+              through it stops working. This cannot be undone.
             </Trans>
           </p>
         }

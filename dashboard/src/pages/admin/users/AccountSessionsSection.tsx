@@ -61,7 +61,7 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
         title={<Trans id="admin.user.sessions.title">Active sessions</Trans>}
         description={
           <Trans id="admin.user.sessions.description">
-            The devices currently using this account.
+            View the devices signed in to this account, or end their sessions.
           </Trans>
         }
         label={t({
@@ -141,8 +141,8 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
         body={
           <p>
             <Trans id="admin.user.sessions.revoke.body">
-              That device is signed out immediately and will need to sign in
-              again. Anything it is doing right now stops.
+              The device is signed out immediately, and anything it is doing
+              stops.
             </Trans>
           </p>
         }
@@ -173,8 +173,7 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
         body={
           <p>
             <Trans id="admin.user.sessions.revoke_all.body">
-              Every device signed in to this account is signed out immediately
-              and will need to sign in again.
+              This account is signed out on every device immediately.
             </Trans>
           </p>
         }

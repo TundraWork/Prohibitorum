@@ -110,8 +110,8 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
             title={title}
             description={
               <Trans id="admin.forward-auth-apps.headers.description">
-                What the service receives with every request the gateway lets
-                through.
+                Headers sent to the service with each request the gateway
+                allows.
               </Trans>
             }
             dirty={dirty}
@@ -121,7 +121,7 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
                   consequence={
                     <Trans id="admin.forward-auth-apps.headers.consequence">
                       Changing the user identifier makes the service treat
-                      everyone it already knows as a new account.
+                      existing users as new accounts.
                     </Trans>
                   }
                   actionLabel={
@@ -177,7 +177,8 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
                   </HeaderRow>
                   <HeaderRow name="Remote-Groups">
                     <Trans id="admin.forward-auth-apps.headers.groups">
-                      User groups this application exposes
+                      The account's user groups that this application selected
+                      and that are sent to applications
                     </Trans>
                   </HeaderRow>
                 </TableBody>
@@ -202,9 +203,8 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
           <p>
             <Trans id="admin.forward-auth-apps.headers.confirm.body">
               {appName} will receive the account's {nextLabel} instead of its{" "}
-              {savedLabel}. Anything it saved under the old value is not
-              migrated, so people it already knows will be treated as new
-              accounts.
+              {savedLabel}. Data the service stored under the old value is not
+              migrated, so existing users will be treated as new accounts.
             </Trans>
           </p>
         }

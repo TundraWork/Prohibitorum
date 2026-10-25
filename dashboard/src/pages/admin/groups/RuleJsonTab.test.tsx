@@ -107,12 +107,12 @@ describe("the JSON tab", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(
       screen.getByText(
-        "This is not valid JSON. The builder still holds your rule.",
+        "This is not valid JSON. The rule in the builder is unchanged.",
       ),
     ).toBeVisible();
     expect(box()).toBeInvalid();
     expect(box()).toHaveAccessibleDescription(
-      "This is not valid JSON. The builder still holds your rule.",
+      "This is not valid JSON. The rule in the builder is unchanged.",
     );
   });
 
@@ -127,7 +127,7 @@ describe("the JSON tab", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(
       screen.getByText(
-        "A rule document needs a version and a condition. The builder still holds your rule.",
+        "A rule document needs a version and a condition. The rule in the builder is unchanged.",
       ),
     ).toBeVisible();
   });
@@ -148,7 +148,7 @@ describe("the JSON tab", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(
       screen.getByText(
-        "This rule uses a condition this console does not know. The builder still holds your rule.",
+        "This rule uses a condition the console does not recognise. The rule in the builder is unchanged.",
       ),
     ).toBeVisible();
   });
@@ -168,7 +168,7 @@ describe("the JSON tab", () => {
     expect(onApply).not.toHaveBeenCalled();
     expect(
       screen.getByText(
-        "A negation can only wrap one condition, not another negation. The builder still holds your rule.",
+        "A negation can contain only one condition, not another negation. The rule in the builder is unchanged.",
       ),
     ).toBeVisible();
   });

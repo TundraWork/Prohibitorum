@@ -150,9 +150,9 @@ export function ClaimMappingTable({
       </ReturnedFieldsContext.Provider>
       <p className="text-muted-foreground text-sm">
         <Trans id="admin.federation.claims.mapping.path-hint">
-          A name with dots is read as the exact claim key first; only when no
-          claim is spelled that way is it read as a path into nested claims,
-          like avatar.large or emails.0.email.
+          Names with dots are matched against the exact claim key first. If no
+          claim has that key, the name is read as a path into nested claims,
+          such as avatar.large or emails.0.email.
         </Trans>
       </p>
     </div>

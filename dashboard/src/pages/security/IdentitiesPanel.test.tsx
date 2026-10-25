@@ -153,7 +153,7 @@ describe("the linked identity rows", () => {
     ).toBeVisible();
     expect(
       screen.getByText(
-        "Other accounts you can sign in with. Unlinking one leaves your other ways in as they are.",
+        "Link an account from an identity provider to sign in with it. Unlinking does not affect your other sign-in methods.",
       ),
     ).toBeVisible();
   });

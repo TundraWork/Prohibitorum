@@ -70,12 +70,12 @@ export function SamlMetadataSection({ app }: { app: SamlApp }) {
       description={
         <>
           <Trans id="admin.saml-apps.metadata.description">
-            What the service provider published: where assertions are posted and
-            which certificates sign its requests.
+            The assertion endpoints and request-signing certificates the service
+            provider published.
           </Trans>{" "}
           <Trans id="admin.saml-apps.general.entity-id.hint">
-            Its Entity ID, shown above, is what the instance sends with every
-            response.
+            The Entity ID shown above identifies the service provider and is
+            included in every response.
           </Trans>
         </>
       }
@@ -293,7 +293,7 @@ function ReimportForm({
                 description={
                   <Trans id="admin.saml-apps.metadata.dialog.hint">
                     Replaces the endpoints and certificates below. The Entity ID
-                    and the name stay as they are.
+                    and name stay the same.
                   </Trans>
                 }
                 rows={10}
@@ -331,9 +331,9 @@ function ReimportForm({
         body={
           <p>
             <Trans id="admin.saml-apps.metadata.confirm.body">
-              This document replaces every endpoint and certificate the
-              application has now. If it is the wrong document, people cannot
-              sign in until the right one is imported.
+              This document replaces all of the application's endpoints and
+              certificates. If it is the wrong document, no one can sign in
+              until the correct one is imported.
             </Trans>
           </p>
         }

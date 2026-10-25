@@ -132,7 +132,9 @@ describe("re-importing metadata", () => {
       name: "Replace the endpoints and certificates?",
     });
     expect(
-      within(confirm).getByText(/replaces every endpoint and certificate/),
+      within(confirm).getByText(
+        /replaces all of the application.s endpoints and certificates/,
+      ),
     ).toBeVisible();
     expect(posts()).toHaveLength(0);
     await user.click(

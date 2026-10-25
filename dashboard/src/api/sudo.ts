@@ -49,7 +49,7 @@ export function isSudoRequired(error: unknown): boolean {
 export class SudoCancelled extends Error {
   readonly descriptor: MessageDescriptor = msg({
     id: "sudo.cancelled",
-    message: "Verification was cancelled. Nothing was changed.",
+    message: "Verification cancelled. Nothing was changed.",
   });
 
   constructor() {

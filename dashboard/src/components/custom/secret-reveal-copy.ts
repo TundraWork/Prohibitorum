@@ -29,7 +29,7 @@ export const recoveryCodesCopy: SecretRevealCopy = {
   once: msg({
     id: "login.codes.once",
     message:
-      "These codes are shown only once. Keep them somewhere safe before continuing. Your old recovery codes no longer work.",
+      "These codes are shown only once. Save them somewhere safe before you continue. Your old recovery codes no longer work.",
   }),
   label: msg({
     id: "login.codes.label",
@@ -53,8 +53,7 @@ export const recoveryCodesCopy: SecretRevealCopy = {
   continueLabel: msg({ id: "login.codes.continue", message: "Continue" }),
   leave: msg({
     id: "login.codes.leave",
-    message:
-      "Leave without saving? These recovery codes cannot be shown again.",
+    message: "Leave without saving? These recovery codes can't be shown again.",
   }),
 };
 
@@ -71,7 +70,7 @@ export const firstRecoveryCodesCopy: SecretRevealCopy = {
   once: msg({
     id: "security.codes.first.once",
     message:
-      "These codes are shown only once. Keep them somewhere safe before continuing. Each code signs you in once when you cannot use your authenticator.",
+      "When you cannot use your authenticator, sign in with a recovery code. Each code works once. These codes are shown only once; store them somewhere safe before continuing.",
   }),
 };
 
@@ -83,7 +82,7 @@ export const invitationLinkCopy: SecretRevealCopy = {
   once: msg({
     id: "admin.invitations.reveal.once",
     message:
-      "This link is shown only once and it signs the holder in as the invited account. Send it to the person yourself, and only over a channel you trust.",
+      "This link is shown only once. Anyone holding it can sign in as the invited account, so send it to the invitee only over a trusted channel.",
   }),
   label: msg({
     id: "admin.invitations.reveal.label",
@@ -147,7 +146,7 @@ export function registrationLinkCopyWithExpiry(
     once: msg({
       id: "admin.user.enrollment.reveal.once",
       message:
-        "This link is shown only once and whoever holds it can set up how this account signs in. Send it to the person yourself, and only over a channel you trust.",
+        "This link is shown only once. Anyone holding it can set up how this account signs in, so send it to the account holder only over a trusted channel.",
     }),
   };
 }
@@ -160,7 +159,7 @@ export const accessTokenCopy: SecretRevealCopy = {
   once: msg({
     id: "security.tokens.reveal.once",
     message:
-      "This token is shown only once. Store it somewhere safe before continuing. The list will only ever show its hint.",
+      "This token is shown only once. Store it somewhere safe before continuing. The token list shows only prohibitorum_pat_… and the token's last 4 characters.",
   }),
   label: msg({
     id: "security.tokens.reveal.label",
@@ -168,7 +167,7 @@ export const accessTokenCopy: SecretRevealCopy = {
   }),
   usage: msg({
     id: "security.tokens.reveal.usage",
-    message: "Send it in the X-Prohibitorum-PAT header.",
+    message: "Send the token in the X-Prohibitorum-PAT request header.",
   }),
   copy: msg({ id: "security.tokens.reveal.copy", message: "Copy token" }),
   download: msg({

@@ -158,8 +158,8 @@ export function ConnectionTestDialog({
               <TriangleAlertIcon aria-hidden="true" />
               <AlertTitle>
                 <Trans id="admin.federation.diagnostics.timeout">
-                  This test is taking longer than expected. Check it again when
-                  the provider has finished.
+                  The test is taking longer than expected. Check again once the
+                  provider has finished.
                 </Trans>
               </AlertTitle>
               <AlertAction>

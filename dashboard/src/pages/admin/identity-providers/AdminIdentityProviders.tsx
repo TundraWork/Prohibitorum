@@ -142,8 +142,8 @@ export function AdminIdentityProviders() {
         }
         description={
           <Trans id="admin.federation.page.description">
-            The outside accounts people can sign in with, link to their account
-            or accept an invitation through.
+            Manage the external identity providers people use to sign in, link
+            their account and accept invitations.
           </Trans>
         }
         actions={
@@ -189,8 +189,8 @@ export function AdminIdentityProviders() {
               }
               description={
                 <Trans id="admin.federation.empty.description">
-                  Add a provider so people can sign in with an account they
-                  already have elsewhere.
+                  Add a provider to let people sign in with an existing account
+                  from another service.
                 </Trans>
               }
             />
@@ -203,7 +203,7 @@ export function AdminIdentityProviders() {
           onRetry={list.loadMore}
           title={
             <Trans id="admin.federation.more_failed">
-              The rest of the identity providers could not be loaded.
+              The remaining identity providers could not be loaded.
             </Trans>
           }
         />
