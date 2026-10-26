@@ -871,12 +871,6 @@ msgid "console.role.admin"
 msgstr "Admin"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-#: src/pages/admin/AdminHome.tsx
-msgid "admin.home.title"
-msgstr "Administration"
-
-#. js-lingui-explicit-id
 #: src/components/custom/LauncherLayout.tsx
 msgid "launcher.admin"
 msgstr "Administration"
@@ -5292,11 +5286,6 @@ msgstr "Make this the primary address?"
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.action.user"
 msgstr "Make user and save"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminHome.tsx
-msgid "admin.home.summary"
-msgstr "Manage accounts, user groups, invitations, identity providers, downstream applications, logs and settings from the sidebar."
 
 #. js-lingui-explicit-id
 #: src/pages/launcher/AppTile.tsx
