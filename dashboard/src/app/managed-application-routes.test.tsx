@@ -140,6 +140,14 @@ function managementApi(
   });
 }
 
+it("opens the first management page for /admin, which has no page of its own", async () => {
+  managementApi("admin", {});
+  const router = renderApp("/admin", queryClient);
+  await waitFor(() =>
+    expect(router.state.location.pathname).toBe("/admin/users"),
+  );
+});
+
 it("opens an OIDC application its manager reached from the list", async () => {
   managementApi("user", { oidc: [oidcApp("wiki", "Team wiki")] });
   const router = renderApp("/admin/oidc-applications", queryClient);

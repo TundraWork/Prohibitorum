@@ -871,12 +871,6 @@ msgid "console.role.admin"
 msgstr "管理员"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-#: src/pages/admin/AdminHome.tsx
-msgid "admin.home.title"
-msgstr "管理"
-
-#. js-lingui-explicit-id
 #: src/components/custom/LauncherLayout.tsx
 msgid "launcher.admin"
 msgstr "管理后台"
@@ -5292,11 +5286,6 @@ msgstr "是否将此地址设为主邮箱？"
 #: src/pages/admin/users/AccountProfileSection.tsx
 msgid "admin.user.role.action.user"
 msgstr "设为用户并保存"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/AdminHome.tsx
-msgid "admin.home.summary"
-msgstr "在侧栏中管理账号、用户组、邀请、身份提供商、下游应用、日志和设置。"
 
 #. js-lingui-explicit-id
 #: src/pages/launcher/AppTile.tsx

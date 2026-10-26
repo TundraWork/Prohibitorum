@@ -307,12 +307,6 @@ function isActiveSection(path: string, activePath: string) {
   return path === "/" ? activePath === "/" : activePath.startsWith(path);
 }
 
-// The management area's landing page has no sidebar entry of its own, so its
-// crumb names it directly rather than falling back to the console home.
-const administration = {
-  title: msg({ id: "admin.home.title", message: "Administration" }),
-};
-
 const pageNotFound = msg({ id: "route.not-found", message: "Page not found" });
 
 function withoutTrailingSlash(path: string) {
@@ -622,10 +616,7 @@ function ConsoleShell({
       );
   const crumbSection = notFound
     ? { title: pageNotFound }
-    : (section ??
-      (withoutTrailingSlash(activePath) === "/admin"
-        ? administration
-        : consoleHome));
+    : (section ?? consoleHome);
 
   return (
     <SidebarProvider>

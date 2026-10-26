@@ -236,14 +236,6 @@ describe("console header", () => {
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(within(crumbs).getByText("Page not found")).toBeVisible();
   });
-
-  it("names the administration landing page rather than the console home", async () => {
-    await mount("/admin", admin);
-
-    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
-    expect(within(crumbs).getByText("Administration")).toBeVisible();
-    expect(within(crumbs).queryByText("Console home")).toBeNull();
-  });
 });
 
 describe("console sidebar", () => {

@@ -20,7 +20,6 @@ import backdropLight from "@/assets/launcher-backdrop-light.webp";
 import { AppToolbar } from "@/components/custom/AppToolbar";
 import { InstanceIdentity } from "@/components/custom/InstanceIdentity";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
-import { MaintenanceBanner } from "@/components/custom/MaintenanceBanner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -38,13 +37,13 @@ import {
  * corner of the window (under the frosted capsules, so it has no top edge) and
  * grows with it, and the launcher in one centred column. It is not the console: no
  * sidebar, because a member comes here to leave for an application, and the
- * console is a step away in the account menu.
+ * console is a step away in the account menu. Nor does it carry the
+ * maintenance banner: the console's pages say it where an administrator works.
  */
 export function LauncherLayout() {
   const { loginAppearance } = useInstanceBranding();
   return (
     <div className="relative flex min-h-(--app-viewport-height) flex-col overflow-x-clip">
-      <MaintenanceBanner />
       <div
         aria-hidden="true"
         style={
@@ -152,7 +151,7 @@ function AccountMenu() {
           <Trans id="console.security">Security</Trans>
         </MenuLinkItem>
         {isAdmin && (
-          <MenuLinkItem render={<Link to="/admin" />}>
+          <MenuLinkItem render={<Link to="/admin/users" />}>
             <LayoutDashboard aria-hidden="true" />
             <Trans id="launcher.admin">Administration</Trans>
           </MenuLinkItem>

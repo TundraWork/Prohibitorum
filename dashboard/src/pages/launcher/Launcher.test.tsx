@@ -12,6 +12,7 @@ import {
   fakeApi,
   publicApi,
   renderApp,
+  testConfig,
   testSession,
 } from "@/test/app";
 
@@ -237,6 +238,31 @@ describe("the launcher", () => {
     expect(
       await screen.findByRole("menuitem", { name: "Manage application" }),
     ).toHaveAttribute("href", "/admin/forward-auth-apps/grafana");
+  });
+
+  it("sends an administrator's account menu to the first management page", async () => {
+    mount({ apps: [grafana], grants: [], role: "admin" });
+    await pad();
+    await userEvent.click(screen.getByRole("button", { name: "Your account" }));
+    expect(
+      await screen.findByRole("menuitem", { name: "Administration" }),
+    ).toHaveAttribute("href", "/admin/users");
+  });
+
+  it("leaves the maintenance banner to the console", async () => {
+    mount({
+      apps: [grafana],
+      grants: [],
+      role: "admin",
+      routes: {
+        "GET /api/prohibitorum/config": () =>
+          Response.json({ ...testConfig, maintenanceMode: true }),
+      },
+    });
+    await pad();
+    expect(
+      screen.queryByRole("status", { name: "Maintenance mode" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the settings away from a member", async () => {
