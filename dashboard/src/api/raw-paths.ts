@@ -128,9 +128,10 @@ export interface Wallpaper {
 }
 
 /**
- * One wallpaper and its credit. Bing's title and copyright are left out when
- * the caption is hidden; the credit is always there. Pixabay fills only the
- * photographer and the photo page link.
+ * One wallpaper and its credit: the author, linked. Bing's title and
+ * copyright are left out when the caption is hidden; the caption is the only
+ * place a title is drawn. Unsplash also sends a title, which the credit
+ * ignores; Pixabay fills only the photographer and the photo page link.
  */
 export interface WallpaperPicture {
   imageUrl: string;

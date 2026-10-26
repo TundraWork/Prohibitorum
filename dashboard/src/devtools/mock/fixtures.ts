@@ -311,6 +311,7 @@ function mockWallpaper(
       source,
       pictures: Array.from({ length: 5 }, (_, i) => ({
         imageUrl: mockWallpaperUrl(150 + i * 50),
+        title: `Mock photo description ${i + 1}`,
         photographer:
           detail === ""
             ? `Mock Photographer ${i + 1}`

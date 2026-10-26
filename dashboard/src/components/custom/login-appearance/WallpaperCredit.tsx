@@ -8,10 +8,11 @@ const link = "underline underline-offset-2 hover:text-white";
  * Where the picture on screen comes from, on a small dark pill that reads on
  * any picture. Bing's title and copyright appear when the administrator
  * shows the caption; the services' credit is always shown and changes with
- * the picture. Neither names a platform in words: its links lead there.
- * Every segment is drawn only when its field exists, so a source with less
- * to show (Pixabay: only the author, linked to the photo page) simply has
- * fewer segments. Draws nothing without a `picture`, which
+ * the picture, the author alone — many photo titles are arbitrary strings,
+ * so they are never drawn. Neither credit names a platform in words: its
+ * links lead there. Every segment is drawn only when its field exists, so a
+ * source with less to show (Pixabay: only the author, linked to the photo
+ * page) simply has fewer segments. Draws nothing without a `picture`, which
  * `useLoginBackground` gives only for the picture services.
  */
 export function WallpaperCredit({
@@ -48,38 +49,23 @@ export function WallpaperCredit({
     );
   }
 
-  // The photo's description and its photographer, each linked where it
-  // lives. The photographer falls back to the photo page when the service
-  // has no page of their own (Pixabay); either way the link is where the
-  // platform is named, so the credit stays short.
+  // The photographer, linked where they live. The link falls back to the
+  // photo page when the service has no page of their own (Pixabay); either
+  // way the link is where the platform is named, so the credit stays short.
+  // A title, when the API carries one, is not drawn: many photo titles are
+  // arbitrary strings.
   const authorHref = picture.photographerUrl ?? picture.photoUrl;
+  if (!picture.photographer || !authorHref) return null;
   return (
     <Pill>
-      {picture.title && picture.photoUrl && (
-        <>
-          <a
-            href={picture.photoUrl}
-            target="_blank"
-            rel="noreferrer"
-            className={`min-w-0 truncate font-medium ${link}`}
-          >
-            {picture.title}
-          </a>
-          <span aria-hidden="true" className="text-white/60">
-            ·
-          </span>
-        </>
-      )}
-      {picture.photographer && authorHref && (
-        <a
-          href={authorHref}
-          target="_blank"
-          rel="noreferrer"
-          className={`shrink-0 ${picture.title ? "" : "font-medium "}${link}`}
-        >
-          {picture.photographer}
-        </a>
-      )}
+      <a
+        href={authorHref}
+        target="_blank"
+        rel="noreferrer"
+        className={`min-w-0 truncate font-medium ${link}`}
+      >
+        {picture.photographer}
+      </a>
     </Pill>
   );
 }
