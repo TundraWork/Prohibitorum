@@ -43,6 +43,20 @@ type fakeTokenQueries struct {
 	// existing refresh tests keep passing. authzErr forces a predicate error.
 	deniedClients map[string]bool
 	authzErr      error
+	// knownSlugs is every upstream provider's slug; slugsErr forces the lookup
+	// to fail. Only a family holding an identity:<slug> scope reads them.
+	knownSlugs []string
+	slugsErr   error
+}
+
+func (f *fakeTokenQueries) ListKnownUpstreamIDPSlugs(context.Context) ([]string, error) {
+	return f.knownSlugs, f.slugsErr
+}
+
+// ListConfirmedIdentitiesForProviders reports no linked identities, which is
+// enough for minting a token whose grant holds an identity:<slug> scope.
+func (f *fakeTokenQueries) ListConfirmedIdentitiesForProviders(context.Context, db.ListConfirmedIdentitiesForProvidersParams) ([]db.ListConfirmedIdentitiesForProvidersRow, error) {
+	return nil, nil
 }
 
 // GetSession mirrors the real query: returns the row only when not revoked.

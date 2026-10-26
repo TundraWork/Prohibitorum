@@ -150,7 +150,7 @@ An application can read the identities the user has linked at an upstream provid
 - There is one key per granted `identity:<slug>` scope. `[]` means the user has no link there (or the provider is turned off); a missing key means the scope was not granted.
 - Each entry has `sub`, the user's identifier at the provider. VRChat and Steam also give `name` and `profile_url`; an OIDC provider gives only `sub`.
 - Only links the user has confirmed are listed, oldest first.
-- Deleting a provider removes its `identity:<slug>` from every application's allowed scopes and from what users consented to, so a provider created later with the same slug starts with no grants.
+- Deleting a provider removes its `identity:<slug>` from every application's allowed scopes and from what users consented to. A refresh token whose grant includes that scope is then refused with `invalid_grant`, its `error_description` naming the provider, and its family is revoked; start a new authorization. A provider re-created with the same slug before the refresh counts as the same provider, so the refresh succeeds.
 - The ID token reflects the links when it was issued (including on refresh). `/oauth/userinfo` reads them live, so after the user links a provider, calling it again with the current access token shows the new identity without a new authorization.
 
 ### Asking the user to link a provider identity

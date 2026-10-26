@@ -250,8 +250,8 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
               <Trans id="admin.federation.danger.delete.confirm.scope">
                 Applications allowed{" "}
                 <span className="font-mono">{identityScope}</span> lose that
-                scope, and users' consent to it is cleared. A provider added
-                later with the same identifier needs new consent.
+                scope, users' consent to it is cleared, and refresh tokens that
+                include it stop working.
               </Trans>
             </p>
           </div>

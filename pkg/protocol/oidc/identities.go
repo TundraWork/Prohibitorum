@@ -30,6 +30,27 @@ func grantedIdentitySlugs(scope []string) []string {
 	return slugs
 }
 
+// deletedIdentityProvider returns the first identity:<slug> scope in scope
+// whose provider no longer exists, or "" when every one still does. A disabled
+// provider still exists. It returns "", without a query, when no identity scope
+// was granted.
+func (p *Provider) deletedIdentityProvider(ctx context.Context, scope []string) (string, error) {
+	slugs := grantedIdentitySlugs(scope)
+	if len(slugs) == 0 {
+		return "", nil
+	}
+	known, err := p.queries.ListKnownUpstreamIDPSlugs(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, slug := range slugs {
+		if !slices.Contains(known, slug) {
+			return slug, nil
+		}
+	}
+	return "", nil
+}
+
 // identitiesForScopes reads the identities claim for the identity:<slug>
 // scopes in scope. It returns nil, without a query, when none was granted.
 func (p *Provider) identitiesForScopes(ctx context.Context, accountID int32, scope []string) (map[string][]identityClaim, error) {

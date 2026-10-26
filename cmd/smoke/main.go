@@ -1246,7 +1246,7 @@ func main() {
 	}
 	log.Printf("  smoke-admin has 1 federated identity (id=%d)", adminIdentities[0].ID)
 
-	step("identity-scope 1/2 — identity:mockop: unknown provider refused, discovery lists it, id_token + /userinfo carry the linked identity")
+	step("identity-scope 1/3 — identity:mockop: unknown provider refused, discovery lists it, id_token + /userinfo carry the linked identity")
 	identityAccessToken, err := smokeIdentityScopes(c, *baseURL, "mockop", "admin-link-1")
 	if err != nil {
 		log.Fatalf("identity scope: %v", err)
@@ -1266,7 +1266,7 @@ func main() {
 	}
 	log.Printf("  /me/identities/%d/unlink → 204, row deleted ✓", adminIdentities[0].ID)
 
-	step("identity-scope 2/2 — /userinfo reads live: after the unlink identities.mockop is []")
+	step("identity-scope 2/3 — /userinfo reads live: after the unlink identities.mockop is []")
 	afterUnlink, err := fetchUserinfo(*baseURL, identityAccessToken)
 	if err != nil {
 		log.Fatalf("identity scope after unlink: %v", err)
@@ -1275,6 +1275,12 @@ func main() {
 		log.Fatalf("identity scope after unlink: identities = %v, want mockop: []", afterUnlink["identities"])
 	}
 	log.Printf("  identities.mockop = [] after unlink ✓")
+
+	step("identity-scope 3/3 — a refresh token granted identity:<slug> is refused with invalid_grant once that provider is deleted (PHB-132)")
+	if err := smokeDeletedProviderRefresh(c, *baseURL); err != nil {
+		log.Fatalf("identity scope after provider delete: %v", err)
+	}
+	log.Printf("  refresh rotates while the provider exists; after delete → 400 invalid_grant ✓")
 
 	// --- invite + provider — the new unified registration path --------------
 	//

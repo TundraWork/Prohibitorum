@@ -303,6 +303,6 @@ it("tells an admin that deleting a provider clears its identity scope", async ()
   await userEvent.click(await screen.findByRole("button", { name: "Delete" }));
   const dialog = await screen.findByRole("alertdialog");
   expect(dialog).toHaveTextContent(
-    "Applications allowed identity:vrchat lose that scope, and users' consent to it is cleared. A provider added later with the same identifier needs new consent.",
+    "Applications allowed identity:vrchat lose that scope, users' consent to it is cleared, and refresh tokens that include it stop working.",
   );
 });

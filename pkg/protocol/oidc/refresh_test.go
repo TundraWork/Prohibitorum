@@ -1614,3 +1614,100 @@ func TestTokenRefreshDeletedAccountAuditReason(t *testing.T) {
 		t.Fatal("expected an account_deleted audit record")
 	}
 }
+
+// identityFamily is grantFamily with an identity:<slug> scope granted.
+func identityFamily(slug string) refreshFamily {
+	fam := grantFamily()
+	fam.Scope = append(fam.Scope, IdentityScopePrefix+slug)
+	return fam
+}
+
+// TestTokenRefreshDeletedIdentityProvider verifies that a family granted
+// identity:<slug> for a provider that has since been deleted is refused with
+// invalid_grant, revoked, and audited with the provider's slug (PHB-132).
+func TestTokenRefreshDeletedIdentityProvider(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+	h.p.queries.(*fakeTokenQueries).knownSlugs = []string{"steam"}
+
+	presented, _, err := issueRefresh(ctx, h.p.kv, identityFamily("corp"), RefreshTokenTTL, RefreshTokenTTL)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm(presented)))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeInvalidGrant {
+		t.Fatalf("want %s, got %s", errCodeInvalidGrant, got)
+	}
+	if !strings.Contains(rec.Body.String(), "corp") {
+		t.Fatalf("error_description should name the deleted provider: %s", rec.Body.String())
+	}
+	if _, ok := lookupRefresh(ctx, h.p.kv, presented); ok {
+		t.Fatal("a family granted a deleted provider's identities should be revoked")
+	}
+	var sawFail bool
+	for _, r := range h.audit.records {
+		if r.Event == audit.EventFail && r.Detail["reason"] == "identity_provider_deleted" && r.Detail["provider"] == "corp" {
+			sawFail = true
+		}
+	}
+	if !sawFail {
+		t.Fatal("expected an identity_provider_deleted audit record naming corp")
+	}
+}
+
+// TestTokenRefreshExistingIdentityProvider verifies that a family whose
+// identity:<slug> provider still exists (disabled or not) keeps rotating.
+func TestTokenRefreshExistingIdentityProvider(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+	h.p.queries.(*fakeTokenQueries).knownSlugs = []string{"corp", "steam"}
+
+	presented, _, err := issueRefresh(ctx, h.p.kv, identityFamily("corp"), RefreshTokenTTL, RefreshTokenTTL)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm(presented)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+// TestTokenRefreshIdentityProviderLookupError verifies the provider check
+// fails closed without cutting the family: server_error, family preserved.
+func TestTokenRefreshIdentityProviderLookupError(t *testing.T) {
+	h := newTokenHarness(t)
+	ctx := context.Background()
+	h.p.queries.(*fakeTokenQueries).slugsErr = errors.New("db down")
+
+	presented, _, err := issueRefresh(ctx, h.p.kv, identityFamily("corp"), RefreshTokenTTL, RefreshTokenTTL)
+	if err != nil {
+		t.Fatalf("issueRefresh: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.p.HandleToken(rec, tokenReq(refreshForm(presented)))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if got := decodeError(t, rec); got != errCodeServerError {
+		t.Fatalf("want %s, got %s", errCodeServerError, got)
+	}
+}
+
+// TestDeletedIdentityProviderSkipsQueryWithoutIdentityScope verifies a family
+// without identity scopes never reads the provider list.
+func TestDeletedIdentityProviderSkipsQueryWithoutIdentityScope(t *testing.T) {
+	h := newTokenHarness(t)
+	h.p.queries.(*fakeTokenQueries).slugsErr = errors.New("must not be called")
+	got, err := h.p.deletedIdentityProvider(context.Background(), grantFamily().Scope)
+	if err != nil || got != "" {
+		t.Fatalf("deletedIdentityProvider = %q, %v; want \"\", nil", got, err)
+	}
+}

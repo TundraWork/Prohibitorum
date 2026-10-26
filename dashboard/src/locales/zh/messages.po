@@ -1295,7 +1295,7 @@ msgstr "应用"
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderDangerSection.tsx
 msgid "admin.federation.danger.delete.confirm.scope"
-msgstr "已获准使用 <0>{identityScope}</0> 的应用将失去该作用域，用户对该作用域的授权也将清除。之后以相同标识符新建的提供商需要用户重新授权。"
+msgstr "已获准使用 <0>{identityScope}</0> 的应用将失去该作用域，用户对该作用域的授权也将清除，包含该作用域的刷新令牌将无法再使用。"
 
 #. js-lingui-explicit-id
 #: src/pages/launcher/Launcher.tsx
