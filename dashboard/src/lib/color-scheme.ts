@@ -73,22 +73,6 @@ export const colorSchemes = [
       dark: { surface: "#15140e", accent: "#e7ea6a" },
     },
   },
-  {
-    slug: "catppuccin",
-    kind: "youthful",
-    swatch: {
-      light: { surface: "#eff1f5", accent: "#8839ef" },
-      dark: { surface: "#24273a", accent: "#c6a0f6" },
-    },
-  },
-  {
-    slug: "catppuccin-gray",
-    kind: "youthful",
-    swatch: {
-      light: { surface: "#f1f1f1", accent: "#8839ef" },
-      dark: { surface: "#282828", accent: "#c6a0f6" },
-    },
-  },
 ] as const;
 
 export type ColorSchemeSlug = (typeof colorSchemes)[number]["slug"];
