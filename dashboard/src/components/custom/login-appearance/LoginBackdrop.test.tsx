@@ -76,6 +76,7 @@ const unsplashBatch: Wallpaper = {
   source: "unsplash",
   pictures: ["a", "b", "c"].map((id) => ({
     imageUrl: `https://images.unsplash.com/photo-${id}`,
+    title: `随意描述 ${id}`,
     photographer: `Person ${id.toUpperCase()}`,
     photographerUrl: `https://unsplash.com/@${id}`,
     photoUrl: `https://unsplash.com/photos/${id}`,
@@ -311,6 +312,8 @@ describe("Bing and Unsplash photos", () => {
       "href",
       "https://unsplash.com/@b",
     );
+    // The description the API carries is not drawn as credit.
+    expect(screen.queryByText(/随意描述/)).toBeNull();
     act(() => {
       vi.advanceTimersByTime(60_000);
     });
@@ -407,6 +410,7 @@ describe("Pixabay pictures", () => {
     source: "pixabay",
     pictures: ["11", "22"].map((id) => ({
       imageUrl: `/branding/wallpaper/images/pixabay/${id}`,
+      title: `随意标题${id}`,
       photographer: `作者${id}`,
       photoUrl: `https://pixabay.com/photos/ridge-${id}/`,
     })),
@@ -440,6 +444,8 @@ describe("Pixabay pictures", () => {
     );
     // The platform is named by the link alone, never in words.
     expect(screen.queryByText(/pixabay/i)).toBeNull();
+    // A carried title is not drawn: many photo titles are arbitrary.
+    expect(screen.queryByText(/随意标题/)).toBeNull();
     expect(screen.queryByText(/Pixabay/i)).toBeNull();
     act(() => {
       vi.advanceTimersByTime(60_000);

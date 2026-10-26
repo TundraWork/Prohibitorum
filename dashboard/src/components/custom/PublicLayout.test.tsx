@@ -453,20 +453,18 @@ it("credits the Unsplash photographer, without naming the platform in words", as
   expect(screen.queryByText(/Photo by|Unsplash/)).toBeNull();
 });
 
-it("names the Unsplash photo by its description, linked to the photo", async () => {
+it("credits the Unsplash author alone, without the photo's title", async () => {
   unsplashWallpaper({ title: "Morning fog over the lake" });
   withAppearance((appearance) => {
     appearance.background.source = "unsplash";
   });
   await mount();
-  const photo = (
-    await screen.findAllByRole("link", { name: "Morning fog over the lake" })
-  )[0];
-  expect(photo).toHaveAttribute("href", "https://unsplash.com/photos/p1");
-  expect(screen.getAllByRole("link", { name: "Ada" })[0]).toHaveAttribute(
-    "href",
-    "https://unsplash.com/@ada",
-  );
+  const photographer = (await screen.findAllByRole("link", { name: "Ada" }))[0];
+  expect(photographer).toHaveAttribute("href", "https://unsplash.com/@ada");
+  expect(screen.queryByText("Morning fog over the lake")).toBeNull();
+  expect(
+    screen.queryByRole("link", { name: "Morning fog over the lake" }),
+  ).toBeNull();
 });
 
 it("shows Bing's title when the caption is on", async () => {
