@@ -689,6 +689,28 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
+	// A granted identity:<slug> whose provider has been deleted can no longer be
+	// served from this grant: refuse with invalid_grant, revoking the family like
+	// every refusal above, so the application starts a new authorization. A
+	// provider re-created under the same slug before the next refresh is a
+	// recovery path, not a new grant, so the check is by slug only.
+	deletedSlug, idpErr := p.deletedIdentityProvider(ctx, fam.Scope)
+	if idpErr != nil {
+		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not check identity providers")
+		return
+	}
+	if deletedSlug != "" {
+		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
+		acctID := acct.ID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &acctID, map[string]any{
+			"reason":    "identity_provider_deleted",
+			"client_id": client.ClientID,
+			"provider":  deletedSlug,
+		})
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "identity provider "+deletedSlug+" no longer exists")
+		return
+	}
+
 	now := time.Now()
 	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, fam.Scope, decision.ExposedGroupSlugs(), fam.AuthTime, now)
 	if err != nil {

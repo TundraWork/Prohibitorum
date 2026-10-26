@@ -106,3 +106,72 @@ func identitySubs(claims map[string]any, slug string) ([]string, bool) {
 	}
 	return subs, true
 }
+
+// smokeDeletedProviderRefresh checks PHB-132: a refresh token whose grant
+// holds identity:<slug> keeps rotating while the provider exists, and is
+// refused with invalid_grant once the provider is deleted. It uses a provider
+// of its own so the shared mockop provider stays in place for later steps.
+// c must hold a live sudo elevation.
+func smokeDeletedProviderRefresh(c *client, baseURL string) error {
+	const slug = "smoke-gone"
+	const clientID = "smoke-identity-gone"
+	if err := c.postJSON("/api/prohibitorum/identity-providers", map[string]any{
+		"slug": slug, "displayName": "Smoke deleted provider", "protocol": "vrchat", "mode": "invite_only", "config": map[string]any{},
+	}, nil); err != nil {
+		return fmt.Errorf("create provider %s: %w", slug, err)
+	}
+	redirectURI := baseURL + "/identity-rp/callback"
+	scope := "identity:" + slug
+	var created struct {
+		Secret string `json:"secret"`
+	}
+	if err := c.postJSON("/api/prohibitorum/oidc-applications", map[string]any{
+		"clientId": clientID, "displayName": "Smoke identity RP (deleted provider)",
+		"redirectUris": []string{redirectURI}, "scopes": []string{"openid", "offline_access", scope}, "public": false,
+	}, &created); err != nil {
+		return fmt.Errorf("create client with %s: %w", scope, err)
+	}
+
+	verifier, challenge := genPKCE()
+	state := randState()
+	location, err := authorizeWithSession(c, fmt.Sprintf(
+		"/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&state=%s&nonce=%s&code_challenge=%s&code_challenge_method=S256",
+		url.QueryEscape(clientID), url.QueryEscape(redirectURI), url.QueryEscape("openid offline_access "+scope),
+		url.QueryEscape(state), url.QueryEscape(randState()), url.QueryEscape(challenge),
+	))
+	if err != nil {
+		return fmt.Errorf("authorize: %w", err)
+	}
+	code, err := parseAuthorizeRedirect(location, redirectURI, state, baseURL)
+	if err != nil {
+		return err
+	}
+	tokens, err := tokenExchange(baseURL, clientID, created.Secret, url.Values{
+		"grant_type": {"authorization_code"}, "code": {code}, "redirect_uri": {redirectURI}, "code_verifier": {verifier},
+	})
+	if err != nil {
+		return err
+	}
+	if tokens.RefreshToken == "" {
+		return fmt.Errorf("token response has no refresh_token (offline_access was granted)")
+	}
+	rotated, err := tokenExchange(baseURL, clientID, created.Secret, url.Values{
+		"grant_type": {"refresh_token"}, "refresh_token": {tokens.RefreshToken},
+	})
+	if err != nil {
+		return fmt.Errorf("refresh while %s exists: %w", slug, err)
+	}
+
+	// The delete is sudo-gated; it rides the elevation the caller took for the
+	// unlink just before, since another sudo/begin here would push later steps
+	// over its rate limit.
+	if err := c.postJSON("/api/prohibitorum/identity-providers/delete", map[string]any{"slug": slug}, nil); err != nil {
+		return fmt.Errorf("delete provider %s: %w", slug, err)
+	}
+	if err := tokenExpectError(baseURL, clientID, created.Secret, url.Values{
+		"grant_type": {"refresh_token"}, "refresh_token": {rotated.RefreshToken},
+	}, http.StatusBadRequest, "invalid_grant"); err != nil {
+		return fmt.Errorf("refresh after deleting %s: %w", slug, err)
+	}
+	return nil
+}
