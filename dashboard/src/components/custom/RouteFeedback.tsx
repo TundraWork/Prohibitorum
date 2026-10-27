@@ -22,16 +22,6 @@ import { ReferenceLine } from "@/components/custom/ReferenceLine";
 import { RequestDetailsDialog } from "@/components/custom/RequestDetailsDialog";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { Frame, FramePanel } from "@/components/ui/frame";
-import { Spinner } from "@/components/ui/spinner";
-
-/** Pending state for public routes: the layout supplies the card, this only centers a spinner inside it. */
-export function PublicPending() {
-  return (
-    <div className="flex justify-center py-16">
-      <Spinner className="size-6 text-muted-foreground" />
-    </div>
-  );
-}
 
 /**
  * Which layout a page is drawn in. Each layout provides it around its outlet,

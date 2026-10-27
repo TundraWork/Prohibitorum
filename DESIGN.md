@@ -449,6 +449,13 @@ unsaved edits registers itself, which feeds the outline rail and the unsaved
 bar. AsyncSection draws the title in every state; while loading it shows three
 skeleton bars, and on failure a danger alert with "Try again".
 
+A **route still loading** shows the shape of the page it is about to become
+(`RoutePending`), never a lone spinner: a step's heading, fields and action on
+the public stage, or a page header and two sections in the console. On the
+first load, before any layout has drawn, it is the destination's whole shell
+in placeholder bars: the console's sidebar and panel, the launcher's toolbar
+and pad, or the public toolbar and stage.
+
 ### Consequence footer
 A Section footer for a save that does more than store a value: a warning
 triangle, a sentence saying what the save will do, then Discard (ghost) and a
