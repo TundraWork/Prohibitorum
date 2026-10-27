@@ -1,8 +1,9 @@
 import { useLingui } from "@lingui/react/macro";
 import { useRouterState } from "@tanstack/react-router";
-import { type ReactNode, use } from "react";
+import { type ReactNode, use, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { PageBody } from "@/components/custom/PageBody";
-import { PublicStage } from "@/components/custom/PublicStage";
+import { PublicStage, useStageSlots } from "@/components/custom/PublicStage";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
 import { Frame, FramePanel } from "@/components/ui/frame";
 import {
@@ -43,10 +44,12 @@ export function RoutePending() {
       const ids = state.matches.map((match) => match.routeId as string);
       if (ids.some((id) => id.startsWith("/_protected"))) return "console";
       if (ids.some((id) => id.startsWith("/_launcher"))) return "launcher";
+      if (ids.some((id) => consentRoutes.includes(id))) return "consent";
       return "public";
     },
   });
-  if (where === "public") return <Loading>{<StepSkeleton />}</Loading>;
+  const step = shell === "consent" ? <ConsentSkeleton /> : <StepSkeleton />;
+  if (where === "public") return <Loading>{step}</Loading>;
   if (where === "console") return <Loading>{<ConsolePageSkeleton />}</Loading>;
   return (
     <Loading>
@@ -55,7 +58,7 @@ export function RoutePending() {
       ) : shell === "launcher" ? (
         <LauncherShellSkeleton />
       ) : (
-        <PublicShellSkeleton />
+        <PublicShellSkeleton>{step}</PublicShellSkeleton>
       )}
     </Loading>
   );
@@ -129,13 +132,73 @@ function ToolbarSkeleton() {
   );
 }
 
-function PublicShellSkeleton() {
+function PublicShellSkeleton({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-(--app-viewport-height) bg-background">
       <ToolbarSkeleton />
-      <PublicStage frame="plain">
-        <StepSkeleton />
-      </PublicStage>
+      <PublicStage frame="plain">{children}</PublicStage>
+    </div>
+  );
+}
+
+/** The routes that draw an application's consent request (`ConsentRequest`). */
+const consentRoutes = ["/_public/consent", "/_public/saml-consent"];
+
+/**
+ * A consent request's anatomy, so the request lands in the bars' place: who is
+ * asking in the strip above the card, the question, the signed-in account, the
+ * list of what is asked for and a footnote, and the two decisions under the
+ * card, on the wide card the request asks for.
+ */
+function ConsentSkeleton() {
+  const slots = useStageSlots();
+  const { setWidth } = slots;
+  useEffect(() => {
+    setWidth("wide");
+    return () => setWidth("default");
+  }, [setWidth]);
+  const strip = (
+    <div aria-hidden="true" className="flex items-center gap-3.5 py-1.5">
+      <Skeleton className="size-13 shrink-0 rounded-[14px]" />
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-3.5 w-16" />
+        <Skeleton className="h-4 w-28" />
+      </div>
+    </div>
+  );
+  const footer = (
+    <div aria-hidden="true" className="grid w-full grid-cols-2 gap-2">
+      <Skeleton className="h-10" />
+      <Skeleton className="h-10" />
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-4">
+      {slots.strip ? createPortal(strip, slots.strip) : null}
+      <Skeleton className="h-7 w-3/5" />
+      <div className="flex items-center gap-2.5 rounded-xl bg-muted px-3 py-2">
+        <Skeleton className="size-6 shrink-0 rounded-full" />
+        <Skeleton className="h-4 w-40" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-3.5 w-32" />
+        <ul className="divide-y overflow-hidden rounded-xl border bg-background shadow-xs/5">
+          {["a", "b", "c", "d"].map((row) => (
+            <li key={row} className="flex items-start gap-3 px-3.5 py-3">
+              <Skeleton className="size-7 shrink-0 rounded-lg" />
+              <div className="flex min-w-0 flex-1 flex-col gap-2 pt-0.5">
+                <Skeleton className="h-3.5 w-1/3" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Skeleton className="h-3 w-full" />
+        <Skeleton className="h-3 w-1/2" />
+      </div>
+      {slots.footer ? createPortal(footer, slots.footer) : null}
     </div>
   );
 }

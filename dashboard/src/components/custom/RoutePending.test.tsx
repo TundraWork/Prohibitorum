@@ -67,6 +67,18 @@ describe("RoutePending", () => {
     expect(document.querySelector('[data-slot="sidebar"]')).toBeNull();
   });
 
+  it("draws a consent request's rows, not a generic step, while a consent page loads", () => {
+    mount("public", ["__root__", "/_public", "/_public/consent"]);
+    expect(document.querySelectorAll("li")).toHaveLength(4);
+    mount("public", ["__root__", "/_public", "/_public/saml-consent"]);
+    expect(document.querySelectorAll("li").length).toBeGreaterThan(0);
+  });
+
+  it("draws a generic step for other public pages", () => {
+    mount("public", ["__root__", "/_public", "/_public/welcome"]);
+    expect(document.querySelectorAll("li")).toHaveLength(0);
+  });
+
   it("draws the launcher's pad before any layout, while the launcher loads", () => {
     mount(null, ["__root__", "/_launcher", "/_launcher/"]);
     expect(document.querySelector('[data-slot="stage"]')).toBeNull();
