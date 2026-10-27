@@ -85,6 +85,26 @@ describe("require identity", () => {
     );
   });
 
+  it("keeps the picked provider waiting, and the way back locked, while the page leaves", async () => {
+    requireIdentityApi();
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    const verify = await screen.findByRole("button", {
+      name: "Verify with VRChat",
+    });
+    await user.click(verify);
+    await waitFor(() => expect(loadDocument).toHaveBeenCalledOnce());
+
+    expect(verify).toHaveAttribute("aria-busy", "true");
+    expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Verify with Steam" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Not now, return to Wiki" }),
+    ).toBeDisabled();
+  });
+
   it("says nothing about choosing when there is one provider", async () => {
     requireIdentityApi(() =>
       Response.json(

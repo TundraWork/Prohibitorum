@@ -62,7 +62,7 @@ function mount({
 }: {
   managers?: (typeof ana)[];
   isAdmin?: boolean;
-  extra?: (request: Request) => Response | undefined;
+  extra?: (request: Request) => Response | Promise<Response> | undefined;
 } = {}) {
   fetchBoundary.mockImplementation(async (request) => {
     const canned = extra?.(request);
@@ -143,6 +143,44 @@ describe("the managers", () => {
       expect(notifySuccess).toHaveBeenCalledWith(
         expect.objectContaining({ id: "success.app.manager-removed" }),
       ),
+    );
+  });
+});
+
+describe("removing a manager", () => {
+  it("keeps the confirmation open, with the one spinner, until it settles", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount({
+      managers: [ana, ben],
+      extra: (request) =>
+        new URL(request.url).pathname.endsWith("/managers/remove")
+          ? new Promise<Response>((resolve) => {
+              release = resolve;
+            })
+          : undefined,
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Remove Ana Lima" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", { name: "Remove" });
+    await user.click(confirm);
+    await waitFor(() => expect(writes("/managers/remove")).toHaveLength(1));
+    await user.keyboard("{Escape}");
+
+    expect(dialog).toBeVisible();
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(confirm).toContainElement(spinners[0] as HTMLElement);
+    for (const name of ["Remove Ana Lima", "Remove Ben Ito"]) {
+      expect(screen.getByRole("button", { name, hidden: true })).toBeDisabled();
+    }
+
+    release(new Response(null, { status: 204 }));
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
     );
   });
 });

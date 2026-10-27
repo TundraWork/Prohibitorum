@@ -249,6 +249,30 @@ describe("the launcher", () => {
     ).toHaveAttribute("href", "/admin/users");
   });
 
+  it("shows signing out on the account menu's trigger and keeps the menu shut meanwhile", async () => {
+    mount({
+      apps: [grafana],
+      grants: [],
+      routes: {
+        "POST /api/prohibitorum/auth/logout": () => new Promise(() => {}),
+      },
+    });
+    await pad();
+    const user = userEvent.setup();
+    const trigger = screen.getByRole("button", { name: "Your account" });
+    await user.click(trigger);
+    await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
+
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-busy", "true"));
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+    expect(trigger.querySelector('[data-slot="spinner"]')).not.toBeNull();
+    await user.click(trigger);
+    expect(
+      screen.queryByRole("menuitem", { name: "Sign out" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("leaves the maintenance banner to the console", async () => {
     mount({
       apps: [grafana],

@@ -631,11 +631,13 @@ function VerifyEmailDialog({
   }, [cooling]);
 
   // A complete code submits itself: the reader's last digit is the intent.
+  // Not while a new code is on its way: that send replaces the one typed.
   useEffect(() => {
-    if (code.length !== codeLength || verify.isPending) return;
+    if (code.length !== codeLength || verify.isPending || send.isPending)
+      return;
     if (submitted.current === code) return;
     void form.handleSubmit();
-  }, [code, verify.isPending, form]);
+  }, [code, verify.isPending, send.isPending, form]);
 
   const sendCode = () => {
     if (address === null) return;
@@ -701,7 +703,7 @@ function VerifyEmailDialog({
   };
 
   const resend = () => {
-    if (cooldown > 0 || send.isPending) return;
+    if (cooldown > 0 || send.isPending || verify.isPending) return;
     sendCode();
   };
 
@@ -759,7 +761,7 @@ function VerifyEmailDialog({
             <DialogFooter>
               <Button
                 variant="ghost"
-                disabled={verify.isPending}
+                disabled={verify.isPending || send.isPending}
                 onClick={close}
               >
                 <Trans id="profile.emails.verify_later">Verify later</Trans>
@@ -767,7 +769,7 @@ function VerifyEmailDialog({
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                 <Button
                   variant="ghost"
-                  disabled={cooldown > 0 || send.isPending}
+                  disabled={cooldown > 0 || send.isPending || verify.isPending}
                   pending={send.isPending}
                   onClick={resend}
                 >
@@ -782,7 +784,7 @@ function VerifyEmailDialog({
                 <Button
                   type="submit"
                   pending={verify.isPending}
-                  disabled={code.length !== codeLength}
+                  disabled={code.length !== codeLength || send.isPending}
                 >
                   <Trans id="profile.emails.verify">Verify</Trans>
                 </Button>

@@ -551,6 +551,100 @@ describe("EmailsPanel", () => {
     expect(sends).toHaveLength(2);
     expect(document.querySelectorAll('[role="alert"]')).toHaveLength(0);
   });
+  describe("one write at a time in the code dialog", () => {
+    const unverified = emailFixture({
+      id: 11,
+      address: "slow@example.test",
+      primary: false,
+      verified: false,
+      verifiedVia: undefined,
+      verifiedAt: undefined,
+    });
+    const sendPath = `${emailsPath}/11/send-code`;
+    const verifyPath = `${emailsPath}/11/verify`;
+    // The first letter fails, so Resend is on offer without a cooldown.
+    const undelivered = () =>
+      Response.json(
+        { code: "email_delivery_failed", requestId: "r1" },
+        { status: 502 },
+      );
+    const hang = () => new Promise<Response>(() => {});
+
+    async function openDialog(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(
+        screen.getByRole("button", {
+          name: "More actions for slow@example.test",
+        }),
+      );
+      await user.click(await screen.findByRole("menuitem", { name: "Verify" }));
+      const dialog = await screen.findByRole("dialog");
+      await within(dialog).findByText(/could not be delivered/);
+      return dialog;
+    }
+
+    it("locks Resend and Verify later while a code is being checked", async () => {
+      const user = userEvent.setup();
+      mount([unverified], true, (request) => {
+        const path = new URL(request.url).pathname;
+        if (path === sendPath) return undelivered();
+        if (path === verifyPath) return hang();
+        return undefined;
+      });
+      const dialog = await openDialog(user);
+
+      await user.click(
+        within(dialog).getAllByRole("textbox", {
+          name: /Verification code/,
+        })[0] as HTMLElement,
+      );
+      await user.keyboard("123456");
+
+      const verify = within(dialog).getByRole("button", { name: "Verify" });
+      await waitFor(() => expect(verify).toHaveAttribute("aria-busy", "true"));
+      expect(
+        within(dialog).getByRole("button", { name: "Resend" }),
+      ).toBeDisabled();
+      expect(
+        within(dialog).getByRole("button", { name: "Verify later" }),
+      ).toBeDisabled();
+      expect(dialog.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+    });
+
+    it("neither sends nor offers a code while a new one is on its way", async () => {
+      const user = userEvent.setup();
+      let sends = 0;
+      mount([unverified], true, (request) => {
+        const path = new URL(request.url).pathname;
+        if (path === sendPath) {
+          sends += 1;
+          return sends === 1 ? undelivered() : hang();
+        }
+        return undefined;
+      });
+      const dialog = await openDialog(user);
+
+      const resend = within(dialog).getByRole("button", { name: "Resend" });
+      await user.click(resend);
+      await waitFor(() => expect(resend).toHaveAttribute("aria-busy", "true"));
+      await user.click(
+        within(dialog).getAllByRole("textbox", {
+          name: /Verification code/,
+        })[0] as HTMLElement,
+      );
+      await user.keyboard("123456");
+
+      expect(
+        within(dialog).getByRole("button", { name: "Verify" }),
+      ).toBeDisabled();
+      expect(
+        fetchBoundary.mock.calls.some(
+          ([request]) => new URL(request.url).pathname === verifyPath,
+        ),
+      ).toBe(false);
+      expect(dialog.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+    });
+  });
+
   it("says in the dialog when the server could not deliver the code, and Resend tries again", async () => {
     const user = userEvent.setup();
     let sends = 0;

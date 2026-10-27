@@ -30,6 +30,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@/components/ui/menu";
+import { Spinner } from "@/components/ui/spinner";
 
 /**
  * The launcher's page: the sign-in pages' toolbar, here with the account on
@@ -106,17 +107,32 @@ function AccountMenu() {
     </Avatar>
   );
   return (
-    <Menu>
+    // Signing out closes the menu, so its trigger carries the wait: the
+    // spinner takes the avatar's place and the menu stays shut until the page
+    // has gone.
+    <Menu
+      onOpenChange={(open, details) => {
+        if (open && logout.isPending) details.cancel();
+      }}
+    >
       <MenuTrigger
         render={
           <button
             type="button"
+            aria-busy={logout.isPending || undefined}
+            aria-disabled={logout.isPending || undefined}
             aria-label={t({ id: "launcher.account", message: "Your account" })}
             className="flex h-7 cursor-pointer items-center gap-1 rounded-full ps-0.5 pe-1 outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring data-popup-open:opacity-80"
           />
         }
       >
-        {avatar("size-7")}
+        {logout.isPending ? (
+          <span className="flex size-7 shrink-0 items-center justify-center">
+            <Spinner aria-hidden="true" data-slot="spinner" />
+          </span>
+        ) : (
+          avatar("size-7")
+        )}
         <ChevronDown
           className="size-4 text-muted-foreground"
           aria-hidden="true"

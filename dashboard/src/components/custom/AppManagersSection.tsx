@@ -188,6 +188,9 @@ export function AppManagersSection({
                       ...removeManagerMessage,
                       values: { name: manager.displayName },
                     })}
+                    // One removal at a time; its confirmation carries the
+                    // progress.
+                    disabled={removeManager.isPending}
                     onClick={() => {
                       removeFailure.clear();
                       setRemoving(manager.id);
@@ -227,7 +230,9 @@ export function AppManagersSection({
 
       <ConfirmDialog
         isOpen={removing !== null}
-        onOpenChange={(open) => !open && setRemoving(null)}
+        onOpenChange={(open) =>
+          !open && !removeManager.isPending && setRemoving(null)
+        }
         status="danger"
         title={
           <Trans id="app.managers.confirm.title">Remove this manager?</Trans>

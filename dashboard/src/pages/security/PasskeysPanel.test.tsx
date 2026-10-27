@@ -345,7 +345,7 @@ describe("renaming a passkey", () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 
-  it("still reports a failed save once when the dialog is dismissed while it is pending", async () => {
+  it("stays open through Escape while a save is pending, then reports a failure once", async () => {
     const user = userEvent.setup();
     let fail: () => void = () => undefined;
     mount([macbook, yubikey]);
@@ -372,22 +372,57 @@ describe("renaming a passkey", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save name" }));
     await waitFor(() => expect(writes("/credentials/rename")).toHaveLength(1));
     await user.keyboard("{Escape}");
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("dialog", { name: "Rename this passkey" }),
-      ).not.toBeInTheDocument(),
-    );
+    expect(dialog).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Close" }),
+    ).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Cancel" }),
+    ).toBeDisabled();
+    expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
     fail();
 
     expect(
       await screen.findByText("Too many requests. Wait a moment."),
     ).toBeVisible();
     expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(
+      screen.queryByRole("dialog", { name: "Rename this passkey" }),
+    ).not.toBeInTheDocument();
     expect(notifyError).not.toHaveBeenCalled();
   });
 });
 
 describe("removing a passkey", () => {
+  it("keeps the question open and pending until the removal settles", async () => {
+    freshSudo();
+    const user = userEvent.setup();
+    mount([macbook, yubikey]);
+    const base = fetchBoundary.getMockImplementation();
+    fetchBoundary.mockImplementation((request) =>
+      new URL(request.url).pathname.endsWith("/credentials/delete")
+        ? new Promise<Response>(() => {})
+        : base
+          ? base(request)
+          : Promise.resolve(new Response(null, { status: 404 })),
+    );
+
+    const [first] = await rows();
+    await openMenu(user, first as HTMLElement);
+    await user.click(screen.getByRole("menuitem", { name: "Remove" }));
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Remove this passkey?",
+    });
+    const confirm = within(dialog).getByRole("button", { name: "Remove" });
+    await user.click(confirm);
+    await waitFor(() => expect(writes("/credentials/delete")).toHaveLength(1));
+    await user.keyboard("{Escape}");
+
+    expect(dialog).toBeInTheDocument();
+    expect(confirm).toHaveAttribute("aria-busy", "true");
+    expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+  });
+
   it("asks first, and sends nothing until it is confirmed", async () => {
     freshSudo();
     const user = userEvent.setup();

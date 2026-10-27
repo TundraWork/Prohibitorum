@@ -66,7 +66,15 @@ export function ConfirmDialog({
   if (subject != null && subject !== false) kept.current = subject;
   const named = isOpen ? subject : kept.current;
   return (
-    <AlertDialog open={isOpen} onOpenChange={onOpenChange}>
+    // A step in flight is not interrupted: Escape is ignored until it settles,
+    // as Cancel is.
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && isPending) return;
+        onOpenChange(open);
+      }}
+    >
       <AlertDialogPopup data-tone={status === "accent" ? "default" : status}>
         {/* The icon rides the first line of the title, and the body lines up
             under the title text rather than under the icon. */}

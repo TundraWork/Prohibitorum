@@ -14,6 +14,7 @@ import { apiError, fakeApi } from "@/test/app";
 const upload = vi.hoisted(() => ({
   files: [] as string[],
   fail: undefined as undefined | ((name: string) => Error | undefined),
+  gate: undefined as undefined | Promise<void>,
 }));
 vi.mock("@/api/mutations", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/mutations")>();
@@ -25,6 +26,7 @@ vi.mock("@/api/mutations", async (importOriginal) => {
       ...actual.uploadLoginImageMutationOptions(...args),
       mutationFn: async (file: File) => {
         upload.files.push(file.name);
+        await upload.gate;
         const failure = upload.fail?.(file.name);
         if (failure) throw failure;
         return { id: 100 + upload.files.length, url: "/x", etag: "x" };
@@ -40,6 +42,7 @@ beforeEach(() => {
   i18n.activate("en");
   upload.files.length = 0;
   upload.fail = undefined;
+  upload.gate = undefined;
   notifyError = vi.fn<(error: unknown) => void>();
   queryClient = createQueryClient(notifyError);
 });
@@ -210,5 +213,27 @@ describe("the uploaded sign-in images", () => {
     await user.upload(fileInput(), [png("a"), png("b"), png("c")]);
     await waitFor(() => expect(upload.files).toEqual(["a.png"]));
     expect(notifyError).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds the add tile, with its one spinner, until the uploads have landed", async () => {
+    const user = userEvent.setup();
+    let land: () => void = () => {};
+    upload.gate = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    mount(1);
+    await user.upload(fileInput(), [png("a"), png("b")]);
+    await waitFor(() => expect(upload.files).toEqual(["a.png"]));
+
+    expect(fileInput()).toBeDisabled();
+    const tile = screen.getByRole("group", {
+      name: "Drop images here, or choose files",
+    });
+    expect(tile.querySelectorAll('[role="status"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[role="status"]')).toHaveLength(1);
+
+    land();
+    await waitFor(() => expect(upload.files).toEqual(["a.png", "b.png"]));
+    await waitFor(() => expect(fileInput()).toBeEnabled());
   });
 });

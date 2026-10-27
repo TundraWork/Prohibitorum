@@ -513,6 +513,47 @@ it("navigates client-side when the sign-in redirect targets a dashboard route", 
   expect(router.state.location.pathname).toBe("/");
 });
 
+it.each([
+  { step: "authenticator", recovery: false },
+  { step: "recovery", recovery: true },
+])(
+  "keeps Sign in waiting while the $step sign-in loads the next page",
+  async ({ recovery }) => {
+    const target = `/oauth/authorize?step=${recovery ? "recovery" : "totp"}`;
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        Response.json({ partial_session_token: "leave-once" }),
+      )
+      .mockResolvedValueOnce(Response.json({ redirect: target }));
+    vi.stubGlobal("fetch", fetch);
+    const user = userEvent.setup();
+    mount();
+    await password(user);
+    if (recovery) {
+      await user.click(
+        screen.getByRole("button", { name: "Use a recovery code" }),
+      );
+      await user.type(
+        screen.getByRole("textbox", { name: "Recovery code" }),
+        "ABCD-EFGH-IJKL-MNOP",
+      );
+    } else {
+      await user.type(firstOtpSlot("Authenticator code"), "012345");
+    }
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(loadDocument).toHaveBeenCalledWith(target));
+    const submit = screen.getByRole("button", { name: /Submitting/ });
+    expect(submit).toHaveAttribute("aria-busy", "true");
+    expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+    if (!recovery)
+      expect(
+        screen.getByRole("button", { name: "Use a recovery code" }),
+      ).toBeDisabled();
+  },
+);
+
 it("keeps new recovery codes visible across session changes and blocks leaving without confirmation", async () => {
   const codes = ["ABCD-EFGH-IJKL-MNOP", "QRST-UVWX-YZ23-4567"];
   const fetch = vi

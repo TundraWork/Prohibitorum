@@ -189,6 +189,42 @@ describe("enrollment", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("waits on the different profile while the page leaves for the provider, and locks the rest", async () => {
+    withPasskeys();
+    enrollApi(
+      preview({
+        intent: "invite",
+        requireLocalCredential: true,
+        verifiedIdentity: {
+          providerSlug: "gitlab",
+          providerDisplayName: "GitLab",
+          displayName: "Alice VR",
+        },
+      }),
+    );
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    const swap = await screen.findByRole("button", {
+      name: "Use a different profile",
+    });
+    await user.click(swap);
+
+    expect(loadDocument).toHaveBeenCalledOnce();
+    expect(swap).toHaveAttribute("aria-busy", "true");
+    expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Create a passkey" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", {
+        name: "Use a password and an authenticator instead",
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("textbox", { name: "Display name" }),
+    ).toBeDisabled();
+  });
+
   it("names the account a reset is for and asks for no fields", async () => {
     enrollApi(
       preview({

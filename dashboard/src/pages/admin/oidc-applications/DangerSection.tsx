@@ -54,7 +54,11 @@ export function DangerSection({ app }: { app: OidcApp }) {
 
   // The confirmations name the application under their title.
   const name = app.displayName || app.clientId;
-  const busy = setDisabled.isPending || remove.isPending;
+  // A deletion leaves for the list, and its dialog stays pending until the
+  // page has gone.
+  const [leaving, setLeaving] = useState(false);
+  const removing = remove.isPending || leaving;
+  const busy = setDisabled.isPending || removing;
 
   return (
     <DangerZoneFrame
@@ -96,7 +100,7 @@ export function DangerSection({ app }: { app: OidcApp }) {
           stackActions
           actions={
             <Button
-              pending={setDisabled.isPending}
+              disabled={setDisabled.isPending}
               onClick={() => {
                 failure.clear();
                 setConfirming(app.disabled ? "enable" : "disable");
@@ -126,7 +130,7 @@ export function DangerSection({ app }: { app: OidcApp }) {
           stackActions
           actions={
             <Button
-              pending={remove.isPending}
+              disabled={removing}
               onClick={() => {
                 failure.clear();
                 setConfirming("delete");
@@ -217,12 +221,17 @@ export function DangerSection({ app }: { app: OidcApp }) {
             Delete application
           </Trans>
         }
-        isPending={remove.isPending}
+        isPending={removing}
         onConfirm={() => {
           remove.mutate(app.clientId, {
             onSuccess: async () => {
-              setConfirming(null);
-              await navigate({ to: "/admin/oidc-applications" });
+              setLeaving(true);
+              try {
+                await navigate({ to: "/admin/oidc-applications" });
+              } finally {
+                setLeaving(false);
+                setConfirming(null);
+              }
             },
             onError: (error) => {
               setConfirming(null);

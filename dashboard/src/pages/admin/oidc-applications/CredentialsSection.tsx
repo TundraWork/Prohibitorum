@@ -83,7 +83,7 @@ export function CredentialsSection({ app }: { app: OidcApp }) {
               stackActions
               actions={
                 <Button
-                  pending={rotate.isPending}
+                  disabled={rotate.isPending}
                   onClick={() => {
                     failure.clear();
                     setConfirming(true);

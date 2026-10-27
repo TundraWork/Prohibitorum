@@ -184,7 +184,8 @@ export function SamlIdentitySection({ app }: { app: SamlApp }) {
                     )
                   }
                   onDiscard={() => form.reset()}
-                  pending={submitting || update.isPending}
+                  pending={submitting}
+                  disabled={update.isPending}
                 />
               ) : undefined
             }

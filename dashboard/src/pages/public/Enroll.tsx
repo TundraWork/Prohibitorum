@@ -17,7 +17,9 @@ import {
 } from "@/api/mutations";
 import { clearSessionQueries, enrollmentQueryOptions } from "@/api/queries";
 import type { EnrollmentAccountFields } from "@/api/raw-paths";
+import { loadDocument } from "@/app/load-document";
 import { withInlineReport } from "@/app/query-client";
+import { usePageRestore } from "@/app/use-page-restore";
 import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ReadOnlyField } from "@/components/custom/FormFields";
@@ -117,6 +119,9 @@ export function EnrollPage() {
   const [leaving, setLeaving] = useState(false);
   // A provider button has sent the page to the provider.
   const [federating, setFederating] = useState(false);
+  // "Use a different profile" has sent the page back to the provider.
+  const [changingProfile, setChangingProfile] = useState(false);
+  usePageRestore(() => setChangingProfile(false));
   const focusField = useRef<AccountField>(undefined);
   const fieldsRef = useRef<HTMLDivElement>(null);
 
@@ -237,7 +242,7 @@ export function EnrollPage() {
     ? (preview.target?.username ?? "")
     : form.state.values.username;
   const passkeyPending = passkey.isPending || leaving;
-  const busy = passkeyPending || federating;
+  const busy = passkeyPending || federating || changingProfile;
   const title = enrollTitle();
 
   return (
@@ -319,11 +324,13 @@ export function EnrollPage() {
                       )}
                       {verified && (
                         <Button
-                          disabled={busy}
+                          pending={changingProfile}
+                          disabled={busy && !changingProfile}
                           onClick={() => {
-                            window.location.href = enrollmentAddress(
-                              token,
-                              verified.providerSlug,
+                            if (busy) return;
+                            setChangingProfile(true);
+                            loadDocument(
+                              enrollmentAddress(token, verified.providerSlug),
                             );
                           }}
                           variant="ghost"

@@ -22,6 +22,10 @@ import { useFormContext } from "@/forms/context";
  * with another way to finish the same step: while that other way is in flight
  * this one cannot start, and when the other way is the one to reach for first,
  * this one steps back to the outline style.
+ *
+ * `pending` keeps the button waiting after the submit itself has finished,
+ * for a form whose step goes on past it, such as a sign-in that is still
+ * leaving the page.
  */
 export function SubmitButton({
   children,
@@ -31,6 +35,7 @@ export function SubmitButton({
   variant = "default",
   size = "default",
   describedBy,
+  pending = false,
 }: {
   children: ReactNode;
   fullWidth?: boolean;
@@ -41,9 +46,12 @@ export function SubmitButton({
   size?: "default" | "lg";
   /** The element that says why the button is disabled, or what it will do. */
   describedBy?: string;
+  /** Waiting on what the submit started, as while it runs. */
+  pending?: boolean;
 }) {
   const form = useFormContext();
-  const submitting = useStore(form.store, (state) => state.isSubmitting);
+  const submitting =
+    useStore(form.store, (state) => state.isSubmitting) || pending;
   return (
     <div className="flex flex-wrap gap-2">
       <Button

@@ -69,4 +69,38 @@ describe("DangerZone", () => {
     );
     expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
   });
+
+  it("shows its one spinner on the trigger while the write runs", async () => {
+    i18n.activate("en");
+    const props = {
+      label: "Delete",
+      title: "Delete it?",
+      body: <p>Gone for good.</p>,
+      confirmLabel: "Delete forever",
+      onConfirm: vi.fn(),
+    };
+    const { rerender } = render(
+      <I18nProvider i18n={i18n}>
+        <DangerZone {...props} />
+      </I18nProvider>,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Delete forever" }),
+    );
+    // The write starts as the confirmation closes; it may still be fading out.
+    rerender(
+      <I18nProvider i18n={i18n}>
+        <DangerZone {...props} isPending />
+      </I18nProvider>,
+    );
+
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "Delete", hidden: true }),
+    ).toContainElement(spinners[0] as HTMLElement);
+  });
 });

@@ -405,6 +405,54 @@ describe("password and authenticator rows", () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      trigger: () =>
+        within(row("Turn off password and authenticator")).getByRole("button", {
+          name: "Turn off",
+        }),
+      endpoint: "/me/auth/revoke-password-totp",
+      dialog: "Turn off password and authenticator?",
+      confirmLabel: "Turn off",
+    },
+    {
+      trigger: () => screen.getByRole("button", { name: "Regenerate" }),
+      endpoint: "/me/recovery-codes/regenerate",
+      dialog: "Replace your recovery codes?",
+      confirmLabel: "Replace codes",
+    },
+  ])(
+    "spins only the confirmation while $confirmLabel is in flight",
+    async ({ trigger, endpoint, dialog, confirmLabel }) => {
+      mount(bothSet);
+      const answer = fetchBoundary.getMockImplementation();
+      fetchBoundary.mockImplementation((request) =>
+        new URL(request.url).pathname.endsWith(endpoint)
+          ? new Promise<Response>(() => {})
+          : (answer as NonNullable<typeof answer>)(request),
+      );
+      freshSudo();
+      const user = userEvent.setup();
+
+      await screen.findByText("Recovery codes");
+      // Held before the dialog hides the panel from role queries.
+      const behind = trigger();
+      await user.click(behind);
+      const confirm = await screen.findByRole("alertdialog", { name: dialog });
+      const action = within(confirm).getByRole("button", {
+        name: confirmLabel,
+      });
+      await user.click(action);
+
+      await waitFor(() => expect(action).toHaveAttribute("aria-busy", "true"));
+      expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(
+        1,
+      );
+      expect(behind).toBeDisabled();
+      expect(behind).not.toHaveAttribute("aria-busy");
+    },
+  );
+
   it("reports a failed regeneration in the section only", async () => {
     mount(bothSet, (path) =>
       path.endsWith("/me/recovery-codes/regenerate")

@@ -412,6 +412,33 @@ describe("the Unsplash source", () => {
     expect(api.sent("PUT", appearancePath)).toHaveLength(0);
   });
 
+  it("holds Replace and Save, and spins only Remove, while the key is removed", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    await open({
+      hasUnsplashKey: true,
+      routes: {
+        [`DELETE ${appearancePath}/unsplash-key`]: () =>
+          new Promise<Response>((resolve) => {
+            release = resolve;
+          }),
+      },
+    });
+    await chooseSource(user, "Unsplash");
+    const remove = screen.getByRole("button", { name: "Remove" });
+    await user.click(remove);
+
+    await waitFor(() => expect(remove).toHaveAttribute("aria-busy", "true"));
+    expect(screen.getByRole("button", { name: "Replace" })).toBeDisabled();
+    expect(saveButton()).toBeDisabled();
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(remove).toContainElement(spinners[0] as HTMLElement);
+
+    release(new Response(null, { status: 204 }));
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+  });
+
   it("reports a failed key removal once", async () => {
     const user = userEvent.setup();
     await open({

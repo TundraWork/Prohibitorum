@@ -115,6 +115,9 @@ export function AppAccessSection({
   // A new key per opening starts the picker from the current selection.
   const [pickings, setPickings] = useState(0);
   const [removingLast, setRemovingLast] = useState<AppGroupView | null>(null);
+  // The row whose own button started the write in flight, so that row alone
+  // shows it; a write from the picker or a confirmation is shown there.
+  const [removingId, setRemovingId] = useState<number | null>(null);
 
   const title = <Trans id="app.access.title">Access</Trans>;
 
@@ -165,10 +168,12 @@ export function AppAccessSection({
       setRemovingLast(group);
       return;
     }
+    setRemovingId(group.id);
     writeGroups(
       selected
         .filter((other) => other.id !== group.id)
         .map((other) => other.id),
+      () => setRemovingId(null),
     );
   }
 
@@ -219,6 +224,7 @@ export function AppAccessSection({
             restricted ? (
               <Button
                 variant="outline"
+                disabled={replace.isPending}
                 onClick={() => {
                   dialogFailure.clear();
                   setPickings((count) => count + 1);
@@ -275,7 +281,8 @@ export function AppAccessSection({
                       ...removeGroupMessage,
                       values: { group: group.displayName },
                     })}
-                    pending={replace.isPending}
+                    pending={removingId === group.id}
+                    disabled={replace.isPending && removingId !== group.id}
                     onClick={() => remove(group)}
                     variant="ghost"
                     size="icon-sm"

@@ -1,4 +1,8 @@
+import { useAtomValue } from "jotai";
 import type * as React from "react";
+import { use } from "react";
+import { sudoDialogAtom } from "@/api/sudo";
+import { SudoScopeContext } from "@/components/custom/sudo-scope";
 import { Button as CossButton } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -21,6 +25,9 @@ export interface ButtonProps extends React.ComponentProps<"button"> {
  * focus survives the wait; its presses are ignored. A text button keeps its
  * label beside the spinner, while an icon button has room for one glyph and
  * shows the spinner in its place.
+ *
+ * One write shows one spinner. While the identity check is open it carries
+ * that spinner, so a pending button behind it stays locked but does not spin.
  */
 export function Button({
   pending = false,
@@ -31,6 +38,9 @@ export function Button({
   ...props
 }: ButtonProps): React.ReactElement {
   const iconOnly = size?.startsWith("icon") ?? false;
+  const sudoOpen = useAtomValue(sudoDialogAtom) !== null;
+  const inSudo = use(SudoScopeContext);
+  const spinning = pending && (!sudoOpen || inSudo);
   return (
     <CossButton
       {...props}
@@ -48,8 +58,8 @@ export function Button({
         onClick?.(event);
       }}
     >
-      {pending && <Spinner aria-hidden="true" data-slot="spinner" />}
-      {pending && iconOnly ? null : children}
+      {spinning && <Spinner aria-hidden="true" data-slot="spinner" />}
+      {spinning && iconOnly ? null : children}
     </CossButton>
   );
 }

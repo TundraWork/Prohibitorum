@@ -98,6 +98,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Spinner } from "@/components/ui/spinner";
 import type { FileRouteTypes } from "@/routeTree.gen";
 
 type Session = components["schemas"]["SessionView"];
@@ -464,16 +465,37 @@ function ConsoleAccount({
     <SidebarFooter>
       <SidebarMenu>
         <SidebarMenuItem>
-          <Menu>
-            <MenuTrigger render={<SidebarMenuButton size="lg" />}>
-              <Avatar className="size-8 rounded-lg">
-                {session.avatarUrl && (
-                  <AvatarImage src={session.avatarUrl} alt="" />
-                )}
-                <AvatarFallback className="rounded-lg">
-                  {(session.displayName || session.username).slice(0, 1)}
-                </AvatarFallback>
-              </Avatar>
+          {/* Signing out closes the menu, so its trigger carries the wait: the
+              spinner takes the avatar's place and the menu stays shut until
+              the page has gone. */}
+          <Menu
+            onOpenChange={(open, details) => {
+              if (open && pending) details.cancel();
+            }}
+          >
+            <MenuTrigger
+              render={
+                <SidebarMenuButton
+                  size="lg"
+                  aria-busy={pending || undefined}
+                  aria-disabled={pending || undefined}
+                />
+              }
+            >
+              {pending ? (
+                <span className="flex size-8 shrink-0 items-center justify-center">
+                  <Spinner aria-hidden="true" data-slot="spinner" />
+                </span>
+              ) : (
+                <Avatar className="size-8 rounded-lg">
+                  {session.avatarUrl && (
+                    <AvatarImage src={session.avatarUrl} alt="" />
+                  )}
+                  <AvatarFallback className="rounded-lg">
+                    {(session.displayName || session.username).slice(0, 1)}
+                  </AvatarFallback>
+                </Avatar>
+              )}
               <div className="grid min-w-0 flex-1 text-left leading-tight">
                 <span className="truncate font-medium">
                   {session.displayName}

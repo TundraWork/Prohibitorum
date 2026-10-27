@@ -130,7 +130,8 @@ export function ForwardAuthHeadersSection({ app }: { app: ForwardAuthApp }) {
                     </Trans>
                   }
                   onDiscard={() => form.reset()}
-                  pending={submitting || update.isPending}
+                  pending={submitting}
+                  disabled={update.isPending}
                 />
               ) : undefined
             }

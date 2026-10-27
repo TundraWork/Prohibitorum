@@ -225,6 +225,35 @@ describe("the delete confirmation", () => {
     release(new Response(null, { status: 204 }));
   });
 
+  it("shows one spinner, on the confirmation, until the list has replaced the page", async () => {
+    const user = userEvent.setup();
+    let arrive: () => void = () => {};
+    navigate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          arrive = resolve;
+        }),
+    );
+    mount(groupFixture(), []);
+    await waitFor(() => expect(deleteButton()).toBeEnabled());
+    const trigger = deleteButton();
+
+    await user.click(trigger);
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", {
+      name: "Delete group",
+    });
+    await user.click(confirm);
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+
+    expect(screen.getByRole("alertdialog")).toBeVisible();
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(confirm).toContainElement(spinners[0] as HTMLElement);
+    expect(trigger).toBeDisabled();
+    arrive();
+  });
+
   it("reports a server refusal once, inline, and stays on the page", async () => {
     const user = userEvent.setup();
     mount(groupFixture(), [], (request) =>

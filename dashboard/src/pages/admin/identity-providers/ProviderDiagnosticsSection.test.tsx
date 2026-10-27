@@ -264,6 +264,30 @@ describe("starting a test", () => {
         "https://idp.example.test/authorize?x=1",
       ),
     );
+    // The page has not gone yet, so the button is still pending.
+    expect(
+      screen.getByRole("button", { name: "Start a test" }),
+    ).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("lets the button go when the browser brings the page back", async () => {
+    stubAssign();
+    const user = mount({
+      [`POST ${base}/tests`]: () =>
+        Response.json({
+          id: runId,
+          authorizationUrl: "https://idp.example.test/authorize",
+          expiresAt: new Date(Date.now() + 600_000).toISOString(),
+        }),
+    });
+    const button = await screen.findByRole("button", { name: "Start a test" });
+    await user.click(button);
+    await waitFor(() => expect(button).toHaveAttribute("aria-busy", "true"));
+
+    window.dispatchEvent(
+      new PageTransitionEvent("pageshow", { persisted: true }),
+    );
+    await waitFor(() => expect(button).not.toHaveAttribute("aria-busy"));
   });
 
   it("keeps its toast when the start fails, and does not leave", async () => {
@@ -439,10 +463,16 @@ describe("the result dialog", () => {
       runId,
     );
     const dialog = await screen.findByRole("dialog");
-    await user.click(
-      await within(dialog).findByRole("button", { name: "Test again" }),
-    );
+    const again = await within(dialog).findByRole("button", {
+      name: "Test again",
+    });
+    await user.click(again);
     await waitFor(() => expect(assign).toHaveBeenCalledTimes(1));
+    // Until the page has gone, the restart stays pending and Close held.
+    expect(again).toHaveAttribute("aria-busy", "true");
+    expect(
+      within(dialog).getByRole("button", { name: "Close" }),
+    ).toBeDisabled();
   });
 
   it("warns after thirty seconds of waiting and checks again on request", async () => {

@@ -79,7 +79,7 @@ export function AccountSessionsSection({ accountId }: { accountId: number }) {
           rows.length > 1 ? (
             <Button
               variant="destructive-outline"
-              pending={revokeAll.isPending}
+              disabled={revokeAll.isPending}
               onClick={() => {
                 failure.clear();
                 setEndingAll(true);

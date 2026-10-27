@@ -26,12 +26,14 @@ import {
   publicFederationProvidersQueryOptions,
 } from "@/api/queries";
 import type { PublicConfig } from "@/api/raw-paths";
+import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
 import { defaultLoginAppearance } from "@/components/custom/login-appearance/appearance";
 import { i18n } from "@/i18n";
 import { PasswordPage } from "@/pages/Login";
 
+vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 vi.mock("@simplewebauthn/browser", () => ({
   browserSupportsWebAuthn: vi.fn(),
   browserSupportsWebAuthnAutofill: vi.fn(),
@@ -418,3 +420,36 @@ it("cancels the waiting ceremony when the page goes away", async () => {
   await new Promise((resolve) => setTimeout(resolve, 20));
   expect(loginCalls()).toEqual(["/login/begin?mediation=conditional"]);
 });
+
+it.each([
+  { from: "autofill", pressed: false },
+  { from: "the button", pressed: true },
+])(
+  "keeps the passkey button waiting while a passkey from $from leaves the page",
+  async ({ pressed }) => {
+    // A server endpoint answers the sign-in, so the page leaves by loading it
+    // and stays mounted until the browser takes it away.
+    completeAnswer = () => Response.json({ redirect: "/oauth/authorize?x=1" });
+    browser(
+      pressed
+        ? { modal: async () => picked }
+        : { pick: Promise.resolve(picked) },
+    );
+    const user = userEvent.setup();
+    mount();
+    const button = await screen.findByRole("button", {
+      name: "Sign in with a passkey",
+    });
+    if (pressed) {
+      await waitFor(() => expect(startAuthentication).toHaveBeenCalledTimes(1));
+      await user.click(button);
+    }
+
+    await waitFor(() =>
+      expect(loadDocument).toHaveBeenCalledWith("/oauth/authorize?x=1"),
+    );
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+    expect(screen.getByRole("textbox", { name: "Username" })).toBeDisabled();
+  },
+);

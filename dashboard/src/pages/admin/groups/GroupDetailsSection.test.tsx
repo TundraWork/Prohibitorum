@@ -308,17 +308,22 @@ describe("turning sending off", () => {
     );
 
     await user.click(sendSwitch());
-    await user.click(
-      screen.getByRole("button", { name: "Stop sending and save" }),
-    );
+    const save = screen.getByRole("button", { name: "Stop sending and save" });
+    await user.click(save);
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(
-      within(dialog).getByRole("button", { name: "Stop sending" }),
-    );
+    const confirm = within(dialog).getByRole("button", {
+      name: "Stop sending",
+    });
+    await user.click(confirm);
     await waitFor(() => expect(puts()).toHaveLength(1));
     await user.keyboard("{Escape}");
 
     expect(screen.getByRole("alertdialog")).toBeVisible();
+    // One spinner, on the confirmation; the footer's save is only held.
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(confirm).toContainElement(spinners[0] as HTMLElement);
+    expect(save).toBeDisabled();
     release(Response.json(groupFixture({ exposedToDownstream: false })));
   });
 

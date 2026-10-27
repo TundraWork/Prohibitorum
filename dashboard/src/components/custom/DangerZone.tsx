@@ -96,7 +96,9 @@ export function DangerZone({
         title={title}
         body={body}
         confirmLabel={confirmLabel}
-        isPending={isPending}
+        // The dialog closes as the write starts and the trigger carries the
+        // spinner, so the closing confirm does not show one as well.
+        isPending={false}
         onConfirm={() => {
           onConfirm();
           setOpen(false);

@@ -52,7 +52,11 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
     null,
   );
 
-  const busy = setDisabled.isPending || remove.isPending;
+  const [leaving, setLeaving] = useState(false);
+
+  const busy = setDisabled.isPending || remove.isPending || leaving;
+  // Enabling runs with no dialog, so the toggle itself shows that write.
+  const enabling = setDisabled.isPending && confirming === null;
   const cannotEnable = provider.disabled && !provider.ready;
   // Named, so the confirmation carries each as `{count}` in both catalogs.
   const count = provider.linkedAccountCount ?? 0;
@@ -103,8 +107,8 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           stackActions
           actions={
             <Button
-              disabled={cannotEnable}
-              pending={setDisabled.isPending}
+              disabled={cannotEnable || (busy && !enabling)}
+              pending={enabling}
               onClick={() => {
                 failure.clear();
                 if (provider.disabled) {
@@ -155,7 +159,7 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
           stackActions
           actions={
             <Button
-              pending={remove.isPending}
+              disabled={busy}
               onClick={() => {
                 failure.clear();
                 setConfirming("delete");
@@ -261,12 +265,18 @@ export function ProviderDangerSection({ provider }: { provider: Provider }) {
             Delete
           </Trans>
         }
-        isPending={remove.isPending}
+        isPending={remove.isPending || leaving}
         onConfirm={() => {
           remove.mutate(provider.slug, {
+            // The dialog stays pending until the list has replaced this page.
             onSuccess: async () => {
-              setConfirming(null);
-              await navigate({ to: "/admin/identity-providers" });
+              setLeaving(true);
+              try {
+                await navigate({ to: "/admin/identity-providers" });
+              } finally {
+                setLeaving(false);
+                setConfirming(null);
+              }
             },
             onError: (error) => {
               setConfirming(null);

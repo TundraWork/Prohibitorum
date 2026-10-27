@@ -260,6 +260,7 @@ function TokenList() {
                       id: "security.tokens.revoke",
                       message: `Revoke ${name}`,
                     })}
+                    disabled={revoke.isPending}
                     onClick={() => setTarget(token)}
                     variant="destructive-outline"
                     size="icon-sm"

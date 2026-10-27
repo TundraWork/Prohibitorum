@@ -1,6 +1,6 @@
 import { Trans } from "@lingui/react/macro";
 import { Palette } from "lucide-react";
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 import {
   useAppearanceChoice,
   useResolvedAppearance,
@@ -12,21 +12,24 @@ import {
   useThemeOptions,
 } from "@/components/custom/ThemeSelect";
 import { RadioGroup } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
 import { isColorMode } from "@/lib/appearance";
 import {
   type ColorSchemeSlug,
   colorSchemes,
   isColorSchemeSlug,
 } from "@/lib/color-scheme";
+import { cn } from "@/lib/utils";
 
 /**
  * Light or dark, then the colour scheme, each a row of tiles. A scheme's tile
  * shows it in both modes side by side, so it can be judged without switching.
  * The choice is saved to the account, so it follows the reader to every
- * device, and applies at once.
+ * device, and applies at once. The chosen tile carries the wait while it
+ * saves, and the next choice can be made meanwhile.
  */
 export function AppearancePanel() {
-  const { mode, choose } = useAppearanceChoice();
+  const { mode, choose, saving } = useAppearanceChoice();
   const { scheme } = useResolvedAppearance().applied;
   const names = useColorSchemeNames();
   const modeLabel = useId();
@@ -48,6 +51,7 @@ export function AppearancePanel() {
           </span>
           <RadioGroup
             aria-labelledby={modeLabel}
+            aria-busy={saving === "mode" || undefined}
             value={mode ?? "system"}
             onValueChange={(next) => {
               if (isColorMode(next)) choose({ mode: next });
@@ -59,7 +63,13 @@ export function AppearancePanel() {
                 key={value}
                 value={value}
                 layout="compact"
-                media={<Icon className="size-4.5" aria-hidden="true" />}
+                media={
+                  <Saving
+                    shown={saving === "mode" && value === (mode ?? "system")}
+                  >
+                    <Icon className="size-4.5" aria-hidden="true" />
+                  </Saving>
+                }
                 label={label}
               />
             ))}
@@ -71,6 +81,7 @@ export function AppearancePanel() {
           </span>
           <RadioGroup
             aria-labelledby={schemeLabel}
+            aria-busy={saving === "scheme" || undefined}
             value={scheme}
             onValueChange={(next) => {
               if (isColorSchemeSlug(next)) choose({ scheme: next });
@@ -82,7 +93,14 @@ export function AppearancePanel() {
                 key={slug}
                 value={slug}
                 layout="media"
-                media={<SchemePreview scheme={slug} />}
+                media={
+                  <Saving
+                    shown={saving === "scheme" && slug === scheme}
+                    className="w-full"
+                  >
+                    <SchemePreview scheme={slug} />
+                  </Saving>
+                }
                 label={names[slug]}
               />
             ))}
@@ -90,6 +108,31 @@ export function AppearancePanel() {
         </div>
       </div>
     </Section>
+  );
+}
+
+/**
+ * A tile's picture, with the spinner in its corner while the choice saves, as
+ * the avatar gallery marks the picture it is saving.
+ */
+function Saving({
+  shown,
+  className,
+  children,
+}: {
+  shown: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span className={cn("relative flex", className)}>
+      {children}
+      {shown && (
+        <span className="absolute -end-1.5 -bottom-1.5 z-20 rounded-full bg-background p-0.5 shadow-xs ring-1 ring-border">
+          <Spinner className="size-3" aria-hidden="true" data-slot="spinner" />
+        </span>
+      )}
+    </span>
   );
 }
 

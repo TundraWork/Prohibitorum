@@ -18,6 +18,7 @@ import type {
   EffectiveConfigView,
   LatestConnectionTestView,
 } from "@/api/raw-admin-paths";
+import { usePageRestore } from "@/app/use-page-restore";
 import { Button } from "@/components/custom/Button";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
 import { RelativeTime } from "@/components/custom/RelativeTime";
@@ -163,6 +164,10 @@ function ConnectionTestRow({
       () => undefined,
     );
   };
+  // A started test leaves the page, so the button stays pending until it has
+  // gone, and is let go if the browser brings the page back from its cache.
+  const leaving = start.isPending || start.isSuccess;
+  usePageRestore(() => start.reset());
 
   return (
     <ItemListRow
@@ -179,7 +184,7 @@ function ConnectionTestRow({
       stackActions
       actions={
         <Button
-          pending={start.isPending && runId === undefined}
+          pending={leaving && runId === undefined}
           onClick={begin}
           variant="outline"
         >
@@ -196,7 +201,7 @@ function ConnectionTestRow({
           onRunIdChange(undefined);
         }}
         onRestart={begin}
-        restarting={start.isPending}
+        restarting={leaving}
       />
     </ItemListRow>
   );

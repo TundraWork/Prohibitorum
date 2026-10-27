@@ -342,11 +342,12 @@ function RenameDialog({
   onSave: (nickname: string) => void;
 }) {
   return (
+    // A save in flight is not interrupted: the dialog stays until it settles.
     <Dialog
       open={credential !== null}
-      onOpenChange={(open) => !open && onClose()}
+      onOpenChange={(open) => !open && !pending && onClose()}
     >
-      <DialogPopup className="sm:max-w-md">
+      <DialogPopup className="sm:max-w-md" closeProps={{ disabled: pending }}>
         {credential && (
           <RenameForm
             key={credential.id}

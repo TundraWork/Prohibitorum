@@ -189,6 +189,7 @@ function IdentityList() {
                     id: "security.identities.unlink",
                     message: "Unlink",
                   })}
+                  disabled={unlink.isPending}
                   onClick={() => setTarget(identity)}
                   variant="destructive-outline"
                   size="icon-sm"
