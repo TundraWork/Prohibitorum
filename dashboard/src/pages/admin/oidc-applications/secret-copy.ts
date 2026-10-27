@@ -31,22 +31,9 @@ export const clientSecretCopy: SecretRevealCopy = {
     message: "Client secret",
   }),
   copy: msg({ id: "admin.oidc-apps.secret.copy", message: "Copy secret" }),
-  download: msg({
-    id: "admin.oidc-apps.secret.download",
-    message: "Download secret",
-  }),
   copyFailed: msg({
     id: "admin.oidc-apps.secret.copy_failed",
-    message:
-      "Could not copy the secret. Select it above and copy it manually, or download it.",
-  }),
-  downloadFailed: msg({
-    id: "admin.oidc-apps.secret.download_failed",
-    message: "Could not download the secret. Copy it or save it manually.",
-  }),
-  saved: msg({
-    id: "admin.oidc-apps.secret.saved",
-    message: "I have saved the client secret",
+    message: "Could not copy the secret. Select it above and copy it manually.",
   }),
   continueLabel: msg({
     id: "admin.oidc-apps.secret.continue",
@@ -54,7 +41,7 @@ export const clientSecretCopy: SecretRevealCopy = {
   }),
   leave: msg({
     id: "admin.oidc-apps.secret.leave",
-    message: "Leave without saving? This secret cannot be shown again.",
+    message: "This secret cannot be shown again after this is closed.",
   }),
 };
 

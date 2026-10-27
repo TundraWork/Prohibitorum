@@ -12,8 +12,8 @@ import {
 /**
  * Recovery codes the server has just issued. `firstIssue` is for the first
  * codes an account gets, whose wording has no earlier codes to replace;
- * `dialog` shows them in a dialog that cannot be dismissed before they are
- * saved. `progress` instead draws them as the last step of a dialog the caller
+ * `dialog` shows them in a dialog that asks before closing while they were
+ * never copied or downloaded. `progress` instead draws them as the last step of a dialog the caller
  * owns, with that step header above the title.
  */
 export function RecoveryCodes({
@@ -24,7 +24,6 @@ export function RecoveryCodes({
   firstIssue = false,
   progress,
   proceedRef,
-  onSavedChange,
 }: {
   codes: string[];
   onContinue: () => Promise<void>;
@@ -35,7 +34,6 @@ export function RecoveryCodes({
   progress?: ReactNode;
   /** For a `progress` step: see `SecretRevealStep`. */
   proceedRef?: RefObject<(() => void) | null>;
-  onSavedChange?: (saved: boolean) => void;
 }) {
   const props = {
     text: codes.join("\n"),
@@ -49,7 +47,6 @@ export function RecoveryCodes({
         {...props}
         progress={progress}
         proceedRef={proceedRef}
-        onSavedChange={onSavedChange}
       />
     );
   }

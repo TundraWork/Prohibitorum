@@ -16,6 +16,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import type { ReactElement } from "react";
@@ -536,10 +537,18 @@ it("keeps new recovery codes visible across session changes and blocks leaving w
   );
   await user.type(firstOtpSlot("New authenticator code"), "012345");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
-  const display = await screen.findByRole("textbox", {
-    name: "New recovery codes",
-  });
-  expect(display).toHaveValue(codes.join("\n"));
+  const display = (await screen.findByText("ABCD-EFGH-IJKL-MNOP")).closest(
+    "figure",
+  );
+  if (display === null) throw new Error("the codes sit in no well");
+  expect(display.querySelector("figcaption")).toHaveTextContent(
+    "New recovery codes",
+  );
+  expect(
+    within(display)
+      .getAllByRole("listitem")
+      .map((item) => item.textContent),
+  ).toEqual(codes);
   await act(async () => {
     const session: components["schemas"]["SessionView"] = {
       id: 1,
@@ -553,32 +562,49 @@ it("keeps new recovery codes visible across session changes and blocks leaving w
   });
   expect(router.state.location.pathname).toBe("/login/recovery");
   expect(display).toBeVisible();
-  expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
   const beforeUnload = new Event("beforeunload", { cancelable: true });
   window.dispatchEvent(beforeUnload);
   expect(beforeUnload.defaultPrevented).toBe(true);
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  // A navigation away is held in the reveal's own confirmation.
+  const native = vi.spyOn(window, "confirm");
   await act(async () => {
     void router.navigate({ to: "/" });
   });
-  expect(confirm).toHaveBeenCalledOnce();
-  expect(display).toBeVisible();
-  confirm.mockReturnValue(true);
-  await act(async () => {
-    await router.navigate({ to: "/" });
+  const leave = await screen.findByRole("alertdialog", {
+    name: "Close without copying?",
   });
+  expect(leave).toHaveTextContent(
+    "These recovery codes cannot be shown again after this is closed.",
+  );
+  await user.click(within(leave).getByRole("button", { name: "Cancel" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+  );
+  expect(router.state.location.pathname).toBe("/login/recovery");
+  expect(display).toBeVisible();
+  await act(async () => {
+    void router.navigate({ to: "/" });
+  });
+  await user.click(
+    within(
+      await screen.findByRole("alertdialog", {
+        name: "Close without copying?",
+      }),
+    ).getByRole("button", { name: "Close anyway" }),
+  );
+  expect(native).not.toHaveBeenCalled();
   expect(
     await screen.findByRole("heading", { name: "Destination" }),
   ).toBeVisible();
-  expect(
-    screen.queryByRole("textbox", { name: "New recovery codes" }),
-  ).not.toBeInTheDocument();
+  expect(display).not.toBeInTheDocument();
+  expect(screen.queryByText("ABCD-EFGH-IJKL-MNOP")).not.toBeInTheDocument();
   const afterLeaving = new Event("beforeunload", { cancelable: true });
   window.dispatchEvent(afterLeaving);
   expect(afterLeaving.defaultPrevented).toBe(false);
 });
 
-it("requires saved confirmation and does not report a rejected clipboard write as success", async () => {
+it("asks before continuing with uncopied codes and does not report a rejected clipboard write as success", async () => {
   const onContinue = vi.fn().mockResolvedValue(undefined);
   const user = userEvent.setup();
   vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(
@@ -588,22 +614,36 @@ it("requires saved confirmation and does not report a rejected clipboard write a
     <RecoveryCodes codes={["ABCD-EFGH-IJKL-MNOP"]} onContinue={onContinue} />
   ));
   await user.click(await screen.findByRole("button", { name: "Copy codes" }));
-  expect(await screen.findByRole("alert")).toBeVisible();
-  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Could not copy the codes. Select the codes above and copy them manually, or download them.",
+  );
+  expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  expect(
+    screen.queryByRole("button", { name: "Copied" }),
+  ).not.toBeInTheDocument();
   const next = screen.getByRole("button", { name: "Continue" });
+  // A refused copy does not count as taken: Continue still asks first.
   await user.click(next);
+  const confirm = await screen.findByRole("alertdialog", {
+    name: "Close without copying?",
+  });
+  await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+  await waitFor(() =>
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+  );
   expect(onContinue).not.toHaveBeenCalled();
   const beforeSaving = new Event("beforeunload", { cancelable: true });
   window.dispatchEvent(beforeSaving);
   expect(beforeSaving.defaultPrevented).toBe(true);
-  await user.click(
-    screen.getByRole("checkbox", { name: "I have saved my recovery codes" }),
-  );
+  // Copying by hand, as the warning suggests, counts.
+  fireEvent.copy(screen.getByText("ABCD-EFGH-IJKL-MNOP"));
+  expect(await screen.findByRole("status")).toHaveTextContent("Copied");
   const afterSaving = new Event("beforeunload", { cancelable: true });
   window.dispatchEvent(afterSaving);
   expect(afterSaving.defaultPrevented).toBe(false);
   await user.click(next);
   expect(onContinue).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
 });
 
 describe("the application the sign-in link targets", () => {

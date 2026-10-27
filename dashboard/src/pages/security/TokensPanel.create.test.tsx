@@ -181,9 +181,14 @@ describe("creating an access token", () => {
     });
     expect(creates()).toHaveLength(1);
     expect(await creates()[0]?.json()).toEqual({ name: "CI", access: "sudo" });
-    expect(within(reveal).getByLabelText("New access token")).toHaveValue(
-      plaintext,
+    const well = within(reveal).getByRole("figure");
+    expect(well.querySelector("figcaption")).toHaveTextContent(
+      /^New access token$/,
     );
+    expect(well.querySelector("p")?.textContent).toBe(plaintext);
+    expect(
+      within(reveal).queryByRole("button", { name: /download/i }),
+    ).not.toBeInTheDocument();
     expect(
       within(reveal).getByText(
         "Send the token in the X-Prohibitorum-PAT request header.",

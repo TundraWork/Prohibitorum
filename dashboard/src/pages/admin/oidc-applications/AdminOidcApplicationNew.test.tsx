@@ -26,6 +26,7 @@ beforeEach(() => {
 afterEach(() => {
   queryClient.clear();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const base = "/api/prohibitorum";
@@ -262,11 +263,14 @@ describe("creating", () => {
       accessRestricted: false,
     });
 
+    const write = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined);
     await user.click(
-      within(dialog).getByRole("checkbox", {
-        name: "I have saved the client secret",
-      }),
+      within(dialog).getByRole("button", { name: "Copy secret" }),
     );
+    expect(write).toHaveBeenCalledWith("s3cret-value");
+    await within(dialog).findByRole("button", { name: "Copied" });
     await user.click(
       within(dialog).getByRole("button", { name: "Go to the application" }),
     );

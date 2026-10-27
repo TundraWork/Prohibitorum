@@ -46,3 +46,11 @@ HTMLElement.prototype.getAnimations = () => [];
 configure({ asyncUtilTimeout: 5000 });
 
 afterEach(cleanup);
+
+// jsdom loads no Tailwind, so `invisible` would hide nothing: a control that
+// stacks its labels and hides the inactive one would be named by both, and an
+// element hidden this way would pass `toBeVisible`. The one utility that
+// changes what is named and seen is given its real rule.
+const utilities = document.createElement("style");
+utilities.textContent = ".invisible { visibility: hidden; }";
+document.head.append(utilities);

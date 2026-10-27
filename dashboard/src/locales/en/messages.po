@@ -2236,9 +2236,19 @@ msgid "sudo.close"
 msgstr "Close"
 
 #. js-lingui-explicit-id
+#: src/components/custom/SecretReveal.tsx
+msgid "secret.leave.confirm"
+msgstr "Close anyway"
+
+#. js-lingui-explicit-id
 #: src/components/custom/NotificationToasts.tsx
 msgid "notification.close"
 msgstr "Close notification"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SecretReveal.tsx
+msgid "secret.leave.title"
+msgstr "Close without copying?"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -2485,6 +2495,7 @@ msgstr "Copied"
 #. js-lingui-explicit-id
 #: src/components/custom/CopyableValue.tsx
 #: src/components/custom/CopyValue.tsx
+#: src/components/custom/SecretReveal.tsx
 msgid "copy-value.copied"
 msgstr "Copied"
 
@@ -2496,11 +2507,6 @@ msgstr "Copied"
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.copy.done"
-msgstr "Copied."
-
-#. js-lingui-explicit-id
-#: src/components/custom/SecretReveal.tsx
-msgid "secret.copied"
 msgstr "Copied."
 
 #. js-lingui-explicit-id
@@ -2657,7 +2663,7 @@ msgstr "Could not copy the codes. Select the codes above and copy them manually,
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.copy_failed"
-msgstr "Could not copy the link. Select it above and copy it manually, or download it."
+msgstr "Could not copy the link. Select it above and copy it manually."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitations.tsx
@@ -2667,12 +2673,12 @@ msgstr "Could not copy the link. Your browser blocked the clipboard."
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.copy_failed"
-msgstr "Could not copy the secret. Select it above and copy it manually, or download it."
+msgstr "Could not copy the secret. Select it above and copy it manually."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.copy_failed"
-msgstr "Could not copy the token. Select the token above and copy it manually, or download it."
+msgstr "Could not copy the token. Select the token above and copy it manually."
 
 #. js-lingui-explicit-id
 #: src/components/custom/CopyableValue.tsx
@@ -2688,21 +2694,6 @@ msgstr "Could not copy. Your browser blocked the clipboard."
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.download_failed"
 msgstr "Could not download the codes. Copy them or save them manually."
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "admin.invitations.reveal.download_failed"
-msgstr "Could not download the link. Copy it or save it manually."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/secret-copy.ts
-msgid "admin.oidc-apps.secret.download_failed"
-msgstr "Could not download the secret. Copy it or save it manually."
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "security.tokens.reveal.download_failed"
-msgstr "Could not download the token. Copy it or save it manually."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx
@@ -3489,21 +3480,6 @@ msgstr "Done"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.download"
 msgstr "Download codes"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "admin.invitations.reveal.download"
-msgstr "Download link"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/secret-copy.ts
-msgid "admin.oidc-apps.secret.download"
-msgstr "Download secret"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "security.tokens.reveal.download"
-msgstr "Download token"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -4464,26 +4440,6 @@ msgid "principal-source.username.hint"
 msgstr "Human-readable. An administrator can change it."
 
 #. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "security.tokens.reveal.saved"
-msgstr "I have saved my access token"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "login.codes.saved"
-msgstr "I have saved my recovery codes"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/secret-copy.ts
-msgid "admin.oidc-apps.secret.saved"
-msgstr "I have saved the client secret"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "admin.invitations.reveal.saved"
-msgstr "I have saved the registration link"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.icon.title"
 msgstr "Icon"
@@ -4972,26 +4928,6 @@ msgstr "Leave empty to use the name from the deployment configuration."
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.userinfo.hint"
 msgstr "Leave it empty to skip the UserInfo request."
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "login.codes.leave"
-msgstr "Leave without saving? These recovery codes can't be shown again."
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "admin.invitations.reveal.leave"
-msgstr "Leave without saving? This link cannot be shown again."
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/secret-copy.ts
-msgid "admin.oidc-apps.secret.leave"
-msgstr "Leave without saving? This secret cannot be shown again."
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "security.tokens.reveal.leave"
-msgstr "Leave without saving? This token cannot be shown again."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
@@ -9963,6 +9899,11 @@ msgid "login.codes.once"
 msgstr "These codes are shown only once. Save them somewhere safe before you continue. Your old recovery codes no longer work."
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "login.codes.leave"
+msgstr "These recovery codes cannot be shown again after this is closed."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.federation_identity_conflict"
 msgstr "This {provider} identity is already linked to another account."
@@ -10258,6 +10199,11 @@ msgid "error.signing-key.credential_not_found"
 msgstr "This key is no longer pending."
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.leave"
+msgstr "This link cannot be shown again after this is closed."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.enrollment_consumed"
 msgstr "This link has already been used or has expired. Ask your administrator for a new one."
@@ -10404,6 +10350,11 @@ msgstr "This rule was written for a different server version."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.leave"
+msgstr "This secret cannot be shown again after this is closed."
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.once"
 msgstr "This secret is shown only once and cannot be viewed again. Add it to the client's configuration now. A client without it cannot sign users in."
 
@@ -10446,6 +10397,11 @@ msgstr "This step has timed out. You can add a sign-in method later from Securit
 #: src/api/errors.ts
 msgid "error.federation_state_invalid"
 msgstr "This test is no longer valid. Start a new one."
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.leave"
+msgstr "This token cannot be shown again after this is closed."
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
