@@ -28,6 +28,7 @@ beforeEach(() => {
 afterEach(() => {
   queryClient.clear();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const base = "/api/prohibitorum";
@@ -276,20 +277,39 @@ describe("the new link", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Copy the registration link",
     });
-    expect(
-      within(dialog).getByDisplayValue("https://test/enroll/tok"),
-    ).toBeVisible();
+    const well = within(dialog).getByRole("figure");
+    expect(well.querySelector("figcaption")).toHaveTextContent(
+      /^Registration link$/,
+    );
+    expect(well.querySelector(":scope > p")?.textContent).toBe(
+      "https://test/enroll/tok",
+    );
     expect(
       within(dialog).getByText(/The link expires on .*2026/),
     ).toBeVisible();
     const done = within(dialog).getByRole("button", { name: "Done" });
-    expect(done).toBeDisabled();
 
-    await user.click(
-      within(dialog).getByRole("checkbox", {
-        name: "I have saved the registration link",
-      }),
+    // Done before the link was copied asks first; Cancel stays on it.
+    await user.click(done);
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Close without copying?",
+    });
+    expect(confirm).toHaveTextContent(
+      "This link cannot be shown again after this is closed.",
     );
+    await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(router.state.location.pathname).not.toBe("/admin/invitations");
+    expect(dialog).toBeVisible();
+
+    const write = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined);
+    await user.click(within(dialog).getByRole("button", { name: "Copy link" }));
+    expect(write).toHaveBeenCalledWith("https://test/enroll/tok");
+    await within(dialog).findByRole("button", { name: "Copied" });
     await user.click(done);
 
     await waitFor(() =>

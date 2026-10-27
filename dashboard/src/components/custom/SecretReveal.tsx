@@ -1,26 +1,31 @@
-import { Trans, useLingui } from "@lingui/react/macro";
+import { msg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
 import { useBlocker } from "@tanstack/react-router";
+import { CheckIcon, CopyIcon, DownloadIcon } from "lucide-react";
 import {
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
 import { Button } from "@/components/custom/Button";
-import { ReadOnlyText } from "@/components/custom/ReadOnlyText";
+import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
+import { breakAtSlashes, CopyStatus } from "@/components/custom/CopyableValue";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import type { SecretRevealCopy } from "@/components/custom/secret-reveal-copy";
-import { Checkbox } from "@/components/ui/checkbox";
+import { useCopyValue } from "@/components/custom/use-copy-value";
 import {
   Dialog,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogPanel,
   DialogPopup,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 interface RevealProps {
   text: string;
@@ -30,26 +35,28 @@ interface RevealProps {
 }
 
 /**
- * The state both forms share: whether the secret is confirmed saved, the
- * continue request, and the guard against leaving the page before it is.
+ * The state every form shares: whether the secret has been taken (copied,
+ * copied by hand or downloaded), the continue request, the confirmation shown
+ * when leaving before it was, and the guard against navigating away.
  */
-function useReveal({
-  copy,
-  onContinue,
-}: Pick<RevealProps, "copy" | "onContinue">) {
-  const { t } = useLingui();
-  const [saved, setSaved] = useState(false);
+function useReveal({ onContinue }: Pick<RevealProps, "onContinue">) {
+  const [taken, setTaken] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const continuing = useRef(false);
-  useBlocker({
-    shouldBlockFn: () =>
-      !saved && !continuing.current && !window.confirm(t(copy.leave)),
-    enableBeforeUnload: () => !saved && !continuing.current,
+  // A navigation away asks through the same confirmation; only closing the
+  // tab is left to the browser's own prompt, which cannot be styled.
+  const blocker = useBlocker({
+    shouldBlockFn: () => !taken && !continuing.current,
+    enableBeforeUnload: () => !taken && !continuing.current,
+    withResolver: true,
   });
+  const navigating = blocker.status === "blocked";
 
-  function proceed() {
-    if (!saved || continuing.current) return;
+  function leave() {
+    if (continuing.current) return;
     continuing.current = true;
+    setConfirming(false);
     setPending(true);
     void onContinue().catch(() => {
       continuing.current = false;
@@ -57,10 +64,38 @@ function useReveal({
     });
   }
 
-  return { saved, setSaved, pending, proceed };
+  /** Continue, or ask first when the secret was never copied or downloaded. */
+  function proceed() {
+    if (taken) leave();
+    else setConfirming(true);
+  }
+
+  const take = useCallback(() => setTaken(true), []);
+  return {
+    take,
+    pending,
+    proceed,
+    /** Whether the leave confirmation is showing, for Continue or a navigation. */
+    confirming: confirming || navigating,
+    /** Closing the confirmation stays, and cancels a held navigation. */
+    stay: () => {
+      setConfirming(false);
+      if (navigating) blocker.reset();
+    },
+    /** Confirming it leaves the way it was asked: by Continue or by the navigation. */
+    confirmLeave: () => {
+      if (navigating) blocker.proceed();
+      else leave();
+    },
+  };
 }
 
 type Reveal = ReturnType<typeof useReveal>;
+
+const leaveTitleMessage = msg({
+  id: "secret.leave.title",
+  message: "Close without copying?",
+});
 
 function RevealBody({
   text,
@@ -70,20 +105,14 @@ function RevealBody({
   title,
 }: Omit<RevealProps, "onContinue"> & { reveal: Reveal; title?: ReactNode }) {
   const { t } = useLingui();
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
-    "idle",
-  );
+  const { state, copy: copyValue, confirm } = useCopyValue();
+  const { take } = reveal;
+  useEffect(() => {
+    if (state === "copied") take();
+  }, [state, take]);
   const [downloadFailed, setDownloadFailed] = useState(false);
-
-  async function copyText() {
-    setCopyState("idle");
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopyState("copied");
-    } catch {
-      setCopyState("failed");
-    }
-  }
+  const lines = text.split("\n");
+  const list = lines.length > 1;
 
   function download() {
     setDownloadFailed(false);
@@ -98,6 +127,7 @@ function RevealBody({
       document.body.append(link);
       link.click();
       link.remove();
+      take();
     } catch {
       setDownloadFailed(true);
     } finally {
@@ -108,69 +138,111 @@ function RevealBody({
     }
   }
 
+  const copied = state === "copied";
   return (
     <>
       {title}
-      <SurfaceAlert status="warning">
-        <SurfaceAlert.Indicator />
-        <SurfaceAlert.Content>
-          <SurfaceAlert.Title>{t(copy.once)}</SurfaceAlert.Title>
-        </SurfaceAlert.Content>
-      </SurfaceAlert>
-      <ReadOnlyText
-        label={t(copy.label)}
-        description={copy.usage !== undefined ? t(copy.usage) : undefined}
-        value={text}
-        maxRows={Number.POSITIVE_INFINITY}
-      />
-      <div className="flex flex-wrap gap-2">
-        <Button
-          onClick={() => {
-            void copyText();
-          }}
-          disabled={reveal.pending}
-          variant="outline"
-          size="lg"
-        >
-          {t(copy.copy)}
-        </Button>
-        <Button
-          onClick={download}
-          disabled={reveal.pending}
-          variant="outline"
-          size="lg"
-        >
-          {t(copy.download)}
-        </Button>
-      </div>
-      {copyState === "copied" && (
-        <p role="status">
-          <Trans id="secret.copied">Copied.</Trans>
-        </p>
+      <figure
+        data-slot="secret-well"
+        className="flex flex-col gap-3 rounded-xl bg-muted/60 p-4 ring-1 ring-border/60"
+      >
+        <figcaption className="font-medium text-sm">{t(copy.label)}</figcaption>
+        {list ? (
+          <ul
+            onCopy={confirm}
+            className="grid gap-x-6 gap-y-1.5 font-mono text-[13px] leading-5 whitespace-nowrap select-all sm:grid-cols-2"
+          >
+            {lines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        ) : (
+          <p
+            onCopy={confirm}
+            className="font-mono text-[13px] leading-5 wrap-anywhere select-all"
+          >
+            {breakAtSlashes(text, { atomic: true })}
+          </p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => copyValue(text)}
+            disabled={reveal.pending}
+            variant="outline"
+            size="sm"
+          >
+            {/* Both labels share one cell, so the button keeps the wider
+                one's width and nothing beside it moves when it changes. */}
+            <span className="grid justify-items-center">
+              <span
+                className={cn(
+                  "col-start-1 row-start-1 inline-flex items-center gap-1.5",
+                  copied && "invisible",
+                )}
+              >
+                <CopyIcon aria-hidden="true" />
+                {t(copy.copy)}
+              </span>
+              <span
+                className={cn(
+                  "col-start-1 row-start-1 inline-flex items-center gap-1.5",
+                  !copied && "invisible",
+                )}
+              >
+                <CheckIcon aria-hidden="true" className="text-success" />
+                {t({ id: "copy-value.copied", message: "Copied" })}
+              </span>
+            </span>
+          </Button>
+          {copy.download !== undefined && (
+            <Button
+              onClick={download}
+              disabled={reveal.pending}
+              variant="ghost"
+              size="sm"
+            >
+              <DownloadIcon aria-hidden="true" />
+              {t(copy.download)}
+            </Button>
+          )}
+        </div>
+      </figure>
+      {copy.usage !== undefined && (
+        <p className="text-muted-foreground text-sm">{t(copy.usage)}</p>
       )}
-      {copyState === "failed" && (
-        <SurfaceAlert status="warning" role="alert">
-          <SurfaceAlert.Content>
-            <SurfaceAlert.Title>{t(copy.copyFailed)}</SurfaceAlert.Title>
-          </SurfaceAlert.Content>
-        </SurfaceAlert>
-      )}
-      {downloadFailed && (
+      <CopyStatus state={state} failedMessage={t(copy.copyFailed)} />
+      {downloadFailed && copy.downloadFailed !== undefined && (
         <SurfaceAlert status="warning" role="alert">
           <SurfaceAlert.Content>
             <SurfaceAlert.Title>{t(copy.downloadFailed)}</SurfaceAlert.Title>
           </SurfaceAlert.Content>
         </SurfaceAlert>
       )}
-      <Label className="w-fit">
-        <Checkbox
-          checked={reveal.saved}
-          onCheckedChange={reveal.setSaved}
-          disabled={reveal.pending}
-        />
-        {t(copy.saved)}
-      </Label>
     </>
+  );
+}
+
+/** Asked when leaving before the secret was copied or downloaded. */
+function LeaveConfirm({
+  copy,
+  reveal,
+}: {
+  copy: SecretRevealCopy;
+  reveal: Reveal;
+}) {
+  const { t } = useLingui();
+  return (
+    <ConfirmDialog
+      isOpen={reveal.confirming}
+      onOpenChange={(open) => {
+        if (!open) reveal.stay();
+      }}
+      status="warning"
+      title={t(leaveTitleMessage)}
+      body={t(copy.leave)}
+      confirmLabel={t({ id: "secret.leave.confirm", message: "Close anyway" })}
+      onConfirm={reveal.confirmLeave}
+    />
   );
 }
 
@@ -183,21 +255,19 @@ function ContinueButton({
 }) {
   const { t } = useLingui();
   return (
-    <Button
-      disabled={!reveal.saved}
-      pending={reveal.pending}
-      onClick={reveal.proceed}
-    >
+    <Button pending={reveal.pending} onClick={reveal.proceed}>
       {t(copy.continueLabel)}
     </Button>
   );
 }
 
 /**
- * One-time disclosure of a secret the server will never return again: recovery
- * codes and personal access token plaintext. The caller supplies the wording
- * and the filename; the leaving guard, copy and download behaviour is shared so
- * both secrets warn about the same irreversible loss.
+ * One-time disclosure of a secret the server will never return again: a client
+ * secret, a registration link, an access token or recovery codes. The value
+ * sits in a well with its copy control (and, for recovery codes, download);
+ * the reader leaves through Continue, which asks first while the value was
+ * never copied or downloaded. The caller supplies the wording and the
+ * filename; the rest is shared so every secret warns about the same loss.
  *
  * `titled={false}` is for a caller that draws the title as its own heading,
  * such as a step on the public card whose title is the page's `h1`.
@@ -210,7 +280,7 @@ export function SecretReveal({
   titled = true,
 }: RevealProps & { titled?: boolean }) {
   const { t } = useLingui();
-  const reveal = useReveal({ copy, onContinue });
+  const reveal = useReveal({ onContinue });
   return (
     <div className="flex flex-col gap-4">
       <RevealBody
@@ -219,12 +289,16 @@ export function SecretReveal({
         copy={copy}
         reveal={reveal}
         title={
-          titled ? (
-            <h2 className="text-xl font-semibold">{t(copy.title)}</h2>
-          ) : undefined
+          <>
+            {titled && (
+              <h2 className="text-xl font-semibold">{t(copy.title)}</h2>
+            )}
+            <p className="text-muted-foreground text-sm">{t(copy.once)}</p>
+          </>
         }
       />
       <ContinueButton copy={copy} reveal={reveal} />
+      <LeaveConfirm copy={copy} reveal={reveal} />
     </div>
   );
 }
@@ -232,8 +306,8 @@ export function SecretReveal({
 /**
  * The reveal as the last step of a dialog the caller owns: a header carrying
  * the caller's `progress` above the title, the secret in the panel, and
- * Continue in the footer. The caller keeps the dialog open and unclosable
- * while it shows this, since the server will never show the secret again.
+ * Continue in the footer. The caller routes its own Escape and close button
+ * through `proceedRef`, so they ask before leaving exactly as Continue does.
  */
 export function SecretRevealStep({
   text,
@@ -242,34 +316,27 @@ export function SecretRevealStep({
   onContinue,
   progress,
   proceedRef,
-  onSavedChange,
 }: RevealProps & {
   progress?: ReactNode;
-  /** Told whether the secret is confirmed saved, for a caller that shows its own close control. */
-  onSavedChange?: (saved: boolean) => void;
   /**
-   * Receives the same "leave" the Continue button performs, which does nothing
-   * until the secret is confirmed saved, so the caller's Escape and close
-   * button can follow it as `SecretRevealDialog`'s do.
+   * Receives what the Continue button does, asking first while the secret was
+   * never copied or downloaded, so the caller's Escape and close button can
+   * follow it as `SecretRevealDialog`'s do.
    */
   proceedRef?: RefObject<(() => void) | null>;
 }) {
   const { t } = useLingui();
-  const reveal = useReveal({ copy, onContinue });
+  const reveal = useReveal({ onContinue });
   const { proceed } = reveal;
   useEffect(() => {
     if (proceedRef) proceedRef.current = proceed;
   });
-  const { saved } = reveal;
-  useEffect(() => {
-    onSavedChange?.(saved);
-    return () => onSavedChange?.(false);
-  }, [saved, onSavedChange]);
   return (
     <>
       <DialogHeader>
         {progress}
         <DialogTitle>{t(copy.title)}</DialogTitle>
+        <DialogDescription>{t(copy.once)}</DialogDescription>
       </DialogHeader>
       <DialogPanel className="flex flex-col gap-4">
         <RevealBody
@@ -282,17 +349,16 @@ export function SecretRevealStep({
       <DialogFooter>
         <ContinueButton copy={copy} reveal={reveal} />
       </DialogFooter>
+      <LeaveConfirm copy={copy} reveal={reveal} />
     </>
   );
 }
 
 /**
  * The same reveal in a dialog that is open exactly while the caller holds the
- * secret, so it cannot outlive it. Escape does
- * nothing until the secret is confirmed saved, because the server will never
- * show it again, and the close button is not shown until then; after that,
- * closing is the same as continuing. Pointer
- * dismissal (a press outside) is disabled throughout.
+ * secret, so it cannot outlive it. Escape and the close button do what
+ * Continue does, asking first while the secret was never copied or
+ * downloaded. A press outside never dismisses it.
  */
 export function SecretRevealDialog({
   text,
@@ -301,7 +367,7 @@ export function SecretRevealDialog({
   onContinue,
 }: RevealProps) {
   const { t } = useLingui();
-  const reveal = useReveal({ copy, onContinue });
+  const reveal = useReveal({ onContinue });
   return (
     <Dialog
       open
@@ -310,13 +376,10 @@ export function SecretRevealDialog({
         if (!open) reveal.proceed();
       }}
     >
-      <DialogPopup
-        className="sm:max-w-lg"
-        // The close button would do nothing until the secret is saved.
-        showCloseButton={reveal.saved}
-      >
+      <DialogPopup className="sm:max-w-lg" showCloseButton>
         <DialogHeader>
           <DialogTitle>{t(copy.title)}</DialogTitle>
+          <DialogDescription>{t(copy.once)}</DialogDescription>
         </DialogHeader>
         <DialogPanel className="flex flex-col gap-4">
           <RevealBody
@@ -330,6 +393,7 @@ export function SecretRevealDialog({
           <ContinueButton copy={copy} reveal={reveal} />
         </DialogFooter>
       </DialogPopup>
+      <LeaveConfirm copy={copy} reveal={reveal} />
     </Dialog>
   );
 }

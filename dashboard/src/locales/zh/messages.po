@@ -2236,9 +2236,19 @@ msgid "sudo.close"
 msgstr "关闭"
 
 #. js-lingui-explicit-id
+#: src/components/custom/SecretReveal.tsx
+msgid "secret.leave.confirm"
+msgstr "仍然关闭"
+
+#. js-lingui-explicit-id
 #: src/components/custom/NotificationToasts.tsx
 msgid "notification.close"
 msgstr "关闭通知"
+
+#. js-lingui-explicit-id
+#: src/components/custom/SecretReveal.tsx
+msgid "secret.leave.title"
+msgstr "是否不复制就关闭？"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderOperatorSection.tsx
@@ -2485,6 +2495,7 @@ msgstr "已复制"
 #. js-lingui-explicit-id
 #: src/components/custom/CopyableValue.tsx
 #: src/components/custom/CopyValue.tsx
+#: src/components/custom/SecretReveal.tsx
 msgid "copy-value.copied"
 msgstr "已复制"
 
@@ -2496,11 +2507,6 @@ msgstr "已复制"
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitations.tsx
 msgid "admin.invitations.copy.done"
-msgstr "已复制"
-
-#. js-lingui-explicit-id
-#: src/components/custom/SecretReveal.tsx
-msgid "secret.copied"
 msgstr "已复制"
 
 #. js-lingui-explicit-id
@@ -2657,7 +2663,7 @@ msgstr "无法复制恢复码。请选中上方的恢复码手动复制，或下
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "admin.invitations.reveal.copy_failed"
-msgstr "无法复制链接。请在上方选中后手动复制，或下载它。"
+msgstr "无法复制链接。请在上方选中后手动复制。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/invitations/AdminInvitations.tsx
@@ -2667,12 +2673,12 @@ msgstr "无法复制链接，浏览器阻止了剪贴板。"
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.copy_failed"
-msgstr "无法复制密钥。请在上方选中后手动复制，或下载密钥。"
+msgstr "无法复制密钥。请在上方选中后手动复制。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts
 msgid "security.tokens.reveal.copy_failed"
-msgstr "无法复制令牌。请选中上方的令牌手动复制，或下载保存。"
+msgstr "无法复制令牌。请选中上方的令牌手动复制。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/CopyableValue.tsx
@@ -2688,21 +2694,6 @@ msgstr "无法复制，浏览器阻止了剪贴板访问。"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.download_failed"
 msgstr "无法下载恢复码。请复制或手动保存。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "admin.invitations.reveal.download_failed"
-msgstr "无法下载链接。请手动复制或保存它。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/secret-copy.ts
-msgid "admin.oidc-apps.secret.download_failed"
-msgstr "无法下载密钥。请手动复制或保存。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "security.tokens.reveal.download_failed"
-msgstr "无法下载令牌。请复制或手动保存。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/OidcScopesField.tsx
@@ -3489,21 +3480,6 @@ msgstr "完成"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.download"
 msgstr "下载恢复码"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "admin.invitations.reveal.download"
-msgstr "下载链接"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/secret-copy.ts
-msgid "admin.oidc-apps.secret.download"
-msgstr "下载密钥"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "security.tokens.reveal.download"
-msgstr "下载令牌"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -4464,26 +4440,6 @@ msgid "principal-source.username.hint"
 msgstr "易于识别，管理员可修改。"
 
 #. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "security.tokens.reveal.saved"
-msgstr "我已保存此个人访问令牌"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "login.codes.saved"
-msgstr "我已保存恢复码"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/secret-copy.ts
-msgid "admin.oidc-apps.secret.saved"
-msgstr "我已保存客户端密钥"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "admin.invitations.reveal.saved"
-msgstr "我已保存该注册链接"
-
-#. js-lingui-explicit-id
 #: src/pages/admin/settings/GeneralPanel.tsx
 msgid "settings.general.icon.title"
 msgstr "图标"
@@ -4972,26 +4928,6 @@ msgstr "留空则使用部署配置中的名称。"
 #: src/pages/admin/identity-providers/EndpointsField.tsx
 msgid "admin.federation.connection.userinfo.hint"
 msgstr "留空则不发送 UserInfo 请求。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "login.codes.leave"
-msgstr "是否不保存就离开？这些恢复码将无法再次查看。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "admin.invitations.reveal.leave"
-msgstr "是否不保存就离开？该链接无法再次显示。"
-
-#. js-lingui-explicit-id
-#: src/pages/admin/oidc-applications/secret-copy.ts
-msgid "admin.oidc-apps.secret.leave"
-msgstr "是否不保存就离开？此密钥无法再次显示。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/secret-reveal-copy.ts
-msgid "security.tokens.reveal.leave"
-msgstr "是否不保存就离开？此令牌无法再次显示。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/settings/sign-in-page/SurfaceControls.tsx
@@ -9963,6 +9899,11 @@ msgid "login.codes.once"
 msgstr "恢复码仅显示一次，请妥善保存后再继续。旧恢复码已失效。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "login.codes.leave"
+msgstr "这些恢复码关闭后无法再次显示。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.federation.federation_identity_conflict"
 msgstr "该 {provider} 身份已绑定到另一个账号。"
@@ -10258,6 +10199,11 @@ msgid "error.signing-key.credential_not_found"
 msgstr "该密钥已不处于待启用状态。"
 
 #. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "admin.invitations.reveal.leave"
+msgstr "该链接关闭后无法再次显示。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.enrollment_consumed"
 msgstr "该链接已使用或已过期。请向管理员索取新链接。"
@@ -10404,6 +10350,11 @@ msgstr "该规则适用于其他版本的服务器。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/secret-copy.ts
+msgid "admin.oidc-apps.secret.leave"
+msgstr "此密钥关闭后无法再次显示。"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/secret-copy.ts
 msgid "admin.oidc-apps.secret.once"
 msgstr "此密钥仅显示一次，之后无法再次查看。请立即将其填入客户端配置，丢失密钥的客户端将无法登录。"
 
@@ -10446,6 +10397,11 @@ msgstr "该步骤已超时。你可以稍后在“安全”中添加登录方式
 #: src/api/errors.ts
 msgid "error.federation_state_invalid"
 msgstr "本次测试已失效，请重新开始。"
+
+#. js-lingui-explicit-id
+#: src/components/custom/secret-reveal-copy.ts
+msgid "security.tokens.reveal.leave"
+msgstr "此令牌关闭后无法再次显示。"
 
 #. js-lingui-explicit-id
 #: src/components/custom/secret-reveal-copy.ts

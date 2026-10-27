@@ -163,7 +163,7 @@ describe("the registration link", () => {
     expect(screen.getByText(/any earlier link stops working/)).toBeVisible();
   });
 
-  it("reveals the link once, in a dialog that stays until it is saved", async () => {
+  it("reveals the link once, in a dialog that asks before closing until it is copied", async () => {
     const user = userEvent.setup();
     const account = accountFixture();
     const api = serve(account, {
@@ -181,7 +181,11 @@ describe("the registration link", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Copy the registration link",
     });
-    expect(within(dialog).getByRole("textbox")).toHaveValue(
+    const well = within(dialog).getByRole("figure");
+    expect(well.querySelector("figcaption")).toHaveTextContent(
+      /^Registration link$/,
+    );
+    expect(well.querySelector(":scope > p")?.textContent).toBe(
       "https://id.example.test/enroll/abc",
     );
     expect(
@@ -189,16 +193,29 @@ describe("the registration link", () => {
     ).toEqual({
       id: 2,
     });
+    // Escape on a link never copied asks first; Cancel keeps the dialog.
     await user.keyboard("{Escape}");
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Close without copying?",
+    });
+    expect(confirm).toHaveTextContent(
+      "This link cannot be shown again after this is closed.",
+    );
+    await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
     expect(screen.getByRole("dialog")).toBeVisible();
     expect(within(dialog).getByText(/^The link expires on/)).toBeVisible();
 
-    await user.click(
-      within(dialog).getByRole("checkbox", {
-        name: "I have saved the registration link",
-      }),
-    );
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
+    await user.click(
+      within(
+        await screen.findByRole("alertdialog", {
+          name: "Close without copying?",
+        }),
+      ).getByRole("button", { name: "Close anyway" }),
+    );
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     // The expiry belongs to the reveal, not to a caption left on the page.
     expect(screen.queryByText(/^The link expires on/)).toBeNull();

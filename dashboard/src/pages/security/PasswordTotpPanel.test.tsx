@@ -73,7 +73,24 @@ afterEach(() => {
   resetSudo();
   queryClient.clear();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
+
+/**
+ * The codes in the reveal's well, which is captioned "New recovery codes":
+ * one list item per code, or a single paragraph for a single code.
+ */
+function revealedCodes(scope: HTMLElement) {
+  const well = within(scope).getByRole("figure");
+  expect(well.querySelector("figcaption")).toHaveTextContent(
+    /^New recovery codes$/,
+  );
+  const list = within(well).queryByRole("list");
+  if (list === null) return [well.querySelector("p")?.textContent];
+  return within(list)
+    .getAllByRole("listitem")
+    .map((item) => item.textContent);
+}
 
 function mount(
   factors: {
@@ -610,9 +627,7 @@ describe("setting up both", () => {
     expect(requests("/me/totp/verify")).toHaveLength(0);
 
     // The first codes: nothing old is said to be replaced.
-    expect(
-      within(reveal).getByRole("textbox", { name: "New recovery codes" }),
-    ).toHaveValue(codes.join("\n"));
+    expect(revealedCodes(reveal)).toEqual(codes);
     expect(within(reveal).queryByText(/old recovery codes/)).toBeNull();
 
     // The reveal is the dialog's last step, not a second dialog.
@@ -623,20 +638,36 @@ describe("setting up both", () => {
         .find((item) => item.getAttribute("aria-current") === "step"),
     ).toHaveTextContent("Recovery codes");
 
-    // Escape does not close it; only saving and continuing does.
-    await user.keyboard("{Escape}");
-    expect(
-      screen.getByRole("dialog", { name: "Save your recovery codes" }),
-    ).toBeInTheDocument();
-    expect(
-      within(reveal).getByRole("button", { name: "Continue" }),
-    ).toBeDisabled();
+    // Escape and the close button ask first while the codes were never
+    // copied; Cancel keeps the codes on screen.
+    for (const leave of [
+      () => user.keyboard("{Escape}"),
+      () => user.click(within(reveal).getByRole("button", { name: "Close" })),
+    ]) {
+      await leave();
+      const confirm = await screen.findByRole("alertdialog", {
+        name: "Close without copying?",
+      });
+      expect(confirm).toHaveTextContent(
+        "These recovery codes cannot be shown again after this is closed.",
+      );
+      await user.click(within(confirm).getByRole("button", { name: "Cancel" }));
+      await waitFor(() =>
+        expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+      );
+      expect(
+        screen.getByRole("dialog", { name: "Save your recovery codes" }),
+      ).toBeInTheDocument();
+    }
+    const write = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined);
     await user.click(
-      within(reveal).getByRole("checkbox", {
-        name: "I have saved my recovery codes",
-      }),
+      within(reveal).getByRole("button", { name: "Copy codes" }),
     );
-    // Once saved, Escape leaves the way Continue does.
+    expect(write).toHaveBeenCalledWith(codes.join("\n"));
+    await within(reveal).findByRole("button", { name: "Copied" });
+    // Once copied, Escape leaves the way Continue does.
     await user.keyboard("{Escape}");
 
     await waitFor(() =>
@@ -813,9 +844,7 @@ describe("changing one factor", () => {
       name: "Save your new recovery codes",
     });
     expect(requests("/me/recovery-codes/regenerate")).toHaveLength(1);
-    expect(
-      within(dialog).getByRole("textbox", { name: "New recovery codes" }),
-    ).toHaveValue(codes.join("\n"));
+    expect(revealedCodes(dialog)).toEqual(codes);
     // The console is still there behind the codes, not replaced by them. The
     // dialog hides the rest of the page from assistive technology while it is
     // open, so the panel is only reachable through hidden queries.
@@ -823,14 +852,26 @@ describe("changing one factor", () => {
       screen.getByRole("button", { name: "Change", hidden: true }),
     ).toBeInTheDocument();
 
-    // Saving is what unlocks the only way out of the dialog.
+    // Leaving before the codes were taken asks first; a download takes them.
     const leave = within(dialog).getByRole("button", { name: "Continue" });
-    expect(leave).toBeDisabled();
-    await user.click(
-      within(dialog).getByRole("checkbox", {
-        name: "I have saved my recovery codes",
-      }),
+    await user.click(leave);
+    const ask = await screen.findByRole("alertdialog", {
+      name: "Close without copying?",
+    });
+    await user.click(within(ask).getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
     );
+    expect(dialog).toBeInTheDocument();
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:codes");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const download = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    await user.click(
+      within(dialog).getByRole("button", { name: "Download codes" }),
+    );
+    expect(download).toHaveBeenCalledOnce();
     await user.click(leave);
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -905,9 +946,7 @@ describe("changing one factor", () => {
     const body = JSON.parse(await (verify[0] as Request).clone().text());
     expect(body).toMatchObject({ code: "123456" });
     expect(body.secret_base32).toMatch(/^[A-Z2-7]{32}$/);
-    expect(
-      within(reveal).getByRole("textbox", { name: "New recovery codes" }),
-    ).toHaveValue(codes.join("\n"));
+    expect(revealedCodes(reveal)).toEqual(codes);
   });
 
   it("closes the dialog and announces the change once the password is set", async () => {

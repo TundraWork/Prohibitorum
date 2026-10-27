@@ -405,8 +405,8 @@ circles, and a monogram is a squircle at 22% of its width.
 
 A **well** is the one in-panel grouping shape: 14px corners, the 60% veil and a
 60% hairline ring (`rounded-xl bg-muted/60 ring-1 ring-border/60`). It holds a
-pairing code, a callback preview, an endpoint group, the access summary, or a
-rule group. Nested rule groups keep the ring and indent; the fill stops after
+pairing code, a one-time secret, a callback preview, an endpoint group, the
+access summary, or a rule group. Nested rule groups keep the ring and indent; the fill stops after
 two levels.
 
 Borders are hairlines throughout. Header facts are divided by 1px vertical
@@ -420,7 +420,7 @@ separator.
   step-down is removed); touch pointers get a 44px hit area. Section and row
   actions use this size, and a text action in a row is at least 80px wide so a
   two-character label does not shrink to a chip. The 32px compact size is for
-  ghost helpers and controls inside a field or rule. A page's primary action is
+  ghost helpers and controls inside a field, a rule or a well. A page's primary action is
   40px with its icon set in an inset chip, like the passkey button.
 - **Primary:** ink fill, white text, a 16% white inner top highlight.
 - **Outline:** popover fill, input-colour border, resting-sheet shadow; hover
@@ -502,10 +502,18 @@ fresh verification it parks the request, offers a passkey button and a
 password-and-authenticator form separated by an "or" rule, then replays the
 request once. It cannot be closed while verifying or replaying.
 
-**Reveal-once** (recovery codes, personal access tokens) shows a secret the
-server never returns again: the value, copy and download controls, and a
-"saved it" confirmation that unlocks Continue. Until it is checked, Escape does
-nothing, the close button is hidden, and a press outside never dismisses it.
+**Reveal-once** (a client secret, an invitation or registration link, a
+personal access token, recovery codes) shows a secret the server never returns
+again. The "shown only once" sentence is the dialog's description; the value
+sits in a well under its label, in Paper Mono at 13px (a link breaks only
+between its parts, recovery codes one per line and two columns from `sm`),
+with a compact Copy button inside the well whose label turns into a check and
+"Copied" without changing its width. Only recovery codes add Download. Copying
+with the button, copying a selection by hand or downloading takes the value;
+until then Continue, the always-present close button, Escape and a navigation
+away all open the same warning confirmation, "Close without copying?". A press
+outside never dismisses it, and closing the tab falls back to the browser's
+own prompt.
 
 ### Public sign-in stage and login appearance
 The toolbar has no fill: two 36px capsules with 14px corners carry the

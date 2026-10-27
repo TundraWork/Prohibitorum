@@ -151,12 +151,18 @@ describe("PasswordTotpSetup", () => {
     expect(
       screen.queryByRole("button", { name: "Back" }),
     ).not.toBeInTheDocument();
-    const next = screen.getByRole("button", { name: "Continue" });
-    expect(next).toBeDisabled();
-    await user.click(
-      screen.getByRole("checkbox", { name: "I have saved my recovery codes" }),
+    // Continuing with codes never copied or downloaded asks first.
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    const confirm = await screen.findByRole("alertdialog", {
+      name: "Close without copying?",
+    });
+    expect(confirm).toHaveTextContent(
+      "These recovery codes cannot be shown again after this is closed.",
     );
-    await user.click(next);
+    expect(onDone).not.toHaveBeenCalled();
+    await user.click(
+      within(confirm).getByRole("button", { name: "Close anyway" }),
+    );
     await waitFor(() => expect(onDone).toHaveBeenCalledOnce());
   });
 

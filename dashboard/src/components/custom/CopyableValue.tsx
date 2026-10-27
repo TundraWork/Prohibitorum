@@ -7,20 +7,32 @@ import { Alert, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 
 /**
- * The value with a break point after each `/` of its path, so an address wraps
- * between its path segments rather than inside one; never after the scheme's
- * `//`, which would leave "https://" alone on a line. `overflow-wrap: anywhere` on the
- * caller's text is still the fallback for a segment longer than the line. The
- * break points are empty elements, so the text, a selection and a copy are
- * the value itself.
+ * The value with a break point after each `/` of its path and each `?` and `&`
+ * of its query, so an address wraps between its parts rather than inside one;
+ * never after the scheme's `//`, which would leave "https://" alone on a line.
+ * `overflow-wrap: anywhere` on the caller's text is still the fallback for a
+ * part longer than the line. The break points are empty elements, so the
+ * text, a selection and a copy are the value itself.
+ *
+ * `atomic` also keeps each part whole: a part that fits on the line is never
+ * broken at a hyphen inside it, and one longer than the line fills each line
+ * to the edge rather than breaking at its own hyphens, which matters for a
+ * token a reader may copy out by hand.
  */
-function breakAtSlashes(value: string): ReactNode {
-  return value.split(/(?<=[^/]\/)(?!\/)/).map((part, index) => (
+export function breakAtSlashes(
+  value: string,
+  { atomic = false }: { atomic?: boolean } = {},
+): ReactNode {
+  return value.split(/(?<=[^/]\/|[?&])(?!\/)/).map((part, index) => (
     // The segments are positional and never reordered.
     // biome-ignore lint/suspicious/noArrayIndexKey: see above
     <Fragment key={index}>
       {index > 0 && <wbr />}
-      {part}
+      {atomic ? (
+        <span className="inline-block max-w-full break-all">{part}</span>
+      ) : (
+        part
+      )}
     </Fragment>
   ));
 }
@@ -90,8 +102,11 @@ export function CopyableValue({
  */
 export function CopyStatus({
   state,
+  failedMessage,
 }: {
   state: "idle" | "copied" | "failed";
+  /** A caller's own warning, for a value with its own way out such as a download. */
+  failedMessage?: string;
 }): React.ReactElement {
   const { t } = useLingui();
   return (
@@ -105,11 +120,12 @@ export function CopyStatus({
         <Alert variant="warning">
           <CircleAlertIcon aria-hidden="true" />
           <AlertTitle>
-            {t({
-              id: "copy-value.failed",
-              message:
-                "Could not copy. Select the value above and copy it manually.",
-            })}
+            {failedMessage ??
+              t({
+                id: "copy-value.failed",
+                message:
+                  "Could not copy. Select the value above and copy it manually.",
+              })}
           </AlertTitle>
         </Alert>
       )}

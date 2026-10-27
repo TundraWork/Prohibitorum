@@ -13,11 +13,18 @@ export interface SecretRevealCopy {
   /** How the secret is used, for one whose use is not obvious from its name. */
   usage?: MessageDescriptor;
   copy: MessageDescriptor;
-  download: MessageDescriptor;
   copyFailed: MessageDescriptor;
-  downloadFailed: MessageDescriptor;
-  saved: MessageDescriptor;
+  /**
+   * Offered only for a secret kept offline (recovery codes); the others are
+   * pasted somewhere at once, and a downloaded file would be one more copy.
+   */
+  download?: MessageDescriptor;
+  downloadFailed?: MessageDescriptor;
   continueLabel: MessageDescriptor;
+  /**
+   * What is lost by leaving before the secret was copied or downloaded: the
+   * body of the confirmation that leaving asks for.
+   */
   leave: MessageDescriptor;
 }
 
@@ -36,24 +43,20 @@ export const recoveryCodesCopy: SecretRevealCopy = {
     message: "New recovery codes",
   }),
   copy: msg({ id: "login.codes.copy", message: "Copy codes" }),
-  download: msg({ id: "login.codes.download", message: "Download codes" }),
   copyFailed: msg({
     id: "login.codes.copy_failed",
     message:
       "Could not copy the codes. Select the codes above and copy them manually, or download them.",
   }),
+  download: msg({ id: "login.codes.download", message: "Download codes" }),
   downloadFailed: msg({
     id: "login.codes.download_failed",
     message: "Could not download the codes. Copy them or save them manually.",
   }),
-  saved: msg({
-    id: "login.codes.saved",
-    message: "I have saved my recovery codes",
-  }),
   continueLabel: msg({ id: "login.codes.continue", message: "Continue" }),
   leave: msg({
     id: "login.codes.leave",
-    message: "Leave without saving? These recovery codes can't be shown again.",
+    message: "These recovery codes cannot be shown again after this is closed.",
   }),
 };
 
@@ -92,22 +95,9 @@ export const invitationLinkCopy: SecretRevealCopy = {
     id: "admin.invitations.reveal.copy",
     message: "Copy link",
   }),
-  download: msg({
-    id: "admin.invitations.reveal.download",
-    message: "Download link",
-  }),
   copyFailed: msg({
     id: "admin.invitations.reveal.copy_failed",
-    message:
-      "Could not copy the link. Select it above and copy it manually, or download it.",
-  }),
-  downloadFailed: msg({
-    id: "admin.invitations.reveal.download_failed",
-    message: "Could not download the link. Copy it or save it manually.",
-  }),
-  saved: msg({
-    id: "admin.invitations.reveal.saved",
-    message: "I have saved the registration link",
+    message: "Could not copy the link. Select it above and copy it manually.",
   }),
   continueLabel: msg({
     id: "admin.invitations.reveal.continue",
@@ -115,7 +105,7 @@ export const invitationLinkCopy: SecretRevealCopy = {
   }),
   leave: msg({
     id: "admin.invitations.reveal.leave",
-    message: "Leave without saving? This link cannot be shown again.",
+    message: "This link cannot be shown again after this is closed.",
   }),
 };
 
@@ -170,22 +160,10 @@ export const accessTokenCopy: SecretRevealCopy = {
     message: "Send the token in the X-Prohibitorum-PAT request header.",
   }),
   copy: msg({ id: "security.tokens.reveal.copy", message: "Copy token" }),
-  download: msg({
-    id: "security.tokens.reveal.download",
-    message: "Download token",
-  }),
   copyFailed: msg({
     id: "security.tokens.reveal.copy_failed",
     message:
-      "Could not copy the token. Select the token above and copy it manually, or download it.",
-  }),
-  downloadFailed: msg({
-    id: "security.tokens.reveal.download_failed",
-    message: "Could not download the token. Copy it or save it manually.",
-  }),
-  saved: msg({
-    id: "security.tokens.reveal.saved",
-    message: "I have saved my access token",
+      "Could not copy the token. Select the token above and copy it manually.",
   }),
   continueLabel: msg({
     id: "security.tokens.reveal.continue",
@@ -193,6 +171,6 @@ export const accessTokenCopy: SecretRevealCopy = {
   }),
   leave: msg({
     id: "security.tokens.reveal.leave",
-    message: "Leave without saving? This token cannot be shown again.",
+    message: "This token cannot be shown again after this is closed.",
   }),
 };

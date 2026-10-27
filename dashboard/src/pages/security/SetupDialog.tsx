@@ -1,7 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { type UseMutationResult, useQuery } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { isValidTotpCode } from "@/api/auth";
 import { isCancellation } from "@/api/errors";
 import { publicConfigQueryOptions } from "@/api/queries";
@@ -48,11 +48,11 @@ type SetupSubmit = UseMutationResult<
  * identity check.
  *
  * The codes are the panel's, which also owns the write: both outlive the
- * button that opened this dialog. While the codes are on screen the dialog
- * cannot be dismissed — the saved confirmation unlocks Continue, which is the
- * only way out, because the server will never show them again. A request in
- * flight holds the dialog open too, so a refusal lands on the field it
- * belongs to.
+ * button that opened this dialog. While the codes are on screen, Escape and
+ * the close button leave the way Continue does — asking first while the codes
+ * were never copied or downloaded, because the server will never show them
+ * again — and a press outside never dismisses it. A request in flight holds
+ * the dialog open too, so a refusal lands on the field it belongs to.
  */
 export function SetupDialog({
   isOpen,
@@ -76,11 +76,8 @@ export function SetupDialog({
   onDone: () => Promise<void>;
 }) {
   const revealing = result !== null;
-  // Escape and the close button leave the codes the way Continue does: only
-  // once they are confirmed saved.
+  // Escape and the close button leave the codes the way Continue does.
   const proceed = useRef<(() => void) | null>(null);
-  // The codes cannot be dismissed unsaved, so no close control until then.
-  const [saved, setSaved] = useState(false);
   return (
     <Dialog
       open={isOpen}
@@ -91,15 +88,11 @@ export function SetupDialog({
         else if (!submit.isPending) onClose();
       }}
     >
-      <DialogPopup
-        className="sm:max-w-xl"
-        showCloseButton={!revealing || saved}
-      >
+      <DialogPopup className="sm:max-w-xl">
         {result !== null ? (
           <RecoveryCodes
             progress={<Steps current={2} />}
             proceedRef={proceed}
-            onSavedChange={setSaved}
             codes={result.codes}
             firstIssue={result.firstIssue}
             onContinue={onDone}
