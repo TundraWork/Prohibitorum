@@ -94,7 +94,7 @@ var codeCopy = map[Locale]mailCopy{
 		Lead:      "An account on {{.Instance}} is adding this email address.",
 		CodeLabel: "Verification code",
 		Validity:  "Valid for {{.Minutes}} minutes.",
-		Note:      "You can ignore this mail if you did not request it.",
+		Note:      "You can ignore this email if you did not request it.",
 	},
 }
 

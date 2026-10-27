@@ -83,7 +83,7 @@ func TestCodeMailPartsZhEn(t *testing.T) {
 	icon := pngIcon(t)
 	wantCopy := map[string][2]string{
 		"zh": {"MyInstance 上的一个账号正在添加此邮箱地址。", "如果不是你在操作，可以忽略这封邮件。"},
-		"en": {"An account on MyInstance is adding this email address.", "You can ignore this mail if you did not request it."},
+		"en": {"An account on MyInstance is adding this email address.", "You can ignore this email if you did not request it."},
 	}
 	for _, locale := range []string{"zh", "en"} {
 		msg, err := CodeMail(locale, brand("MyInstance", icon), "123456", 15)
