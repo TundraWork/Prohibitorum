@@ -81,6 +81,10 @@ func assertNoLinks(t *testing.T, part, html string) {
 
 func TestCodeMailPartsZhEn(t *testing.T) {
 	icon := pngIcon(t)
+	wantCopy := map[string][2]string{
+		"zh": {"MyInstance 上的一个账号正在添加此邮箱地址。", "如果不是你在操作，可以忽略这封邮件。"},
+		"en": {"An account on MyInstance is adding this email address.", "You can ignore this mail if you did not request it."},
+	}
 	for _, locale := range []string{"zh", "en"} {
 		msg, err := CodeMail(locale, brand("MyInstance", icon), "123456", 15)
 		if err != nil {
@@ -112,6 +116,14 @@ func TestCodeMailPartsZhEn(t *testing.T) {
 				t.Errorf("%s html missing %q", locale, want)
 			}
 		}
+		for _, want := range wantCopy[locale] {
+			if !strings.Contains(msg.Text, want) {
+				t.Errorf("%s text missing context line %q: %q", locale, want, msg.Text)
+			}
+			if !strings.Contains(visibleText(msg.HTML), want) {
+				t.Errorf("%s html missing context line %q", locale, want)
+			}
+		}
 		wantLang := `<html lang="zh-CN">`
 		if locale == "en" {
 			wantLang = `<html lang="en">`
@@ -139,8 +151,14 @@ func TestTestMailPartsZhEn(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(msg.Subject, "MyInstance") || !strings.Contains(msg.Text, "MyInstance") {
-			t.Errorf("test mail %q missing instance: %+v", locale, msg)
+		notes := map[string]string{
+			"zh": "这是一封测试邮件。",
+			"en": "This is a test mail.",
+		}
+		for _, part := range []struct{ name, body string }{{"text", msg.Text}, {"html", visibleText(msg.HTML)}} {
+			if !strings.Contains(part.body, "MyInstance") || !strings.Contains(part.body, notes[locale]) {
+				t.Errorf("test mail %s %s missing instance or note: %q", locale, part.name, part.body)
+			}
 		}
 		assertNoLinks(t, msg.Text, "")
 		assertNoLinks(t, msg.HTML, msg.HTML)
@@ -248,12 +266,12 @@ func TestCodeMailLocaleFallback(t *testing.T) {
 
 func TestMailCopyComplete(t *testing.T) {
 	for locale, cp := range codeCopy {
-		if cp.Subject == "" || cp.Preview == "" || cp.Heading == "" || cp.Lead == "" || cp.CodeLabel == "" || cp.Validity == "" {
+		if cp.Subject == "" || cp.Preview == "" || cp.Heading == "" || cp.Lead == "" || cp.CodeLabel == "" || cp.Validity == "" || cp.Note == "" {
 			t.Errorf("codeCopy[%s] has an empty field: %+v", locale, cp)
 		}
 	}
 	for locale, cp := range testCopy {
-		if cp.Subject == "" || cp.Preview == "" || cp.Heading == "" || cp.Lead == "" {
+		if cp.Subject == "" || cp.Preview == "" || cp.Heading == "" || cp.Lead == "" || cp.Note == "" {
 			t.Errorf("testCopy[%s] has an empty field: %+v", locale, cp)
 		}
 	}

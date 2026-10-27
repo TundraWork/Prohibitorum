@@ -74,6 +74,7 @@ type mailCopy struct {
 	Lead      string // body intro naming the instance
 	CodeLabel string // plain-text label before the code (code mail only)
 	Validity  string // code validity line (code mail only)
+	Note      string // context line closing the body; both mails carry one
 }
 
 var codeCopy = map[Locale]mailCopy{
@@ -81,17 +82,19 @@ var codeCopy = map[Locale]mailCopy{
 		Subject:   "{{.Instance}} 邮箱验证码",
 		Preview:   "验证码 {{.Minutes}} 分钟内有效。",
 		Heading:   "邮箱验证码",
-		Lead:      "{{.Instance}} 上的一个账号正在验证此邮箱地址。",
+		Lead:      "{{.Instance}} 上的一个账号正在添加此邮箱地址。",
 		CodeLabel: "验证码",
 		Validity:  "{{.Minutes}} 分钟内有效。",
+		Note:      "如果不是你在操作，可以忽略这封邮件。",
 	},
 	LocaleEn: {
 		Subject:   "{{.Instance}} email verification code",
 		Preview:   "The code is valid for {{.Minutes}} minutes.",
 		Heading:   "Email verification code",
-		Lead:      "An account on {{.Instance}} is verifying this email address.",
+		Lead:      "An account on {{.Instance}} is adding this email address.",
 		CodeLabel: "Verification code",
 		Validity:  "Valid for {{.Minutes}} minutes.",
+		Note:      "You can ignore this mail if you did not request it.",
 	},
 }
 
@@ -101,12 +104,14 @@ var testCopy = map[Locale]mailCopy{
 		Preview: "发信配置可以送达此地址。",
 		Heading: "测试邮件",
 		Lead:    "{{.Instance}} 的发信配置可以送达此地址。",
+		Note:    "这是一封测试邮件。",
 	},
 	LocaleEn: {
 		Subject: "{{.Instance}} test mail",
 		Preview: "Outbound mail reaches this address.",
 		Heading: "Test mail",
 		Lead:    "Outbound mail from {{.Instance}} reaches this address.",
+		Note:    "This is a test mail.",
 	},
 }
 
@@ -143,6 +148,7 @@ type layoutData struct {
 	Lead          string
 	Code          string
 	Validity      string
+	Note          string
 }
 
 // inlineFromIcon returns the CID embed for the icon's raw bytes, or nil when
@@ -214,11 +220,15 @@ func renderMail(locale string, brand Brand, cp mailCopy, code string, minutes in
 
 	msg := Message{Subject: subject}
 
-	// Plain text: lead, blank line, code line, blank line, validity (the
-	// test mail stops at the lead). validity feeds both parts, so the two
-	// alternatives never disagree.
+	// Plain text: lead, blank line, code line, blank line, validity, blank
+	// line, note (the test mail goes lead, blank line, note). Every line
+	// feeds both parts, so the two alternatives never disagree.
 	var validity string
 	var lines []string
+	note, err := render(cp.Note)
+	if err != nil {
+		return Message{}, err
+	}
 	if code != "" {
 		label, err := render(cp.CodeLabel)
 		if err != nil {
@@ -232,9 +242,9 @@ func renderMail(locale string, brand Brand, cp mailCopy, code string, minutes in
 		if err != nil {
 			return Message{}, err
 		}
-		lines = []string{lead, "", label + sep + code, "", validity}
+		lines = []string{lead, "", label + sep + code, "", validity, "", note}
 	} else {
-		lines = []string{lead}
+		lines = []string{lead, "", note}
 	}
 	msg.Text = strings.Join(lines, "\n") + "\n"
 
@@ -249,6 +259,7 @@ func renderMail(locale string, brand Brand, cp mailCopy, code string, minutes in
 		Heading:       heading,
 		Lead:          lead,
 		Code:          code,
+		Note:          note,
 	}
 	if loc == LocaleZh {
 		data.Lang = "zh-CN"
