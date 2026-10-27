@@ -128,7 +128,9 @@ func buildMsg(from string, msg Message) (*gomail.Msg, error) {
 	}
 	for _, in := range msg.Inline {
 		if err := m.EmbedReader(in.Filename, bytes.NewReader(in.Data),
-			gomail.WithFileContentID(in.ContentID),
+			// go-mail writes the header value verbatim; RFC 2392 needs the
+			// msg-id brackets for cid: references to resolve in strict clients.
+			gomail.WithFileContentID("<"+in.ContentID+">"),
 			gomail.WithFileContentType(gomail.ContentType(in.ContentType)),
 		); err != nil {
 			return nil, fmt.Errorf("mail: embed %q: %w", in.Filename, err)

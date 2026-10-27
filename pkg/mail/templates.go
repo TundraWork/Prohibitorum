@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode"
 
 	htmltemplate "html/template"
 	texttemplate "text/template"
@@ -44,6 +45,11 @@ type Brand struct {
 	Icon []byte
 }
 
+// maxInlineIconBytes caps the embedded icon. Stored icons are re-encoded at
+// upload and stay far below this; the cap keeps an unexpected row from
+// inflating every mail, which then goes out with the name only.
+const maxInlineIconBytes = 512 << 10
+
 // iconCID is the Content-ID the layout's <img> references (cid:instance-icon).
 const iconCID = "instance-icon"
 
@@ -75,7 +81,7 @@ var codeCopy = map[Locale]mailCopy{
 		Subject:   "{{.Instance}} 邮箱验证码",
 		Preview:   "验证码 {{.Minutes}} 分钟内有效。",
 		Heading:   "邮箱验证码",
-		Lead:      "{{.Instance}} 上的一个账户正在验证此邮箱地址。",
+		Lead:      "{{.Instance}} 上的一个账号正在验证此邮箱地址。",
 		CodeLabel: "验证码",
 		Validity:  "{{.Minutes}} 分钟内有效。",
 	},
@@ -145,7 +151,7 @@ type layoutData struct {
 // embedded exactly as branding serves them (WebP today; PNG/JPEG/GIF for
 // older rows and the built-in PNG).
 func inlineFromIcon(icon []byte) *Inline {
-	if len(icon) == 0 {
+	if len(icon) == 0 || len(icon) > maxInlineIconBytes {
 		return nil
 	}
 	ctype := http.DetectContentType(icon)
@@ -170,11 +176,24 @@ func inlineFromIcon(icon []byte) *Inline {
 	}
 }
 
+// singleLine folds control characters and runs of whitespace into single
+// spaces. The admin-set instance name only has a length limit, and it lands in
+// the Subject header and on its own line in the plain-text part.
+func singleLine(s string) string {
+	return strings.Join(strings.Fields(strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, s)), " ")
+}
+
 // renderMail builds a Message: copy fragments render once via text/template,
 // then feed the plain-text part and the html/template layout from the same
 // strings, so the two alternative parts never disagree.
 func renderMail(locale string, brand Brand, cp mailCopy, code string, minutes int) (Message, error) {
 	loc := NormalizeLocale(locale)
+	brand.Name = singleLine(brand.Name)
 	render := func(frag string) (string, error) { return renderCopy(frag, brand.Name, minutes) }
 	subject, err := render(cp.Subject)
 	if err != nil {

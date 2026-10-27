@@ -2,10 +2,11 @@ package server
 
 import (
 	"context"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"prohibitorum/pkg/account/email"
 	"prohibitorum/pkg/authn"

@@ -51,6 +51,11 @@ func TestBuildMsgMIMEStructure(t *testing.T) {
 	if _, err := m.WriteTo(&buf); err != nil {
 		t.Fatal(err)
 	}
+	for i, line := range strings.Split(buf.String(), "\r\n") {
+		if len(line) > 78 {
+			t.Errorf("line %d is %d octets: %.60q", i+1, len(line), line)
+		}
+	}
 
 	parsed, err := mail.ReadMessage(bufio.NewReader(&buf))
 	if err != nil {
@@ -88,7 +93,7 @@ func TestBuildMsgMIMEStructure(t *testing.T) {
 			alt := multipart.NewReader(p, ps["boundary"])
 			n := 0
 			for {
-				ap, err := alt.NextPart()
+				ap, err := alt.NextRawPart() // raw: NextPart strips a quoted-printable header
 				if err == io.EOF {
 					break
 				}
@@ -101,6 +106,9 @@ func TestBuildMsgMIMEStructure(t *testing.T) {
 					t.Fatal(err)
 				}
 				ct := ap.Header.Get("Content-Type")
+				if cte := ap.Header.Get("Content-Transfer-Encoding"); cte != "quoted-printable" && cte != "base64" {
+					t.Errorf("alternative part %d transfer encoding = %q", n, cte)
+				}
 				switch n {
 				case 1:
 					if !strings.HasPrefix(ct, "text/plain") {
@@ -126,11 +134,14 @@ func TestBuildMsgMIMEStructure(t *testing.T) {
 			continue
 		}
 		// The icon part: inline disposition, CID, detected type.
-		if got := p.Header.Get("Content-ID"); !strings.Contains(got, "instance-icon") {
-			t.Errorf("icon Content-ID = %q", got)
+		if got := p.Header.Get("Content-ID"); got != "<instance-icon>" {
+			t.Errorf("icon Content-ID = %q, want <instance-icon>", got)
 		}
-		if got := p.Header.Get("Content-Disposition"); !strings.Contains(got, "inline") {
-			t.Errorf("icon Content-Disposition = %q", got)
+		if disp, dp, err := mime.ParseMediaType(p.Header.Get("Content-Disposition")); err != nil || disp != "inline" || dp["filename"] != "icon.png" {
+			t.Errorf("icon Content-Disposition = %q", p.Header.Get("Content-Disposition"))
+		}
+		if cte := p.Header.Get("Content-Transfer-Encoding"); cte != "base64" {
+			t.Errorf("icon transfer encoding = %q, want base64", cte)
 		}
 		if ct := p.Header.Get("Content-Type"); !strings.HasPrefix(ct, "image/png") {
 			t.Errorf("icon Content-Type = %q, want image/png", ct)
@@ -145,6 +156,38 @@ func TestBuildMsgMIMEStructure(t *testing.T) {
 	}
 	if parts != 2 {
 		t.Errorf("related parts = %d, want 2 (alternative + icon)", parts)
+	}
+}
+
+// TestBuildMsgSubjectHeaderInjection writes a raw subject carrying CRLF
+// straight to buildMsg: the header must stay one encoded field.
+func TestBuildMsgSubjectHeaderInjection(t *testing.T) {
+	m, err := buildMsg("noreply@example.test", Message{
+		To:      "x@example.test",
+		Subject: "名称\r\nBcc: evil@example.test",
+		Text:    "body",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	if _, err := m.WriteTo(&buf); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := mail.ReadMessage(bufio.NewReader(&buf))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := parsed.Header.Get("Bcc"); got != "" {
+		t.Errorf("subject injected a Bcc header: %q", got)
+	}
+	raw := parsed.Header.Get("Subject")
+	if !strings.HasPrefix(raw, "=?UTF-8?") {
+		t.Errorf("subject not RFC 2047 encoded: %q", raw)
+	}
+	subj, err := new(mime.WordDecoder).DecodeHeader(raw)
+	if err != nil || !strings.HasPrefix(subj, "名称") {
+		t.Errorf("subject = %q (%v)", subj, err)
 	}
 }
 

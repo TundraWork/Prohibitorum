@@ -13,7 +13,20 @@ import (
 	"prohibitorum/pkg/imageutil"
 )
 
-var srcRe = regexp.MustCompile(`src="[^"]*"`)
+var (
+	srcRe     = regexp.MustCompile(`src="[^"]*"`)
+	headRe    = regexp.MustCompile(`(?s)<head>.*</head>`)
+	tagRe     = regexp.MustCompile(`<[^>]*>`)
+	preheadRe = regexp.MustCompile(`<div style="display:none;[^"]*">([^<]*)</div>`)
+	// Mail clients autolink bare hosts such as example.com or www.example.
+	bareHostRe = regexp.MustCompile(`(?i)\bwww\.|\b[a-z0-9-]+\.[a-z]{2,}\b`)
+)
+
+// visibleText drops the head, the tags and the attributes, leaving the text
+// a mail client could autolink.
+func visibleText(html string) string {
+	return tagRe.ReplaceAllString(headRe.ReplaceAllString(html, ""), " ")
+}
 
 func brand(name string, icon []byte) Brand { return Brand{Name: name, Icon: icon} }
 
@@ -49,6 +62,13 @@ func assertNoLinks(t *testing.T, part, html string) {
 			t.Errorf("mail contains %q: %.120s", bad, part)
 		}
 	}
+	text := part
+	if html != "" {
+		text = visibleText(html)
+	}
+	if m := bareHostRe.FindString(text); m != "" {
+		t.Errorf("mail text contains autolinkable host %q", m)
+	}
 	if html == "" {
 		return
 	}
@@ -72,6 +92,12 @@ func TestCodeMailPartsZhEn(t *testing.T) {
 		// The code never leaks into subject or preview text.
 		if strings.Contains(msg.Subject, "123456") {
 			t.Errorf("%s subject leaks code: %q", locale, msg.Subject)
+		}
+		pre := preheadRe.FindStringSubmatch(msg.HTML)
+		if pre == nil || pre[1] == "" {
+			t.Errorf("%s html has no preview text", locale)
+		} else if strings.Contains(pre[1], "123456") {
+			t.Errorf("%s preview text leaks code: %q", locale, pre[1])
 		}
 		assertNoLinks(t, msg.Text, "")
 		assertNoLinks(t, msg.HTML, msg.HTML)
@@ -159,6 +185,33 @@ func TestMailIconTypes(t *testing.T) {
 	}
 	if len(msg.Inline) != 0 || strings.Contains(msg.HTML, "<img") {
 		t.Errorf("unknown icon type embeds %+v", msg.Inline)
+	}
+}
+
+func TestMailIconSizeCap(t *testing.T) {
+	big := append(pngIcon(t), make([]byte, maxInlineIconBytes)...)
+	msg, err := CodeMail("en", brand("Inst", big), "000000", 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msg.Inline) != 0 || strings.Contains(msg.HTML, "<img") {
+		t.Errorf("icon over the cap embedded (%d bytes)", len(big))
+	}
+}
+
+func TestMailInstanceNameSingleLine(t *testing.T) {
+	msg, err := CodeMail("zh", brand("A\r\nBcc: x@example.test\t\x00B", nil), "123456", 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(msg.Subject, "\r\n\t\x00") {
+		t.Errorf("subject keeps control characters: %q", msg.Subject)
+	}
+	if !strings.HasPrefix(msg.Subject, "A Bcc: x@example.test B ") {
+		t.Errorf("subject = %q, want the name folded onto one line", msg.Subject)
+	}
+	if first, _, _ := strings.Cut(msg.Text, "\n"); !strings.Contains(first, "Bcc") {
+		t.Errorf("plain text splits the instance name across lines: %q", msg.Text)
 	}
 }
 
