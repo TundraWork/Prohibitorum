@@ -89,8 +89,10 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
     list.items.map((decision) => [decision.account.id, effectOf(decision)]),
   );
   // A second row write would take over the first one's callbacks, so every
-  // menu waits while one is in flight; the row it is for shows the spinner.
+  // menu waits while one is in flight; the row it is for shows the spinner,
+  // unless a dialog sent the write and its button already shows one.
   const writing = upsert.isPending || clear.isPending;
+  const fromDialog = clearing !== null || adding;
   const busyAccount = upsert.isPending
     ? upsert.variables.body.accountId
     : clear.isPending
@@ -188,7 +190,7 @@ export function GroupDecisionsSection({ groupId }: { groupId: number }) {
             {list.items.map((decision) => {
               const effect = effectOf(decision);
               const name = nameOf(decision);
-              const busy = busyAccount === decision.account.id;
+              const busy = !fromDialog && busyAccount === decision.account.id;
               return (
                 <ItemListRow
                   key={decision.account.id}

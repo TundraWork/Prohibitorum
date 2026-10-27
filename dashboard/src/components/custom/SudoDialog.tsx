@@ -29,6 +29,7 @@ import {
 import { Button } from "@/components/custom/Button";
 import { OrSeparator } from "@/components/custom/OrSeparator";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
+import { SudoScopeContext } from "@/components/custom/sudo-scope";
 import {
   Dialog,
   DialogDescription,
@@ -130,14 +131,16 @@ export function SudoDialog() {
           "aria-label": t({ id: "sudo.close", message: "Close" }),
         }}
       >
-        {request && (
-          <SudoStep
-            request={request}
-            onLockChange={setLocked}
-            onVerified={verified}
-            onFailed={failed}
-          />
-        )}
+        <SudoScopeContext value={true}>
+          {request && (
+            <SudoStep
+              request={request}
+              onLockChange={setLocked}
+              onVerified={verified}
+              onFailed={failed}
+            />
+          )}
+        </SudoScopeContext>
       </DialogPopup>
     </Dialog>
   );

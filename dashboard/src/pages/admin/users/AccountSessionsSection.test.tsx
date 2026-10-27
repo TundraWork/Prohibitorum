@@ -29,7 +29,10 @@ const path = "/api/prohibitorum/accounts/2/sessions";
 describe("the sessions section", () => {
   const harness = accessHarness();
   const serve =
-    (items: Session[], extra?: (request: Request) => Response | undefined) =>
+    (
+      items: Session[],
+      extra?: (request: Request) => Response | Promise<Response> | undefined,
+    ) =>
     (request: Request) => {
       const canned = extra?.(request);
       if (canned) return canned;
@@ -158,6 +161,40 @@ describe("the sessions section", () => {
       await harness.sent("POST", "/accounts/revoke-sessions")[0]?.json(),
     ).toEqual({ id: 2 });
     await waitFor(() => expect(reads).toBe(2));
+  });
+
+  it("spins only the confirmation while signing out everywhere", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    harness.mount(
+      <AccountSessionsSection accountId={2} />,
+      serve([session({}), session({ id: "s-2" })], (request) =>
+        request.url.endsWith("/accounts/revoke-sessions")
+          ? new Promise<Response>((resolve) => {
+              release = resolve;
+            })
+          : undefined,
+      ),
+    );
+
+    const trigger = await screen.findByRole("button", {
+      name: "Sign out everywhere",
+    });
+    await user.click(trigger);
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", {
+      name: "Sign out everywhere",
+    });
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(harness.sent("POST", "/accounts/revoke-sessions")).toHaveLength(1),
+    );
+
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(confirm).toContainElement(spinners[0] as HTMLElement);
+    expect(trigger).toBeDisabled();
+    release(Response.json({ revoked: 2 }));
   });
 
   it("reports a refused end once, inline, and closes the question", async () => {

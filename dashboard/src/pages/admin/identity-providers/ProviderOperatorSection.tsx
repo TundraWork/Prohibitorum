@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Radio, RadioGroup } from "@/components/ui/radio-group";
-import { Spinner } from "@/components/ui/spinner";
 import { applyServerError } from "@/forms/server-errors";
 import { useAppForm } from "@/forms/use-app-form";
 
@@ -117,6 +116,8 @@ export function ProviderOperatorSection({ provider }: { provider: Provider }) {
               signing in again only takes the primary weight once it has
               expired or was never set up. */}
           <Button
+            // Signing in replaces the session the check is reading.
+            disabled={validate.isPending}
             onClick={openSignIn}
             variant={provider.secretStatus === "valid" ? "outline" : "default"}
           >
@@ -360,13 +361,14 @@ function OperatorSignInForm({
             </>
           )}
 
+          {/* The submit button carries the spinner; this only says who the
+              wait is on. */}
           {busy && (
-            <div className="flex items-center gap-2 text-muted-foreground text-xs">
-              <Spinner aria-hidden="true" className="size-3.5" />
+            <p className="text-muted-foreground text-xs">
               <Trans id="admin.federation.operator.pending">
                 Waiting for VRChat…
               </Trans>
-            </div>
+            </p>
           )}
         </DialogPanel>
         <DialogFooter>

@@ -44,6 +44,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const spinners = () =>
+  Array.from(document.querySelectorAll('[data-slot="spinner"]'));
+
 function posts(suffix: string) {
   return fetchBoundary.mock.calls
     .map(([request]) => request)
@@ -147,6 +150,11 @@ describe("disabling", () => {
     await user.keyboard("{Escape}");
 
     expect(screen.getByRole("alertdialog")).toBeVisible();
+    // One spinner, on the confirmation; the row's trigger is only held.
+    expect(spinners()).toHaveLength(1);
+    expect(
+      within(dialog).getByRole("button", { name: "Disable" }),
+    ).toContainElement(spinners()[0] as HTMLElement);
     release(Response.json(accountFixture({ disabled: true })));
   });
 
@@ -289,6 +297,36 @@ describe("deleting", () => {
 
     expect(screen.getByRole("alertdialog")).toBeVisible();
     release(new Response(null, { status: 204 }));
+  });
+
+  it("shows one spinner, on the confirmation, until the list has replaced the page", async () => {
+    const user = userEvent.setup();
+    let arrive: () => void = () => {};
+    navigate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          arrive = resolve;
+        }),
+    );
+    mount(accountFixture());
+
+    const dialog = await openDeleteDialog(user);
+    const confirm = within(dialog).getByRole("button", {
+      name: "Delete account",
+    });
+    await user.click(confirm);
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+
+    expect(screen.getByRole("alertdialog")).toBeVisible();
+    expect(spinners()).toHaveLength(1);
+    expect(confirm).toContainElement(spinners()[0] as HTMLElement);
+    expect(
+      screen.getAllByRole("button", { name: "Delete", hidden: true })[0],
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Disable", hidden: true }),
+    ).toBeDisabled();
+    arrive();
   });
 
   it("reports a refused delete once, and stays on the page", async () => {

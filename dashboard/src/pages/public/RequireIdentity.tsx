@@ -9,6 +9,7 @@ import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
 import { loadDocument } from "@/app/load-document";
 import { followRedirect } from "@/app/redirect";
+import { usePageRestore } from "@/app/use-page-restore";
 import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
@@ -66,11 +67,14 @@ export function RequireIdentityPage() {
       sudoReason.linkIdentity,
       { quiet: true },
     )
+      // The page stays pending while it leaves for the provider; only a
+      // link that did not start lets go of it.
       .catch((failure: unknown) => {
+        setLinking(null);
         if (!isCancellation(failure)) setError(failure);
-      })
-      .finally(() => setLinking(null));
+      });
   };
+  usePageRestore(() => setLinking(null));
 
   const strip = (
     <AppStrip
@@ -83,7 +87,7 @@ export function RequireIdentityPage() {
   const returnButton = (label: ReactNode) => (
     <Button
       pending={leaving}
-      disabled={switchAccount.isPending}
+      disabled={switchAccount.isPending || linking !== null}
       onClick={returnToApp}
       variant="outline"
       size="lg"

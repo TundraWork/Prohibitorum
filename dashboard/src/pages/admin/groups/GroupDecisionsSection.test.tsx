@@ -700,6 +700,81 @@ describe("a write in flight", () => {
   });
 });
 
+describe("one spinner per write", () => {
+  const spinners = () =>
+    Array.from(document.querySelectorAll('[data-slot="spinner"]'));
+
+  it("spins only the confirmation while a deny is cleared, not the row", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount({
+      extra: (request) =>
+        request.method === "POST" &&
+        new URL(request.url).pathname.endsWith("/decisions/clear")
+          ? new Promise<Response>((resolve) => {
+              release = resolve;
+            })
+          : undefined,
+    });
+
+    await openRowMenu(user, "Cy Dunn");
+    await user.click(await screen.findByRole("menuitem", { name: "Clear" }));
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", { name: "Clear" });
+    await user.click(confirm);
+    await waitFor(() => expect(writes("/decisions/clear")).toHaveLength(1));
+
+    expect(spinners()).toHaveLength(1);
+    expect(confirm).toContainElement(spinners()[0] as HTMLElement);
+    const row = screen.getByRole("button", {
+      name: "More actions for Cy Dunn",
+      hidden: true,
+    });
+    expect(row).toBeDisabled();
+    expect(row).not.toHaveAttribute("aria-busy");
+    release(new Response(null, { status: 204 }));
+  });
+
+  it("spins only the dialog's submit while it changes an account that has a row", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount({
+      extra: (request) =>
+        request.method === "POST" && new URL(request.url).pathname === base
+          ? new Promise<Response>((resolve) => {
+              release = resolve;
+            })
+          : undefined,
+    });
+    await rows();
+
+    const dialog = await openAdd(user);
+    await choose(user, dialog, /Ana Lima/);
+    await user.click(within(dialog).getByRole("radio", { name: "Deny" }));
+    const submit = within(dialog).getByRole("button", {
+      name: "Deny Ana Lima",
+    });
+    await user.click(submit);
+    await waitFor(() => expect(writes("/decisions")).toHaveLength(1));
+
+    expect(spinners()).toHaveLength(1);
+    expect(submit).toContainElement(spinners()[0] as HTMLElement);
+    const row = screen.getByRole("button", {
+      name: "More actions for Ana Lima",
+      hidden: true,
+    });
+    expect(row).toBeDisabled();
+    expect(row).not.toHaveAttribute("aria-busy");
+    release(
+      Response.json({
+        account: account(7, "ana", "Ana Lima"),
+        effect: "deny",
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+  });
+});
+
 describe("an account whose decision is on a page not yet loaded", () => {
   const pages = {
     "": { items: [ana], nextCursor: "c1" },

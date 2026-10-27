@@ -16,6 +16,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "@/components/ui/menu";
+import { Spinner } from "@/components/ui/spinner";
 import { isColorMode } from "@/lib/appearance";
 import {
   type ColorSchemeSlug,
@@ -101,10 +102,11 @@ export function SchemeSwatch({
  * The theme choice for any menu that offers it: light or dark, then the colour
  * scheme, the ordinary schemes before the youthful ones. `modes` is false
  * where the sign-in page's settings fix light or dark, and only the scheme is
- * left to choose.
+ * left to choose. The chosen item carries the wait while it saves to the
+ * account, and the next choice can be made meanwhile.
  */
 export function ThemeMenuItems({ modes = true }: { modes?: boolean }) {
-  const { mode, choose } = useAppearanceChoice();
+  const { mode, choose, saving } = useAppearanceChoice();
   const { scheme } = useResolvedAppearance().applied;
   const names = useColorSchemeNames();
   const modeOptions = useThemeOptions();
@@ -117,6 +119,7 @@ export function ThemeMenuItems({ modes = true }: { modes?: boolean }) {
               <Trans id="theme.mode">Light or dark</Trans>
             </MenuGroupLabel>
             <MenuRadioGroup
+              aria-busy={saving === "mode" || undefined}
               value={mode ?? "system"}
               onValueChange={(value) => {
                 if (isColorMode(value)) choose({ mode: value });
@@ -124,7 +127,12 @@ export function ThemeMenuItems({ modes = true }: { modes?: boolean }) {
             >
               {modeOptions.map(({ value, label }) => (
                 <MenuRadioItem key={value} value={value}>
-                  {label}
+                  <span className="flex items-center gap-2">
+                    {label}
+                    {saving === "mode" && value === (mode ?? "system") && (
+                      <SavingSpinner />
+                    )}
+                  </span>
                 </MenuRadioItem>
               ))}
             </MenuRadioGroup>
@@ -137,6 +145,7 @@ export function ThemeMenuItems({ modes = true }: { modes?: boolean }) {
           <Trans id="theme.scheme">Color scheme</Trans>
         </MenuGroupLabel>
         <MenuRadioGroup
+          aria-busy={saving === "scheme" || undefined}
           value={scheme}
           onValueChange={(value) => {
             if (isColorSchemeSlug(value)) choose({ scheme: value });
@@ -151,6 +160,7 @@ export function ThemeMenuItems({ modes = true }: { modes?: boolean }) {
                 <span className="flex items-center gap-2">
                   <SchemeSwatch scheme={slug} />
                   {names[slug]}
+                  {saving === "scheme" && slug === scheme && <SavingSpinner />}
                 </span>
               </MenuRadioItem>
             </Fragment>
@@ -158,6 +168,17 @@ export function ThemeMenuItems({ modes = true }: { modes?: boolean }) {
         </MenuRadioGroup>
       </MenuGroup>
     </>
+  );
+}
+
+/** The wait beside the chosen item while it saves. */
+function SavingSpinner() {
+  return (
+    <Spinner
+      className="size-3.5 text-muted-foreground"
+      aria-hidden="true"
+      data-slot="spinner"
+    />
   );
 }
 

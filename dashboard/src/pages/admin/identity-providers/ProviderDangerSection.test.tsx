@@ -44,6 +44,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+const spinners = () =>
+  Array.from(document.querySelectorAll('[data-slot="spinner"]'));
+
 function posts(suffix: string) {
   return fetchBoundary.mock.calls
     .map(([request]) => request)
@@ -125,13 +128,21 @@ describe("disabling", () => {
         : undefined,
     );
 
-    await user.click(screen.getByRole("button", { name: "Disable" }));
+    const trigger = screen.getByRole("button", { name: "Disable" });
+    const remove = screen.getByRole("button", { name: "Delete" });
+    await user.click(trigger);
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Disable" }));
+    const confirm = within(dialog).getByRole("button", { name: "Disable" });
+    await user.click(confirm);
     await waitFor(() => expect(posts("/set-disabled")).toHaveLength(1));
     await user.keyboard("{Escape}");
 
     expect(screen.getByRole("alertdialog")).toBeVisible();
+    // One spinner, on the confirmation; the row's buttons are only held.
+    expect(spinners()).toHaveLength(1);
+    expect(confirm).toContainElement(spinners()[0] as HTMLElement);
+    expect(trigger).toBeDisabled();
+    expect(remove).toBeDisabled();
     release(Response.json(providerFixture({ disabled: true })));
   });
 
@@ -169,6 +180,29 @@ describe("enabling", () => {
       slug: "corp",
       disabled: false,
     });
+  });
+
+  it("spins the toggle itself, and holds Delete, while it runs", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount(providerFixture({ disabled: true }), (request) =>
+      new URL(request.url).pathname.endsWith("/set-disabled")
+        ? new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+        : undefined,
+    );
+
+    const enable = screen.getByRole("button", { name: "Enable" });
+    await user.click(enable);
+    await waitFor(() => expect(posts("/set-disabled")).toHaveLength(1));
+
+    expect(enable).toHaveAttribute("aria-busy", "true");
+    expect(enable).toBeEnabled();
+    expect(spinners()).toHaveLength(1);
+    expect(enable).toContainElement(spinners()[0] as HTMLElement);
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+    release(Response.json(providerFixture()));
   });
 
   it.each([
@@ -330,6 +364,32 @@ describe("the delete confirmation", () => {
 
     expect(screen.getByRole("alertdialog")).toBeVisible();
     release(new Response(null, { status: 204 }));
+  });
+
+  it("shows one spinner, on the confirmation, until the list has replaced the page", async () => {
+    const user = userEvent.setup();
+    let arrive: () => void = () => {};
+    navigate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          arrive = resolve;
+        }),
+    );
+    mount(providerFixture());
+    const toggle = screen.getByRole("button", { name: "Disable" });
+    const trigger = screen.getByRole("button", { name: "Delete" });
+
+    const dialog = await openDeleteDialog(user);
+    const confirm = within(dialog).getByRole("button", { name: "Delete" });
+    await user.click(confirm);
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+
+    expect(screen.getByRole("alertdialog")).toBeVisible();
+    expect(spinners()).toHaveLength(1);
+    expect(confirm).toContainElement(spinners()[0] as HTMLElement);
+    expect(trigger).toBeDisabled();
+    expect(toggle).toBeDisabled();
+    arrive();
   });
 
   it("reports a refused delete once, on the section", async () => {

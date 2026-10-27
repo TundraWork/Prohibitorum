@@ -304,6 +304,27 @@ describe("console account menu", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows signing out on the menu's trigger and keeps the menu shut meanwhile", async () => {
+    fetchBoundary.mockImplementation(() => new Promise<Response>(() => {}));
+    const user = userEvent.setup();
+    await mount("/", admin);
+
+    const trigger = screen.getByRole("button", { name: /Alice/ });
+    await user.click(trigger);
+    await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
+
+    await waitFor(() => expect(trigger).toHaveAttribute("aria-busy", "true"));
+    expect(trigger).toHaveAttribute("aria-disabled", "true");
+    expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+    expect(trigger).toContainElement(
+      document.querySelector('[data-slot="spinner"]') as HTMLElement,
+    );
+    await user.click(trigger);
+    expect(
+      screen.queryByRole("menuitem", { name: "Sign out" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("names the account and its role in the footer", async () => {
     await mount("/", member);
 

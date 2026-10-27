@@ -1,6 +1,17 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  type MutationKey,
+  useIsMutating,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { updatePreferencesMutationOptions } from "@/api/mutations";
 import { publicConfigQueryOptions, sessionQueryOptions } from "@/api/queries";
 import {
@@ -69,18 +80,50 @@ export function useResolvedAppearance() {
   };
 }
 
+const preferencesKey = ["preferences"] as const;
+const choiceKey = [...preferencesKey, "choice"] as const;
+
+/**
+ * A save of the account's preferences. Every one waits for the one before it,
+ * so the server applies them in the order they were made and the last stands.
+ * Each draws itself into the session at once; an answer that arrives while a
+ * later save waits is not drawn, since it would put back what the reader has
+ * already changed.
+ */
+function usePreferencesSave(mutationKey: MutationKey, reportsInline = false) {
+  const queryClient = useQueryClient();
+  const options = updatePreferencesMutationOptions(queryClient);
+  return useMutation({
+    ...options,
+    mutationKey,
+    scope: { id: "preferences" },
+    ...(reportsInline ? { meta: { reportsInline: true } } : {}),
+    onSuccess: (...answer) => {
+      // This save still counts itself until its callbacks have run.
+      if (queryClient.isMutating({ mutationKey: preferencesKey }) > 1) return;
+      return options.onSuccess?.(...answer);
+    },
+  });
+}
+
 /**
  * The chosen colour scheme and mode, and a way to change them in this browser
  * that also saves the change to the signed-in account. The account gets the
  * whole appearance section, so a field never chosen is saved as unset.
+ *
+ * A choice shows at once and stays open to the next one while it saves; the
+ * saves run in order, so the last choice is the one kept. `saving` names the
+ * part last chosen here while any of them is still on its way, for the picker
+ * to mark the chosen option with the wait.
  */
 export function useAppearanceChoice() {
-  const queryClient = useQueryClient();
   const { scheme, mode } = useChosenAppearance();
   const setScheme = useSetAtom(schemeChoiceAtom);
   const setMode = useSetAtom(modeChoiceAtom);
   const session = useLoadedSession();
-  const { mutate } = useMutation(updatePreferencesMutationOptions(queryClient));
+  const { mutate } = usePreferencesSave(choiceKey);
+  const [picked, setPicked] = useState<"scheme" | "mode" | null>(null);
+  const inFlight = useIsMutating({ mutationKey: choiceKey }) > 0;
   const choose = (next: { scheme?: ColorSchemeSlug; mode?: ColorMode }) => {
     const appearance = {
       scheme: next.scheme ?? scheme,
@@ -88,9 +131,11 @@ export function useAppearanceChoice() {
     };
     if (next.scheme) setScheme(next.scheme);
     if (next.mode) setMode(next.mode);
-    if (session) mutate({ appearance });
+    if (!session) return;
+    setPicked(next.scheme ? "scheme" : "mode");
+    mutate({ appearance });
   };
-  return { scheme, mode, choose };
+  return { scheme, mode, choose, saving: inFlight ? picked : null };
 }
 
 /**
@@ -101,15 +146,11 @@ export function useAppearanceChoice() {
  * stays after signing in and follows the account to other devices.
  */
 export function useAccountAppearanceSync() {
-  const queryClient = useQueryClient();
   const store = useStore();
   const session = useLoadedSession();
   // Nobody asked for this save, so a failure is not reported; the choice
   // still applies in this browser.
-  const { mutate } = useMutation({
-    ...updatePreferencesMutationOptions(queryClient),
-    meta: { reportsInline: true },
-  });
+  const { mutate } = usePreferencesSave([...preferencesKey, "sync"], true);
   // Offer the browser's choice once per account and page load, so a failed
   // save is not retried on every session refresh.
   const offered = useRef<number | null>(null);

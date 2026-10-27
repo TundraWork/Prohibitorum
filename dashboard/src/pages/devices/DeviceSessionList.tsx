@@ -144,6 +144,7 @@ export function DeviceSessionList({
                       id: "devices.sessions.end.named",
                       message: `End the session on ${device}`,
                     })}
+                    disabled={revoke.isPending}
                     onClick={() => setTarget(session)}
                     variant="destructive-outline"
                     size="icon-sm"

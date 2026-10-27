@@ -138,6 +138,29 @@ describe("checking the session", () => {
     expect(notifyError).not.toHaveBeenCalled();
   });
 
+  it("holds Sign in again while the check runs", async () => {
+    let release: (response: Response) => void = () => {};
+    const user = mount(configured, {
+      [`POST ${base}/validate`]: () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    });
+    const check = screen.getByRole("button", { name: "Check" });
+    await user.click(check);
+    await waitFor(() => expect(check).toHaveAttribute("aria-busy", "true"));
+    expect(
+      screen.getByRole("button", { name: "Sign in again" }),
+    ).toBeDisabled();
+
+    release(Response.json({ status: "valid" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Sign in again" }),
+      ).toBeEnabled(),
+    );
+  });
+
   it("tells a refused check once, under the row, and not as a toast", async () => {
     const user = mount(configured, {
       [`POST ${base}/validate`]: () => apiError("rate_limited", 429),
@@ -221,6 +244,12 @@ describe("the sign-in dialog", () => {
     expect(
       await within(dialog).findByText("Waiting for VRChat…"),
     ).toBeVisible();
+    // One spinner, on the submit; the line beside it is text only.
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(
+      within(dialog).getByRole("button", { name: "Submitting…" }),
+    ).toContainElement(spinners[0] as HTMLElement);
     await user.keyboard("{Escape}");
     expect(screen.getByRole("dialog")).toBeVisible();
     expect(

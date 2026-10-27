@@ -132,7 +132,9 @@ export function GroupDetailsSection({ group }: { group: AppGroupView }) {
                     )
                   }
                   onDiscard={() => form.reset()}
-                  pending={submitting || update.isPending}
+                  // The confirmation carries the spinner when it sends the save.
+                  pending={submitting}
+                  disabled={update.isPending}
                 />
               ) : undefined
             }

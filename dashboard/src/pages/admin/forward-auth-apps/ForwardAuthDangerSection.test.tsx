@@ -238,6 +238,61 @@ describe("disabling and deleting", () => {
     release(new Response(null, { status: 204 }));
   });
 
+  it("shows one spinner, on the confirmation, until the list has replaced the page", async () => {
+    const user = userEvent.setup();
+    let arrive: () => void = () => {};
+    navigate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          arrive = resolve;
+        }),
+    );
+    mount(forwardAuthAppFixture());
+    const trigger = screen.getByRole("button", { name: "Delete" });
+
+    await user.click(trigger);
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", {
+      name: "Delete application",
+    });
+    await user.click(confirm);
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({ to: "/admin/forward-auth-apps" }),
+    );
+
+    expect(screen.getByRole("alertdialog")).toBeVisible();
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(confirm).toContainElement(spinners[0] as HTMLElement);
+    expect(trigger).toBeDisabled();
+    arrive();
+  });
+
+  it("shows one spinner, on the confirmation, while disabling", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount(forwardAuthAppFixture(), (request) =>
+      new URL(request.url).pathname.endsWith("/set-disabled")
+        ? new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+        : undefined,
+    );
+    const trigger = screen.getByRole("button", { name: "Disable" });
+
+    await user.click(trigger);
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", { name: "Disable" });
+    await user.click(confirm);
+    await waitFor(() => expect(posts("/set-disabled")).toHaveLength(1));
+
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(confirm).toContainElement(spinners[0] as HTMLElement);
+    expect(trigger).toBeDisabled();
+    release(Response.json(forwardAuthAppFixture({ disabled: true })));
+  });
+
   it("reports a refused delete once, on the section", async () => {
     const user = userEvent.setup();
     mount(forwardAuthAppFixture(), (request) =>

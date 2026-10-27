@@ -9,6 +9,12 @@ import {
 import { Button } from "@/components/custom/Button";
 
 /**
+ * Names a saved key's removal, so the editor can hold its Save while one is in
+ * flight; either service's removal matches it.
+ */
+export const savedKeyRemoval = ["sign-in-page", "remove-saved-key"] as const;
+
+/**
  * A picture service's saved key, which is never shown again: replace it with
  * a new one, or remove it. Removing is its own write and happens at once. It
  * cannot be removed while the saved background is that service, and the
@@ -39,7 +45,12 @@ export function SavedWallpaperKey({
     source === "unsplash"
       ? removeUnsplashKeyMutationOptions(queryClient)
       : removePixabayKeyMutationOptions(queryClient);
-  const remove = useMutation(removeOptions);
+  const remove = useMutation({
+    ...removeOptions,
+    mutationKey: [...savedKeyRemoval, source],
+  });
+  // Nothing else here starts while the removal is in flight.
+  const held = disabled || remove.isPending;
   const reasonId = useId();
   return (
     <div className="flex flex-col gap-2">
@@ -66,14 +77,14 @@ export function SavedWallpaperKey({
         </span>
         <div className="flex gap-2">
           {replacing ? (
-            <Button disabled={disabled} onClick={onKeep} variant="outline">
+            <Button disabled={held} onClick={onKeep} variant="outline">
               <Trans id="settings.sign-in.unsplash.key.keep">
                 Keep the saved key
               </Trans>
             </Button>
           ) : (
             <>
-              <Button disabled={disabled} onClick={onReplace} variant="outline">
+              <Button disabled={held} onClick={onReplace} variant="outline">
                 <Trans id="settings.sign-in.unsplash.key.replace">
                   Replace
                 </Trans>

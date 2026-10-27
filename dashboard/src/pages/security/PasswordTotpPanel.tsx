@@ -263,7 +263,7 @@ function PasswordTotpFactors() {
               bothSet ? (
                 <Button
                   variant="outline"
-                  pending={regenerate.isPending}
+                  disabled={regenerate.isPending}
                   onClick={() => setRegenerating(true)}
                 >
                   <Trans id="security.recovery.regenerate">Regenerate</Trans>
@@ -440,6 +440,7 @@ function TurnOffRow({
   onTurnOff,
 }: {
   lastWay: boolean;
+  /** A turn-off in flight; its confirmation carries the spinner. */
   pending: boolean;
   onTurnOff: () => void;
 }) {
@@ -467,8 +468,7 @@ function TurnOffRow({
       actions={
         <Button
           variant="destructive-outline"
-          disabled={lastWay}
-          pending={pending}
+          disabled={lastWay || pending}
           aria-describedby={lastWay ? reason : undefined}
           onClick={onTurnOff}
         >

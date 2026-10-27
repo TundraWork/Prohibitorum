@@ -164,8 +164,9 @@ function ClientIpSection({ saved }: { saved: ClientIpSettings }) {
                     )
                   }
                   onDiscard={() => form.reset()}
-                  disabled={blocked !== undefined}
-                  pending={submitting || update.isPending}
+                  // The confirmation carries the spinner when it sends the save.
+                  disabled={blocked !== undefined || update.isPending}
+                  pending={submitting}
                 />
               ) : undefined
             }

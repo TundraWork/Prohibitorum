@@ -115,3 +115,43 @@ it("applies a choice at once and saves the whole appearance section", async () =
   answer();
   expect(notifySuccess).not.toHaveBeenCalled();
 });
+
+it("saves choices one after another so the last one stands, marking the chosen tile", async () => {
+  const user = userEvent.setup();
+  mount();
+  const schemes = screen.getByRole("radiogroup", { name: "Color scheme" });
+  const tile = (name: string) =>
+    within(schemes).getByRole("radio", { name }).closest("label");
+
+  await user.click(screen.getByRole("radio", { name: "Sakura" }));
+  await waitFor(() => expect(saved).toHaveLength(1));
+  expect(schemes).toHaveAttribute("aria-busy", "true");
+  expect(tile("Sakura")?.querySelector('[data-slot="spinner"]')).not.toBeNull();
+
+  // The next choice applies at once but waits for the first save to answer.
+  await user.click(screen.getByRole("radio", { name: "Lavender" }));
+  expect(document.documentElement.dataset.scheme).toBe("lavender");
+  expect(screen.getByRole("radio", { name: "Lavender" })).toBeChecked();
+  expect(saved).toHaveLength(1);
+  expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+  expect(
+    tile("Lavender")?.querySelector('[data-slot="spinner"]'),
+  ).not.toBeNull();
+
+  // The first answer does not put the earlier scheme back.
+  answer();
+  await waitFor(() => expect(saved).toHaveLength(2));
+  expect(saved[1]).toEqual({ appearance: { scheme: "lavender", mode: null } });
+  expect(document.documentElement.dataset.scheme).toBe("lavender");
+  expect(screen.getByRole("radio", { name: "Lavender" })).toBeChecked();
+
+  answer();
+  await waitFor(() =>
+    expect(document.querySelectorAll('[data-slot="spinner"]')).toHaveLength(0),
+  );
+  expect(schemes).not.toHaveAttribute("aria-busy");
+  expect(
+    queryClient.getQueryData<Session>(sessionQueryOptions().queryKey)
+      ?.preferences.appearance,
+  ).toEqual({ scheme: "lavender", mode: null });
+});

@@ -54,7 +54,11 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
   // Named, so the confirmation's message carries it as `{name}` rather than a
   // positional placeholder the catalogs do not have.
   const name = app.displayName || app.entityId;
-  const busy = setDisabled.isPending || remove.isPending;
+  // A deletion leaves for the list, and its dialog stays pending until the
+  // page has gone.
+  const [leaving, setLeaving] = useState(false);
+  const removing = remove.isPending || leaving;
+  const busy = setDisabled.isPending || removing;
 
   return (
     <DangerZoneFrame
@@ -98,7 +102,7 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
           stackActions
           actions={
             <Button
-              pending={setDisabled.isPending}
+              disabled={setDisabled.isPending}
               onClick={() => {
                 failure.clear();
                 setConfirming(app.disabled ? "enable" : "disable");
@@ -132,7 +136,7 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
           stackActions
           actions={
             <Button
-              pending={remove.isPending}
+              disabled={removing}
               onClick={() => {
                 failure.clear();
                 setConfirming("delete");
@@ -224,12 +228,17 @@ export function SamlDangerSection({ app }: { app: SamlApp }) {
             Delete application
           </Trans>
         }
-        isPending={remove.isPending}
+        isPending={removing}
         onConfirm={() => {
           remove.mutate(app.id, {
             onSuccess: async () => {
-              setConfirming(null);
-              await navigate({ to: "/admin/saml-applications" });
+              setLeaving(true);
+              try {
+                await navigate({ to: "/admin/saml-applications" });
+              } finally {
+                setLeaving(false);
+                setConfirming(null);
+              }
             },
             onError: (error) => {
               setConfirming(null);

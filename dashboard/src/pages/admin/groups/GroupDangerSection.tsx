@@ -44,6 +44,8 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
   // Named, so the confirmation carries it as `{name}` in both catalogs.
   const name = group.displayName;
   const [confirming, setConfirming] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const busy = remove.isPending || leaving;
 
   const used = applications.data?.items?.length ?? 0;
   const waiting = applications.isPending;
@@ -72,9 +74,8 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
           stackActions
           actions={
             <Button
-              disabled={waiting || used > 0}
+              disabled={waiting || used > 0 || busy}
               aria-describedby={used > 0 ? reasonId : undefined}
-              pending={remove.isPending}
               onClick={() => {
                 failure.clear();
                 setConfirming(true);
@@ -109,9 +110,7 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
 
       <ConfirmDialog
         isOpen={confirming}
-        onOpenChange={(open) =>
-          !open && !remove.isPending && setConfirming(false)
-        }
+        onOpenChange={(open) => !open && !busy && setConfirming(false)}
         status="danger"
         title={
           <Trans id="admin.group.danger.delete.title">Delete this group?</Trans>
@@ -128,12 +127,18 @@ export function GroupDangerSection({ group }: { group: AppGroupView }) {
         confirmLabel={
           <Trans id="admin.group.danger.delete.confirm">Delete group</Trans>
         }
-        isPending={remove.isPending}
+        isPending={busy}
         onConfirm={() => {
           remove.mutate(group.id, {
+            // The dialog stays pending until the list has replaced this page.
             onSuccess: async () => {
-              setConfirming(false);
-              await navigate({ to: "/admin/groups" });
+              setLeaving(true);
+              try {
+                await navigate({ to: "/admin/groups" });
+              } finally {
+                setLeaving(false);
+                setConfirming(false);
+              }
             },
             onError: (error) => {
               setConfirming(false);

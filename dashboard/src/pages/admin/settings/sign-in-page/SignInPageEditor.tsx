@@ -2,6 +2,7 @@ import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import {
+  useIsMutating,
   useMutation,
   useQueryClient,
   useSuspenseQuery,
@@ -42,6 +43,7 @@ import {
   ReadabilityLine,
   useReadability,
 } from "@/pages/admin/settings/sign-in-page/ReadabilityLine";
+import { savedKeyRemoval } from "@/pages/admin/settings/sign-in-page/SavedWallpaperKey";
 import {
   type PreviewSize,
   SignInPreview,
@@ -210,6 +212,7 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
   );
   const typedKeys = [typedUnsplashKey, typedPixabayKey];
   const submitting = useStore(form.store, (state) => state.isSubmitting);
+  const removingKey = useIsMutating({ mutationKey: savedKeyRemoval }) > 0;
   const changes = changedSettings(saved.appearance, appearance, typedKeys);
   const where = changesBySection(saved.appearance, appearance, typedKeys);
   // A colour half typed is not one, so the preview keeps the last that was.
@@ -292,6 +295,8 @@ function Editor({ saved }: { saved: AdminLoginAppearance }) {
                     onDiscard={discard}
                     onSubmit={submit}
                     pending={submitting || update.isPending}
+                    // A saved key being removed is its own write; Save waits.
+                    disabled={removingKey}
                   />
                 ) : undefined
               }

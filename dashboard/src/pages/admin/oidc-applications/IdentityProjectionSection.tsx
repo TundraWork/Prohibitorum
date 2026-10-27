@@ -154,7 +154,8 @@ export function IdentityProjectionSection({ app }: { app: OidcApp }) {
                     )
                   }
                   onDiscard={() => form.reset()}
-                  pending={submitting || update.isPending}
+                  pending={submitting}
+                  disabled={update.isPending}
                 />
               ) : undefined
             }

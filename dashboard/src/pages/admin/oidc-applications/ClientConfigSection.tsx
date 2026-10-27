@@ -180,7 +180,8 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
                     )
                   }
                   onDiscard={() => form.reset()}
-                  pending={submitting || update.isPending}
+                  pending={submitting}
+                  disabled={update.isPending}
                 />
               ) : undefined
             }

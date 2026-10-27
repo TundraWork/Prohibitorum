@@ -358,3 +358,34 @@ it("moves focus past an invalid field that cannot take it to the next one", asyn
     ).toHaveFocus(),
   );
 });
+
+function LeavingForm({ pending }: { pending: boolean }) {
+  const form = useAppForm({ defaultValues: {} });
+  return (
+    <form.AppForm>
+      <form.Form label="Leaving form">
+        <form.SubmitButton pending={pending}>Sign in</form.SubmitButton>
+      </form.Form>
+    </form.AppForm>
+  );
+}
+
+it("keeps the submit button waiting while the step it started goes on", () => {
+  const { rerender } = render(
+    <I18nProvider i18n={i18n}>
+      <LeavingForm pending={false} />
+    </I18nProvider>,
+  );
+  const button = screen.getByRole("button", { name: "Sign in" });
+  expect(button).not.toHaveAttribute("aria-busy");
+
+  rerender(
+    <I18nProvider i18n={i18n}>
+      <LeavingForm pending />
+    </I18nProvider>,
+  );
+  expect(button).toHaveAttribute("aria-busy", "true");
+  expect(button).toHaveAttribute("aria-disabled", "true");
+  expect(button).toHaveTextContent("Submitting…");
+  expect(button.querySelectorAll('[data-slot="spinner"]')).toHaveLength(1);
+});

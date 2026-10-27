@@ -116,6 +116,8 @@ export function LoginImagesControl({
       icon={ImagePlus}
       acceptedFileTypes={loginImageTypes}
       allowsMultiple
+      // Uploads go one at a time; the tile takes no more files until they land.
+      isPending={upload.isPending || queued > 0}
       onFiles={(files) => void add(files)}
       className={empty ? "aspect-[3/1]" : "aspect-video"}
     />

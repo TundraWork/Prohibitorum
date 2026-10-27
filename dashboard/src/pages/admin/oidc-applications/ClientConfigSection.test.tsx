@@ -37,7 +37,7 @@ function puts() {
 
 function mount(
   app: OidcApp,
-  extra?: (request: Request) => Response | undefined,
+  extra?: (request: Request) => Response | Promise<Response> | undefined,
 ) {
   fetchBoundary.mockImplementation(async (request) => {
     const canned = extra?.(request);
@@ -150,6 +150,35 @@ describe("the sign-in section", () => {
     expect(await puts()[0]?.json()).toMatchObject({
       allowedScopes: ["openid", "profile"],
     });
+  });
+
+  it("leaves the one spinner to the confirmation while the removal saves", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    const app = oidcAppFixture();
+    mount(app, (request) =>
+      request.method === "PUT"
+        ? new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+        : undefined,
+    );
+
+    await untick(user, "email");
+    const save = screen.getByRole("button", { name: "Remove scope and save" });
+    await user.click(save);
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", {
+      name: "Remove and save",
+    });
+    await user.click(confirm);
+    await waitFor(() => expect(puts()).toHaveLength(1));
+
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(confirm).toContainElement(spinners[0] as HTMLElement);
+    expect(save).toBeDisabled();
+    release(Response.json(app));
   });
 
   it("puts the scope back when the edit is discarded", async () => {

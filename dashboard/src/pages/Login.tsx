@@ -48,6 +48,7 @@ import type {
 import { withInlineReport } from "@/app/query-client";
 import { followRedirect } from "@/app/redirect";
 import { withRouterSkipLoading } from "@/app/router";
+import { usePageRestore } from "@/app/use-page-restore";
 import { Button } from "@/components/custom/Button";
 import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
@@ -138,6 +139,8 @@ function useLoginFlow(initialFailure?: LoginFailure) {
     heldRef.current = leaving;
     setHeld(leaving);
   }, []);
+  // A sign-in that finished by loading another document lets go the same way.
+  usePageRestore(() => setFinishing(false));
   const control: FlowControl = {
     busy: busy || finishing || held,
     acquire: () => {
@@ -181,7 +184,8 @@ type LoginFlow = ReturnType<typeof useLoginFlow>;
  * passkey is picked, finishing takes the flow like the passkey button does and
  * fails the same way; autofill is then offered again. The button calls
  * `pause` before its own ceremony and `resume` after it, since the browser
- * runs one ceremony at a time.
+ * runs one ceremony at a time. `pending` is true while a picked passkey signs
+ * in, for the passkey button to show it.
  */
 function usePasskeyAutofill({
   flow,
@@ -261,7 +265,7 @@ function usePasskeyAutofill({
     () => setRun((current) => (current === null && enabled ? 0 : current)),
     [enabled],
   );
-  return { pause, resume };
+  return { pause, resume, pending: completion.isPending };
 }
 
 /** Sends a factor route opened without a password result back to the first step. */
@@ -380,6 +384,7 @@ function PasswordForm({
 
 function FactorForm({
   control,
+  finishing,
   mode,
   config,
   username,
@@ -390,6 +395,8 @@ function FactorForm({
   onSwitch,
 }: {
   control: FlowControl;
+  /** The sign-in this form made is leaving the page. */
+  finishing: boolean;
   mode: "totp" | "recovery";
   config: PublicConfig;
   username: string;
@@ -577,7 +584,7 @@ function FactorForm({
           </>
         )}
         <div className="flex flex-col gap-2 [&_button]:h-auto [&_button]:min-h-10 [&_button]:whitespace-normal [&_button]:py-2 md:[&_button]:min-h-9">
-          <form.SubmitButton fullWidth size="lg">
+          <form.SubmitButton fullWidth size="lg" pending={finishing}>
             <Trans id="login.verify">Sign in</Trans>
           </form.SubmitButton>
           {mode === "totp" && onSwitch && (
@@ -627,6 +634,10 @@ export function PasswordPage() {
   });
   const supported =
     preview || (window.isSecureContext && browserSupportsWebAuthn());
+  // Only a passkey finishes from this page, from the button or from autofill,
+  // so the button carries the wait until the page has gone.
+  const passkeyPending =
+    passkey.isPending || autofill.pending || flow.finishing;
   return (
     <LoginShell
       step="password"
@@ -645,8 +656,8 @@ export function PasswordPage() {
       <div className="flex flex-col gap-5 pt-2">
         <PasskeyButton
           supported={supported}
-          isPending={passkey.isPending}
-          isDisabled={flow.control.busy && !passkey.isPending}
+          isPending={passkeyPending}
+          isDisabled={flow.control.busy && !passkeyPending}
           onPress={() => {
             if (!flow.control.acquire()) return;
             autofill.pause();
@@ -803,6 +814,7 @@ export function TotpPage() {
     >
       <FactorForm
         control={flow.control}
+        finishing={flow.finishing}
         mode="totp"
         config={config}
         username={username ?? ""}
@@ -880,6 +892,7 @@ export function RecoveryPage() {
       ) : (
         <FactorForm
           control={flow.control}
+          finishing={flow.finishing}
           mode="recovery"
           config={config}
           username={username ?? ""}

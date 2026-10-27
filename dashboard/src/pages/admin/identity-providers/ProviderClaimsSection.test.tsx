@@ -401,6 +401,35 @@ describe("changing the subject claim", () => {
     expect(sentConfig()).toMatchObject({ subjectClaim: "node_id" });
   });
 
+  it("spins only the confirmation while the confirmed change is sent", async () => {
+    let release: (response: Response) => void = () => {};
+    api = fakeApi({
+      [`GET ${latestPath}`]: () => Response.json({ latest: null }),
+      [`PUT ${putPath}`]: () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    });
+    mount(linked(18));
+    const user = userEvent.setup();
+
+    await setClaim(user, "Subject", "node_id");
+    const action = subjectAction();
+    await user.click(action);
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", {
+      name: "Change and save",
+    });
+    await user.click(confirm);
+    await waitFor(() => expect(api.sent("PUT", putPath)).toHaveLength(1));
+
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(confirm).toContainElement(spinners[0] as HTMLElement);
+    expect(action).toBeDisabled();
+    release(Response.json(linked(18)));
+  });
+
   it("sends nothing and keeps the edit when the confirmation is cancelled", async () => {
     api = fakeApi({
       [`GET ${latestPath}`]: () => Response.json({ latest: null }),

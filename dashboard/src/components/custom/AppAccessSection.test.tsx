@@ -228,6 +228,69 @@ describe("removing a group", () => {
     expect(await writes("/groups")[0]?.json()).toEqual({ groupIds: [] });
   });
 
+  it("spins only the row being removed, and holds the others meanwhile", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount({
+      selected: [engineering, passkeyPeople, designers],
+      extra: (request) =>
+        request.method === "PUT"
+          ? new Promise<Response>((resolve) => {
+              release = resolve;
+            })
+          : undefined,
+    });
+
+    const removing = await screen.findByRole("button", {
+      name: "Remove Engineering",
+    });
+    await user.click(removing);
+    await waitFor(() => expect(writes("/groups")).toHaveLength(1));
+
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(removing).toContainElement(spinners[0] as HTMLElement);
+    expect(
+      screen.getByRole("button", { name: "Remove Passkey people" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Remove Designers" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Choose groups" }),
+    ).toBeDisabled();
+    release(new Response(null, { status: 204 }));
+  });
+
+  it("leaves the spinner to the confirmation when removing the last group", async () => {
+    const user = userEvent.setup();
+    let release: (response: Response) => void = () => {};
+    mount({
+      selected: [engineering],
+      extra: (request) =>
+        request.method === "PUT"
+          ? new Promise<Response>((resolve) => {
+              release = resolve;
+            })
+          : undefined,
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Remove Engineering" }),
+    );
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", { name: "Remove" });
+    await user.click(confirm);
+    await waitFor(() => expect(writes("/groups")).toHaveLength(1));
+    await user.keyboard("{Escape}");
+
+    expect(dialog).toBeVisible();
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(confirm).toContainElement(spinners[0] as HTMLElement);
+    release(new Response(null, { status: 204 }));
+  });
+
   it("reports a failed removal once, inline, with no toast", async () => {
     const user = userEvent.setup();
     mount({
@@ -382,6 +445,12 @@ describe("failures", () => {
     await user.keyboard("{Escape}");
 
     expect(dialog).toBeVisible();
+    // The picker's Save carries the one spinner; the rows behind it do not.
+    const spinners = document.querySelectorAll('[data-slot="spinner"]');
+    expect(spinners).toHaveLength(1);
+    expect(
+      within(dialog).getByRole("button", { name: "Save" }),
+    ).toContainElement(spinners[0] as HTMLElement);
     release(rateLimited());
     expect(
       await within(dialog).findByText("Too many requests. Wait a moment."),

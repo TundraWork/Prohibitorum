@@ -121,6 +121,7 @@ function ConnectedAppList() {
             actions={
               <Button
                 aria-label={t({ id: "apps.remove", message: "Remove access" })}
+                disabled={revoke.isPending}
                 onClick={() => setTarget(app)}
                 variant="destructive-outline"
                 size="icon-sm"

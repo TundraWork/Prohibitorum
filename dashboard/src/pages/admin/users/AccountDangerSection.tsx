@@ -56,8 +56,9 @@ export function AccountDangerSection({
   const [confirming, setConfirming] = useState<
     "disable" | "enable" | "delete" | null
   >(null);
+  const [leaving, setLeaving] = useState(false);
 
-  const busy = setDisabled.isPending || remove.isPending;
+  const busy = setDisabled.isPending || remove.isPending || leaving;
   const blocked = !account.disabled && account.role === "admin";
 
   return (
@@ -95,9 +96,8 @@ export function AccountDangerSection({
           stackActions
           actions={
             <Button
-              disabled={blocked}
               aria-describedby={blocked ? reasonId : undefined}
-              pending={setDisabled.isPending}
+              disabled={blocked || busy}
               onClick={() => {
                 failure.clear();
                 setConfirming(account.disabled ? "enable" : "disable");
@@ -142,9 +142,8 @@ export function AccountDangerSection({
           stackActions
           actions={
             <Button
-              disabled={isSelf}
+              disabled={isSelf || busy}
               aria-describedby={isSelf ? selfReasonId : undefined}
-              pending={remove.isPending}
               onClick={() => {
                 failure.clear();
                 setConfirming("delete");
@@ -244,12 +243,18 @@ export function AccountDangerSection({
         confirmLabel={
           <Trans id="admin.user.delete.confirm.action">Delete account</Trans>
         }
-        isPending={remove.isPending}
+        isPending={remove.isPending || leaving}
         onConfirm={() => {
           remove.mutate(account.id, {
+            // The dialog stays pending until the list has replaced this page.
             onSuccess: async () => {
-              setConfirming(null);
-              await navigate({ to: "/admin/users" });
+              setLeaving(true);
+              try {
+                await navigate({ to: "/admin/users" });
+              } finally {
+                setLeaving(false);
+                setConfirming(null);
+              }
             },
             onError: (error) => {
               setConfirming(null);
