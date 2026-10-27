@@ -430,7 +430,7 @@ function useSearchShortcut(field: React.RefObject<HTMLInputElement | null>) {
 /** Tiles about to arrive, in the pad they will fill. */
 const placeholders = ["a", "b", "c", "d", "e", "f"];
 
-function PadPending() {
+export function PadPending() {
   return (
     <ul aria-hidden="true" className={pad}>
       {placeholders.map((slot) => (

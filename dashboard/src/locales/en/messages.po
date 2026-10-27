@@ -5118,6 +5118,11 @@ msgid "admin.picker.loading"
 msgstr "Loading"
 
 #. js-lingui-explicit-id
+#: src/components/custom/RoutePending.tsx
+msgid "route.loading"
+msgstr "Loading"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/logs/audit-vocabulary.ts
 msgid "audit.event.factor_locked"
 msgstr "Locked"
