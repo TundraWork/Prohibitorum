@@ -234,7 +234,7 @@ func (s *Server) handleSendMyEmailCode(ctx context.Context, in *sendMyEmailCodeI
 		return nil, fmt.Errorf("handleSendMyEmailCode: issue: %w", err)
 	}
 
-	msg, err := mail.CodeMail(in.Body.Locale, s.config.Branding.InstanceName, code, int(email.CodeTTL/time.Minute))
+	msg, err := mail.CodeMail(in.Body.Locale, s.mailBrand(ctx), code, int(email.CodeTTL/time.Minute))
 	if err != nil {
 		email.Drop(ctx, s.kvStore, row.ID)
 		return nil, fmt.Errorf("handleSendMyEmailCode: template: %w", err)

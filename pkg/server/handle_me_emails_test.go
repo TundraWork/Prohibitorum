@@ -14,6 +14,7 @@ import (
 	"prohibitorum/pkg/account/email"
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/branding"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
@@ -92,7 +93,8 @@ func withEmailServerDB(t *testing.T, sender mail.Sender, fn func(ctx context.Con
 		emailLimits: limits,
 		kvStore:     kv.NewMemoryStore(),
 		Audit:       auditLog,
-		config:      &configx.Config{Branding: configx.BrandingConfig{InstanceName: "Test"}},
+		config:      &configx.Config{Branding: configx.BrandingConfig{InstanceName: "Config Name"}},
+		branding:    branding.NewWithStore("Config Name", &fakeBrandingStore{name: ptr("Branded Name")}),
 	}
 	// Route me-email transactions onto the same test transaction, so every
 	// write lands inside the rollback scope.
@@ -150,6 +152,15 @@ func TestMeEmailsFullFlow(t *testing.T) {
 		}
 		if len(sender.mails) != 1 {
 			t.Fatalf("sent %d mails, want 1", len(sender.mails))
+		}
+		if !strings.Contains(sender.mails[0].Subject, "Branded Name") || strings.Contains(sender.mails[0].Subject, "Config Name") {
+			t.Errorf("code mail subject must use the branded instance name: %q", sender.mails[0].Subject)
+		}
+		if !strings.Contains(sender.mails[0].HTML, "Branded Name") || strings.Contains(sender.mails[0].HTML, "Config Name") {
+			t.Errorf("code mail HTML must use the branded instance name")
+		}
+		if len(sender.mails[0].Inline) != 1 {
+			t.Errorf("code mail inline embeds = %+v, want the built-in icon", sender.mails[0].Inline)
 		}
 		if !strings.Contains(sender.mails[0].Text, "验证码") {
 			t.Errorf("zh locale mail: %q", sender.mails[0].Text)

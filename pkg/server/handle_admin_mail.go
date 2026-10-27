@@ -63,7 +63,7 @@ func (s *Server) handleSendTestMail(ctx context.Context, in *sendTestMailIn) (*s
 		return nil, rateLimitedHuma(wait)
 	}
 
-	msg, err := mail.TestMail(in.Body.Locale, s.config.Branding.InstanceName)
+	msg, err := mail.TestMail(in.Body.Locale, s.mailBrand(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("handleSendTestMail: template: %w", err)
 	}
@@ -82,6 +82,15 @@ func (s *Server) handleSendTestMail(ctx context.Context, in *sendTestMailIn) (*s
 	out := &sendTestMailOut{}
 	out.Body.Sent = true
 	return out, nil
+}
+
+// mailBrand snapshots the effective branding for an outbound mail: the
+// instance name and icon as branding resolves them (DB override → config →
+// built-in), not the config file's values.
+func (s *Server) mailBrand(ctx context.Context) mail.Brand {
+	name := s.branding.InstanceName(ctx)
+	icon, _, _ := s.branding.Icon(ctx)
+	return mail.Brand{Name: name, Icon: icon}
 }
 
 // rateLimitedHuma builds the 429 public error carrying both the

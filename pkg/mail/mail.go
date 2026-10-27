@@ -8,6 +8,7 @@
 package mail
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,12 +23,25 @@ import (
 // rather than report a send failure.
 var ErrDeliveryUnavailable = errors.New("mail: delivery unavailable (smtp.host is empty)")
 
-// Message is one outbound email. To is a bare address; Subject and Text are
-// pre-rendered by the caller (see templates.go).
+// Message is one outbound email. To is a bare address; Subject, Text and the
+// optional HTML alternative are pre-rendered by the caller (see templates.go).
+// Inline carries CID-referenced images (e.g. the instance icon) for the HTML
+// part; a text-only message leaves both HTML and Inline empty.
 type Message struct {
 	To      string
 	Subject string
 	Text    string
+	HTML    string
+	Inline  []Inline
+}
+
+// Inline is one CID-embedded file. ContentID is the bare CID (no angle
+// brackets); HTML references it as cid:<ContentID>.
+type Inline struct {
+	ContentID   string
+	Filename    string
+	ContentType string
+	Data        []byte
 }
 
 // Sender delivers messages within the caller's context/timeout.
@@ -84,18 +98,41 @@ func (s *smtpSender) Send(ctx context.Context, msg Message) error {
 		client.SetSMTPAuth(gomail.SMTPAuthLogin)
 	}
 
-	m := gomail.NewMsg()
-	if err := m.From(s.cfg.From); err != nil {
-		return fmt.Errorf("mail: from %q: %w", s.cfg.From, err)
+	m, err := buildMsg(s.cfg.From, msg)
+	if err != nil {
+		return err
 	}
-	if err := m.To(msg.To); err != nil {
-		return fmt.Errorf("mail: to %q: %w", msg.To, err)
-	}
-	m.Subject(msg.Subject)
-	m.SetBodyString(gomail.TypeTextPlain, msg.Text)
 
 	if err := client.DialAndSendWithContext(ctx, m); err != nil {
 		return fmt.Errorf("mail: send: %w", err)
 	}
 	return nil
+}
+
+// buildMsg assembles the go-mail message: text-only mails stay a single
+// text/plain part; a message with HTML becomes multipart/alternative, and any
+// Inline images are embedded as CID-referenced related parts (go-mail wraps
+// alternative + embeds in multipart/related).
+func buildMsg(from string, msg Message) (*gomail.Msg, error) {
+	m := gomail.NewMsg()
+	if err := m.From(from); err != nil {
+		return nil, fmt.Errorf("mail: from %q: %w", from, err)
+	}
+	if err := m.To(msg.To); err != nil {
+		return nil, fmt.Errorf("mail: to %q: %w", msg.To, err)
+	}
+	m.Subject(msg.Subject)
+	m.SetBodyString(gomail.TypeTextPlain, msg.Text)
+	if msg.HTML != "" {
+		m.AddAlternativeString(gomail.TypeTextHTML, msg.HTML)
+	}
+	for _, in := range msg.Inline {
+		if err := m.EmbedReader(in.Filename, bytes.NewReader(in.Data),
+			gomail.WithFileContentID(in.ContentID),
+			gomail.WithFileContentType(gomail.ContentType(in.ContentType)),
+		); err != nil {
+			return nil, fmt.Errorf("mail: embed %q: %w", in.Filename, err)
+		}
+	}
+	return m, nil
 }

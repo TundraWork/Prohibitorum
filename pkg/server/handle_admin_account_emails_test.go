@@ -2,13 +2,14 @@ package server
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"prohibitorum/pkg/account/email"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/branding"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
@@ -53,7 +54,8 @@ func withAdminEmailServerDB(t *testing.T, fn func(ctx context.Context, s *Server
 		emailLimits: limits,
 		kvStore:     kv.NewMemoryStore(),
 		Audit:       &recordingAuditWriter{},
-		config:      &configx.Config{Branding: configx.BrandingConfig{InstanceName: "Test"}},
+		config:      &configx.Config{Branding: configx.BrandingConfig{InstanceName: "Config Name"}},
+		branding:    branding.NewWithStore("Config Name", &fakeBrandingStore{name: ptr("Branded Name")}),
 	}
 	s.meEmailTxRunnerOverride = poolTxRunner{fallback: tx}
 	fn(authn.WithSession(ctx, &authn.Session{
@@ -203,7 +205,16 @@ func TestAdminMailSettingsAndTestMail(t *testing.T) {
 		}
 		sender := s.mailSender.(*recordingSender)
 		if len(sender.mails) != 1 || sender.mails[0].To != "dest@example.test" {
-			t.Errorf("test mail: %+v", sender.mails)
+			t.Fatalf("test mail: %+v", sender.mails)
+		}
+		m := sender.mails[0]
+		for _, part := range []struct{ name, body string }{{"subject", m.Subject}, {"text", m.Text}, {"html", m.HTML}} {
+			if !strings.Contains(part.body, "Branded Name") || strings.Contains(part.body, "Config Name") {
+				t.Errorf("test mail %s must use the branded instance name: %q", part.name, part.body)
+			}
+		}
+		if len(m.Inline) != 1 || m.Inline[0].ContentID != "instance-icon" {
+			t.Errorf("test mail inline embeds = %+v, want the built-in icon", m.Inline)
 		}
 
 		// Bad recipient is a 422 before any send.
