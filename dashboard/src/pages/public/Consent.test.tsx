@@ -316,6 +316,8 @@ describe("OIDC consent", () => {
   });
 
   it("sends an anonymous reader to sign in and come back to this page", async () => {
+    const notify = vi.fn();
+    queryClient = createQueryClient(notify);
     const api = fakeApi({
       ...publicApi(null),
       "GET /api/prohibitorum/consent": () => apiError("no_session", 401),
@@ -328,7 +330,42 @@ describe("OIDC consent", () => {
     expect(
       new URLSearchParams(router.state.location.searchStr).get("return_to"),
     ).toBe(address);
-    expect(api.sent("GET", "/api/prohibitorum/consent")).toHaveLength(0);
+    // The request went out beside the session read; its refusal is the
+    // sign-in page, not a toast on the way there.
+    expect(api.sent("GET", "/api/prohibitorum/consent")).toHaveLength(1);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("asks for the config, the session and the request at once", async () => {
+    const held: Array<() => void> = [];
+    const hold = (respond: () => Response) => () =>
+      new Promise<Response>((resolve) => {
+        held.push(() => resolve(respond()));
+      });
+    const api = fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/config": hold(
+        publicApi(testSession)[
+          "GET /api/prohibitorum/config"
+        ] as () => Response,
+      ),
+      "GET /api/prohibitorum/me": hold(() => Response.json(testSession)),
+      "GET /api/prohibitorum/consent": hold(() => Response.json(request())),
+    });
+    renderApp(address, queryClient);
+
+    // None has answered, and all three are out.
+    await waitFor(() => expect(held).toHaveLength(3));
+    expect(api.sent("GET", "/api/prohibitorum/config")).toHaveLength(1);
+    expect(api.sent("GET", "/api/prohibitorum/me")).toHaveLength(1);
+    expect(api.sent("GET", "/api/prohibitorum/consent")).toHaveLength(1);
+    for (const release of held) release();
+
+    expect(
+      await screen.findByRole("list", { name: "Wiki will have access to" }),
+    ).toBeVisible();
+    expect(api.sent("GET", "/api/prohibitorum/me")).toHaveLength(1);
+    expect(api.sent("GET", "/api/prohibitorum/consent")).toHaveLength(1);
   });
 
   it.each([

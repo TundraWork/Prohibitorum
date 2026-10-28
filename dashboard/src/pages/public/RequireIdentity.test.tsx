@@ -191,15 +191,23 @@ describe("require identity", () => {
   });
 
   it("sends a signed-out reader to sign in and back", async () => {
-    const api = fakeApi({ ...publicApi(null) });
+    const notify = vi.fn();
+    queryClient = createQueryClient(notify);
+    const api = fakeApi({
+      ...publicApi(null),
+      "GET /api/prohibitorum/require-identity/t-1": () =>
+        apiError("no_session", 401),
+    });
     const router = renderApp(address, queryClient);
     await screen.findByRole("heading", { name: /^Sign in to / });
     expect(
       new URLSearchParams(router.state.location.searchStr).get("return_to"),
     ).toContain("/require-identity/t-1");
+    // Read beside the session, once; the refusal is the sign-in, not a toast.
     expect(
       api.sent("GET", "/api/prohibitorum/require-identity/t-1"),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it("reports a failed sudo read once, inline and not as a toast", async () => {

@@ -7,9 +7,14 @@ import (
 	"context"
 	"embed"
 	"html"
+	"io"
 	"io/fs"
+	"mime"
 	"net/http"
+	"path"
+	"strconv"
 	"strings"
+	"time"
 )
 
 //go:embed all:dist
@@ -28,6 +33,25 @@ func Handler(instanceName func(ctx context.Context) string) http.Handler {
 	if err != nil {
 		panic("webui: dist not embedded: " + err.Error())
 	}
+	return newHandler(sub, instanceName)
+}
+
+// assetDir is where the build writes its content-hashed files. A name there
+// never changes meaning, so a response for it is cacheable for good, and a
+// name that is not there is a missing file rather than a page address.
+const assetDir = "assets/"
+
+// immutable caches a hashed asset for a year without revalidation.
+const immutable = "public, max-age=31536000, immutable"
+
+// precompressed are the copies the build writes beside each compressible
+// asset, in the order they are preferred.
+var precompressed = []struct{ coding, suffix string }{
+	{"br", ".br"},
+	{"gzip", ".gz"},
+}
+
+func newHandler(sub fs.FS, instanceName func(ctx context.Context) string) http.Handler {
 	fileServer := http.FileServer(http.FS(sub))
 	index, err := fs.ReadFile(sub, "index.html")
 	if err != nil {
@@ -40,6 +64,10 @@ func Handler(instanceName func(ctx context.Context) string) http.Handler {
 		// hit (e.g. /assets) falls through to the SPA shell rather than exposing
 		// a directory listing.
 		p := strings.TrimPrefix(r.URL.Path, "/")
+		if strings.HasPrefix(p, assetDir) {
+			serveAsset(w, r, sub, fileServer, p)
+			return
+		}
 		if p != "" {
 			if f, ferr := sub.Open(p); ferr == nil {
 				info, statErr := f.Stat()
@@ -66,6 +94,74 @@ func Handler(instanceName func(ctx context.Context) string) http.Handler {
 			_, _ = w.Write(part)
 		}
 	})
+}
+
+// serveAsset answers a path under assetDir: the file, immutable, in the best
+// precompressed copy the request accepts; or 404 when there is no such file,
+// as for an old page asking for a script a newer build replaced.
+func serveAsset(w http.ResponseWriter, r *http.Request, sub fs.FS, fileServer http.Handler, p string) {
+	info, err := fs.Stat(sub, p)
+	if err != nil || info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", immutable)
+	accepted := r.Header.Get("Accept-Encoding")
+	compressible := false
+	for _, variant := range precompressed {
+		f, err := sub.Open(p + variant.suffix)
+		if err != nil {
+			continue
+		}
+		compressible = true
+		content, seekable := f.(io.ReadSeeker)
+		if !seekable || !acceptsCoding(accepted, variant.coding) {
+			_ = f.Close()
+			continue
+		}
+		defer f.Close()
+		w.Header().Set("Vary", "Accept-Encoding")
+		if ctype := mime.TypeByExtension(path.Ext(p)); ctype != "" {
+			w.Header().Set("Content-Type", ctype)
+		}
+		w.Header().Set("Content-Encoding", variant.coding)
+		http.ServeContent(w, r, p, time.Time{}, content)
+		return
+	}
+	// A request that accepts none of the copies gets the file itself; the
+	// response still depends on what it accepted.
+	if compressible {
+		w.Header().Set("Vary", "Accept-Encoding")
+	}
+	fileServer.ServeHTTP(w, r)
+}
+
+// acceptsCoding reports whether an Accept-Encoding header allows coding: it is
+// listed, or covered by "*", with a quality above zero.
+func acceptsCoding(header, coding string) bool {
+	allowed := false
+	for _, entry := range strings.Split(header, ",") {
+		name, params, _ := strings.Cut(strings.TrimSpace(entry), ";")
+		name = strings.TrimSpace(name)
+		if !strings.EqualFold(name, coding) && name != "*" {
+			continue
+		}
+		q := 1.0
+		for _, param := range strings.Split(params, ";") {
+			key, value, found := strings.Cut(strings.TrimSpace(param), "=")
+			if found && strings.EqualFold(strings.TrimSpace(key), "q") {
+				if parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64); err == nil {
+					q = parsed
+				}
+			}
+		}
+		if strings.EqualFold(name, coding) {
+			// An explicit entry decides, whatever "*" said.
+			return q > 0
+		}
+		allowed = q > 0
+	}
+	return allowed
 }
 
 func setSecurityHeaders(w http.ResponseWriter) {

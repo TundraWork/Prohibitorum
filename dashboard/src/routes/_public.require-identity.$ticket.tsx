@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireIdentityRequestQueryOptions } from "@/api/queries";
-import { loadConsentRequest } from "@/app/consent-loader";
+import { loadConsentRequest, startConsentReads } from "@/app/consent-loader";
 import { RequireIdentityPage } from "@/pages/public/RequireIdentity";
 
 /**
@@ -9,9 +9,21 @@ import { RequireIdentityPage } from "@/pages/public/RequireIdentity";
  * the session's own, so without one the page goes to sign in and comes back.
  */
 export const Route = createFileRoute("/_public/require-identity/$ticket")({
-  loader: ({ context, location, params: { ticket } }) =>
-    loadConsentRequest(context, location.href, ticket, (ticket) =>
-      context.queryClient.query(requireIdentityRequestQueryOptions(ticket)),
+  staticData: {
+    startReads: ({ queryClient, params }) =>
+      startConsentReads(
+        queryClient,
+        params.ticket,
+        requireIdentityRequestQueryOptions,
+      ),
+  },
+  loader: ({ context, location, route, params: { ticket } }) =>
+    loadConsentRequest(
+      context,
+      route.id,
+      location.href,
+      ticket,
+      requireIdentityRequestQueryOptions,
     ),
   component: RequireIdentityPage,
 });
