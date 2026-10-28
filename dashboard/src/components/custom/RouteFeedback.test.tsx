@@ -1,5 +1,6 @@
 import { I18nProvider } from "@lingui/react";
 import {
+  CancelledError,
   type QueryClient,
   QueryClientProvider,
   useSuspenseQuery,
@@ -238,6 +239,33 @@ describe("console pages", () => {
     await user.click(await screen.findByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Admin data loaded")).toBeInTheDocument();
     expect(calls).toBe(2);
+  });
+
+  it("loads a cancelled page again instead of showing it as a failure", async () => {
+    let calls = 0;
+    behaviour.admin = () => {
+      calls += 1;
+      if (calls === 1) throw new CancelledError();
+    };
+    mount("/admin");
+
+    expect(await screen.findByText("Admin page")).toBeInTheDocument();
+    expect(calls).toBe(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a page that stays cancelled as a failure after two retries", async () => {
+    let calls = 0;
+    behaviour.admin = () => {
+      calls += 1;
+      throw new CancelledError();
+    };
+    mount("/admin");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unable to load this page",
+    );
+    expect(calls).toBe(3);
   });
 
   it("offers the way home when the server refuses the page", async () => {
