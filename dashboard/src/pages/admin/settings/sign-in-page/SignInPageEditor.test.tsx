@@ -653,7 +653,10 @@ describe("the Pixabay source", () => {
     const language = screen.getByRole("combobox", { name: "Search language" });
     expect(within(language).getByText("Chinese")).toBeVisible();
     await user.click(language);
-    await user.click(screen.getByRole("option", { name: "Japanese" }));
+    // The popup mounts from an animation frame the click does not await, so
+    // the option is waited for rather than sampled at the instant the click
+    // returns; under load that instant can precede the frame.
+    await user.click(await screen.findByRole("option", { name: "Japanese" }));
     await user.type(screen.getByLabelText("Keyword"), "雪山");
 
     await user.click(saveButton());
