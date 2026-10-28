@@ -1,5 +1,11 @@
 import type { MessageDescriptor } from "@lingui/core";
-import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import {
+  isCancelledError,
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { ApiError, type ErrorScope, isCancellation } from "@/api/errors";
 import { publicConfigQueryOptions } from "@/api/queries";
 
@@ -51,6 +57,73 @@ function isShownInline(
     : reportsInline === true;
 }
 
+/** How many times a read whose fetch keeps being given up asks again. */
+const givenUpReadAttempts = 3;
+
+/**
+ * Keeps an imperative read — a route loader's `fetchQuery` or `query`, and
+ * `ensureQueryData` and `prefetchQuery` through them — from failing because
+ * the fetch it shared was given up.
+ *
+ * Such a read joins a fetch already on its way for the same query, and gets
+ * that fetch's `CancelledError` when TanStack Query gives it up, even though
+ * the query still holds data: when the last component watching the query
+ * unmounts, as the page being left does while the next page's loaders run, or
+ * when an invalidation replaces it with a newer fetch. A loader that throws it
+ * fails the page it was loading. Such a read asks again. One cancelled on
+ * purpose still fails: through `cancelQueries`, as signing out cancels the
+ * session reads before removing them, or by removing the query.
+ */
+function outlastGivenUpFetches(queryClient: QueryClient) {
+  const cache = queryClient.getQueryCache();
+  // The queries `cancelQueries` is cancelling, until their fetches settle.
+  const cancelledOnPurpose = new WeakSet<object>();
+
+  async function untilSettled<T>(
+    queryKey: QueryKey,
+    read: () => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await read();
+      } catch (error) {
+        const query = cache.find({ queryKey, exact: true });
+        const givenUp = query !== undefined && !cancelledOnPurpose.has(query);
+        if (
+          !isCancelledError(error) ||
+          !givenUp ||
+          attempt >= givenUpReadAttempts
+        ) {
+          throw error;
+        }
+      }
+    }
+  }
+
+  const fetchQuery = queryClient.fetchQuery.bind(queryClient);
+  queryClient.fetchQuery = ((options: { queryKey: QueryKey }) =>
+    untilSettled(options.queryKey, () =>
+      fetchQuery(options),
+    )) as QueryClient["fetchQuery"];
+  const query = queryClient.query.bind(queryClient);
+  queryClient.query = ((options: { queryKey: QueryKey }) =>
+    untilSettled(options.queryKey, () =>
+      query(options),
+    )) as QueryClient["query"];
+  const cancelQueries = queryClient.cancelQueries.bind(queryClient);
+  queryClient.cancelQueries = (async (
+    ...args: Parameters<QueryClient["cancelQueries"]>
+  ) => {
+    const cancelled = cache.findAll(args[0]);
+    for (const query of cancelled) cancelledOnPurpose.add(query);
+    try {
+      await cancelQueries(...args);
+    } finally {
+      for (const query of cancelled) cancelledOnPurpose.delete(query);
+    }
+  }) as QueryClient["cancelQueries"];
+}
+
 /**
  * The console's query client. Every failed read and write is reported through
  * `notifyError`, apart from a cancellation, and apart from `maintenance_mode`:
@@ -58,7 +131,8 @@ function isShownInline(
  * the reader pressed, so the cached config learns that maintenance is on and
  * `onMaintenance` takes the reader to the maintenance page. A read marked
  * `quiet`, and a write failure the page shows inline, report nothing but
- * maintenance.
+ * maintenance. An imperative read survives a fetch it shared being given up;
+ * see `outlastGivenUpFetches`.
  */
 export function createQueryClient(
   notifyError: (error: unknown, scope?: ErrorScope) => void,
@@ -108,6 +182,7 @@ export function createQueryClient(
       mutations: { retry: false },
     },
   });
+  outlastGivenUpFetches(queryClient);
   return queryClient;
 }
 
