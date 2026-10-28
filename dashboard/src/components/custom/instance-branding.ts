@@ -11,8 +11,8 @@ import { usePreviewQuiet } from "@/components/custom/login-preview";
  * All of it comes from `GET /config`, which reports the effective values — an
  * override saved in the settings, else the deployment's configuration — so a
  * change saved on the settings page shows everywhere once that query refreshes.
- * The `instance-name` meta in `index.html` only titles the page before this
- * script runs; it is written at startup and never sees an override.
+ * The shell's `<title>` already carries the effective name: the server fills it
+ * per request, so the browser tab is correct even before this script runs.
  */
 export interface InstanceBranding {
   name: string;

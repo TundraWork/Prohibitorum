@@ -4,6 +4,7 @@ package webui
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"html"
 	"io/fs"
@@ -18,7 +19,11 @@ var embedded embed.FS
 // to index.html for any path that does not match a built file (client-side
 // routing). Intended as the chi router's NotFound handler, so it is only reached
 // for paths no registered route matched.
-func Handler(instanceName string) http.Handler {
+//
+// The shell's <title> is filled per request via instanceName, because an admin
+// can rename the instance after startup; the template is split on the
+// placeholder once so each response only substitutes the (escaped) name.
+func Handler(instanceName func(ctx context.Context) string) http.Handler {
 	sub, err := fs.Sub(embedded, "dist")
 	if err != nil {
 		panic("webui: dist not embedded: " + err.Error())
@@ -28,10 +33,7 @@ func Handler(instanceName string) http.Handler {
 	if err != nil {
 		panic("webui: dist/index.html missing — run the frontend build first")
 	}
-	if instanceName == "" {
-		instanceName = "Prohibitorum"
-	}
-	index = bytes.ReplaceAll(index, []byte("__INSTANCE_NAME__"), []byte(html.EscapeString(instanceName)))
+	parts := bytes.Split(index, []byte("__INSTANCE_NAME__"))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		setSecurityHeaders(w)
 		// If the path maps to an existing embedded FILE, serve it; a directory
@@ -48,8 +50,21 @@ func Handler(instanceName string) http.Handler {
 				}
 			}
 		}
+		name := instanceName(r.Context())
+		if name == "" {
+			name = "Prohibitorum"
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(index)
+		// The shell varies with the instance name, so no ETag is offered and
+		// the response is uncachable — a renamed instance must not serve a
+		// stale title from a cache or link preview.
+		w.Header().Set("Cache-Control", "no-store")
+		for i, part := range parts {
+			if i > 0 {
+				_, _ = w.Write([]byte(html.EscapeString(name)))
+			}
+			_, _ = w.Write(part)
+		}
 	})
 }
 

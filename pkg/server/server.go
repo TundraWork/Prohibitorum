@@ -409,7 +409,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		router:                router,
 		api:                   api,
 		config:                config,
-		webUIHandler:          webui.Handler(config.Branding.InstanceName),
+		webUIHandler:          webui.Handler(brandingResolver.InstanceName),
 		kvStore:               kvStore,
 		sessionStore:          sessionStore,
 		pairingStore:          pairing.NewPairingStore(kvStore),

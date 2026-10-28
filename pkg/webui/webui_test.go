@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
@@ -9,27 +10,61 @@ import (
 	"testing"
 )
 
-func TestHandler_TemplatesTitle(t *testing.T) {
-	h := Handler("Acme SSO")
+func TestHandler_TemplatesTitlePerRequest(t *testing.T) {
+	name := "Acme SSO"
+	h := Handler(func(context.Context) string { return name })
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if !strings.Contains(rec.Body.String(), "<title>Acme SSO</title>") {
 		t.Fatalf("title not templated; body head: %.200s", rec.Body.String())
 	}
+
+	// A rename must be visible on the very next shell response.
+	name = "Renamed"
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if !strings.Contains(rec.Body.String(), "<title>Renamed</title>") {
+		t.Fatalf("renamed title not templated; body head: %.200s", rec.Body.String())
+	}
 }
 
 func TestHandler_EscapesTitle(t *testing.T) {
-	h := Handler(`<x>`)
+	h := Handler(func(context.Context) string { return `<b>&` })
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if strings.Contains(rec.Body.String(), "<title><x></title>") {
+	if strings.Contains(rec.Body.String(), "<title><b>&</title>") {
 		t.Fatal("instance name was not HTML-escaped")
+	}
+	if !strings.Contains(rec.Body.String(), "<title>&lt;b&gt;&amp;</title>") {
+		t.Fatalf("instance name not escaped as expected; body head: %.200s", rec.Body.String())
+	}
+}
+
+func TestHandler_FallsBackWhenNameEmpty(t *testing.T) {
+	h := Handler(func(context.Context) string { return "" })
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if !strings.Contains(rec.Body.String(), "<title>Prohibitorum</title>") {
+		t.Fatalf("fallback title missing; body head: %.200s", rec.Body.String())
+	}
+}
+
+func TestHandler_ShellNotCacheable(t *testing.T) {
+	h := Handler(func(context.Context) string { return "Acme SSO" })
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/login", nil))
+	if cc := rec.Header().Get("Cache-Control"); cc != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", cc)
+	}
+	if rec.Header().Get("ETag") != "" {
+		t.Fatalf("shell response must not offer an ETag, got %q", rec.Header().Get("ETag"))
 	}
 }
 
 func TestSecurityHeaders_StyleSrcElem(t *testing.T) {
 	rec := httptest.NewRecorder()
-	Handler("Prohibitorum").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	Handler(func(context.Context) string { return "Prohibitorum" }).ServeHTTP(
+		rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	csp := rec.Header().Get("Content-Security-Policy")
 
 	directives := make(map[string][]string)

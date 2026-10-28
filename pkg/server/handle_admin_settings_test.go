@@ -18,6 +18,7 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/branding"
+	"prohibitorum/pkg/webui"
 )
 
 // noopAuditWriter satisfies audit.Writer without touching a DB.
@@ -121,6 +122,50 @@ func TestAdminSettings_PutName_TooLong(t *testing.T) {
 	// Store must not have been touched.
 	if st.name != nil {
 		t.Error("store.SetName was called despite validation failure")
+	}
+}
+
+// TestAdminSettings_PutName_RenamesSPAShellTitle verifies that a name saved in
+// the console shows up in the SPA shell's <title> on the very next shell
+// response — the whole point of resolving the name per request: link previews
+// and crawlers, which never run the script that corrects document.title, must
+// see the effective name.
+func TestAdminSettings_PutName_RenamesSPAShellTitle(t *testing.T) {
+	t.Parallel()
+
+	st := &settingsBrandingStore{}
+	resolver := branding.NewWithStore("TestDefault", st)
+	s := &Server{
+		branding:     resolver,
+		webUIHandler: webui.Handler(resolver.InstanceName),
+		Audit:        noopAuditWriter{},
+	}
+
+	shell := func() string {
+		t.Helper()
+		rr := httptest.NewRecorder()
+		s.webUIHandler.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+		if rr.Code != http.StatusOK {
+			t.Fatalf("shell status = %d", rr.Code)
+		}
+		return rr.Body.String()
+	}
+
+	if body := shell(); !strings.Contains(body, "<title>TestDefault</title>") {
+		t.Fatalf("shell title before save = %q", body)
+	}
+
+	sess := adminSession(time.Now().Add(time.Hour)) // fresh sudo
+	req := reqWithSession("PUT", "/api/prohibitorum/admin/settings",
+		`{"instanceName":"Renamed"}`, "", sess)
+	rr := httptest.NewRecorder()
+	s.handlePutInstanceNameHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("PUT status = %d, want 204; body: %s", rr.Code, rr.Body.String())
+	}
+
+	if body := shell(); !strings.Contains(body, "<title>Renamed</title>") {
+		t.Fatalf("shell title after save = %q", body)
 	}
 }
 

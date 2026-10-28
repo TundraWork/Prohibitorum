@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestVRChatProofAlwaysServesIdenticalNoStoreSPAShell(t *testing.T) {
-	s := &Server{webUIHandler: webui.Handler("Proof Test")}
+	s := &Server{webUIHandler: webui.Handler(func(context.Context) string { return "Proof Test" })}
 	paths := []string{
 		"/verify/vrchat/random",
 		"/verify/vrchat/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
