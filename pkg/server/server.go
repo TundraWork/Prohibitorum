@@ -513,6 +513,24 @@ func machinePathGuard(spa http.Handler) http.HandlerFunc {
 	}
 }
 
+// signedOutHome sends a reader without a session from `/`, the launcher,
+// straight to the sign-in page, instead of loading the app only for its first
+// route to send them there. Signing in comes back to `/` by default, so the
+// redirect needs no return address. The answer depends on the cookie, so it
+// is not cached.
+func signedOutHome(spa http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			if sess := authn.SessionFromContext(r.Context()); sess == nil || sess.Data == nil {
+				w.Header().Set("Cache-Control", "no-store")
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
+		}
+		spa.ServeHTTP(w, r)
+	}
+}
+
 // NewHuma returns a bare huma.API for the openapi subcommand to emit specs
 // without running migrations / connecting to the DB.
 func NewHuma() huma.API {
@@ -983,5 +1001,5 @@ func (s *Server) registerOperations() {
 	// The SPA fallback is the router's NotFound: registered routes above keep
 	// their own responses, and machinePathGuard keeps unknown machine-facing
 	// paths from answering HTML.
-	s.router.NotFound(machinePathGuard(s.webUIHandler))
+	s.router.NotFound(machinePathGuard(signedOutHome(s.webUIHandler)))
 }
