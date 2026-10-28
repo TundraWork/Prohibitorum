@@ -47,6 +47,7 @@ import (
 	"prohibitorum/pkg/pagination"
 	oidcop "prohibitorum/pkg/protocol/oidc"
 	samlidp "prohibitorum/pkg/protocol/saml"
+	"prohibitorum/pkg/servertiming"
 	sessstore "prohibitorum/pkg/session"
 	"prohibitorum/pkg/wallpaper"
 	"prohibitorum/pkg/webui"
@@ -292,7 +293,14 @@ func NewServer(ctx context.Context) (*Server, error) {
 		return nil, fmt.Errorf("migrations: %w", err)
 	}
 
-	conn, err := pgxpool.New(ctx, config.DatabaseURL)
+	poolConfig, err := pgxpool.ParseConfig(config.DatabaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse database url: %w", err)
+	}
+	if config.ServerTiming {
+		poolConfig.ConnConfig.Tracer = servertiming.Tracer{}
+	}
+	conn, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf("connect db: %w", err)
 	}
@@ -311,6 +319,9 @@ func NewServer(ctx context.Context) (*Server, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("kv: %w", err)
+	}
+	if config.ServerTiming {
+		kvStore = servertiming.KV(kvStore)
 	}
 	sessionStore := sessstore.NewSessionStore(kvStore, queries, config.SessionTTL, config.SessionRememberTTL)
 
@@ -333,6 +344,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 	diagStore := diagnostic.New(queries)
 
 	router := chi.NewMux()
+	// Outermost, so the total covers everything the request went through.
+	router.Use(servertiming.Middleware(config.ServerTiming))
 	// Request ID middleware runs first so every response — including auth
 	// rejections, cross-origin 403s, and maintenance-gate 503s — carries a
 	// server-generated X-Request-ID. Inbound values are never trusted as the

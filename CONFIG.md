@@ -11,6 +11,7 @@
 | `PROHIBITORUM_PUBLIC_ORIGIN` | `http://localhost:8080` | Comma-separated public origin(s), each `scheme://host[:port]` with no path or trailing `/`; the server refuses to start otherwise. Seeds the OIDC issuer, SAML EntityID + endpoints, and the WebAuthn RP ID/origins when those aren't set explicitly. |
 | `PROHIBITORUM_HOST` | `""` (all interfaces) | Bind interface; set `127.0.0.1` to listen loopback-only behind a reverse proxy. |
 | `PROHIBITORUM_PORT` | `8080` | Bind port. |
+| `PROHIBITORUM_SERVER_TIMING` | `false` | Add a `Server-Timing` header to every response: `total`, `db` (query time and count), `db-wait` (waiting for a pooled connection) and `kv`. Shows in the browser's network panel for profiling. Leave off where untrusted clients reach the server: the breakdown reveals how much work a request did, for example whether a sign-in found an account. |
 | `PROHIBITORUM_SESSION_TTL` | `8h` | Sliding session lifetime when "keep me signed in" is not chosen; the cookie is a browser-session cookie. |
 | `PROHIBITORUM_SESSION_REMEMBER_TTL` | `336h` | Sliding session lifetime (and cookie `Max-Age`) when "keep me signed in" is chosen. No absolute cap; `≤0` falls back to the default. |
 
