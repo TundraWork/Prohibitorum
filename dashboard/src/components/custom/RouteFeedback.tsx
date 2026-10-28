@@ -10,12 +10,8 @@ import {
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
-import { type ReactNode, use, useEffect, useState } from "react";
-import {
-  describeRouteFailure,
-  isCancellation,
-  type RouteFailure,
-} from "@/api/errors";
+import { createContext, type ReactNode, use, useEffect, useState } from "react";
+import { describeRouteFailure, type RouteFailure } from "@/api/errors";
 import type { RequestExchange } from "@/api/exchange";
 import { logoutMutationOptions } from "@/api/mutations";
 import { clearSessionQueries } from "@/api/queries";
@@ -24,56 +20,17 @@ import { PublicStage } from "@/components/custom/PublicStage";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { ReferenceLine } from "@/components/custom/ReferenceLine";
 import { RequestDetailsDialog } from "@/components/custom/RequestDetailsDialog";
-import { RoutePending } from "@/components/custom/RoutePending";
-import { RouteLayoutContext } from "@/components/custom/route-layout";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
 import { Frame, FramePanel } from "@/components/ui/frame";
 
-export { RouteLayoutContext };
-
-/** How many times a cancelled load is tried again before it is shown as a failure. */
-const cancelledRetries = 2;
-
 /**
- * The retries spent on each history entry. The failure view remounts with
- * every attempt, so the count lives with the router rather than in it.
+ * Which layout a page is drawn in. Each layout provides it around its outlet,
+ * so a page's failure is drawn in that layout's shape; outside both, the
+ * failure takes the whole window.
  */
-const cancelledAttempts = new WeakMap<
-  object,
-  { entry: string; attempts: number; error: unknown }
->();
-
-/**
- * A load that was cancelled — a query given up because a newer navigation or
- * render replaced the one that asked for it — is the app backing out, not the
- * page failing (`isCancellation`). The page is loaded again at once, behind
- * its loading placeholder, instead of drawing a failure with "Error:
- * CancelledError" in it; only a cancellation that keeps coming back is shown.
- */
-function useCancelledRetry(error: unknown): boolean {
-  const cancelled = isCancellation(error);
-  const { reset } = useQueryErrorResetBoundary();
-  const router = useRouter();
-  const location = router.state.location;
-  const entry = location.state.__TSR_key ?? location.href;
-  const record = cancelledAttempts.get(router);
-  const spent = record?.entry === entry ? record.attempts : 0;
-  const retrying =
-    cancelled &&
-    (spent < cancelledRetries || (record?.error === error && spent > 0));
-  useEffect(() => {
-    if (!cancelled) return;
-    const current = cancelledAttempts.get(router);
-    const attempts = current?.entry === entry ? current.attempts : 0;
-    // Once per cancelled error: a load that is cancelled again arrives as a
-    // new error and gets the next attempt.
-    if (current?.error === error || attempts >= cancelledRetries) return;
-    cancelledAttempts.set(router, { entry, attempts: attempts + 1, error });
-    reset();
-    void router.invalidate();
-  }, [cancelled, entry, error, reset, router]);
-  return retrying;
-}
+export const RouteLayoutContext = createContext<"console" | "public" | null>(
+  null,
+);
 
 type Leave = { to: "/" | "/login"; label: ReactNode };
 
@@ -96,15 +53,15 @@ const appLeave: Leave = {
  * layouts declare `AppRouteError` themselves, because when they fail there is
  * no layout left to draw in.
  */
-function RouteErrorView(props: ErrorComponentProps) {
+export function RouteError(props: ErrorComponentProps) {
   const layout = use(RouteLayoutContext);
-  if (layout === "console") return <ConsoleRouteErrorView {...props} />;
-  if (layout === "public") return <PublicRouteErrorView {...props} />;
-  return <AppRouteErrorView {...props} />;
+  if (layout === "console") return <ConsoleRouteError {...props} />;
+  if (layout === "public") return <PublicRouteError {...props} />;
+  return <AppRouteError {...props} />;
 }
 
 /** A console page that failed, in the page column under the header. */
-function ConsoleRouteErrorView({ error }: ErrorComponentProps) {
+export function ConsoleRouteError({ error }: ErrorComponentProps) {
   const { i18n } = useLingui();
   const route = useRouteFailure(error);
   return (
@@ -125,7 +82,7 @@ function ConsoleRouteErrorView({ error }: ErrorComponentProps) {
 }
 
 /** A public page that failed, on the layout's card in place of the page. */
-function PublicRouteErrorView({ error }: ErrorComponentProps) {
+export function PublicRouteError({ error }: ErrorComponentProps) {
   return <FailedPage error={error} leave={publicLeave} />;
 }
 
@@ -133,7 +90,7 @@ function PublicRouteErrorView({ error }: ErrorComponentProps) {
  * A failure with no layout to draw in: the root route or a layout itself. It
  * takes the window, since there is no page column to sit in.
  */
-function AppRouteErrorView({ error }: ErrorComponentProps) {
+export function AppRouteError({ error }: ErrorComponentProps) {
   const { i18n } = useLingui();
   const route = useRouteFailure(error);
   return (
@@ -420,17 +377,3 @@ function LeaveButton({
     </Button>
   );
 }
-
-function withCancelledRetry(
-  View: (props: ErrorComponentProps) => React.ReactElement,
-) {
-  return function RouteFailure(props: ErrorComponentProps) {
-    const retrying = useCancelledRetry(props.error);
-    return retrying ? <RoutePending /> : <View {...props} />;
-  };
-}
-
-export const RouteError = withCancelledRetry(RouteErrorView);
-export const ConsoleRouteError = withCancelledRetry(ConsoleRouteErrorView);
-export const PublicRouteError = withCancelledRetry(PublicRouteErrorView);
-export const AppRouteError = withCancelledRetry(AppRouteErrorView);
