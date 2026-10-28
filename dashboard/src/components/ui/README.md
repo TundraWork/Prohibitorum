@@ -14,11 +14,15 @@ imports (`@/registry/default/ui|lib|hooks` to `@/components/ui`, `@/lib`,
 pnpm exec biome check --write src/components/ui src/lib src/hooks
 ```
 
-(biome reorders imports and export specifiers and reformats). Then refresh the
-stylesheet: copy `packages/ui/src/styles/globals.css` to `src/styles/coss.css`
-and replace its `@source` lines with `@source "../**/*.{ts,tsx}";` (the app's
-sources, not the upstream docs site's). Do not edit these files by hand, except
-for the local patches below, which a re-copy must re-apply.
+(biome reorders imports and export specifiers and reformats). Do not edit these
+files by hand, except for the local patches below, which a re-copy must
+re-apply.
+
+No stylesheet is copied. The base theme the components paint with,
+`src/styles/theme.css` (Tailwind, the semantic colour tokens, radii, fonts and
+the primitives' animations), is this project's own stylesheet, written without
+the upstream stylesheet. If a re-copied component names a token or an
+animation the theme lacks, add it there.
 
 ## Local patches
 
@@ -59,13 +63,6 @@ for the local patches below, which a re-copy must re-apply.
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
-
-### AGPL-3.0: `src/styles/coss.css`
-
-`src/styles/coss.css` is derived from `packages/ui/src/styles/globals.css` in the
-same commit. That path is outside the MIT directories (`apps/origin/`, `apps/ui/`),
-so it falls under the repository's default licence, AGPL-3.0 (see upstream
-`LICENSING.md`).
 
 ### Fonts
 

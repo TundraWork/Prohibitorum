@@ -3,12 +3,12 @@
  * semantic tokens, so no component knows which one is showing: the light
  * values under `:root[data-scheme=…]:not(.dark)`, the dark ones under
  * `:root[data-scheme=…].dark`, both from the registry in
- * src/lib/color-scheme.ts. Graphite is coss's own palette (coss.css, vendored
- * and not edited) with the adjustments below. Every pair a reader depends on
- * is checked by src/styles/scheme-contrast.test.ts.
+ * src/lib/color-scheme.ts. Graphite is the base palette defined in theme.css,
+ * with the adjustments below. Every pair a reader depends on is checked by
+ * src/styles/scheme-contrast.test.ts.
  */
 
-/* Graphite: sidebar text and the focus ring a step stronger than coss ships. */
+/* Graphite: sidebar text and the focus ring a step stronger than the base. */
 :root:not(.dark) {
   --sidebar-foreground: color-mix(
     in srgb,

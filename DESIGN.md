@@ -206,7 +206,7 @@ state.
 ## Colors
 
 A grey-scale console with four status hues, all taken from Tailwind's palette
-through coss's semantic tokens in `dashboard/src/styles/coss.css`.
+through the semantic tokens in `dashboard/src/styles/theme.css`.
 
 ### Primary
 - **Ink** (primary, neutral-800): the primary button, the instance's fallback
@@ -345,7 +345,7 @@ corners, and the public stage keeps the toolbar's 20px side margin, so the
 brand capsule and the frame share an edge, with a 20px card padding.
 
 **Breakpoints:** `sm` 640px, `md` 768px (sidebar), `lg` 1024px (rail,
-two-column editor, card position), plus coss's `3xl` 1600px and `4xl` 2000px.
+two-column editor, card position).
 
 **Rhythm:** a 4px base. 6px Frame bezel, 8px between controls, 12px header
 meta, 16px inside wells, 24px between sections, 32px between page regions.
@@ -612,4 +612,4 @@ The instance identity sits at the top and the account menu at the bottom
 - **Don't** use shadows heavier than `shadow-lg/5` on console surfaces; the frosted stage's large shadow is for the public page only, and the tile lift for the launcher.
 - **Don't** give an application a state hue or a saturated cover; its identity is a calm tint from the cool sweep or its own icon.
 - **Don't** use Paper Mono for words, or Cal Sans for values a person copies.
-- **Don't** hand-edit `src/components/ui` or `coss.css`; re-copy from the registry and re-apply the documented patches.
+- **Don't** hand-edit `src/components/ui`; re-copy from the registry and re-apply the documented patches. The base theme, `src/styles/theme.css`, is the project's own and is edited directly.
