@@ -6,10 +6,10 @@ import { colorSchemes } from "@/lib/color-scheme";
 
 /*
  * Every colour scheme, light and dark, read the way the browser reads it:
- * Tailwind's palette, then coss's tokens, then the schemes' overrides, with
- * `var()`, `color-mix(in srgb, …)` and `--alpha()` resolved and translucent
- * surfaces laid over what they sit on. Each pair a reader depends on must
- * clear its WCAG 2 ratio.
+ * Tailwind's palette, then the base theme's tokens (theme.css), then the
+ * schemes' overrides, with `var()`, `color-mix(in srgb, …)` and `--alpha()`
+ * resolved and translucent surfaces laid over what they sit on. Each pair a
+ * reader depends on must clear its WCAG 2 ratio.
  */
 
 type Rgba = { r: number; g: number; b: number; a: number };
@@ -22,7 +22,7 @@ const tailwindTheme = readFileSync(
   require.resolve("tailwindcss/theme.css"),
   "utf8",
 );
-const coss = read("./coss.css");
+const base = read("./theme.css");
 const schemes = read("./schemes.css");
 
 /** The custom properties declared in the block whose selector is exactly `selector`. */
@@ -78,8 +78,8 @@ function splitTopLevel(text: string, separator: string): string[] {
 function tokensFor(scheme: string, mode: Mode): Map<string, string> {
   const layers = [
     block(tailwindTheme, "@theme default"),
-    block(coss, ":root"),
-    ...(mode === "dark" ? [block(coss, ".dark"), block(schemes, ".dark")] : []),
+    block(base, ":root"),
+    ...(mode === "dark" ? [block(base, ".dark"), block(schemes, ".dark")] : []),
     ...(mode === "light" ? [block(schemes, ":root:not(.dark)")] : []),
     block(
       schemes,
@@ -295,8 +295,8 @@ describe.each(colorSchemes.map((s) => s.slug))("the %s scheme", (scheme) => {
   });
 });
 
-it("resolves coss's tokens as the browser does", () => {
-  // coss's light sidebar text before the adjustment measured 4.58:1, the
+it("resolves the base theme's tokens as the browser does", () => {
+  // The base light sidebar text before the adjustment measured 4.58:1, the
   // figure the design documents for it.
   const tokens = tokensFor("graphite", "light");
   tokens.set(

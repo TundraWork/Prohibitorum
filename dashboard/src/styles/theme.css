@@ -1,0 +1,281 @@
+/*
+ * The console's base theme: Tailwind, the semantic colour tokens every
+ * component paints with, the radius scale, the font roles, the base element
+ * styles and the few animations the UI primitives name. This palette is
+ * Graphite, a neutral grey; `schemes.css` layers the other colour schemes (and
+ * Graphite's own adjustments) over these tokens, so their names are a contract.
+ */
+
+@import "tailwindcss";
+
+/* Class names live in the dashboard's TypeScript sources. */
+@source "../**/*.{ts,tsx}";
+
+/* `dark:` styles anything under the `.dark` root. `:is()` carries the class's
+   specificity, so a `dark:` rule beats a plain utility it ties with. */
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Tailwind names for the tokens. `inline` writes the `var()` into each utility,
+ * so a utility follows the token wherever it is redefined, and the radius steps
+ * follow `--radius` on the element that uses them.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-code: var(--code);
+  --color-code-foreground: var(--code-foreground);
+  --color-code-highlight: var(--code-highlight);
+
+  /* sm, md, lg and xl step around `--radius`; 2xl and up are Tailwind's. */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Headings share the body family (`--font-sans`, set in index.css). */
+  --font-heading: var(--font-sans);
+}
+
+/*
+ * Motion the primitives name. A toast's odd and even classes run the same
+ * keyframes under two names, so swapping the class restarts the animation.
+ */
+@theme {
+  --animate-skeleton: skeleton-sweep 2s linear -1s infinite;
+  --animate-toast-success-odd: toast-pop-a 0.32s cubic-bezier(0.5, 1, 0.89, 1);
+  --animate-toast-success-even: toast-pop-b 0.32s cubic-bezier(0.5, 1, 0.89, 1);
+  --animate-toast-error-odd: toast-shake-a 0.28s cubic-bezier(0.5, 1, 0.89, 1);
+  --animate-toast-error-even: toast-shake-b 0.28s cubic-bezier(0.5, 1, 0.89, 1);
+
+  /* The skeleton's gradient is twice its width; this slides it across. */
+  @keyframes skeleton-sweep {
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes toast-pop-a {
+    0%,
+    100% {
+      scale: 1;
+    }
+    30% {
+      scale: 1.025;
+    }
+    60% {
+      scale: 0.99;
+    }
+  }
+
+  @keyframes toast-pop-b {
+    0%,
+    100% {
+      scale: 1;
+    }
+    30% {
+      scale: 1.025;
+    }
+    60% {
+      scale: 0.99;
+    }
+  }
+
+  @keyframes toast-shake-a {
+    0%,
+    100% {
+      translate: 0;
+    }
+    25%,
+    75% {
+      translate: -3px;
+    }
+    50% {
+      translate: 3px;
+    }
+  }
+
+  @keyframes toast-shake-b {
+    0%,
+    100% {
+      translate: 0;
+    }
+    25%,
+    75% {
+      translate: -3px;
+    }
+    50% {
+      translate: 3px;
+    }
+  }
+}
+
+/*
+ * Graphite, light. Surfaces are white; text is neutral-800; fills that sit on
+ * a surface (wells, hovers, secondary buttons) and lines are black at a low
+ * alpha, so they read the same on any surface; status colours are Tailwind's
+ * 500 steps, with the 700 step for status text.
+ */
+:root {
+  --radius: 0.625rem;
+
+  --background: var(--color-white);
+  --foreground: var(--color-neutral-800);
+  --card: var(--color-white);
+  --card-foreground: var(--foreground);
+  --popover: var(--color-white);
+  --popover-foreground: var(--foreground);
+  --primary: var(--color-neutral-800);
+  --primary-foreground: var(--color-neutral-50);
+  --secondary: --alpha(var(--color-black) / 4%);
+  --secondary-foreground: var(--foreground);
+  --muted: --alpha(var(--color-black) / 4%);
+  --muted-foreground: color-mix(
+    in srgb,
+    var(--color-neutral-500) 90%,
+    var(--color-black)
+  );
+  --accent: --alpha(var(--color-black) / 4%);
+  --accent-foreground: var(--foreground);
+  --destructive: var(--color-red-500);
+  --destructive-foreground: var(--color-red-700);
+  --info: var(--color-blue-500);
+  --info-foreground: var(--color-blue-700);
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-emerald-700);
+  --warning: var(--color-amber-500);
+  --warning-foreground: var(--color-amber-700);
+  --border: --alpha(var(--color-black) / 8%);
+  --input: --alpha(var(--color-black) / 10%);
+  --ring: var(--color-neutral-400);
+
+  --sidebar: var(--color-neutral-50);
+  --sidebar-foreground: color-mix(
+    in srgb,
+    var(--color-neutral-800) 64%,
+    var(--sidebar)
+  );
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: --alpha(var(--color-black) / 4%);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: --alpha(var(--color-black) / 6%);
+  --sidebar-ring: var(--color-neutral-400);
+
+  --code: var(--card);
+  --code-foreground: var(--foreground);
+  --code-highlight: --alpha(var(--color-black) / 4%);
+}
+
+/*
+ * Graphite, dark. The canvas is neutral-950 lifted a few percent toward white;
+ * a card and a popover are each a further step up from it and the sidebar a
+ * step down. Fills and lines turn white at a low alpha; status text takes the
+ * 400 steps. Tokens aliased in `:root` (the foreground pairs, code) follow.
+ */
+.dark {
+  --background: color-mix(
+    in srgb,
+    var(--color-neutral-950) 96%,
+    var(--color-white)
+  );
+  --foreground: var(--color-neutral-100);
+  --card: color-mix(in srgb, var(--background) 98%, var(--color-white));
+  --popover: color-mix(in srgb, var(--background) 96%, var(--color-white));
+  --primary: var(--color-neutral-100);
+  --primary-foreground: var(--color-neutral-800);
+  --secondary: --alpha(var(--color-white) / 4%);
+  --muted: --alpha(var(--color-white) / 4%);
+  --muted-foreground: color-mix(
+    in srgb,
+    var(--color-neutral-500) 90%,
+    var(--color-white)
+  );
+  --accent: --alpha(var(--color-white) / 4%);
+  --destructive: color-mix(
+    in srgb,
+    var(--color-red-500) 90%,
+    var(--color-white)
+  );
+  --destructive-foreground: var(--color-red-400);
+  --info-foreground: var(--color-blue-400);
+  --success-foreground: var(--color-emerald-400);
+  --warning-foreground: var(--color-amber-400);
+  --border: --alpha(var(--color-white) / 6%);
+  --input: --alpha(var(--color-white) / 8%);
+  --ring: var(--color-neutral-500);
+
+  --sidebar: color-mix(
+    in srgb,
+    var(--color-neutral-950) 97%,
+    var(--color-white)
+  );
+  --sidebar-foreground: color-mix(
+    in srgb,
+    var(--color-neutral-100) 64%,
+    var(--sidebar)
+  );
+  --sidebar-accent: --alpha(var(--color-white) / 4%);
+  --sidebar-border: --alpha(var(--color-white) / 5%);
+
+  --code-highlight: --alpha(var(--color-white) / 4%);
+}
+
+/* An unselected radio or checkbox is a control boundary and needs 3:1 on the dark canvas. */
+.dark [data-slot="radio"]:not([data-checked]):not([data-disabled]),
+.dark
+  [data-slot="checkbox"]:not([data-checked]):not([data-disabled]):not(
+    [data-indeterminate]
+  ) {
+  border-color: --alpha(var(--color-white) / 38%);
+}
+
+@layer base {
+  /* A bare border takes the line token; a bare outline, the ring at half. */
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+    outline-color: --alpha(var(--ring) / 50%);
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+  }
+}
