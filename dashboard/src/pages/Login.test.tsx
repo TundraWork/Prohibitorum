@@ -64,27 +64,33 @@ beforeEach(() => {
   window.history.replaceState(null, "", "/login");
   history = createBrowserHistory();
   i18n.activate("en");
-  queryClient = createQueryClient(() => {});
-  // The seeded data is the whole answer these tests want, and
-  // `useSuspenseQuery` clamps its staleTime to only one second, so under CPU
-  // load a step change could otherwise remount the shell after that window
-  // and send the background refetch through whatever fetch mock the test
-  // installed — stealing a `mockResolvedValueOnce` meant for a sign-in step
-  // and stalling the flow mid-test. A large-but-finite staleTime covers a
-  // whole test run without the immediate-stale timer an `Infinity`
-  // `updatedAt` would schedule (Node clamps it to 1ms).
-  queryClient.setDefaultOptions({
+  queryClient = seededQueryClient(() => {});
+});
+
+/**
+ * The client every test starts from, with the reads the login page shares
+ * already answered and kept fresh.
+ *
+ * `useSuspenseQuery` clamps its staleTime to only one second, so under CPU
+ * load a step change could otherwise remount the shell after that window and
+ * send the background refetch through whatever fetch mock the test installed
+ * — stealing a `mockResolvedValueOnce` meant for a sign-in step and stalling
+ * the flow mid-test. A large-but-finite staleTime covers a whole test run
+ * without the immediate-stale timer an `Infinity` `updatedAt` would schedule
+ * (Node clamps it to 1ms).
+ */
+function seededQueryClient(notifyError: (error: unknown) => void): QueryClient {
+  const client = createQueryClient(notifyError);
+  client.setDefaultOptions({
     queries: { staleTime: 3_600_000 },
   });
-  queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
-  queryClient.setQueryData(authStatusQueryOptions().queryKey, {
+  client.setQueryData(publicConfigQueryOptions().queryKey, config);
+  client.setQueryData(authStatusQueryOptions().queryKey, {
     bootstrapped: true,
   });
-  queryClient.setQueryData(
-    publicFederationProvidersQueryOptions().queryKey,
-    [],
-  );
-});
+  client.setQueryData(publicFederationProvidersQueryOptions().queryKey, []);
+  return client;
+}
 afterEach(() => {
   history.destroy();
   queryClient.clear();
@@ -188,15 +194,12 @@ function rejectedCode() {
 
 it("reports a rejected password once, inline, without a toast", async () => {
   const notifyError = vi.fn();
-  queryClient = createQueryClient(notifyError);
-  queryClient.setQueryData(publicConfigQueryOptions().queryKey, config);
-  queryClient.setQueryData(authStatusQueryOptions().queryKey, {
-    bootstrapped: true,
-  });
-  queryClient.setQueryData(
-    publicFederationProvidersQueryOptions().queryKey,
-    [],
-  );
+  // The shared seeded client, whose staleTime keeps its reads fresh: a bare
+  // createQueryClient here let them go stale after the one second
+  // `useSuspenseQuery` clamps to, so under load the page mounted on stale
+  // reads, refetched them through this test's one-response fetch mock and
+  // reported the drained mock's failures as toasts.
+  queryClient = seededQueryClient(notifyError);
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(rejectedCode()),
