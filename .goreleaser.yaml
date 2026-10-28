@@ -53,6 +53,7 @@ kos:
       org.opencontainers.image.source: "https://github.com/TundraWork/Prohibitorum"
       org.opencontainers.image.revision: "{{ .FullCommit }}"
       org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.licenses: "Apache-2.0"
 
 archives:
   - id: prohibitorum
@@ -61,6 +62,11 @@ archives:
     formats:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # The licence and its notices travel with every binary.
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
 
 checksum:
   name_template: "checksums.txt"

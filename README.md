@@ -169,3 +169,9 @@ library) is the OIDC OP toolkit; `crewjam/saml` the SAML side.
 - [`INTEGRATION.md`](./INTEGRATION.md) — relying-party integration patterns.
 - [`PRODUCT.md`](./PRODUCT.md) — product framing.
 - [`AUDIT.md`](./AUDIT.md) — per-layer compliance checklist.
+
+## License
+
+Prohibitorum is licensed under the [Apache License 2.0](./LICENSE). [`NOTICE`](./NOTICE)
+carries the project's copyright and the notices of the third-party code it
+includes.
