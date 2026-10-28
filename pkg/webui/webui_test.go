@@ -183,3 +183,62 @@ func TestShell_StillServedForPageAddresses(t *testing.T) {
 		t.Fatal("the shell is filled per request and goes out uncompressed")
 	}
 }
+
+// splitBuildFS is a build whose routes are split into a public and a console
+// group, with the route-chunks.json the dashboard build writes.
+func splitBuildFS() fstest.MapFS {
+	return fstest.MapFS{
+		"index.html": {Data: []byte(`<html><head><title>__INSTANCE_NAME__</title><script type="module" src="/assets/index-a.js"></script></head><body></body></html>`)},
+		"route-chunks.json": {Data: []byte(`{
+			"publicPaths": ["/login", "/login/totp", "/consent", "/enroll/$token"],
+			"preload": {"public": ["/assets/public-b.js"], "console": ["/assets/console-c.js", "/assets/console-d.js"]}
+		}`)},
+	}
+}
+
+func shellFor(t *testing.T, fsys fstest.MapFS, path string) string {
+	t.Helper()
+	h := newHandler(fsys, func(context.Context) string { return "Acme SSO" })
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%s: status %d", path, rec.Code)
+	}
+	return rec.Body.String()
+}
+
+func TestShell_PreloadsThePublicGroupOnPublicPages(t *testing.T) {
+	for _, path := range []string{"/login", "/login/", "/login/totp", "/consent?ticket=t", "/enroll/abc"} {
+		body := shellFor(t, splitBuildFS(), path)
+		if !strings.Contains(body, `<link rel="modulepreload" crossorigin href="/assets/public-b.js"></head>`) {
+			t.Errorf("%s: public group not preloaded: %s", path, body)
+		}
+		if strings.Contains(body, "console-") {
+			t.Errorf("%s: console code preloaded on a public page", path)
+		}
+		if !strings.Contains(body, "<title>Acme SSO</title>") {
+			t.Errorf("%s: title not filled in", path)
+		}
+	}
+}
+
+func TestShell_PreloadsTheConsoleGroupElsewhere(t *testing.T) {
+	for _, path := range []string{"/", "/admin/users", "/enroll", "/enroll/abc/extra", "/login/other", "/no-such-page"} {
+		body := shellFor(t, splitBuildFS(), path)
+		if !strings.Contains(body, `<link rel="modulepreload" crossorigin href="/assets/console-c.js"><link rel="modulepreload" crossorigin href="/assets/console-d.js"></head>`) {
+			t.Errorf("%s: console group not preloaded: %s", path, body)
+		}
+		if strings.Contains(body, "public-b.js") {
+			t.Errorf("%s: public code preloaded on a console page", path)
+		}
+	}
+}
+
+func TestShell_PlainWithoutRouteChunks(t *testing.T) {
+	fsys := splitBuildFS()
+	delete(fsys, "route-chunks.json")
+	body := shellFor(t, fsys, "/login")
+	if strings.Contains(body, "modulepreload") {
+		t.Fatalf("a build without route-chunks.json must serve the plain shell: %s", body)
+	}
+}

@@ -11,6 +11,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
+import { routeChunks } from "./tools/route-chunks";
 
 const brotli = promisify(brotliCompress);
 const gzipped = promisify(gzip);
@@ -64,12 +65,17 @@ export default defineConfig({
     devtools(),
     // Tests import the committed routeTree.gen.ts; generation would
     // double-evaluate route modules under Vitest's resetModules.
-    ...(process.env.VITEST ? [] : [tanstackRouter({ target: "react" })]),
+    ...(process.env.VITEST
+      ? []
+      : [tanstackRouter({ target: "react", autoCodeSplitting: true })]),
     react(),
     lingui({ failOnMissing: true, failOnCompileError: true }),
     babel({ presets: [linguiTransformerBabelPreset()] }),
     tailwindcss(),
     precompress(),
+    routeChunks(
+      fileURLToPath(new URL("./src/routeTree.gen.ts", import.meta.url)),
+    ),
   ],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },

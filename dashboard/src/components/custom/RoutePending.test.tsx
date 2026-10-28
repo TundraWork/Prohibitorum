@@ -1,5 +1,5 @@
 import { I18nProvider } from "@lingui/react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
@@ -54,9 +54,12 @@ describe("RoutePending", () => {
     expect(document.querySelector('[data-slot="sidebar"]')).toBeNull();
   });
 
-  it("draws the console shell before any layout, while a console route loads", () => {
+  it("draws the console shell before any layout, while a console route loads", async () => {
     mount(null, ["__root__", "/_protected", "/_protected/profile"]);
-    expect(document.querySelector('[data-slot="sidebar"]')).not.toBeNull();
+    // The shell loads with the console's code.
+    await waitFor(() =>
+      expect(document.querySelector('[data-slot="sidebar"]')).not.toBeNull(),
+    );
     expect(document.querySelector('[data-slot="page-body"]')).not.toBeNull();
     expect(document.querySelector('[data-slot="stage"]')).toBeNull();
   });
@@ -79,10 +82,12 @@ describe("RoutePending", () => {
     expect(document.querySelectorAll("li")).toHaveLength(0);
   });
 
-  it("draws the launcher's pad before any layout, while the launcher loads", () => {
+  it("draws the launcher's pad before any layout, while the launcher loads", async () => {
     mount(null, ["__root__", "/_launcher", "/_launcher/"]);
+    await waitFor(() =>
+      expect(document.querySelectorAll("li").length).toBeGreaterThan(0),
+    );
     expect(document.querySelector('[data-slot="stage"]')).toBeNull();
     expect(document.querySelector('[data-slot="sidebar"]')).toBeNull();
-    expect(document.querySelectorAll("li").length).toBeGreaterThan(0);
   });
 });

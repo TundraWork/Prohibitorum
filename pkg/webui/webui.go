@@ -3,7 +3,6 @@
 package webui
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"html"
@@ -57,7 +56,7 @@ func newHandler(sub fs.FS, instanceName func(ctx context.Context) string) http.H
 	if err != nil {
 		panic("webui: dist/index.html missing — run the frontend build first")
 	}
-	parts := bytes.Split(index, []byte("__INSTANCE_NAME__"))
+	shells := loadShells(sub, index)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		setSecurityHeaders(w)
 		// If the path maps to an existing embedded FILE, serve it; a directory
@@ -87,7 +86,7 @@ func newHandler(sub fs.FS, instanceName func(ctx context.Context) string) http.H
 		// the response is uncachable — a renamed instance must not serve a
 		// stale title from a cache or link preview.
 		w.Header().Set("Cache-Control", "no-store")
-		for i, part := range parts {
+		for i, part := range shells.forPath(r.URL.Path) {
 			if i > 0 {
 				_, _ = w.Write([]byte(html.EscapeString(name)))
 			}
