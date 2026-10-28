@@ -1,24 +1,25 @@
 import { useLingui } from "@lingui/react/macro";
 import { useRouterState } from "@tanstack/react-router";
-import { type ReactNode, use, useEffect } from "react";
+import { lazy, type ReactNode, Suspense, use, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { PageBody } from "@/components/custom/PageBody";
 import { PublicStage, useStageSlots } from "@/components/custom/PublicStage";
 import { RouteLayoutContext } from "@/components/custom/RouteFeedback";
 import { Frame, FramePanel } from "@/components/ui/frame";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarHeader,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuSkeleton,
-  SidebarProvider,
-} from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PadPending } from "@/pages/launcher/Launcher";
+
+// The console's and the launcher's shells come with their own code; until it
+// arrives, the window stays as it is.
+const ConsoleShellSkeleton = lazy(() =>
+  import("@/components/custom/ShellSkeletons").then((module) => ({
+    default: module.ConsoleShellSkeleton,
+  })),
+);
+const LauncherShellSkeleton = lazy(() =>
+  import("@/components/custom/ShellSkeletons").then((module) => ({
+    default: module.LauncherShellSkeleton,
+  })),
+);
 
 /**
  * What a page shows while its route is still loading: the shape of the page
@@ -54,9 +55,13 @@ export function RoutePending() {
   return (
     <Loading>
       {shell === "console" ? (
-        <ConsoleShellSkeleton />
+        <Suspense fallback={null}>
+          <ConsoleShellSkeleton />
+        </Suspense>
       ) : shell === "launcher" ? (
-        <LauncherShellSkeleton />
+        <Suspense fallback={null}>
+          <LauncherShellSkeleton />
+        </Suspense>
       ) : (
         <PublicShellSkeleton>{step}</PublicShellSkeleton>
       )}
@@ -100,7 +105,7 @@ function StepSkeleton() {
 }
 
 /** A console page: its header, then two sections. */
-function ConsolePageSkeleton() {
+export function ConsolePageSkeleton() {
   return (
     <PageBody>
       <header className="flex flex-col gap-2.5">
@@ -123,7 +128,7 @@ function ConsolePageSkeleton() {
 }
 
 /** The toolbar's two capsules, before the instance's name and icon are known. */
-function ToolbarSkeleton() {
+export function ToolbarSkeleton() {
   return (
     <div className="flex h-auto items-center justify-between gap-3 px-(--public-edge) pt-(--public-edge)">
       <Skeleton className="h-9 w-44 rounded-[14px]" />
@@ -200,53 +205,5 @@ function ConsentSkeleton() {
       </div>
       {slots.footer ? createPortal(footer, slots.footer) : null}
     </div>
-  );
-}
-
-function LauncherShellSkeleton() {
-  return (
-    <div className="min-h-(--app-viewport-height) bg-background">
-      <ToolbarSkeleton />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 py-10">
-        <div className="flex flex-col gap-2.5">
-          <Skeleton className="h-9 w-56" />
-          <Skeleton className="h-4 w-72 max-w-full" />
-        </div>
-        <PadPending />
-      </div>
-    </div>
-  );
-}
-
-function ConsoleShellSkeleton() {
-  return (
-    <SidebarProvider>
-      <Sidebar variant="inset" mobileDescription={null}>
-        <SidebarHeader>
-          <Skeleton className="m-2 h-9 w-40" />
-        </SidebarHeader>
-        <SidebarContent>
-          {["a", "b"].map((group) => (
-            <SidebarGroup key={group}>
-              <SidebarMenu>
-                {["1", "2", "3", "4"].map((item) => (
-                  <SidebarMenuItem key={item}>
-                    <SidebarMenuSkeleton showIcon />
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroup>
-          ))}
-        </SidebarContent>
-      </Sidebar>
-      <SidebarInset className="min-w-0">
-        <div className="flex h-14 shrink-0 items-center gap-2 rounded-t-xl border-b px-4">
-          <Skeleton className="h-4 w-32" />
-        </div>
-        <div className="mx-auto w-full max-w-6xl px-6 py-8 lg:px-10">
-          <ConsolePageSkeleton />
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
   );
 }

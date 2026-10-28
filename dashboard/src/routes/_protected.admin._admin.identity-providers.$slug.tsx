@@ -3,7 +3,7 @@ import { z } from "zod";
 import { identityProviderQueryOptions } from "@/api/queries";
 import { optionalSearchText } from "@/app/search-params";
 import { AdminIdentityProvider } from "@/pages/admin/identity-providers/AdminIdentityProvider";
-import { runIdPattern } from "@/pages/admin/identity-providers/ProviderDiagnosticsSection";
+import { runIdPattern } from "@/pages/admin/identity-providers/run-id";
 
 /**
  * One provider's settings, addressed by slug.

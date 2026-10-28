@@ -27,8 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConnectionTestDialog } from "@/pages/admin/identity-providers/ConnectionTestDialog";
 import { EffectiveConfigDialog } from "@/pages/admin/identity-providers/EffectiveConfigDialog";
 
-/** `?test=<id>` is 43 base64url characters; anything else is ignored. */
-export const runIdPattern = /^[A-Za-z0-9_-]{43}$/;
+export { runIdPattern } from "@/pages/admin/identity-providers/run-id";
 
 /**
  * Whether the upstream actually works, before anyone depends on it.
