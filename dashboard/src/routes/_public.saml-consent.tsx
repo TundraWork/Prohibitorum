@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { samlConsentRequestQueryOptions } from "@/api/queries";
-import { loadConsentRequest } from "@/app/consent-loader";
+import { loadConsentRequest, startConsentReads } from "@/app/consent-loader";
 import { optionalSearchText } from "@/app/search-params";
 import { SamlConsentPage } from "@/pages/public/SamlConsent";
 
@@ -9,9 +9,21 @@ import { SamlConsentPage } from "@/pages/public/SamlConsent";
 export const Route = createFileRoute("/_public/saml-consent")({
   validateSearch: z.object({ ticket: optionalSearchText() }),
   loaderDeps: ({ search: { ticket } }) => ({ ticket }),
-  loader: ({ context, location, deps: { ticket } }) =>
-    loadConsentRequest(context, location.href, ticket, (ticket) =>
-      context.queryClient.query(samlConsentRequestQueryOptions(ticket)),
+  staticData: {
+    startReads: ({ queryClient, search }) =>
+      startConsentReads(
+        queryClient,
+        (search as { ticket?: string }).ticket,
+        samlConsentRequestQueryOptions,
+      ),
+  },
+  loader: ({ context, location, route, deps: { ticket } }) =>
+    loadConsentRequest(
+      context,
+      route.id,
+      location.href,
+      ticket,
+      samlConsentRequestQueryOptions,
     ),
   component: SamlConsentPage,
 });
