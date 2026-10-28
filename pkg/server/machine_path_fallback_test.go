@@ -5,6 +5,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/db"
 )
 
 // Unknown paths under machine-facing prefixes must answer 404, not the SPA
@@ -59,6 +62,48 @@ func TestMachinePathPrefixesFallThroughTo404NotSPA(t *testing.T) {
 		}
 		if !strings.Contains(rr.Body.String(), "<!doctype html>") {
 			t.Errorf("%s: body is not the SPA shell", path)
+		}
+	}
+}
+
+func TestSignedOutHomeRedirectsToSignIn(t *testing.T) {
+	t.Parallel()
+
+	spa := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("<!doctype html><title>Prohibitorum</title>"))
+	})
+	handler := signedOutHome(spa)
+	serve := func(method, path string, sess *authn.Session) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, nil)
+		if sess != nil {
+			req = req.WithContext(authn.WithSession(req.Context(), sess))
+		}
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		return rr
+	}
+
+	// No session, and a disabled account's sentinel session, go to sign in.
+	for _, sess := range []*authn.Session{nil, {Account: &db.Account{ID: 1}}} {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			rr := serve(method, "/", sess)
+			if rr.Code != http.StatusFound || rr.Header().Get("Location") != "/login" {
+				t.Errorf("%s / (session %v): %d %q, want 302 /login", method, sess != nil, rr.Code, rr.Header().Get("Location"))
+			}
+			if rr.Header().Get("Cache-Control") != "no-store" {
+				t.Errorf("%s /: redirect must not be cached", method)
+			}
+		}
+	}
+
+	// A signed-in reader gets the launcher, and other addresses are the SPA's.
+	signedIn := &authn.Session{Account: &db.Account{ID: 1}, Token: "t", Data: &authn.SessionData{SessionID: "s"}}
+	if rr := serve(http.MethodGet, "/", signedIn); rr.Code != http.StatusOK {
+		t.Errorf("signed in: status %d, want the shell", rr.Code)
+	}
+	for _, path := range []string{"/login", "/admin", "/consent"} {
+		if rr := serve(http.MethodGet, path, nil); rr.Code != http.StatusOK {
+			t.Errorf("%s: status %d, want the shell", path, rr.Code)
 		}
 	}
 }

@@ -1,3 +1,4 @@
+import "@/app/zod-config";
 import "@/styles/index.css";
 import { I18nProvider } from "@lingui/react";
 import { Provider } from "jotai";
