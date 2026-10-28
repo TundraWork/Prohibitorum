@@ -35,6 +35,11 @@ type Config struct {
 	// activity with no absolute cap.
 	SessionRememberTTL time.Duration `mapstructure:"session_remember_ttl"`
 
+	// ServerTiming adds a Server-Timing header (total, database, KV) to every
+	// response, for profiling. Off by default: the breakdown tells any client
+	// how much work a request did, such as whether a sign-in found an account.
+	ServerTiming bool `mapstructure:"server_timing"`
+
 	KV                 KVConfig           `mapstructure:"kv"`
 	OIDC               OIDCConfig         `mapstructure:"oidc"`
 	WebAuthn           WebAuthnConfig     `mapstructure:"webauthn"`
@@ -213,6 +218,7 @@ func Parse() (*Config, error) {
 	}
 
 	viper.SetDefault("port", 8080)
+	viper.SetDefault("server_timing", false)
 	viper.SetDefault("kv.driver", "memory")
 	viper.SetDefault("kv.redis_url", "localhost:6379")
 	viper.SetDefault("kv.redis_username", "")
