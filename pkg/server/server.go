@@ -169,6 +169,11 @@ type Server struct {
 	// a live OIDC provider. Nil in production.
 	requireIdentityOverride        requireIdentityQueries
 	requireIdentityTicketsOverride requireIdentityTickets
+	// forwardAuthSignOutOverride / forwardAuthSignOutPassesOverride let tests
+	// drive GET /api/prohibitorum/forward-auth/sso-logout without *db.Queries
+	// or a live OIDC provider. Nil in production.
+	forwardAuthSignOutOverride       db.Querier
+	forwardAuthSignOutPassesOverride forwardAuthSignOutPasses
 	// patQueriesOverride lets tests inject a fake patQueries for the
 	// /me/tokens handlers without standing up *db.Queries. Nil in production —
 	// handlers fall back to s.queries.
