@@ -606,3 +606,58 @@ func TestStoreVerifyBusyIsNotAFailure(t *testing.T) {
 		}
 	}
 }
+
+func TestBatchBusyAfterMaxWait(t *testing.T) {
+	withHashLimits(t, 1, 50*time.Millisecond)
+	holdSlot(t)
+	ctx := context.Background()
+
+	if phcs, err := HashRawEach(ctx, []string{"a", "b"}, testParams()); !errors.Is(err, ErrBusy) || phcs != nil {
+		t.Errorf("HashRawEach with every slot held = (%v, %v), want (nil, ErrBusy)", phcs, err)
+	}
+	if i, err := VerifyRawAny(ctx, "a", []string{fakePHC()}); !errors.Is(err, ErrBusy) || i != -1 {
+		t.Errorf("VerifyRawAny with every slot held = (%d, %v), want (-1, ErrBusy)", i, err)
+	}
+}
+
+// TestDeriveKeyReleasesItsSlot checks every way out of a hash: a finished
+// hash, a wait that ran out, a caller that gave up and a KDF that panicked all
+// leave every slot free for the next call.
+func TestDeriveKeyReleasesItsSlot(t *testing.T) {
+	withHashLimits(t, 2, 50*time.Millisecond)
+	ctx := context.Background()
+	sem := hashSlots.Load()
+	allFree := func(after string) {
+		t.Helper()
+		if !sem.TryAcquire(2) {
+			t.Fatalf("a slot was still taken after %s", after)
+		}
+		sem.Release(2)
+	}
+
+	if _, err := HashRaw(ctx, "pw", testParams()); err != nil {
+		t.Fatalf("HashRaw: %v", err)
+	}
+	allFree("a finished hash")
+
+	if err := sem.Acquire(ctx, 2); err != nil {
+		t.Fatalf("acquire both slots: %v", err)
+	}
+	if _, err := HashRaw(ctx, "pw", testParams()); !errors.Is(err, ErrBusy) {
+		t.Fatalf("HashRaw with both slots held: want ErrBusy, got %v", err)
+	}
+	gaveUp, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err := VerifyRaw(gaveUp, "pw", fakePHC()); !errors.Is(err, context.Canceled) {
+		t.Fatalf("VerifyRaw for a caller that gave up: want context.Canceled, got %v", err)
+	}
+	sem.Release(2)
+	allFree("a wait that ran out and one the caller gave up")
+
+	idKey = func(_, _ []byte, _, _ uint32, _ uint8, _ uint32) []byte { panic("kdf failed") }
+	func() {
+		defer func() { _ = recover() }()
+		_, _ = HashRaw(ctx, "pw", testParams())
+	}()
+	allFree("a panicking hash")
+}
