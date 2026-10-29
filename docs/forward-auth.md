@@ -273,6 +273,6 @@ Open the protected app URL; after login you should see the identity headers echo
 ```
 
 Endpoints:
-- **`GET /api/prohibitorum/forward-auth/verify`** — the ForwardAuth target: `200` + identity headers (allowed), `302` to login (unauthenticated), `400` (a request bound for login whose `X-Forwarded-Uri` is set but does not start with `/`, usually a proxy misconfiguration), or `403` (host not a registered forward-auth service).
+- **`GET /api/prohibitorum/forward-auth/verify`** — the ForwardAuth target: `200` + identity headers (allowed), `302` to login (unauthenticated), `400` (a request bound for login whose `X-Forwarded-Uri` is not empty and does not start with `/`, usually a proxy misconfiguration), or `403` (host not a registered forward-auth service).
 - **`/.prohibitorum-forward-auth/callback`** — routed by you on each protected domain to Prohibitorum; completes the OIDC exchange and sets the per-domain cookie.
 - **`/.prohibitorum-forward-auth/sign_out`** — routed the same way; clears the per-domain cookie + session and `302`s to **`GET /api/prohibitorum/forward-auth/sso-logout`**, which terminates the SSO session and redirects back only to a validated forward-auth host.

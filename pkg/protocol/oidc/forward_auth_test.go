@@ -520,7 +520,7 @@ func TestForwardAuthVerify_InvalidForwardedURI_400(t *testing.T) {
 		"*",
 	} {
 		t.Run(uri, func(t *testing.T) {
-			p, _ := newFAProvider(&fakeFAQueries{faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}})
+			p, store := newFAProvider(&fakeFAQueries{faClient: db.GetForwardAuthClientByHostRow{ClientID: "svc"}})
 			rec := httptest.NewRecorder()
 			p.HandleForwardAuthVerify(rec, faRequest("https", "app.acme.io", uri, nil))
 			if rec.Code != http.StatusBadRequest {
@@ -529,7 +529,41 @@ func TestForwardAuthVerify_InvalidForwardedURI_400(t *testing.T) {
 			if loc := rec.Header().Get("Location"); loc != "" {
 				t.Fatalf("Location = %q, want none", loc)
 			}
+			states, err := store.ScanEntries(context.Background(), faStateKey("*"), 0, 0)
+			if err != nil || len(states.Entries) != 0 {
+				t.Fatalf("states = %+v, err = %v; want none", states.Entries, err)
+			}
 		})
+	}
+}
+
+// TestForwardAuthVerify_InvalidForwardedURI_IgnoredWithoutLogin requires the
+// X-Forwarded-Uri check to stay on the login path: a PAT request and a request
+// with a valid session cookie never use the header and keep their 200.
+func TestForwardAuthVerify_InvalidForwardedURI_IgnoredWithoutLogin(t *testing.T) {
+	ctx := context.Background()
+	q := &fakeFAQueries{
+		faClient:   db.GetForwardAuthClientByHostRow{ClientID: "svc"},
+		authorized: true,
+		acct:       db.Account{ID: 42, Username: "alice"},
+		pat:        db.PersonalAccessToken{ID: 7, AccountID: 42, Access: "all_apps"},
+	}
+	p, store := newFAProvider(q)
+	token, err := mintFASession(ctx, store, faSession{AccountID: 42, ClientID: "svc"}, time.Hour)
+	if err != nil {
+		t.Fatalf("mintFASession: %v", err)
+	}
+	patReq := faRequest("https", "app.acme.io", "@evil.example/phish", nil)
+	patReq.Header.Set("X-Prohibitorum-PAT", "prohibitorum_pat_x")
+	for name, req := range map[string]*http.Request{
+		"pat":    patReq,
+		"cookie": faRequest("https", "app.acme.io", "@evil.example/phish", faCookie(true, token)),
+	} {
+		rec := httptest.NewRecorder()
+		p.HandleForwardAuthVerify(rec, req)
+		if rec.Code != http.StatusOK || rec.Header().Get("Remote-User") != "alice" {
+			t.Errorf("%s: status = %d, Remote-User = %q; want 200 alice", name, rec.Code, rec.Header().Get("Remote-User"))
+		}
 	}
 }
 
@@ -614,6 +648,10 @@ func TestForwardAuthCallback_OffHostOriginalURL_RedirectsToHostRoot(t *testing.T
 		"https://app.acme.io@evil.example/phish",
 		"https://evil.example/#://app.acme.io/x",
 		"javascript://app.acme.io/%0aalert(1)",
+		// Go cannot parse it; a browser decodes the host to app.acme.io.evil.example.
+		"https://app.acme.io%2eevil.example/x",
+		// The right host, but with userinfo.
+		"https://x@app.acme.io/#://app.acme.io/x",
 	} {
 		t.Run(original, func(t *testing.T) {
 			ctx := context.Background()
@@ -645,6 +683,36 @@ func TestForwardAuthCallback_OffHostOriginalURL_RedirectsToHostRoot(t *testing.T
 				t.Fatal("forward-auth cookie not set")
 			}
 		})
+	}
+}
+
+// TestForwardAuthCallback_ProxyRewritesHost_KeepsOriginalURL covers a proxy
+// that does not pass the Host header on: the callback's host is the
+// forwarded one, so the original page is kept rather than the root.
+func TestForwardAuthCallback_ProxyRewritesHost_KeepsOriginalURL(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	stateID, err := mintFAState(ctx, store, faState{OriginalURL: "https://app.acme.io/foo", ClientID: "svc", Verifier: verifier}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintFAState: %v", err)
+	}
+	code, err := mintCode(ctx, store, authCode{
+		ClientID:            "svc",
+		AccountID:           42,
+		RedirectURI:         ForwardAuthCallbackURI("app.acme.io"),
+		CodeChallenge:       pkceChallengeS256(verifier),
+		CodeChallengeMethod: "S256",
+	}, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("mintCode: %v", err)
+	}
+	req := newFACallbackRequest("https", "app.acme.io", code, stateID)
+	req.Host = "prohibitorum.internal:8080"
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthCallback(rec, req)
+	if loc := rec.Header().Get("Location"); rec.Code != http.StatusFound || loc != "https://app.acme.io/foo" {
+		t.Fatalf("status = %d, Location = %q; want 302 https://app.acme.io/foo", rec.Code, loc)
 	}
 }
 
