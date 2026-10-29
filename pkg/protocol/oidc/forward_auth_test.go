@@ -1072,6 +1072,82 @@ func TestHandleForwardAuthSignOut_ClearsSessionAndRedirects(t *testing.T) {
 	}
 }
 
+// Only a sign-out the app's own page starts, with a live app session, carries
+// a sign-out pass to sso-logout; the pass names the session's account and is
+// good for one use.
+func TestHandleForwardAuthSignOut_SignOutPass(t *testing.T) {
+	cases := []struct {
+		name     string
+		site     string
+		session  bool
+		wantPass bool
+	}{
+		{"app page", "same-origin", true, true},
+		{"link on another site", "cross-site", true, false},
+		{"sibling subdomain", "same-site", true, false},
+		{"address bar, mail or chat link", "none", true, false},
+		{"older browser", "", true, false},
+		{"app session expired", "same-origin", false, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := context.Background()
+			p, store := newFAProvider(&fakeFAQueries{})
+			if c.session {
+				if err := store.SetEx(ctx, faSessionKey("tok-1"), `{"account_id":7,"client_id":"fa"}`, time.Hour); err != nil {
+					t.Fatalf("seed: %v", err)
+				}
+			}
+			req := faRequest("https", "app.example.test", "/", &http.Cookie{Name: faCookieName(true), Value: "tok-1"})
+			if c.site != "" {
+				req.Header.Set("Sec-Fetch-Site", c.site)
+			}
+			rec := httptest.NewRecorder()
+			p.HandleForwardAuthSignOut(rec, req)
+
+			if rec.Code != http.StatusFound {
+				t.Fatalf("status = %d, want 302", rec.Code)
+			}
+			loc := rec.Header().Get("Location")
+			if !strings.HasPrefix(loc, testIssuer+"/api/prohibitorum/forward-auth/sso-logout?") {
+				t.Fatalf("Location = %q, want sso-logout on issuer", loc)
+			}
+			u, err := url.Parse(loc)
+			if err != nil {
+				t.Fatalf("parse Location: %v", err)
+			}
+			if rd := u.Query().Get("rd"); rd != "https://app.example.test/" {
+				t.Errorf("rd = %q, want https://app.example.test/", rd)
+			}
+			pass := u.Query().Get("token")
+			if !c.wantPass {
+				if pass != "" {
+					t.Errorf("Location carries token %q, want none", pass)
+				}
+				return
+			}
+			if pass == "" {
+				t.Fatalf("Location = %q, want a token", loc)
+			}
+			if id, ok := p.ConsumeForwardAuthSignOut(ctx, pass); !ok || id != 7 {
+				t.Errorf("ConsumeForwardAuthSignOut = (%d, %v), want (7, true)", id, ok)
+			}
+			if _, ok := p.ConsumeForwardAuthSignOut(ctx, pass); ok {
+				t.Error("second ConsumeForwardAuthSignOut ok, want the pass used up")
+			}
+		})
+	}
+}
+
+func TestConsumeForwardAuthSignOut_UnknownToken(t *testing.T) {
+	p, _ := newFAProvider(&fakeFAQueries{})
+	for _, token := range []string{"", "never-issued"} {
+		if _, ok := p.ConsumeForwardAuthSignOut(context.Background(), token); ok {
+			t.Errorf("ConsumeForwardAuthSignOut(%q) ok, want false", token)
+		}
+	}
+}
+
 func TestValidatedForwardAuthReturnURL(t *testing.T) {
 	q := &fakeFAQueries{knownHost: "app.example.test"}
 	cases := []struct {
