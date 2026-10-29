@@ -240,9 +240,31 @@ func writeIdentityHeaders(w http.ResponseWriter, user, name, email string, group
 	w.Header().Set("Remote-Groups", strings.Join(groups, ","))
 }
 
+// forwardAuthReturnURL rebuilds the address a browser returns to after login
+// from verify's forwarded headers. host is the registered X-Forwarded-Host and
+// stays the host: uri must be a path ("/…") or empty (the application's root),
+// since anything else (".evil.example", "@evil.example", an absolute URL) would
+// extend or replace it, and is refused. Only "http" keeps its scheme; every
+// other proto, including a forged one, becomes https. The result is
+// concatenated, not re-serialized, so uri's escaping reaches the browser as the
+// proxy sent it.
+func forwardAuthReturnURL(proto, host, uri string) (string, bool) {
+	scheme := "https"
+	if proto == "http" {
+		scheme = "http"
+	}
+	if uri == "" {
+		uri = "/"
+	} else if !strings.HasPrefix(uri, "/") {
+		return "", false
+	}
+	return scheme + "://" + host + uri, true
+}
+
 // HandleForwardAuthVerify is the Traefik ForwardAuth target. Traefik forwards
 // X-Forwarded-* + the original (protected-domain) cookies. 200 = allow (+
-// identity headers); 302 = bootstrap auth via /oauth/authorize; 403 = the host
+// identity headers); 302 = bootstrap auth via /oauth/authorize; 400 = the
+// X-Forwarded-Uri of a request bound for login is not a path; 403 = the host
 // is not a registered forward-auth app.
 func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -325,7 +347,11 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	original := proto + "://" + host + r.Header.Get("X-Forwarded-Uri")
+	original, ok := forwardAuthReturnURL(proto, host, r.Header.Get("X-Forwarded-Uri"))
+	if !ok {
+		http.Error(w, "invalid X-Forwarded-Uri", http.StatusBadRequest)
+		return
+	}
 	verifier, verr := faRandToken()
 	if verr != nil {
 		requestID := weberr.RequestIDFromContext(ctx)
