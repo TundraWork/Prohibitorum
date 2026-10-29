@@ -4,11 +4,13 @@
 // auth-sensitive handler. Bucket sizes are conservative — picked to be
 // generous for legitimate humans but to bite any sustained spam quickly.
 //
-// Per-IP caps cover the unauthenticated surface (anyone can hit
-// /auth/login/*, /auth/devices/pair/*, /enrollments/{token}/register/*).
-// Per-account caps cover the authenticated surface where the actor's
-// identity is the more useful key (multiple users behind one NAT shouldn't
-// share a bucket on /me/devices/pair/approve).
+// Per-IP caps cover the unauthenticated sign-in ceremonies:
+// /auth/password/begin and /auth/login/{begin,complete}. The other
+// unauthenticated routes, /auth/devices/pair/* and
+// /enrollments/{token}/register/*, have no per-IP cap. Authenticated routes
+// key on the account or session instead, where the actor's identity is the
+// more useful key (multiple users behind one NAT shouldn't share a bucket on
+// /me/devices/pair/approve).
 package server
 
 import (
