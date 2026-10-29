@@ -1079,6 +1079,11 @@ msgid "error_page.denied.retry_hint"
 msgstr "管理员尚未授予你访问权限。获得授权后可以重试。"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.description"
+msgstr "有应用请求让你退出 {name}。如果不是你自己要退出，点“取消”。"
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.saml_application_already_exists"
 msgstr "已有应用使用该 Entity ID。"
@@ -1657,6 +1662,11 @@ msgstr "无法登录"
 #: src/pages/security/SetupDialog.tsx
 #: src/pages/security/TokensPanel.tsx
 msgid "security.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.cancel"
 msgstr "取消"
 
 #. js-lingui-explicit-id
@@ -8488,6 +8498,11 @@ msgid "console.logout"
 msgstr "退出登录"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.confirm"
+msgstr "退出"
+
+#. js-lingui-explicit-id
 #: src/pages/public/RequireIdentity.tsx
 msgid "require-identity.mismatch.switch"
 msgstr "退出登录并切换账号"
@@ -8501,6 +8516,11 @@ msgstr "全部退出登录"
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.action"
 msgstr "全部退出登录"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.title"
+msgstr "退出 {name}？"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx

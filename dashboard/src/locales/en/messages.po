@@ -1079,6 +1079,11 @@ msgid "error_page.denied.retry_hint"
 msgstr "An administrator hasn't granted you access yet. Once access is granted, you can try again."
 
 #. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.description"
+msgstr "An application asked to sign you out of {name}. If you did not choose to sign out, cancel."
+
+#. js-lingui-explicit-id
 #: src/api/errors.ts
 msgid "error.saml_application_already_exists"
 msgstr "An application with that Entity ID already exists."
@@ -1657,6 +1662,11 @@ msgstr "Can't sign in"
 #: src/pages/security/SetupDialog.tsx
 #: src/pages/security/TokensPanel.tsx
 msgid "security.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
@@ -8488,6 +8498,11 @@ msgid "console.logout"
 msgstr "Sign out"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.confirm"
+msgstr "Sign out"
+
+#. js-lingui-explicit-id
 #: src/pages/public/RequireIdentity.tsx
 msgid "require-identity.mismatch.switch"
 msgstr "Sign out and use another account"
@@ -8501,6 +8516,11 @@ msgstr "Sign out everywhere"
 #: src/pages/admin/users/AccountSessionsSection.tsx
 msgid "admin.user.sessions.revoke_all.action"
 msgstr "Sign out everywhere"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.title"
+msgstr "Sign out of {name}?"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx

@@ -1,0 +1,76 @@
+import type { QueryClient } from "@tanstack/react-query";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadDocument } from "@/app/load-document";
+import { createQueryClient } from "@/app/query-client";
+import { i18n } from "@/i18n";
+import { fakeApi, publicApi, renderApp, testSession } from "@/test/app";
+
+vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
+
+const logoutPath = "/api/prohibitorum/auth/logout";
+
+let queryClient: QueryClient;
+
+beforeEach(() => {
+  i18n.activate("en");
+  queryClient = createQueryClient(() => undefined);
+});
+
+afterEach(() => {
+  queryClient.clear();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  vi.mocked(loadDocument).mockReset();
+});
+
+function signOutApi() {
+  return fakeApi({
+    ...publicApi(testSession),
+    [`POST ${logoutPath}`]: () => new Response(null, { status: 204 }),
+  });
+}
+
+describe("the sign-out confirmation", () => {
+  it("signs out, then returns through sso-logout with the address it was given", async () => {
+    const api = signOutApi();
+    let signedOutFirst = false;
+    vi.mocked(loadDocument).mockImplementation(() => {
+      signedOutFirst = api.sent("POST", logoutPath).length === 1;
+    });
+    const user = userEvent.setup();
+    renderApp("/sign-out?rd=https%3A%2F%2Fapp.example.test%2F", queryClient);
+    await user.click(await screen.findByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(loadDocument).toHaveBeenCalledOnce());
+    expect(loadDocument).toHaveBeenCalledWith(
+      "/api/prohibitorum/forward-auth/sso-logout?rd=https%3A%2F%2Fapp.example.test%2F",
+    );
+    expect(signedOutFirst).toBe(true);
+  });
+
+  it("returns through sso-logout without an address when it was given none", async () => {
+    signOutApi();
+    const user = userEvent.setup();
+    renderApp("/sign-out", queryClient);
+    await user.click(await screen.findByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(loadDocument).toHaveBeenCalledOnce());
+    expect(loadDocument).toHaveBeenCalledWith(
+      "/api/prohibitorum/forward-auth/sso-logout",
+    );
+  });
+
+  it("goes back without signing out when cancelled", async () => {
+    const api = signOutApi();
+    vi.spyOn(window.history, "length", "get").mockReturnValue(2);
+    const back = vi
+      .spyOn(window.history, "back")
+      .mockImplementation(() => undefined);
+    const user = userEvent.setup();
+    renderApp("/sign-out?rd=https%3A%2F%2Fapp.example.test%2F", queryClient);
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    expect(back).toHaveBeenCalledOnce();
+    expect(api.sent("POST", logoutPath)).toHaveLength(0);
+    expect(loadDocument).not.toHaveBeenCalled();
+  });
+});

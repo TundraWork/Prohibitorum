@@ -25,6 +25,7 @@ import { Route as PublicMaintenanceRouteImport } from './routes/_public.maintena
 import { Route as PublicPairRouteImport } from './routes/_public.pair'
 import { Route as PublicSamlConsentRouteImport } from './routes/_public.saml-consent'
 import { Route as PublicSetupSigninRouteImport } from './routes/_public.setup-signin'
+import { Route as PublicSignOutRouteImport } from './routes/_public.sign-out'
 import { Route as PublicWelcomeRouteImport } from './routes/_public.welcome'
 import { Route as ProtectedAdminAdminRouteImport } from './routes/_protected.admin._admin'
 import { Route as PublicEnrollTokenRouteImport } from './routes/_public.enroll.$token'
@@ -132,6 +133,11 @@ const PublicSamlConsentRoute = PublicSamlConsentRouteImport.update({
 const PublicSetupSigninRoute = PublicSetupSigninRouteImport.update({
   id: '/setup-signin',
   path: '/setup-signin',
+  getParentRoute: () => PublicRoute,
+} as any)
+const PublicSignOutRoute = PublicSignOutRouteImport.update({
+  id: '/sign-out',
+  path: '/sign-out',
   getParentRoute: () => PublicRoute,
 } as any)
 const PublicWelcomeRoute = PublicWelcomeRouteImport.update({
@@ -327,6 +333,7 @@ export interface FileRoutesByFullPath {
   '/pair': typeof PublicPairRoute
   '/saml-consent': typeof PublicSamlConsentRoute
   '/setup-signin': typeof PublicSetupSigninRoute
+  '/sign-out': typeof PublicSignOutRoute
   '/welcome': typeof PublicWelcomeRoute
   '/enroll/$token': typeof PublicEnrollTokenRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
@@ -372,6 +379,7 @@ export interface FileRoutesByTo {
   '/pair': typeof PublicPairRoute
   '/saml-consent': typeof PublicSamlConsentRoute
   '/setup-signin': typeof PublicSetupSigninRoute
+  '/sign-out': typeof PublicSignOutRoute
   '/welcome': typeof PublicWelcomeRoute
   '/enroll/$token': typeof PublicEnrollTokenRoute
   '/login/recovery': typeof PublicLoginRecoveryRoute
@@ -419,6 +427,7 @@ export interface FileRoutesById {
   '/_public/pair': typeof PublicPairRoute
   '/_public/saml-consent': typeof PublicSamlConsentRoute
   '/_public/setup-signin': typeof PublicSetupSigninRoute
+  '/_public/sign-out': typeof PublicSignOutRoute
   '/_public/welcome': typeof PublicWelcomeRoute
   '/_launcher/': typeof LauncherIndexRoute
   '/_protected/admin/_admin': typeof ProtectedAdminAdminRouteWithChildren
@@ -468,6 +477,7 @@ export interface FileRouteTypes {
     | '/pair'
     | '/saml-consent'
     | '/setup-signin'
+    | '/sign-out'
     | '/welcome'
     | '/enroll/$token'
     | '/login/recovery'
@@ -513,6 +523,7 @@ export interface FileRouteTypes {
     | '/pair'
     | '/saml-consent'
     | '/setup-signin'
+    | '/sign-out'
     | '/welcome'
     | '/enroll/$token'
     | '/login/recovery'
@@ -559,6 +570,7 @@ export interface FileRouteTypes {
     | '/_public/pair'
     | '/_public/saml-consent'
     | '/_public/setup-signin'
+    | '/_public/sign-out'
     | '/_public/welcome'
     | '/_launcher/'
     | '/_protected/admin/_admin'
@@ -711,6 +723,13 @@ declare module '@tanstack/react-router' {
       path: '/setup-signin'
       fullPath: '/setup-signin'
       preLoaderRoute: typeof PublicSetupSigninRouteImport
+      parentRoute: typeof PublicRoute
+    }
+    '/_public/sign-out': {
+      id: '/_public/sign-out'
+      path: '/sign-out'
+      fullPath: '/sign-out'
+      preLoaderRoute: typeof PublicSignOutRouteImport
       parentRoute: typeof PublicRoute
     }
     '/_public/welcome': {
@@ -1052,6 +1071,7 @@ interface PublicRouteChildren {
   PublicPairRoute: typeof PublicPairRoute
   PublicSamlConsentRoute: typeof PublicSamlConsentRoute
   PublicSetupSigninRoute: typeof PublicSetupSigninRoute
+  PublicSignOutRoute: typeof PublicSignOutRoute
   PublicWelcomeRoute: typeof PublicWelcomeRoute
   PublicEnrollTokenRoute: typeof PublicEnrollTokenRoute
   PublicLoginRecoveryRoute: typeof PublicLoginRecoveryRoute
@@ -1069,6 +1089,7 @@ const PublicRouteChildren: PublicRouteChildren = {
   PublicPairRoute: PublicPairRoute,
   PublicSamlConsentRoute: PublicSamlConsentRoute,
   PublicSetupSigninRoute: PublicSetupSigninRoute,
+  PublicSignOutRoute: PublicSignOutRoute,
   PublicWelcomeRoute: PublicWelcomeRoute,
   PublicEnrollTokenRoute: PublicEnrollTokenRoute,
   PublicLoginRecoveryRoute: PublicLoginRecoveryRoute,

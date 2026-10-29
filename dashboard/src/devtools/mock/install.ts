@@ -32,6 +32,7 @@ const publicPaths = [
   "/welcome",
   "/setup-signin",
   "/pair",
+  "/sign-out",
 ];
 const publicPrefixes = ["/enroll/", "/federation/flow/", "/verify/vrchat/"];
 
