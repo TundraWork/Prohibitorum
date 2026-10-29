@@ -336,11 +336,6 @@ func (s *Server) handleAuthStatus(ctx context.Context, _ *struct{}) (*authStatus
 // ----- POST /auth/login/begin (raw chi) ------------------------------------
 
 func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
-	// Per-IP cap on the unauthenticated login ceremony — bounds ceremony-spam
-	// (KV writes) and WebAuthn-verification cost (audit SESS-3).
-	if s.rateLimit(w, r, "login:ip:"+s.clientIP.IP(r), loginIPLimit, authIPWindow) {
-		return
-	}
 	mediation, err := parseLoginMediation(r)
 	if err != nil {
 		writeAuthErr(w, err)
@@ -390,12 +385,6 @@ func (s *Server) handleLoginBeginHTTP(w http.ResponseWriter, r *http.Request) {
 // ----- POST /auth/login/complete (raw chi) ---------------------------------
 
 func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request) {
-	// Per-IP cap on the login ceremony — shares the begin budget so a ceremony
-	// (begin+complete) counts together; bounds WebAuthn-verify + DB cost on the
-	// unauthenticated surface (audit SESS-3).
-	if s.rateLimit(w, r, "login:ip:"+s.clientIP.IP(r), loginIPLimit, authIPWindow) {
-		return
-	}
 	mediation, err := parseLoginMediation(r)
 	if err != nil {
 		writeAuthErr(w, err)

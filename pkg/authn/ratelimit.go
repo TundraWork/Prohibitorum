@@ -48,7 +48,7 @@ func NewRateLimiter() *RateLimiter {
 // false means the caller should reject the request (e.g. 429).
 //
 // Key composition is the caller's responsibility — typically something like
-// "login:ip:1.2.3.4" or "pair:account:42".
+// "pair_lookup:acct:42" or "sudo:acct:<session id>".
 func (r *RateLimiter) Allow(key string, max int, window time.Duration) bool {
 	if max <= 0 || window <= 0 {
 		return true

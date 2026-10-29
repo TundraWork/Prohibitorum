@@ -25,7 +25,8 @@
 // When every argon2id slot stays busy (password.ErrBusy), whichever of the
 // four hashes was due did not run, and all four modes answer the same 429
 // rate_limited with Retry-After: 1 (writePasswordBeginFailure), so a busy
-// server is no enumeration oracle either.
+// server is no enumeration oracle either. There is no per-IP cap here: the
+// argon2id slot limit bounds the cost of a flood (PHB-181).
 
 package server
 
@@ -71,14 +72,6 @@ func writePasswordBeginFailure(w http.ResponseWriter, hashErr error) {
 
 // POST /api/prohibitorum/auth/password/begin
 func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request) {
-	// Per-IP cap ahead of any work: every failure branch below burns a full
-	// argon2id hash (enumeration defense), so an unthrottled flood is a
-	// CPU/RAM-exhaustion DoS amplifier (audit AUTHZ-1). The per-account
-	// throttle does not help the unknown-username path (no account to key on).
-	if s.rateLimit(w, r, "pwd_begin:ip:"+s.clientIP.IP(r), pwdBeginIPLimit, authIPWindow) {
-		return
-	}
-
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`

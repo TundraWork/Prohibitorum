@@ -472,7 +472,9 @@ func ErrPairingNotApproved() *AuthError {
 	return newErr(http.StatusPreconditionRequired, "pairing_not_approved", "配对尚未在已登录设备上批准")
 }
 
-// ErrRateLimited is returned when a per-IP or per-account bucket is full.
+// ErrRateLimited is returned when a per-account or per-session bucket is full
+// (no bucket is keyed on the client IP). password.ErrBusy, the answer when
+// every argon2id slot stays taken, carries the same code and message.
 // Status 429 lets clients (and proxies) treat it as a back-off signal; the
 // handler should also populate Retry-After when possible.
 func ErrRateLimited() *AuthError {
