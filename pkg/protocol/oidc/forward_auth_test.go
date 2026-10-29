@@ -605,6 +605,49 @@ func TestForwardAuthCallback_Success(t *testing.T) {
 	}
 }
 
+// TestForwardAuthCallback_OffHostOriginalURL_RedirectsToHostRoot covers a state
+// whose address leaves the callback's host (one minted before verify rebuilt
+// it): the login completes and the browser lands on the host's root instead.
+func TestForwardAuthCallback_OffHostOriginalURL_RedirectsToHostRoot(t *testing.T) {
+	for _, original := range []string{
+		"https://app.acme.io.evil.example/phish",
+		"https://app.acme.io@evil.example/phish",
+		"https://evil.example/#://app.acme.io/x",
+		"javascript://app.acme.io/%0aalert(1)",
+	} {
+		t.Run(original, func(t *testing.T) {
+			ctx := context.Background()
+			p, store := newFAProvider(&fakeFAQueries{})
+			verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+			stateID, err := mintFAState(ctx, store, faState{OriginalURL: original, ClientID: "svc", Verifier: verifier}, 5*time.Minute)
+			if err != nil {
+				t.Fatalf("mintFAState: %v", err)
+			}
+			code, err := mintCode(ctx, store, authCode{
+				ClientID:            "svc",
+				AccountID:           42,
+				RedirectURI:         ForwardAuthCallbackURI("app.acme.io"),
+				CodeChallenge:       pkceChallengeS256(verifier),
+				CodeChallengeMethod: "S256",
+			}, 5*time.Minute)
+			if err != nil {
+				t.Fatalf("mintCode: %v", err)
+			}
+			rec := httptest.NewRecorder()
+			p.HandleForwardAuthCallback(rec, newFACallbackRequest("https", "app.acme.io", code, stateID))
+			if rec.Code != http.StatusFound {
+				t.Fatalf("status = %d, want 302; body=%s", rec.Code, rec.Body.String())
+			}
+			if loc := rec.Header().Get("Location"); loc != "https://app.acme.io/" {
+				t.Fatalf("Location = %q, want https://app.acme.io/", loc)
+			}
+			if hasFACookie(rec, true) == "" {
+				t.Fatal("forward-auth cookie not set")
+			}
+		})
+	}
+}
+
 func TestForwardAuthCallback_PKCEMismatch_Rejected(t *testing.T) {
 	ctx := context.Background()
 	p, store := newFAProvider(&fakeFAQueries{})

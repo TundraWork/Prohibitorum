@@ -427,7 +427,18 @@ func (p *Provider) HandleForwardAuthCallback(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	http.SetCookie(w, faCookie(schemeOf(r) == "https", tok))
-	http.Redirect(w, r, st.OriginalURL, http.StatusFound)
+	// Return only to this callback's own host, which the redirect_uri check
+	// above ties to the client's registered host. The host is compared whole,
+	// never by prefix: https://app.acme.io.evil.example/ and
+	// https://app.acme.io@evil.example/ both start with https://app.acme.io.
+	// Any other address (a state minted before verify rebuilt it, say) lands
+	// on the host's root; the login itself has succeeded.
+	target := st.OriginalURL
+	if u, err := url.Parse(target); err != nil || u.Host != hostOf(r) || u.User != nil ||
+		(u.Scheme != "https" && u.Scheme != "http") {
+		target = schemeOf(r) + "://" + hostOf(r) + "/"
+	}
+	http.Redirect(w, r, target, http.StatusFound)
 }
 
 // faClearCookie returns a forward-auth cookie set to expire immediately,
