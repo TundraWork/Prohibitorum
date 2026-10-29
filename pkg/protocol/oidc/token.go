@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"prohibitorum/pkg/audit"
+	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/db"
 )
 
@@ -92,6 +93,12 @@ func (p *Provider) HandleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client, err := authenticateClient(r.Context(), p.queries, r)
+	if errors.Is(err, password.ErrBusy) {
+		// The secret was never checked, so this is not a failed authentication
+		// and is not audited: a flood costs no database writes.
+		writeBusy(w, r)
+		return
+	}
 	if err != nil {
 		// Every client load/auth failure collapses to invalid_client (401) per
 		// RFC 6749 §5.2; do not distinguish unknown client from bad secret.

@@ -193,16 +193,17 @@ func TestAdminOIDCClients_GenerateClientSecret_UniqueAndVerifiable(t *testing.T)
 
 	// Plaintext must verify against the stored hash.
 	hash1 := params1.ClientSecretHash.String
-	if !password.VerifyRaw(secret1, hash1) {
+	ctx := context.Background()
+	if ok, err := password.VerifyRaw(ctx, secret1, hash1); !ok || err != nil {
 		t.Error("secret1 does not verify against its hash")
 	}
 	hash2 := params2.ClientSecretHash.String
-	if !password.VerifyRaw(secret2, hash2) {
+	if ok, err := password.VerifyRaw(ctx, secret2, hash2); !ok || err != nil {
 		t.Error("secret2 does not verify against its hash")
 	}
 
 	// Cross-verification must fail.
-	if password.VerifyRaw(secret1, hash2) {
+	if ok, err := password.VerifyRaw(ctx, secret1, hash2); ok || err != nil {
 		t.Error("secret1 incorrectly verifies against hash2")
 	}
 }

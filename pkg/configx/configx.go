@@ -52,6 +52,13 @@ type Config struct {
 	ForwardAuth        ForwardAuthConfig  `mapstructure:"forward_auth"`
 	SMTP               SMTPConfig         `mapstructure:"smtp"`
 
+	// PasswordHashMaxConcurrent caps the argon2id computations running at once
+	// (password, recovery-code and OIDC client-secret checks alike), so memory
+	// peaks near this × password_hash.memory_kib. 0 picks min(4, GOMAXPROCS).
+	// It stays out of PasswordHashParams, which is compared with the
+	// parameters of each stored hash to decide on a rehash.
+	PasswordHashMaxConcurrent int `mapstructure:"password_hash_max_concurrent"`
+
 	// DataEncryptionKeys is the versioned AES-256 key set used to encrypt
 	// sensitive credential material (TOTP secrets today, additional fields
 	// in later versions). Loaded from PROHIBITORUM_DATA_ENCRYPTION_KEY_V<n>
@@ -297,6 +304,7 @@ func Parse() (*Config, error) {
 	viper.SetDefault("password_hash.memory_kib", 65536)
 	viper.SetDefault("password_hash.iterations", 3)
 	viper.SetDefault("password_hash.parallelism", 1)
+	viper.SetDefault("password_hash_max_concurrent", 0)
 
 	// WebAuthn substruct defaults — RPDisplayName defaults to the product name;
 	// RPID and RPOrigins are derived from PublicOrigins when not set explicitly.

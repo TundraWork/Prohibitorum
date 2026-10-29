@@ -2,12 +2,14 @@ package oidc
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"prohibitorum/pkg/audit"
+	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/db"
 )
 
@@ -23,6 +25,10 @@ func (p *Provider) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	client, err := authenticateClient(ctx, p.queries, r)
+	if errors.Is(err, password.ErrBusy) {
+		writeBusy(w, r)
+		return
+	}
 	if err != nil {
 		// Revocation requires client authentication (RFC 7009 §2.1).
 		writeInvalidClient(w, r, "client authentication failed")

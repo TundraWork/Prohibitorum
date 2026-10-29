@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"context"
 	"testing"
 
 	"prohibitorum/pkg/credential/password"
@@ -21,7 +22,7 @@ func TestClientGenConfidential(t *testing.T) {
 	if !params.ClientSecretHash.Valid {
 		t.Fatal("expected ClientSecretHash.Valid == true for confidential client")
 	}
-	if !password.VerifyRaw(secret, params.ClientSecretHash.String) {
+	if ok, err := password.VerifyRaw(context.Background(), secret, params.ClientSecretHash.String); !ok || err != nil {
 		t.Fatal("plaintext secret did not verify against stored hash")
 	}
 	if params.ClientAuthMethod != "client_secret" {

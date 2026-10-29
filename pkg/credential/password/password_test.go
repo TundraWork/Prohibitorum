@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -338,18 +341,36 @@ func TestStore_VerifyEmitsAuditEvents(t *testing.T) {
 }
 
 func TestHashRawAndVerifyRaw(t *testing.T) {
-	phc, err := HashRaw("hello", testParams())
+	ctx := context.Background()
+	phc, err := HashRaw(ctx, "hello", testParams())
 	if err != nil {
 		t.Fatalf("HashRaw: %v", err)
 	}
-	if !VerifyRaw("hello", phc) {
-		t.Errorf("VerifyRaw should match correct password")
+	if ok, err := VerifyRaw(ctx, "hello", phc); !ok || err != nil {
+		t.Errorf("VerifyRaw should match correct password, got (%v, %v)", ok, err)
 	}
-	if VerifyRaw("wrong", phc) {
-		t.Errorf("VerifyRaw should reject wrong password")
+	if ok, err := VerifyRaw(ctx, "wrong", phc); ok || err != nil {
+		t.Errorf("VerifyRaw should reject wrong password, got (%v, %v)", ok, err)
 	}
-	if VerifyRaw("hello", "not-a-phc-string") {
-		t.Errorf("VerifyRaw should reject malformed PHC")
+	if ok, err := VerifyRaw(ctx, "hello", "not-a-phc-string"); ok || err != nil {
+		t.Errorf("VerifyRaw should reject malformed PHC, got (%v, %v)", ok, err)
+	}
+
+	phcs, err := HashRawEach(ctx, []string{"one", "two", "three"}, testParams())
+	if err != nil {
+		t.Fatalf("HashRawEach: %v", err)
+	}
+	if len(phcs) != 3 {
+		t.Fatalf("HashRawEach returned %d hashes, want 3", len(phcs))
+	}
+	if i, err := VerifyRawAny(ctx, "two", phcs); i != 1 || err != nil {
+		t.Errorf("VerifyRawAny(two) = (%d, %v), want (1, nil)", i, err)
+	}
+	if i, err := VerifyRawAny(ctx, "three", []string{"not-a-phc-string", phcs[2]}); i != 1 || err != nil {
+		t.Errorf("VerifyRawAny past a malformed PHC = (%d, %v), want (1, nil)", i, err)
+	}
+	if i, err := VerifyRawAny(ctx, "four", phcs); i != -1 || err != nil {
+		t.Errorf("VerifyRawAny(four) = (%d, %v), want (-1, nil)", i, err)
 	}
 }
 
@@ -363,7 +384,9 @@ func TestDefaultParams(t *testing.T) {
 func TestStore_VerifyAgainstDummyDoesNotPanic(t *testing.T) {
 	f := newFakeQueries()
 	s := newTestStore(f, testParams())
-	s.VerifyAgainstDummy(context.Background(), "anything")
+	if err := s.VerifyAgainstDummy(context.Background(), "anything"); err != nil {
+		t.Fatalf("VerifyAgainstDummy: %v", err)
+	}
 }
 
 // TestStore_VerifyRejectsTamperedTag verifies the constant-time-compare path:
@@ -410,5 +433,176 @@ func TestStore_VerifyRejectsTamperedTag(t *testing.T) {
 
 	if err := s.Verify(ctx, 1, pw); !errors.Is(err, ErrPasswordIncorrect) {
 		t.Errorf("tampered tag: want ErrPasswordIncorrect, got %v", err)
+	}
+}
+
+// withHashLimits sets the slot count and the queue wait for one test, and
+// restores them and the idKey seam when it ends. All three are package state,
+// so tests that call it must not run in parallel.
+func withHashLimits(t *testing.T, slots int, wait time.Duration) {
+	t.Helper()
+	prevSlots, prevWait, prevIDKey := hashSlots.Load(), maxWait, idKey
+	SetMaxConcurrent(slots)
+	maxWait = wait
+	t.Cleanup(func() {
+		hashSlots.Store(prevSlots)
+		maxWait = prevWait
+		idKey = prevIDKey
+	})
+}
+
+// holdSlot takes one hash slot until the test ends.
+func holdSlot(t *testing.T) {
+	t.Helper()
+	sem := hashSlots.Load()
+	if err := sem.Acquire(context.Background(), 1); err != nil {
+		t.Fatalf("acquire slot: %v", err)
+	}
+	t.Cleanup(func() { sem.Release(1) })
+}
+
+// fakePHC is a well-formed PHC whose tag no test password matches, so
+// VerifyRaw reaches the KDF without hashing anything up front.
+func fakePHC() string {
+	return PHCEncode(testParams(), make([]byte, saltLength), make([]byte, tagLength))
+}
+
+func TestDeriveKeyBoundsConcurrency(t *testing.T) {
+	withHashLimits(t, 2, time.Minute)
+	var running, peak atomic.Int32
+	entered := make(chan struct{}, 6)
+	release := make(chan struct{})
+	idKey = func(_, _ []byte, _, _ uint32, _ uint8, keyLen uint32) []byte {
+		n := running.Add(1)
+		for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
+		}
+		entered <- struct{}{}
+		<-release
+		running.Add(-1)
+		return make([]byte, keyLen)
+	}
+
+	phc := fakePHC()
+	errs := make(chan error, 6)
+	var wg sync.WaitGroup
+	for range 6 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := VerifyRaw(context.Background(), "pw", phc); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	<-entered
+	<-entered
+	select {
+	case <-entered:
+		t.Error("a third hash started while two held both slots")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Errorf("VerifyRaw: %v", err)
+	}
+	if got := peak.Load(); got != 2 {
+		t.Fatalf("peak concurrent hashes = %d, want 2", got)
+	}
+}
+
+func TestDeriveKeyBusyAfterMaxWait(t *testing.T) {
+	withHashLimits(t, 1, 50*time.Millisecond)
+	holdSlot(t)
+
+	_, err := HashRaw(context.Background(), "pw", testParams())
+	if !errors.Is(err, ErrBusy) {
+		t.Fatalf("HashRaw with every slot held: want ErrBusy, got %v", err)
+	}
+	ae := authn.AsAuthError(err)
+	if ae == nil || ae.Status != http.StatusTooManyRequests || ae.Code != "rate_limited" || ae.RetryAfter != time.Second {
+		t.Fatalf("ErrBusy must be a 429 rate_limited AuthError retried after 1s, got %+v", ae)
+	}
+}
+
+func TestDeriveKeyCallerCancelIsNotBusy(t *testing.T) {
+	withHashLimits(t, 1, time.Minute)
+	holdSlot(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(20*time.Millisecond, cancel)
+	_, err := VerifyRaw(ctx, "pw", fakePHC())
+	if !errors.Is(err, context.Canceled) || errors.Is(err, ErrBusy) {
+		t.Fatalf("VerifyRaw after the caller gave up: want context.Canceled, got %v", err)
+	}
+}
+
+func TestBatchHoldsOneSlot(t *testing.T) {
+	withHashLimits(t, 1, time.Minute)
+	var mu sync.Mutex
+	var order []string
+	firstStarted := make(chan struct{})
+	proceed := make(chan struct{})
+	idKey = func(pw, _ []byte, _, _ uint32, _ uint8, keyLen uint32) []byte {
+		mu.Lock()
+		order = append(order, string(pw))
+		first := len(order) == 1
+		mu.Unlock()
+		if first {
+			close(firstStarted)
+			<-proceed
+		}
+		return make([]byte, keyLen)
+	}
+
+	batch := make(chan error, 1)
+	go func() {
+		_, err := HashRawEach(context.Background(), []string{"b1", "b2", "b3"}, testParams())
+		batch <- err
+	}()
+	<-firstStarted
+	single := make(chan error, 1)
+	go func() {
+		_, err := VerifyRaw(context.Background(), "single", fakePHC())
+		single <- err
+	}()
+	// Give the single call time to queue for the slot the batch holds.
+	time.Sleep(50 * time.Millisecond)
+	close(proceed)
+	if err := <-batch; err != nil {
+		t.Fatalf("HashRawEach: %v", err)
+	}
+	if err := <-single; err != nil {
+		t.Fatalf("VerifyRaw: %v", err)
+	}
+
+	want := []string{"b1", "b2", "b3", "single"}
+	if strings.Join(order, ",") != strings.Join(want, ",") {
+		t.Fatalf("hash order = %v, want %v", order, want)
+	}
+}
+
+func TestStoreVerifyBusyIsNotAFailure(t *testing.T) {
+	f := newFakeQueries()
+	s := newTestStore(f, testParams())
+	ctx := context.Background()
+	if err := s.Set(ctx, 42, "pw"); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+	eventsBefore := len(f.events)
+
+	withHashLimits(t, 1, 50*time.Millisecond)
+	holdSlot(t)
+	if err := s.Verify(ctx, 42, "wrong"); !errors.Is(err, ErrBusy) {
+		t.Fatalf("Verify with every slot held: want ErrBusy, got %v", err)
+	}
+	if row, ok := f.throttle[f.throttleKey(42, "password")]; ok {
+		t.Errorf("a busy Verify counted a failure: %+v", row)
+	}
+	for _, e := range f.events[eventsBefore:] {
+		if e.Event == "fail" {
+			t.Errorf("a busy Verify wrote a failure audit event: %+v", e)
+		}
 	}
 }

@@ -69,7 +69,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
-	passwordPHC, err := s.passwordStore.Hash(body.Password)
+	passwordPHC, err := s.passwordStore.Hash(r.Context(), body.Password)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: hash: %w", err))
 		return

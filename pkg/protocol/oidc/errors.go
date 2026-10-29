@@ -63,6 +63,14 @@ func writeInvalidClient(w http.ResponseWriter, r *http.Request, desc string) {
 	writeOIDCError(w, r, http.StatusUnauthorized, errCodeInvalidClient, desc)
 }
 
+// writeBusy answers a client authentication that could not run because every
+// argon2id slot stayed busy (password.ErrBusy): 503 temporarily_unavailable
+// with Retry-After: 1, identical for known and unknown clients.
+func writeBusy(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Retry-After", "1")
+	writeOIDCError(w, r, http.StatusServiceUnavailable, errCodeTemporarilyUnavailable, "server busy, retry shortly")
+}
+
 // redirectToErrorPage sends a browser-navigated authorize/logout error to the
 // SPA /error page (relative redirect, same origin). Use ONLY on the DIRECT-
 // error side of the open-redirect guard (before a trusted redirect_uri exists)

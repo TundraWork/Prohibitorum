@@ -222,7 +222,7 @@ func seedAppPolicyDemoBob(ctx context.Context, q *db.Queries, bob db.Account, pr
 		if err != nil {
 			return fmt.Errorf("app-policy demo generate bob password material: %w", err)
 		}
-		hash, err := password.HashRaw(base64.RawURLEncoding.EncodeToString(secret), cfg.PasswordHashParams)
+		hash, err := password.HashRaw(ctx, base64.RawURLEncoding.EncodeToString(secret), cfg.PasswordHashParams)
 		if err != nil {
 			return fmt.Errorf("app-policy demo hash bob password material: %w", err)
 		}
