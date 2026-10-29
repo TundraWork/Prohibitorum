@@ -108,6 +108,7 @@ type authnReqOpts struct {
 	version      string // override AuthnRequest @Version (empty = "2.0")
 	relayState   string
 	hasRelay     bool
+	rawRelay     string // RelayState exactly as sent and signed (empty = url.QueryEscape(relayState))
 	forceAuthn   bool
 	isPassive    bool
 	nameIDFormat string // NameIDPolicy/@Format (empty = no NameIDPolicy element)
@@ -209,8 +210,12 @@ func buildAuthnRedirect(t *testing.T, o authnReqOpts) *http.Request {
 	// reads these same raw bytes back out of RawQuery.
 	encReq := url.QueryEscape(samlRequest)
 	rawQuery := "SAMLRequest=" + encReq
+	encRelay := o.rawRelay
+	if encRelay == "" {
+		encRelay = url.QueryEscape(o.relayState)
+	}
 	if o.hasRelay {
-		rawQuery += "&RelayState=" + url.QueryEscape(o.relayState)
+		rawQuery += "&RelayState=" + encRelay
 	}
 
 	if o.sign {
@@ -223,7 +228,7 @@ func buildAuthnRedirect(t *testing.T, o authnReqOpts) *http.Request {
 		// Construct the signed octet string in the fixed order.
 		signed := "SAMLRequest=" + encReq
 		if o.hasRelay {
-			signed += "&RelayState=" + url.QueryEscape(o.relayState)
+			signed += "&RelayState=" + encRelay
 		}
 		signed += "&SigAlg=" + encSigAlg
 
@@ -900,9 +905,8 @@ func TestAuthnReqUnknownSP(t *testing.T) {
 }
 
 // TestAuthnReqDuplicateParamRejected confirms that a redirect query repeating a
-// redirect-binding param (here, two SAMLRequest=) is rejected as malformed,
-// closing the first-vs-last split-brain between the validated XML and the
-// signature-checked octet string.
+// redirect-binding param (here, two SAMLRequest=) is rejected as malformed:
+// only one of the two copies can be the one the signature covers.
 func TestAuthnReqDuplicateParamRejected(t *testing.T) {
 	priv, certPEM := testSPKey(t)
 	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
@@ -922,6 +926,164 @@ func TestAuthnReqDuplicateParamRejected(t *testing.T) {
 	if !errors.Is(err, ErrMalformedRequest) {
 		t.Fatalf("err = %v, want ErrMalformedRequest", err)
 	}
+}
+
+// TestAuthnReqEncodedDuplicateParamRejected confirms that a redirect-binding
+// param repeated under a percent-encoded name (SAML%52equest, Relay%53tate, …)
+// is a duplicate too. Each copy decodes to the same param name, so accepting the
+// request would let an unsigned copy stand in for the signed one.
+func TestAuthnReqEncodedDuplicateParamRejected(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+
+	// An unsigned AuthnRequest with its own ID; its raw query is just
+	// SAMLRequest=<value>.
+	forged := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-forged",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+	})
+	forgedSAMLRequest := strings.TrimPrefix(forged.URL.RawQuery, "SAMLRequest=")
+
+	cases := []struct {
+		name string
+		pair string
+	}{
+		{"SAMLRequest", "SAML%52equest=" + forgedSAMLRequest},
+		{"RelayState", "Relay%53tate=" + url.QueryEscape("evil")},
+		{"SigAlg", "Sig%41lg=" + url.QueryEscape(rsaSHA256SigAlg)},
+		{"Signature", "Signat%75re=AAAA"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+			idp := newAuthnTestIdP(q)
+
+			req := buildAuthnRedirect(t, authnReqOpts{
+				id:          "_req-signed",
+				destination: testSSOURL,
+				acsURL:      testACSURL,
+				relayState:  "good",
+				hasRelay:    true,
+				sign:        true,
+				signKey:     priv,
+			})
+			req.URL.RawQuery = tc.pair + "&" + req.URL.RawQuery
+
+			ar, err := idp.parseAuthnRequest(context.Background(), req)
+			if ar != nil {
+				t.Fatalf("accepted request %q with RelayState %q, want ErrMalformedRequest", ar.RequestID, ar.RelayState)
+			}
+			if !errors.Is(err, ErrMalformedRequest) {
+				t.Fatalf("err = %v, want ErrMalformedRequest", err)
+			}
+		})
+	}
+}
+
+// TestAuthnReqEncodedRelayStateNotSignedRejected adds a lone RelayState under a
+// percent-encoded name to a signed request that carries none. It is RelayState
+// all the same, so the signature has to cover it; the SP signed no RelayState,
+// so the request fails verification rather than reaching the SP with a
+// RelayState the SP never sent.
+func TestAuthnReqEncodedRelayStateNotSignedRejected(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-signed-norelay",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		sign:        true,
+		signKey:     priv,
+	})
+	req.URL.RawQuery = "Relay%53tate=" + url.QueryEscape("evil") + "&" + req.URL.RawQuery
+
+	ar, err := idp.parseAuthnRequest(context.Background(), req)
+	if ar != nil {
+		t.Fatalf("accepted request %q with RelayState %q, want ErrBadSignature", ar.RequestID, ar.RelayState)
+	}
+	if !errors.Is(err, ErrBadSignature) {
+		t.Fatalf("err = %v, want ErrBadSignature", err)
+	}
+}
+
+// TestAuthnReqSignedStringUsesRawValues sends a RelayState the SP encoded in a
+// form url.QueryEscape would not produce (%2d, %7E). The SP signed those exact
+// bytes, so the signed string must be rebuilt from them, not from the decoded
+// value re-encoded.
+func TestAuthnReqSignedStringUsesRawValues(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-raw-relay",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		hasRelay:    true,
+		rawRelay:    "a%2db%7E",
+		sign:        true,
+		signKey:     priv,
+	})
+
+	ar, err := idp.parseAuthnRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("parseAuthnRequest: %v", err)
+	}
+	if ar.RelayState != "a-b~" {
+		t.Errorf("RelayState = %q, want %q", ar.RelayState, "a-b~")
+	}
+}
+
+// TestAuthnReqEmptyRelayStateIsSigned pins that RelayState= with an empty value
+// is present: the SP that sent it signed "&RelayState=", and one that did not
+// send it signed nothing for it, so adding it breaks the signature.
+func TestAuthnReqEmptyRelayStateIsSigned(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+
+	t.Run("signed empty RelayState verifies", func(t *testing.T) {
+		q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+		idp := newAuthnTestIdP(q)
+		req := buildAuthnRedirect(t, authnReqOpts{
+			id:          "_req-empty-relay",
+			destination: testSSOURL,
+			acsURL:      testACSURL,
+			hasRelay:    true,
+			sign:        true,
+			signKey:     priv,
+		})
+		if !strings.Contains(req.URL.RawQuery, "&RelayState=&") {
+			t.Fatalf("query %q does not carry an empty RelayState", req.URL.RawQuery)
+		}
+		ar, err := idp.parseAuthnRequest(context.Background(), req)
+		if err != nil {
+			t.Fatalf("parseAuthnRequest: %v", err)
+		}
+		if ar.RelayState != "" {
+			t.Errorf("RelayState = %q, want empty", ar.RelayState)
+		}
+	})
+
+	t.Run("added empty RelayState fails verification", func(t *testing.T) {
+		q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+		idp := newAuthnTestIdP(q)
+		req := buildAuthnRedirect(t, authnReqOpts{
+			id:          "_req-added-empty-relay",
+			destination: testSSOURL,
+			acsURL:      testACSURL,
+			sign:        true,
+			signKey:     priv,
+		})
+		req.URL.RawQuery += "&RelayState="
+		ar, err := idp.parseAuthnRequest(context.Background(), req)
+		if ar != nil {
+			t.Fatalf("accepted request %q, want ErrBadSignature", ar.RequestID)
+		}
+		if !errors.Is(err, ErrBadSignature) {
+			t.Fatalf("err = %v, want ErrBadSignature", err)
+		}
+	})
 }
 
 // TestAuthnReqEmptyID confirms an AuthnRequest with an empty @ID is rejected as

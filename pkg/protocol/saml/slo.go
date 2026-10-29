@@ -78,19 +78,25 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 
 	// (2) Decode the LogoutRequest from the binding implied by the method.
 	var (
-		req     crewjam.LogoutRequest
-		reqEl   *etree.Element // the parsed root element (POST binding: signature target)
-		binding string
+		req      crewjam.LogoutRequest
+		reqEl    *etree.Element // the parsed root element (POST binding: signature target)
+		binding  string
+		redirect redirectQuery // GET only: the query parsed once for XML, signature and RelayState
 	)
 	switch r.Method {
 	case http.MethodGet:
 		binding = crewjam.HTTPRedirectBinding
-		el, err := decodeRedirectLogoutRequest(r, &req)
+		q, err := parseRedirectQuery(r.URL.RawQuery)
 		if err != nil {
 			i.sloParseError(w, r, err)
 			return
 		}
-		reqEl = el
+		el, err := decodeRedirectLogoutRequest(q, &req)
+		if err != nil {
+			i.sloParseError(w, r, err)
+			return
+		}
+		reqEl, redirect = el, q
 	case http.MethodPost:
 		binding = crewjam.HTTPPostBinding
 		el, err := decodePostLogoutRequest(r, &req)
@@ -131,10 +137,10 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	switch binding {
 	case crewjam.HTTPRedirectBinding:
 		// verifyRedirectSignature reconstructs the detached octet string from
-		// r.URL.RawQuery (SAMLRequest/RelayState/SigAlg), enforces RSA-SHA256,
-		// and verifies against the SP's "signing" certs. Absent signature →
-		// ErrMissingSignature.
-		if verr := i.verifyRedirectSignature(ctx, r, sp); verr != nil {
+		// the raw SAMLRequest/RelayState/SigAlg of the same parsed query the
+		// XML came from, enforces RSA-SHA256, and verifies against the SP's
+		// "signing" certs. Absent signature → ErrMissingSignature.
+		if verr := i.verifyRedirectSignature(ctx, redirect, sp); verr != nil {
 			i.sloEmitSigFail(ctx, r, sp.EntityID, verr)
 			i.sloParseError(w, r, verr)
 			return
@@ -204,7 +210,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	}
 	// Spec §3.4.3: RelayState MUST NOT exceed 80 bytes — reject before any
 	// session mutation (N7). Read it the same way step 10 does.
-	relayStateLen := len(r.URL.Query().Get("RelayState"))
+	relayStateLen := len(redirect.RelayState)
 	if r.Method == http.MethodPost {
 		relayStateLen = len(r.FormValue("RelayState"))
 	}
@@ -325,7 +331,7 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	// "partial": true in the audit Detail (C4), so the swallowed failure stays
 	// observable. revokeFailed is intentionally not surfaced to the SP itself.
 
-	relayState := r.URL.Query().Get("RelayState")
+	relayState := redirect.RelayState
 	if r.Method == http.MethodPost {
 		relayState = r.FormValue("RelayState")
 	}
@@ -350,18 +356,13 @@ func (i *IdP) HandleSLO(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// decodeRedirectLogoutRequest decodes a HTTP-Redirect binding LogoutRequest:
-// SAMLRequest → base64.StdEncoding → bounded raw-DEFLATE inflate → parseXMLSecure
-// → xml.Unmarshal. It returns the parsed root element (for callers that need the
-// element, though the redirect binding's signature is detached and verified
-// separately).
-func decodeRedirectLogoutRequest(r *http.Request, out *crewjam.LogoutRequest) (*etree.Element, error) {
-	// Reject duplicate redirect-binding params up front (same split-brain guard
-	// as the AuthnRequest path).
-	if _, _, _, _, _, qerr := splitRedirectQuery(r.URL.RawQuery); qerr != nil {
-		return nil, qerr
-	}
-	samlRequest := r.URL.Query().Get("SAMLRequest")
+// decodeRedirectLogoutRequest decodes a HTTP-Redirect binding LogoutRequest from
+// the parsed query: SAMLRequest → base64.StdEncoding → bounded raw-DEFLATE
+// inflate → parseXMLSecure → xml.Unmarshal. It returns the parsed root element
+// (for callers that need the element, though the redirect binding's signature
+// is detached and verified separately, from the same parsed query).
+func decodeRedirectLogoutRequest(q redirectQuery, out *crewjam.LogoutRequest) (*etree.Element, error) {
+	samlRequest := q.SAMLRequest
 	if samlRequest == "" {
 		return nil, fmt.Errorf("%w: SAMLRequest query parameter absent", ErrMissingSAMLRequest)
 	}
