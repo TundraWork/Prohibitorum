@@ -72,6 +72,10 @@ func writePasswordBeginFailure(w http.ResponseWriter, hashErr error) {
 
 // POST /api/prohibitorum/auth/password/begin
 func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request) {
+	// Cap the body before decoding it: the fields fit easily, and an oversized
+	// body is 413 for every caller, so the cap leaks nothing about accounts.
+	r.Body = http.MaxBytesReader(w, r.Body, maxPasswordBeginBodyBytes)
+
 	var body struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -80,6 +84,11 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 		Remember bool `json:"remember"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" || body.Password == "" {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeAuthErr(w, err)
+			return
+		}
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}

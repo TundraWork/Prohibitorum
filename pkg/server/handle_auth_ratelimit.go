@@ -24,6 +24,10 @@ const (
 	// maxPasswordBytes bounds the password accepted at /auth/password/begin
 	// before it is fed to argon2id, matching /me/password/set (audit AUTHZ-1).
 	maxPasswordBytes = 1024
+	// maxPasswordBeginBodyBytes bounds the /auth/password/begin body before it
+	// is decoded. A username, a maxPasswordBytes password and the remember flag
+	// fit well inside it.
+	maxPasswordBeginBodyBytes = 4 << 10
 )
 
 // rateLimit applies a fixed-window bucket and writes the 429 response when

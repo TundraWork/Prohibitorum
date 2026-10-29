@@ -84,6 +84,27 @@ func TestAuthEndpointsHaveNoPerAddressLimit(t *testing.T) {
 	}
 }
 
+// TestPasswordBeginRejectsOversizedBody checks the 4 KiB body cap on
+// /auth/password/begin: a body past it is 413 request_too_large, decided
+// before the body is decoded into memory or any account is looked up.
+func TestPasswordBeginRejectsOversizedBody(t *testing.T) {
+	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter(), clientIP: newDirectResolver()}
+
+	body := fmt.Sprintf(`{"username":"alice","password":%q}`, strings.Repeat("a", 5000))
+	rec := httptest.NewRecorder()
+	s.handlePasswordBeginHTTP(rec, httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader(body)))
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("5000-byte password: want 413, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var env struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil || env.Code != "request_too_large" {
+		t.Fatalf("5000-byte password: want code request_too_large, got %s (%v)", rec.Body.String(), err)
+	}
+}
+
 // TestPasswordBeginRejectsOversizePassword verifies the length cap added to
 // /auth/password/begin (audit AUTHZ-1): an over-cap password is rejected with
 // 401 BEFORE any account lookup or argon2id hash. s.queries is nil here, so if
