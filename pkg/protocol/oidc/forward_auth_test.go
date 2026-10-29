@@ -444,6 +444,11 @@ func TestForwardAuthVerify_ReturnURLStaysOnHost(t *testing.T) {
 		{"address in proto header", "https://evil.example/#", "/x", "https://app.acme.io/x"},
 		// The callback runs on https only, so an http return would loop to login.
 		{"http proto", "http", "/x", "https://app.acme.io/x"},
+		// Browsers read both as a path on app.acme.io ("//evil.example/x"), not
+		// as a network-path reference to evil.example: the authority already
+		// ended at the "/" after the host.
+		{"double slash", "https", "//evil.example/x", "https://app.acme.io//evil.example/x"},
+		{"slash backslash", "https", `/\evil.example/x`, `https://app.acme.io/\evil.example/x`},
 		// An absent header returns to the application's root; "" stands for
 		// either spelling of it.
 		{"no uri header", "https", "", ""},
