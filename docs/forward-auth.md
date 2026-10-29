@@ -233,7 +233,7 @@ The `strip-prohibitorum-pat` middleware is only required on routers where PAT-be
 
 ## 4. Security requirements
 
-- **Set both `forwardedHeaders.trustedIPs` and `trustForwardHeader: true`.** `trustedIPs` makes Traefik strip client-supplied `X-Forwarded-*` and set them from the real request; `trustForwardHeader: true` then forwards those trusted values. Prohibitorum reconstructs the original request and resolves the protected service from `X-Forwarded-Host` / `X-Forwarded-Proto` / `X-Forwarded-Uri` — a client that can set those can influence the redirect target. Do not expose the EntryPoint to untrusted networks without `trustedIPs`.
+- **Set both `forwardedHeaders.trustedIPs` and `trustForwardHeader: true`.** `trustedIPs` makes Traefik strip client-supplied `X-Forwarded-*` and set them from the real request; `trustForwardHeader: true` then forwards those trusted values. Prohibitorum reconstructs the original request and resolves the protected service from `X-Forwarded-Host` / `X-Forwarded-Proto` / `X-Forwarded-Uri` — a client that can set those can choose which registered application, and which path on it, the browser returns to after login, though the return never leaves a registered host. Do not expose the EntryPoint to untrusted networks without `trustedIPs`.
 
 - **The proxy must be the only path to the backend.** Identity is conveyed by `Remote-*` headers. Any route that bypasses Traefik (another container on the same network, a LAN/VPN route) can forge `Remote-User` / `Remote-Groups`. Bind backends to internal networks only.
 
@@ -273,6 +273,6 @@ Open the protected app URL; after login you should see the identity headers echo
 ```
 
 Endpoints:
-- **`GET /api/prohibitorum/forward-auth/verify`** — the ForwardAuth target: `200` + identity headers (allowed), `302` to login (unauthenticated), or `403` (host not a registered forward-auth service).
+- **`GET /api/prohibitorum/forward-auth/verify`** — the ForwardAuth target: `200` + identity headers (allowed), `302` to login (unauthenticated), `400` (a request bound for login whose `X-Forwarded-Uri` is not empty and does not start with `/`, usually a proxy misconfiguration), or `403` (host not a registered forward-auth service).
 - **`/.prohibitorum-forward-auth/callback`** — routed by you on each protected domain to Prohibitorum; completes the OIDC exchange and sets the per-domain cookie.
 - **`/.prohibitorum-forward-auth/sign_out`** — routed the same way; clears the per-domain cookie + session and `302`s to **`GET /api/prohibitorum/forward-auth/sso-logout`**, which terminates the SSO session and redirects back only to a validated forward-auth host.

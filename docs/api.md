@@ -554,6 +554,7 @@ with the flow's `return_to`, which the page resolves through this endpoint.
 **Browser (cookie) flow** — no `X-Prohibitorum-PAT` header present:
 - `200` + `Remote-*` identity headers: valid forward-auth cookie + live access check passed.
 - `302` to login: no valid cookie — browser is redirected into the Prohibitorum OIDC login flow.
+- `400`: a request bound for login carries an `X-Forwarded-Uri` that is not empty and does not start with `/`, usually a proxy misconfiguration.
 - `403`: `X-Forwarded-Host` is not a registered forward-auth service.
 
 **PAT (API) flow** — `X-Prohibitorum-PAT: <token>` header present (raw token, no Bearer prefix). Terminal: never redirects.
