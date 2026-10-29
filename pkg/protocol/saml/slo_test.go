@@ -631,6 +631,39 @@ func TestSLOBadSignatureLeavesSessionUntouched(t *testing.T) {
 	}
 }
 
+// TestSLOSmuggledUnsignedLogoutRequestRejected sends a LogoutRequest the SP
+// signed for one NameID, preceded by an unsigned LogoutRequest for another
+// account's NameID under the percent-encoded name SAML%52equest. The signature
+// covers only the first account's request, so the other account's session must
+// survive and the request must be rejected.
+func TestSLOSmuggledUnsignedLogoutRequestRejected(t *testing.T) {
+	h := newSLOHarness(t, sloSP())
+	sid := h.seedSession(t, 42, "nameid-b", "")
+
+	req := buildLogoutRedirect(t, sloReqOpts{
+		id:          "_slo-signed-a",
+		destination: testSLOURL,
+		nameID:      "nameid-a",
+		sign:        true,
+		signKey:     h.spKey,
+	})
+	forged := buildLogoutRedirect(t, sloReqOpts{
+		id:          "_slo-forged-b",
+		destination: testSLOURL,
+		nameID:      "nameid-b",
+	})
+	forgedSAMLRequest := strings.TrimPrefix(forged.URL.RawQuery, "SAMLRequest=")
+	req.URL.RawQuery = "SAML%52equest=" + forgedSAMLRequest + "&" + req.URL.RawQuery
+
+	rec := httptest.NewRecorder()
+	h.idp.HandleSLO(rec, req)
+
+	assertSLORejectedToError(t, rec, h, sid, "saml_request_invalid")
+	if del := h.q.deletedRows(); len(del) != 0 {
+		t.Errorf("deleted rows = %v for a smuggled LogoutRequest, want none", del)
+	}
+}
+
 // TestSLOMissingSignatureAuditRecord verifies that an absent SLO signature on a
 // KNOWN SP emits a saml_sp|fail audit record with reason=missing_signature.
 func TestSLOMissingSignatureAuditRecord(t *testing.T) {

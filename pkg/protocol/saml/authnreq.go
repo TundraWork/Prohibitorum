@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -76,8 +77,9 @@ var (
 	// exceeds maxInflatedAuthnRequest (decompression-bomb guard).
 	ErrOversizeRequest = errors.New("saml: SAMLRequest exceeds maximum inflated size")
 	// ErrMalformedRequest is returned for structurally invalid redirect-binding
-	// requests: duplicate redirect-binding params, or an AuthnRequest missing
-	// the required @ID.
+	// requests: duplicate redirect-binding params, a query that does not
+	// percent-decode (see parseRedirectQuery), or an AuthnRequest missing the
+	// required @ID.
 	ErrMalformedRequest = errors.New("saml: AuthnRequest malformed")
 	// ErrStaleRequest is returned when the AuthnRequest's IssueInstant falls
 	// outside ±AuthnRequestTTL of now. Without this bound the only limit on how
@@ -126,20 +128,27 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 	// --- 1. Decode the AuthnRequest from the binding implied by the method.
 	// GET → HTTP-Redirect (DEFLATE, detached sig); POST → HTTP-POST (no inflate,
 	// enveloped sig). reqEl is the secure-parsed root element, used only by the
-	// POST binding's enveloped-signature verification.
+	// POST binding's enveloped-signature verification. On GET the query is
+	// parsed once (parseRedirectQuery) and that one parse feeds the XML, the
+	// signature check and RelayState.
 	var (
-		req     crewjam.AuthnRequest
-		reqEl   *etree.Element
-		binding string
+		req      crewjam.AuthnRequest
+		reqEl    *etree.Element
+		binding  string
+		redirect redirectQuery
 	)
 	switch r.Method {
 	case http.MethodGet:
 		binding = crewjam.HTTPRedirectBinding
-		el, err := decodeRedirectAuthnRequest(r, &req)
+		q, err := parseRedirectQuery(r.URL.RawQuery)
 		if err != nil {
 			return nil, err
 		}
-		reqEl = el
+		el, err := decodeRedirectAuthnRequest(q, &req)
+		if err != nil {
+			return nil, err
+		}
+		reqEl, redirect = el, q
 	case http.MethodPost:
 		binding = crewjam.HTTPPostBinding
 		el, err := decodePostAuthnRequest(r, &req)
@@ -176,7 +185,7 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 	if sp.RequireSignedAuthnRequest {
 		switch binding {
 		case crewjam.HTTPRedirectBinding:
-			if verr := i.verifyRedirectSignature(ctx, r, sp); verr != nil {
+			if verr := i.verifyRedirectSignature(ctx, redirect, sp); verr != nil {
 				return nil, verr
 			}
 		case crewjam.HTTPPostBinding:
@@ -212,9 +221,10 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 	}
 
 	// RelayState travels alongside the SAMLRequest in the same transport: the
-	// query string for the HTTP-Redirect binding, the POST form for HTTP-POST
-	// (mirroring HandleSLO's relayState handling).
-	relayState := r.URL.Query().Get("RelayState")
+	// parsed query for the HTTP-Redirect binding (the same parse the signature
+	// covered), the POST form for HTTP-POST (mirroring HandleSLO's relayState
+	// handling).
+	relayState := redirect.RelayState
 	if binding == crewjam.HTTPPostBinding {
 		relayState = r.FormValue("RelayState")
 	}
@@ -234,23 +244,16 @@ func (i *IdP) parseAuthnRequest(ctx context.Context, r *http.Request) (*authnReq
 	}, nil
 }
 
-// decodeRedirectAuthnRequest decodes a HTTP-Redirect binding AuthnRequest:
-// SAMLRequest → base64.StdEncoding → bounded raw-DEFLATE inflate → parseXMLSecure
-// → xml.Unmarshal. It mirrors decodeRedirectLogoutRequest in slo.go (same
-// duplicate-param guard, same decompression-bomb cap) and returns the parsed
-// root element. The redirect binding's signature is DETACHED (over the query
-// octet string) and verified separately by verifyRedirectSignature, so the
-// returned element is unused on this path but kept for symmetry with the POST
-// path.
-func decodeRedirectAuthnRequest(r *http.Request, out *crewjam.AuthnRequest) (*etree.Element, error) {
-	// Reject duplicate redirect-binding params up front: url.Query().Get returns
-	// the FIRST occurrence while splitRedirectQuery (signature path) keeps the
-	// LAST, so a duplicated SAMLRequest/RelayState/SigAlg/Signature could
-	// split-brain the validated XML and the signed octet string.
-	if _, _, _, _, _, qerr := splitRedirectQuery(r.URL.RawQuery); qerr != nil {
-		return nil, qerr
-	}
-	samlRequest := r.URL.Query().Get("SAMLRequest")
+// decodeRedirectAuthnRequest decodes a HTTP-Redirect binding AuthnRequest from
+// the parsed query: SAMLRequest → base64.StdEncoding → bounded raw-DEFLATE
+// inflate → parseXMLSecure → xml.Unmarshal. It mirrors
+// decodeRedirectLogoutRequest in slo.go (same decompression-bomb cap) and
+// returns the parsed root element. The redirect binding's signature is DETACHED
+// (over the query octet string) and verified separately by
+// verifyRedirectSignature from the same parsed query, so the returned element
+// is unused on this path but kept for symmetry with the POST path.
+func decodeRedirectAuthnRequest(q redirectQuery, out *crewjam.AuthnRequest) (*etree.Element, error) {
+	samlRequest := q.SAMLRequest
 	if samlRequest == "" {
 		return nil, fmt.Errorf("%w: SAMLRequest query parameter absent", ErrMissingSAMLRequest)
 	}
@@ -505,29 +508,23 @@ func (i *IdP) resolveACS(ctx context.Context, spID int64, requestedURL, requeste
 //
 // (RelayState omitted iff the SP did not send it), where each <v> is the EXACT
 // percent-encoded bytes the SP put on the wire. We therefore reconstruct the
-// signed string from r.URL.RawQuery (NOT r.URL.Query(), which percent-decodes
-// and would let us re-encode to bytes that differ from the SP's). The Signature
-// param itself is base64(raw RSA signature) and is not part of the signed
-// string.
-func (i *IdP) verifyRedirectSignature(ctx context.Context, r *http.Request, sp db.SamlSp) error {
-	rawSAMLRequest, rawRelayState, rawSigAlg, hasRelayState, hasSigAlg, qerr := splitRedirectQuery(r.URL.RawQuery)
-	if qerr != nil {
-		return qerr
-	}
-
-	// Signature presence is checked from the decoded query — its value is not
-	// part of the signed string.
-	sigB64 := r.URL.Query().Get("Signature")
+// signed string from the raw values parseRedirectQuery kept (NOT decoded values
+// re-encoded, which could differ from the SP's bytes). The Signature param
+// itself is base64(raw RSA signature) and is not part of the signed string.
+func (i *IdP) verifyRedirectSignature(ctx context.Context, q redirectQuery, sp db.SamlSp) error {
+	// Signature presence is checked from the decoded value — it is not part of
+	// the signed string. An empty Signature= counts as absent.
+	sigB64 := q.Signature
 	if sigB64 == "" {
-		return fmt.Errorf("%w: Signature parameter absent (SigAlg present: %t)", ErrMissingSignature, hasSigAlg)
+		return fmt.Errorf("%w: Signature parameter absent (SigAlg present: %t)", ErrMissingSignature, q.HasSigAlg)
 	}
-	if !hasSigAlg {
+	if !q.HasSigAlg {
 		return fmt.Errorf("%w: SigAlg parameter absent (Signature present: true)", ErrMissingSignature)
 	}
 
-	// Only RSA-SHA256 is accepted. SigAlg arrives percent-encoded in the raw
-	// query; decode it for comparison.
-	sigAlg := r.URL.Query().Get("SigAlg")
+	// Only RSA-SHA256 is accepted. Compare the decoded SigAlg; its raw form goes
+	// into the signed string below.
+	sigAlg := q.SigAlg
 	if isSHA1Algorithm(sigAlg) {
 		return fmt.Errorf("%w: SigAlg %q is SHA-1", errWeakSigAlg, sigAlg)
 	}
@@ -543,13 +540,13 @@ func (i *IdP) verifyRedirectSignature(ctx context.Context, r *http.Request, sp d
 	// Reconstruct the signed octet string from the RAW (still-encoded) values.
 	var b strings.Builder
 	b.WriteString("SAMLRequest=")
-	b.WriteString(rawSAMLRequest)
-	if hasRelayState {
+	b.WriteString(q.rawSAMLRequest)
+	if q.HasRelayState {
 		b.WriteString("&RelayState=")
-		b.WriteString(rawRelayState)
+		b.WriteString(q.rawRelayState)
 	}
 	b.WriteString("&SigAlg=")
-	b.WriteString(rawSigAlg)
+	b.WriteString(q.rawSigAlg)
 	signed := b.String()
 
 	h := sha256.Sum256([]byte(signed))
@@ -602,51 +599,79 @@ func (i *IdP) verifyRedirectSignature(ctx context.Context, r *http.Request, sp d
 	return fmt.Errorf("%w: %d cert(s) scanned, %d skipped (PEM %d, validity %d, non-RSA %d): %s", ErrBadSignature, total, badPEM+outOfWindow+notRSA, badPEM, outOfWindow, notRSA, strings.Join(details, "; "))
 }
 
-// splitRedirectQuery parses a raw URL query string (NOT percent-decoded) and
-// returns the raw right-hand sides of SAMLRequest, RelayState, and SigAlg, plus
-// whether RelayState and SigAlg were present. We must keep the values in their
-// exact on-the-wire encoding to reproduce the SP's signed octet string.
+// redirectQuery holds the HTTP-Redirect binding params of one query string. For
+// each param it keeps the decoded value, and for the three params the signature
+// covers also the raw on-the-wire value the signed octet string is rebuilt from.
+// A Has* flag records that the param appeared, even with an empty value.
+type redirectQuery struct {
+	SAMLRequest   string
+	RelayState    string
+	HasRelayState bool
+	SigAlg        string
+	HasSigAlg     bool
+	Signature     string
+
+	rawSAMLRequest string
+	rawRelayState  string
+	rawSigAlg      string
+}
+
+// parseRedirectQuery parses a raw URL query string once for the HTTP-Redirect
+// binding. The signed octet string and the values the IdP acts on (the XML,
+// RelayState, SigAlg, Signature) all come from this one parse, so they are
+// always taken from the same pair: the request that is processed is the one the
+// signature covers.
 //
-// A query that repeats any of the redirect-binding params (SAMLRequest,
-// RelayState, SigAlg, Signature) is REJECTED as ErrMalformedRequest. Picking
-// first-or-last would otherwise create a split-brain: parseAuthnRequest reads
-// SAMLRequest via url.Query().Get (first occurrence) while this function keeps
-// the last, so a duplicated param could make the validated XML diverge from the
-// signature-checked octet string. Rejecting is the only safe resolution.
-func splitRedirectQuery(rawQuery string) (samlRequest, relayState, sigAlg string, hasRelayState, hasSigAlg bool, err error) {
-	var seenReq, seenSig bool
+// Param names are compared after percent-decoding, as net/url decodes them, so
+// SAML%52equest is SAMLRequest here too. A redirect-binding param (SAMLRequest,
+// RelayState, SigAlg, Signature) that appears more than once, however its name
+// is spelled, is rejected as ErrMalformedRequest; so is any param name that does
+// not percent-decode (it might name a binding param) and a binding param value
+// that does not percent-decode. Other params (reauth, post, …) are ignored.
+// Errors name the param, never its value: the values are not logged.
+func parseRedirectQuery(rawQuery string) (redirectQuery, error) {
+	var (
+		q                            redirectQuery
+		hasSAMLRequest, hasSignature bool
+	)
 	for pair := range strings.SplitSeq(rawQuery, "&") {
 		if pair == "" {
 			continue
 		}
-		key, val, _ := strings.Cut(pair, "=")
+		rawKey, rawVal, _ := strings.Cut(pair, "=")
+		key, err := url.QueryUnescape(rawKey)
+		if err != nil {
+			return redirectQuery{}, fmt.Errorf("%w: a query param name is not valid percent-encoding", ErrMalformedRequest)
+		}
+		var (
+			seen *bool
+			val  *string
+			raw  *string
+		)
 		switch key {
 		case "SAMLRequest":
-			if seenReq {
-				return "", "", "", false, false, ErrMalformedRequest
-			}
-			seenReq = true
-			samlRequest = val
+			seen, val, raw = &hasSAMLRequest, &q.SAMLRequest, &q.rawSAMLRequest
 		case "RelayState":
-			if hasRelayState {
-				return "", "", "", false, false, ErrMalformedRequest
-			}
-			relayState = val
-			hasRelayState = true
+			seen, val, raw = &q.HasRelayState, &q.RelayState, &q.rawRelayState
 		case "SigAlg":
-			if hasSigAlg {
-				return "", "", "", false, false, ErrMalformedRequest
-			}
-			sigAlg = val
-			hasSigAlg = true
+			seen, val, raw = &q.HasSigAlg, &q.SigAlg, &q.rawSigAlg
 		case "Signature":
-			if seenSig {
-				return "", "", "", false, false, ErrMalformedRequest
-			}
-			seenSig = true
+			seen, val = &hasSignature, &q.Signature
+		default:
+			continue
+		}
+		if *seen {
+			return redirectQuery{}, fmt.Errorf("%w: %s appears more than once", ErrMalformedRequest, key)
+		}
+		*seen = true
+		if *val, err = url.QueryUnescape(rawVal); err != nil {
+			return redirectQuery{}, fmt.Errorf("%w: %s value is not valid percent-encoding", ErrMalformedRequest, key)
+		}
+		if raw != nil {
+			*raw = rawVal
 		}
 	}
-	return samlRequest, relayState, sigAlg, hasRelayState, hasSigAlg, nil
+	return q, nil
 }
 
 // parseCertPEM decodes a single PEM-encoded X.509 certificate.

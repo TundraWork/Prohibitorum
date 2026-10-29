@@ -900,9 +900,8 @@ func TestAuthnReqUnknownSP(t *testing.T) {
 }
 
 // TestAuthnReqDuplicateParamRejected confirms that a redirect query repeating a
-// redirect-binding param (here, two SAMLRequest=) is rejected as malformed,
-// closing the first-vs-last split-brain between the validated XML and the
-// signature-checked octet string.
+// redirect-binding param (here, two SAMLRequest=) is rejected as malformed:
+// only one of the two copies can be the one the signature covers.
 func TestAuthnReqDuplicateParamRejected(t *testing.T) {
 	priv, certPEM := testSPKey(t)
 	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
@@ -921,6 +920,58 @@ func TestAuthnReqDuplicateParamRejected(t *testing.T) {
 	_, err := idp.parseAuthnRequest(context.Background(), req)
 	if !errors.Is(err, ErrMalformedRequest) {
 		t.Fatalf("err = %v, want ErrMalformedRequest", err)
+	}
+}
+
+// TestAuthnReqEncodedDuplicateParamRejected confirms that a redirect-binding
+// param repeated under a percent-encoded name (SAML%52equest, Relay%53tate, …)
+// is a duplicate too. Each copy decodes to the same param name, so accepting the
+// request would let an unsigned copy stand in for the signed one.
+func TestAuthnReqEncodedDuplicateParamRejected(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+
+	// An unsigned AuthnRequest with its own ID; its raw query is just
+	// SAMLRequest=<value>.
+	forged := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-forged",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+	})
+	forgedSAMLRequest := strings.TrimPrefix(forged.URL.RawQuery, "SAMLRequest=")
+
+	cases := []struct {
+		name string
+		pair string
+	}{
+		{"SAMLRequest", "SAML%52equest=" + forgedSAMLRequest},
+		{"RelayState", "Relay%53tate=" + url.QueryEscape("evil")},
+		{"SigAlg", "Sig%41lg=" + url.QueryEscape(rsaSHA256SigAlg)},
+		{"Signature", "Signat%75re=AAAA"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+			idp := newAuthnTestIdP(q)
+
+			req := buildAuthnRedirect(t, authnReqOpts{
+				id:          "_req-signed",
+				destination: testSSOURL,
+				acsURL:      testACSURL,
+				relayState:  "good",
+				hasRelay:    true,
+				sign:        true,
+				signKey:     priv,
+			})
+			req.URL.RawQuery = tc.pair + "&" + req.URL.RawQuery
+
+			ar, err := idp.parseAuthnRequest(context.Background(), req)
+			if ar != nil {
+				t.Fatalf("accepted request %q with RelayState %q, want ErrMalformedRequest", ar.RequestID, ar.RelayState)
+			}
+			if !errors.Is(err, ErrMalformedRequest) {
+				t.Fatalf("err = %v, want ErrMalformedRequest", err)
+			}
+		})
 	}
 }
 
