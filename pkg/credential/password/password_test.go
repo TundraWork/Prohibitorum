@@ -656,7 +656,11 @@ func TestDeriveKeyReleasesItsSlot(t *testing.T) {
 
 	idKey = func(_, _ []byte, _, _ uint32, _ uint8, _ uint32) []byte { panic("kdf failed") }
 	func() {
-		defer func() { _ = recover() }()
+		defer func() {
+			if recover() == nil {
+				t.Fatal("HashRaw returned without reaching the panicking KDF")
+			}
+		}()
 		_, _ = HashRaw(ctx, "pw", testParams())
 	}()
 	allFree("a panicking hash")
