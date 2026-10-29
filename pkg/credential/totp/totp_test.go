@@ -16,6 +16,7 @@ import (
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/db"
 )
 
@@ -800,6 +801,28 @@ func TestStore_RecoveryCodeChecksLockedBeforeIteration(t *testing.T) {
 	ae := authn.AsAuthError(err)
 	if ae == nil || ae.Code != "factor_locked" {
 		t.Errorf("want factor_locked, got %v", err)
+	}
+}
+
+func TestStore_RecoveryCodeBusyIsNotAFailure(t *testing.T) {
+	at := time.Unix(1_700_000_000, 0)
+	s, f, _ := newTestStoreAt(t, at)
+	ctx := context.Background()
+	f.recoveryRows = []db.RecoveryCode{{ID: 1, AccountID: 1, Hash: "stored-phc"}}
+	orig := matchRecoveryCodes
+	matchRecoveryCodes = func(context.Context, string, []string) (int, error) { return -1, password.ErrBusy }
+	t.Cleanup(func() { matchRecoveryCodes = orig })
+
+	if _, err := s.MatchRecoveryCode(ctx, 1, "ABCDEFGH23456789"); !errors.Is(err, password.ErrBusy) {
+		t.Fatalf("MatchRecoveryCode while busy: want password.ErrBusy, got %v", err)
+	}
+	if row, ok := f.throttle[f.throttleKey(1, "recovery_code")]; ok {
+		t.Errorf("a busy check counted a recovery-code failure: %+v", row)
+	}
+	for _, e := range f.events {
+		if e.Event == "fail" {
+			t.Errorf("a busy check wrote a failure audit event: %+v", e)
+		}
 	}
 }
 

@@ -2,9 +2,12 @@ package oidc
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
+
+	"prohibitorum/pkg/credential/password"
 )
 
 // writeIntrospectionInactive renders the RFC 7662 §2.2 inactive response:
@@ -27,6 +30,10 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	client, err := authenticateClient(ctx, p.queries, r)
+	if errors.Is(err, password.ErrBusy) {
+		writeBusy(w, r)
+		return
+	}
 	if err != nil {
 		// Introspection requires client authentication (RFC 7662 §2.1).
 		writeInvalidClient(w, r, "client authentication failed")

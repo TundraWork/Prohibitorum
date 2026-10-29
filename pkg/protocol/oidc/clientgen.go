@@ -1,6 +1,7 @@
 package oidc
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
@@ -89,7 +90,10 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 		return params, "", nil
 	}
 
-	secret, hash, err := generateClientSecret()
+	// No request context reaches here (the signature is shared with callers
+	// outside this change), so the hash waits for a slot for at most maxWait
+	// and a busy server returns password.ErrBusy.
+	secret, hash, err := generateClientSecret(context.Background())
 	if err != nil {
 		return db.InsertOIDCClientParams{}, "", err
 	}
@@ -102,13 +106,14 @@ func BuildClientParams(opts ClientOptions) (db.InsertOIDCClientParams, string, e
 // generateClientSecret generates a 32-byte random client secret, returns the
 // plaintext (to be revealed once) and the argon2id PHC hash (to be stored).
 // Shared between BuildClientParams (create) and RotateClientSecret (rotate).
-func generateClientSecret() (secret, hash string, err error) {
+// The hash error is password.ErrBusy or ctx's error when no hash slot came free.
+func generateClientSecret(ctx context.Context) (secret, hash string, err error) {
 	buf := make([]byte, 32)
 	if _, err = rand.Read(buf); err != nil {
 		return "", "", err
 	}
 	secret = base64.RawURLEncoding.EncodeToString(buf)
-	hash, err = password.HashRaw(secret, password.DefaultParams())
+	hash, err = password.HashRaw(ctx, secret, password.DefaultParams())
 	if err != nil {
 		return "", "", err
 	}

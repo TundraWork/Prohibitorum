@@ -93,7 +93,7 @@ Sign-in is a discoverable ceremony (`POST /api/prohibitorum/auth/login/{begin,co
 - **Modal** (no parameter): the passkey button. The challenge lives 60 s (go-webauthn's login timeout) and the ceremony token rides in the `prohibitorum_ceremony` cookie.
 - **Conditional** (`mediation=conditional`): passkeys offered in the username field's autofill. The browser request stays pending while the page is open, so the challenge lives the full 5-minute ceremony TTL — the `timeout` sent to the browser, `SessionData.Expires`, the KV TTL and the cookie's Max-Age agree — and the token rides in its own `prohibitorum_ceremony_conditional` cookie, so an autofill ceremony and a button ceremony pending together never overwrite each other. The dashboard renews it a minute before it expires.
 
-Any other `mediation` value is `400 bad_request` and touches no ceremony. Both mediations share the `webauthn_ceremony:login:` KV prefix and the per-IP login rate limit.
+Any other `mediation` value is `400 bad_request` and touches no ceremony. Both mediations share the `webauthn_ceremony:login:` KV prefix.
 
 `complete` looks up the asserted credential ID before the user handle. A credential ID with no `webauthn_credential` row — the passkey was revoked, or its account deleted, which cascades — is `401 login_credential_unknown`, and only then: the dashboard relays that code to the password manager through `PublicKeyCredential.signalUnknownCredential`, which removes the passkey, so a database failure maps to `database_unavailable` and a user handle that does not name the credential's owner to `login_verification_failed`. A disabled account keeps its credentials and still answers `account_disabled`.
 

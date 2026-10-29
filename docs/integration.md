@@ -1044,7 +1044,7 @@ The OP validates the `id_token_hint`'s signature + `iss` (tolerating an expired 
 
 ### Rate limits (per identity, not per IP)
 
-OP endpoints are rate-limited on **identity**, not client IP (client IP is untrustworthy behind NAT / CDN, so no IP-keyed buckets): `/authorize` per `account_id`; `/token` / `/introspect` / `/revoke` per `client_id`; `/userinfo` per `sub`. RPs are machines, so caps are higher than the human-facing auth surfaces. Volumetric / edge DoS remains the reverse-proxy / WAF's responsibility.
+OP endpoints are rate-limited on **identity**, not client IP (client IP is untrustworthy behind NAT / CDN, so no IP-keyed buckets): `/authorize` per `account_id`; `/token` per `client_id`, after the client authenticates; `/userinfo` per `sub`. `/introspect` and `/revoke` have no rate limit, since a resource server may introspect on every request it receives. RPs are machines, so caps are higher than the human-facing auth surfaces. Client authentication on `/token`, `/introspect` and `/revoke` runs argon2id, which shares the server's argon2id slots (see `config.md`, "Password hashing"); when none comes free within 5 seconds the endpoint answers `503 temporarily_unavailable` with `Retry-After: 1`, for known and unknown `client_id`s alike, and the RP should retry. Volumetric / edge DoS remains the reverse-proxy / WAF's responsibility.
 
 ### What goes into the audit log
 

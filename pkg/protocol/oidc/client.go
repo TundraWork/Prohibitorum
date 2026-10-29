@@ -26,9 +26,10 @@ var errInvalidClient = errors.New("oidc: invalid client")
 // real client secrets (password.DefaultParams). On the unknown-client path we
 // verify the presented secret against it to burn an equivalent argon2id cost,
 // so request timing cannot distinguish a known confidential client (which runs
-// a full verify) from an unknown one. Computed once at package load.
+// a full verify) from an unknown one. Computed once at package load, before
+// any request can hold a hash slot.
 var dummyClientSecretPHC = func() string {
-	phc, err := password.HashRaw("timing-equalizer", password.DefaultParams())
+	phc, err := password.HashRaw(context.Background(), "timing-equalizer", password.DefaultParams())
 	if err != nil {
 		panic("oidc: precompute dummy client secret PHC: " + err.Error())
 	}
@@ -144,7 +145,10 @@ func parseBasicCredentials(r *http.Request) (id, secret string, present, ok bool
 // rejected per RFC 6749 §2.3; repeating a matching client_id in the body
 // alongside Basic auth is allowed, because client_id is an identifier rather
 // than a credential. Every failure returns errInvalidClient so callers map
-// uniformly to invalid_client.
+// uniformly to invalid_client. A secret that could not be checked because
+// argon2id never ran comes back as the verifier's own error instead
+// (password.ErrBusy or the context's error), on the known- and unknown-client
+// paths alike, so a busy server answers both the same way.
 func authenticateClient(ctx context.Context, q clientQueries, r *http.Request) (db.OidcClient, error) {
 	if err := r.ParseForm(); err != nil {
 		return db.OidcClient{}, errInvalidClient
@@ -201,7 +205,9 @@ func authenticateClient(ctx context.Context, q clientQueries, r *http.Request) (
 			presentedSecret = formSecret
 		}
 		if presentedSecret != "" && errors.Is(err, errInvalidClient) {
-			_ = verifyClientSecret(presentedSecret, dummyClientSecretPHC)
+			if _, verr := verifyClientSecret(ctx, presentedSecret, dummyClientSecretPHC); verr != nil {
+				return db.OidcClient{}, verr
+			}
 		}
 		return db.OidcClient{}, err
 	}
@@ -218,7 +224,11 @@ func authenticateClient(ctx context.Context, q clientQueries, r *http.Request) (
 		if presented == "" || !client.ClientSecretHash.Valid {
 			return db.OidcClient{}, errInvalidClient
 		}
-		if !verifyClientSecret(presented, client.ClientSecretHash.String) {
+		ok, verr := verifyClientSecret(ctx, presented, client.ClientSecretHash.String)
+		if verr != nil {
+			return db.OidcClient{}, verr
+		}
+		if !ok {
 			return db.OidcClient{}, errInvalidClient
 		}
 

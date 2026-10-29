@@ -259,6 +259,12 @@ func (s *Server) handleCreateOIDCApplicationHTTP(w http.ResponseWriter, r *http.
 
 	params, secret, err := oidc.BuildClientParams(opts)
 	if err != nil {
+		// A busy secret hash (password.ErrBusy) keeps its own 429; every other
+		// error is a bad option.
+		if ae := authn.AsAuthError(err); ae != nil {
+			writeAuthErr(w, ae)
+			return
+		}
 		writeAuthErr(w, authn.ErrBadRequest())
 		return
 	}

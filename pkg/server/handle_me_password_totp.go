@@ -43,7 +43,7 @@ func (s *Server) handleMePasswordTOTPVerifyHTTP(w http.ResponseWriter, r *http.R
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
-	passwordPHC, err := s.passwordStore.Hash(body.Password)
+	passwordPHC, err := s.passwordStore.Hash(r.Context(), body.Password)
 	if err != nil {
 		writeAuthErr(w, fmt.Errorf("me/password-totp/verify: hash: %w", err))
 		return

@@ -21,6 +21,12 @@
 // only the response is collapsed. Step-2 (/auth/totp/verify and
 // /auth/recovery-code/verify) keeps the 429 behaviour because the
 // partial-session token already proved account existence in step 1.
+//
+// When every argon2id slot stays busy (password.ErrBusy), whichever of the
+// four hashes was due did not run, and all four modes answer the same 429
+// rate_limited with Retry-After: 1 (writePasswordBeginFailure), so a busy
+// server is no enumeration oracle either. There is no per-IP cap here: the
+// argon2id slot limit bounds the cost of a flood (PHB-181).
 
 package server
 
@@ -51,15 +57,24 @@ type partialSession struct {
 
 func partialSessionKey(token string) string { return "partial_session:" + token }
 
-// POST /api/prohibitorum/auth/password/begin
-func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request) {
-	// Per-IP cap ahead of any work: every failure branch below burns a full
-	// argon2id hash (enumeration defense), so an unthrottled flood is a
-	// CPU/RAM-exhaustion DoS amplifier (audit AUTHZ-1). The per-account
-	// throttle does not help the unknown-username path (no account to key on).
-	if s.rateLimit(w, r, "pwd_begin:ip:"+s.clientIP.IP(r), pwdBeginIPLimit, authIPWindow) {
+// writePasswordBeginFailure answers a failed /auth/password/begin. hashErr is
+// the error of the argon2id run the failure branch made (the dummy, or Verify's
+// own). Every branch goes through here so they cannot drift apart: a hash that
+// never ran for lack of a slot is 429 rate_limited, anything else is 401
+// bad_credentials.
+func writePasswordBeginFailure(w http.ResponseWriter, hashErr error) {
+	if errors.Is(hashErr, password.ErrBusy) {
+		writeAuthErr(w, password.ErrBusy)
 		return
 	}
+	writeAuthErr(w, authn.ErrBadCredentials())
+}
+
+// POST /api/prohibitorum/auth/password/begin
+func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request) {
+	// Cap the body before decoding it: the fields fit easily, and an oversized
+	// body is 413 for every caller, so the cap leaks nothing about accounts.
+	r.Body = http.MaxBytesReader(w, r.Body, maxPasswordBeginBodyBytes)
 
 	var body struct {
 		Username string `json:"username"`
@@ -69,6 +84,11 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 		Remember bool `json:"remember"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Username == "" || body.Password == "" {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeAuthErr(w, err)
+			return
+		}
 		writeAuthErr(w, authn.ErrBadCredentials())
 		return
 	}
@@ -83,8 +103,7 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 	acct, err := s.queries.GetAccountByUsername(r.Context(), body.Username)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			s.passwordStore.VerifyAgainstDummy(r.Context(), body.Password)
-			writeAuthErr(w, authn.ErrBadCredentials())
+			writePasswordBeginFailure(w, s.passwordStore.VerifyAgainstDummy(r.Context(), body.Password))
 			return
 		}
 		writeAuthErr(w, err)
@@ -100,8 +119,7 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 	// WebAuthn path in handle_auth.go discloses disabled-state only AFTER
 	// the assertion verifies. Exercised by cmd/smoke (Task 8).
 	if acct.Disabled {
-		s.passwordStore.VerifyAgainstDummy(r.Context(), body.Password)
-		writeAuthErr(w, authn.ErrBadCredentials())
+		writePasswordBeginFailure(w, s.passwordStore.VerifyAgainstDummy(r.Context(), body.Password))
 		return
 	}
 
@@ -117,14 +135,16 @@ func (s *Server) handlePasswordBeginHTTP(w http.ResponseWriter, r *http.Request)
 		// response is collapsed.
 		ae := authn.AsAuthError(err)
 		isFactorLocked := ae != nil && ae.Code == "factor_locked"
+		hashErr := err
 		if errors.Is(err, password.ErrPasswordNotSet) || isFactorLocked {
-			s.passwordStore.VerifyAgainstDummy(r.Context(), body.Password)
+			hashErr = s.passwordStore.VerifyAgainstDummy(r.Context(), body.Password)
 		}
 		// password.ErrPasswordIncorrect already ran argon2id in Verify, so
-		// no dummy burn needed. Any other *authn.AuthError (rate_limited
-		// from CheckLocked's row scan error path, etc.) — likewise no
-		// extra burn; fall through to bad_credentials.
-		writeAuthErr(w, authn.ErrBadCredentials())
+		// no dummy burn needed; password.ErrBusy means Verify's hash found
+		// no slot. Any other *authn.AuthError (rate_limited from
+		// CheckLocked's row scan error path, etc.) — no extra burn; fall
+		// through to bad_credentials.
+		writePasswordBeginFailure(w, hashErr)
 		return
 	}
 

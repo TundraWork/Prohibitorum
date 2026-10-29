@@ -39,7 +39,7 @@ func (e errorClientQueries) GetOIDCClient(_ context.Context, _ string) (db.OidcC
 
 func mustHash(t *testing.T, secret string) string {
 	t.Helper()
-	phc, err := password.HashRaw(secret, password.DefaultParams())
+	phc, err := password.HashRaw(context.Background(), secret, password.DefaultParams())
 	if err != nil {
 		t.Fatalf("HashRaw: %v", err)
 	}
@@ -420,9 +420,9 @@ func TestAuthenticateClientTimingEqualization(t *testing.T) {
 	var calls []call
 
 	orig := verifyClientSecret
-	verifyClientSecret = func(secret, phc string) bool {
+	verifyClientSecret = func(ctx context.Context, secret, phc string) (bool, error) {
 		calls = append(calls, call{secret, phc})
-		return orig(secret, phc) // delegate so known-good paths still authenticate
+		return orig(ctx, secret, phc) // delegate so known-good paths still authenticate
 	}
 	defer func() { verifyClientSecret = orig }()
 

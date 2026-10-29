@@ -59,27 +59,49 @@ func (directStore) Set(_ context.Context, _ clientip.Stored) error { return nil 
 // in-memory store, suitable for tests that don't need real IP extraction.
 func newDirectResolver() *clientip.Resolver { return clientip.NewResolver(directStore{}) }
 
-// TestPasswordBeginRateLimitsByIP verifies the per-IP fixed-window cap added in
-// front of /auth/password/begin (audit AUTHZ-1): a flood from one IP gets a 429
-// after pwdBeginIPLimit requests, bounding the unauthenticated argon2id DoS
-// surface. Bodies are empty so each allowed request bails at the decode guard
-// before any DB/argon2 work — proving the limiter sits ahead of everything.
-func TestPasswordBeginRateLimitsByIP(t *testing.T) {
+// TestAuthEndpointsHaveNoPerAddressLimit checks that the unauthenticated
+// sign-in endpoints no longer count requests per client address (PHB-181):
+// behind a reverse proxy every user shares one address, so a per-address cap
+// let one person's 31st attempt in a minute fail everyone's sign-in. 31 and 61
+// requests are one past the old caps. Each request stops at its first guard
+// (empty body, missing ceremony cookie) before any DB or KV work.
+func TestAuthEndpointsHaveNoPerAddressLimit(t *testing.T) {
 	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter(), clientIP: newDirectResolver()}
 
-	for i := 0; i < pwdBeginIPLimit; i++ {
+	for i := range 31 {
 		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader("{}"))
-		s.handlePasswordBeginHTTP(rec, req)
+		s.handlePasswordBeginHTTP(rec, httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader("{}")))
 		if rec.Code == http.StatusTooManyRequests {
-			t.Fatalf("request %d was rate-limited early (got 429); limit is %d", i+1, pwdBeginIPLimit)
+			t.Fatalf("/auth/password/begin request %d from one address got 429", i+1)
 		}
 	}
+	for i := range 61 {
+		rec := httptest.NewRecorder()
+		s.handleLoginCompleteHTTP(rec, httptest.NewRequest(http.MethodPost, "/auth/login/complete", strings.NewReader("{}")))
+		if rec.Code == http.StatusTooManyRequests {
+			t.Fatalf("/auth/login/complete request %d from one address got 429", i+1)
+		}
+	}
+}
+
+// TestPasswordBeginRejectsOversizedBody checks the 4 KiB body cap on
+// /auth/password/begin: a body past it is 413 request_too_large, decided
+// before the body is decoded into memory or any account is looked up.
+func TestPasswordBeginRejectsOversizedBody(t *testing.T) {
+	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter(), clientIP: newDirectResolver()}
+
+	body := fmt.Sprintf(`{"username":"alice","password":%q}`, strings.Repeat("a", 5000))
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader("{}"))
-	s.handlePasswordBeginHTTP(rec, req)
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("request %d: want 429, got %d", pwdBeginIPLimit+1, rec.Code)
+	s.handlePasswordBeginHTTP(rec, httptest.NewRequest(http.MethodPost, "/auth/password/begin", strings.NewReader(body)))
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("5000-byte password: want 413, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var env struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil || env.Code != "request_too_large" {
+		t.Fatalf("5000-byte password: want code request_too_large, got %s (%v)", rec.Body.String(), err)
 	}
 }
 
@@ -98,29 +120,6 @@ func TestPasswordBeginRejectsOversizePassword(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("oversize password: want 401, got %d (%s)", rec.Code, rec.Body.String())
-	}
-}
-
-// TestLoginCompleteRateLimitsByIP verifies the per-IP cap added to
-// /auth/login/complete (audit SESS-3). With no ceremony cookie each allowed
-// request bails at the cookie guard (401) before any KV/webauthn work; after
-// loginIPLimit requests the IP is throttled with 429.
-func TestLoginCompleteRateLimitsByIP(t *testing.T) {
-	s := &Server{config: &configx.Config{}, rateLimiter: authn.NewRateLimiter(), clientIP: newDirectResolver()}
-
-	for i := 0; i < loginIPLimit; i++ {
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodPost, "/auth/login/complete", strings.NewReader("{}"))
-		s.handleLoginCompleteHTTP(rec, req)
-		if rec.Code == http.StatusTooManyRequests {
-			t.Fatalf("request %d was rate-limited early (got 429); limit is %d", i+1, loginIPLimit)
-		}
-	}
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/auth/login/complete", strings.NewReader("{}"))
-	s.handleLoginCompleteHTTP(rec, req)
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("request %d: want 429, got %d", loginIPLimit+1, rec.Code)
 	}
 }
 

@@ -1,6 +1,7 @@
 package totp
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -55,20 +56,24 @@ func TestNormalizeRecoveryCode(t *testing.T) {
 	}
 }
 
-func TestHashAndVerifyRecoveryCode(t *testing.T) {
-	code, err := generateRecoveryCode()
+func TestHashAndMatchRecoveryCodes(t *testing.T) {
+	ctx := context.Background()
+	codes := make([]string, 3)
+	for i := range codes {
+		code, err := generateRecoveryCode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		codes[i] = normalizeRecoveryCode(code)
+	}
+	phcs, err := hashRecoveryCodes(ctx, codes)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("hashRecoveryCodes: %v", err)
 	}
-	normalized := normalizeRecoveryCode(code)
-	phc, err := hashRecoveryCode(normalized)
-	if err != nil {
-		t.Fatalf("hashRecoveryCode: %v", err)
+	if i, err := matchRecoveryCodes(ctx, codes[2], phcs); i != 2 || err != nil {
+		t.Errorf("matchRecoveryCodes(codes[2]) = (%d, %v), want (2, nil)", i, err)
 	}
-	if !verifyRecoveryCode(normalized, phc) {
-		t.Errorf("verifyRecoveryCode should match")
-	}
-	if verifyRecoveryCode("WRONGCODE12345AB", phc) {
-		t.Errorf("verifyRecoveryCode should reject wrong code")
+	if i, err := matchRecoveryCodes(ctx, "WRONGCODE12345AB", phcs); i != -1 || err != nil {
+		t.Errorf("matchRecoveryCodes(wrong) = (%d, %v), want (-1, nil)", i, err)
 	}
 }

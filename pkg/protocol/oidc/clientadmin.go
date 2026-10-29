@@ -13,7 +13,7 @@ import (
 // generateClientSecret helper with BuildClientParams so both code paths use
 // the same entropy and hashing parameters.
 func RotateClientSecret(ctx context.Context, q *db.Queries, clientID string) (string, error) {
-	secret, hash, err := generateClientSecret()
+	secret, hash, err := generateClientSecret(ctx)
 	if err != nil {
 		return "", err
 	}

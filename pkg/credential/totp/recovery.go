@@ -2,14 +2,16 @@
 //
 // Recovery codes: 16 base32 characters (RFC 4648 alphabet, no padding)
 // formatted as XXXX-XXXX-XXXX-XXXX. 80 bits of entropy per code, single-use,
-// argon2id-hashed via password.HashRaw / password.VerifyRaw (Task 2). Reuse
-// the password store's argon2id wiring rather than duplicating it — the
+// argon2id-hashed via password.HashRawEach / password.VerifyRawAny (Task 2).
+// Reuse the password store's argon2id wiring rather than duplicating it — the
 // recovery code threat model is identical (verify a low-entropy secret in
-// constant time against an at-rest hash).
+// constant time against an at-rest hash). A whole batch takes one argon2id
+// slot, so a busy server delays minting or matching once, not once per code.
 
 package totp
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"strings"
@@ -46,10 +48,12 @@ func normalizeRecoveryCode(input string) string {
 	return s
 }
 
-func hashRecoveryCode(normalized string) (string, error) {
-	return password.HashRaw(normalized, password.DefaultParams())
-}
-
-func verifyRecoveryCode(normalized, storedPHC string) bool {
-	return password.VerifyRaw(normalized, storedPHC)
-}
+// hashRecoveryCodes and matchRecoveryCodes are the batch argon2id seams. They
+// are overridden only by non-parallel tests; do not add t.Parallel to tests
+// that swap them.
+var (
+	hashRecoveryCodes = func(ctx context.Context, normalized []string) ([]string, error) {
+		return password.HashRawEach(ctx, normalized, password.DefaultParams())
+	}
+	matchRecoveryCodes = password.VerifyRawAny
+)

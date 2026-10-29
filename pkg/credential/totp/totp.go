@@ -302,10 +302,18 @@ func (s *Store) MatchRecoveryCode(ctx context.Context, accountID int32, code str
 		return db.RecoveryCode{}, fmt.Errorf("totp.MatchRecoveryCode: list: %w", err)
 	}
 
-	for _, row := range rows {
-		if verifyRecoveryCode(normalized, row.Hash) {
-			return row, nil
-		}
+	phcs := make([]string, len(rows))
+	for i, row := range rows {
+		phcs[i] = row.Hash
+	}
+	match, err := matchRecoveryCodes(ctx, normalized, phcs)
+	if err != nil {
+		// argon2id never ran (password.ErrBusy, or the request ended): the code
+		// was not checked, so it is not a failed attempt and is not counted.
+		return db.RecoveryCode{}, err
+	}
+	if match >= 0 {
+		return rows[match], nil
 	}
 
 	s.RecordRecoveryCodeFailure(ctx, accountID)
@@ -417,24 +425,27 @@ func (s *Store) mintRecoveryCodesNoAudit(ctx context.Context, q TOTPQueries, acc
 	if count <= 0 {
 		count = 10
 	}
-	codes := make([]string, 0, count)
-	for i := 0; i < count; i++ {
+	codes := make([]string, count)
+	normalized := make([]string, count)
+	for i := range codes {
 		code, err := generateRecoveryCode()
 		if err != nil {
 			return nil, err
 		}
-		normalized := normalizeRecoveryCode(code)
-		phc, err := hashRecoveryCode(normalized)
-		if err != nil {
-			return nil, err
-		}
+		codes[i] = code
+		normalized[i] = normalizeRecoveryCode(code)
+	}
+	phcs, err := hashRecoveryCodes(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	for _, phc := range phcs {
 		if _, err := q.InsertRecoveryCode(ctx, db.InsertRecoveryCodeParams{
 			AccountID: accountID,
 			Hash:      phc,
 		}); err != nil {
 			return nil, err
 		}
-		codes = append(codes, code)
 	}
 	return codes, nil
 }

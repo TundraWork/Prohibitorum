@@ -21,6 +21,7 @@ import (
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
+	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
 )
@@ -187,6 +188,54 @@ func tokenReq(form url.Values) *http.Request {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(testClientID, testSecret)
 	return req
+}
+
+// TestClientAuthBusyIsTemporarilyUnavailable checks that a client
+// authentication whose argon2id never ran (every slot busy) answers 503
+// temporarily_unavailable with Retry-After: 1 on every OAuth endpoint, for a
+// known client and for an unknown one alike, so the busy answer does not tell
+// the two apart and is not reported as a bad secret.
+func TestClientAuthBusyIsTemporarilyUnavailable(t *testing.T) {
+	orig := verifyClientSecret
+	verifyClientSecret = func(context.Context, string, string) (bool, error) { return false, password.ErrBusy }
+	t.Cleanup(func() { verifyClientSecret = orig })
+
+	unknownToken := tokenReq(codeExchangeForm("code", testVerifier, testRedirect))
+	unknownToken.SetBasicAuth("ghost", testSecret)
+	cases := []struct {
+		name   string
+		req    *http.Request
+		handle func(*Provider) http.HandlerFunc
+	}{
+		{"token known client", tokenReq(codeExchangeForm("code", testVerifier, testRedirect)), func(p *Provider) http.HandlerFunc { return p.HandleToken }},
+		{"token unknown client", unknownToken, func(p *Provider) http.HandlerFunc { return p.HandleToken }},
+		{"introspect", introspectReq("token"), func(p *Provider) http.HandlerFunc { return p.HandleIntrospect }},
+		{"revoke", revokeReq("token"), func(p *Provider) http.HandlerFunc { return p.HandleRevoke }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newTokenHarness(t)
+			rec := httptest.NewRecorder()
+			tc.handle(h.p)(rec, tc.req)
+
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status = %d, want 503 (body %s)", rec.Code, rec.Body.String())
+			}
+			var body map[string]string
+			if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode body %q: %v", rec.Body.String(), err)
+			}
+			if body["error"] != "temporarily_unavailable" {
+				t.Errorf("error = %q, want temporarily_unavailable", body["error"])
+			}
+			if got := rec.Header().Get("Retry-After"); got != "1" {
+				t.Errorf("Retry-After = %q, want 1", got)
+			}
+			if len(h.audit.records) != 0 {
+				t.Errorf("a busy client authentication was audited: %+v", h.audit.records)
+			}
+		})
+	}
 }
 
 // codeExchangeForm builds the authorization_code grant form for a given code.
