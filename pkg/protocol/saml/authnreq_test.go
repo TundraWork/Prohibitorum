@@ -975,6 +975,34 @@ func TestAuthnReqEncodedDuplicateParamRejected(t *testing.T) {
 	}
 }
 
+// TestAuthnReqEncodedRelayStateNotSignedRejected adds a lone RelayState under a
+// percent-encoded name to a signed request that carries none. It is RelayState
+// all the same, so the signature has to cover it; the SP signed no RelayState,
+// so the request fails verification rather than reaching the SP with a
+// RelayState the SP never sent.
+func TestAuthnReqEncodedRelayStateNotSignedRejected(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-signed-norelay",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		sign:        true,
+		signKey:     priv,
+	})
+	req.URL.RawQuery = "Relay%53tate=" + url.QueryEscape("evil") + "&" + req.URL.RawQuery
+
+	ar, err := idp.parseAuthnRequest(context.Background(), req)
+	if ar != nil {
+		t.Fatalf("accepted request %q with RelayState %q, want ErrBadSignature", ar.RequestID, ar.RelayState)
+	}
+	if !errors.Is(err, ErrBadSignature) {
+		t.Fatalf("err = %v, want ErrBadSignature", err)
+	}
+}
+
 // TestAuthnReqEmptyID confirms an AuthnRequest with an empty @ID is rejected as
 // malformed before it can degenerate the replay key / InResponseTo.
 func TestAuthnReqEmptyID(t *testing.T) {
