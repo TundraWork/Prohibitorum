@@ -241,24 +241,21 @@ func writeIdentityHeaders(w http.ResponseWriter, user, name, email string, group
 }
 
 // forwardAuthReturnURL rebuilds the address a browser returns to after login
-// from verify's forwarded headers. host is the registered X-Forwarded-Host and
+// from verify's X-Forwarded-Uri. host is the registered X-Forwarded-Host and
 // stays the host: uri must be a path ("/…") or empty (the application's root),
 // since anything else (".evil.example", "@evil.example", an absolute URL) would
-// extend or replace it, and is refused. Only "http" keeps its scheme; every
-// other proto, including a forged one, becomes https. The result is
-// concatenated, not re-serialized, so uri's escaping reaches the browser as the
-// proxy sent it.
-func forwardAuthReturnURL(proto, host, uri string) (string, bool) {
-	scheme := "https"
-	if proto == "http" {
-		scheme = "http"
-	}
+// extend or replace it, and is refused. The scheme is always https, whatever
+// X-Forwarded-Proto says: the callback only runs on https
+// (ForwardAuthCallbackURI), so an http return would never carry the Secure
+// session cookie and would loop back to login. The result is concatenated, not
+// re-serialized, so uri's escaping reaches the browser as the proxy sent it.
+func forwardAuthReturnURL(host, uri string) (string, bool) {
 	if uri == "" {
 		uri = "/"
 	} else if !strings.HasPrefix(uri, "/") {
 		return "", false
 	}
-	return scheme + "://" + host + uri, true
+	return "https://" + host + uri, true
 }
 
 // HandleForwardAuthVerify is the Traefik ForwardAuth target. Traefik forwards
@@ -347,7 +344,7 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	original, ok := forwardAuthReturnURL(proto, host, r.Header.Get("X-Forwarded-Uri"))
+	original, ok := forwardAuthReturnURL(host, r.Header.Get("X-Forwarded-Uri"))
 	if !ok {
 		http.Error(w, "invalid X-Forwarded-Uri", http.StatusBadRequest)
 		return
@@ -427,16 +424,15 @@ func (p *Provider) HandleForwardAuthCallback(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	http.SetCookie(w, faCookie(schemeOf(r) == "https", tok))
-	// Return only to this callback's own host, which the redirect_uri check
-	// above ties to the client's registered host. The host is compared whole,
-	// never by prefix: https://app.acme.io.evil.example/ and
+	// Return only over https to this callback's own host, which the
+	// redirect_uri check above ties to the client's registered host. The host
+	// is compared whole, never by prefix: https://app.acme.io.evil.example/ and
 	// https://app.acme.io@evil.example/ both start with https://app.acme.io.
 	// Any other address (a state minted before verify rebuilt it, say) lands
 	// on the host's root; the login itself has succeeded.
 	target := st.OriginalURL
-	if u, err := url.Parse(target); err != nil || u.Host != hostOf(r) || u.User != nil ||
-		(u.Scheme != "https" && u.Scheme != "http") {
-		target = schemeOf(r) + "://" + hostOf(r) + "/"
+	if u, err := url.Parse(target); err != nil || u.Scheme != "https" || u.Host != hostOf(r) || u.User != nil {
+		target = "https://" + hostOf(r) + "/"
 	}
 	http.Redirect(w, r, target, http.StatusFound)
 }

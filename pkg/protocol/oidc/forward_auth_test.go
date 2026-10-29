@@ -442,6 +442,8 @@ func TestForwardAuthVerify_ReturnURLStaysOnHost(t *testing.T) {
 	}{
 		{"path and query kept", "https", "/dashboard?tab=1", "https://app.acme.io/dashboard?tab=1"},
 		{"address in proto header", "https://evil.example/#", "/x", "https://app.acme.io/x"},
+		// The callback runs on https only, so an http return would loop to login.
+		{"http proto", "http", "/x", "https://app.acme.io/x"},
 		// An absent header returns to the application's root; "" stands for
 		// either spelling of it.
 		{"no uri header", "https", "", ""},
@@ -652,6 +654,8 @@ func TestForwardAuthCallback_OffHostOriginalURL_RedirectsToHostRoot(t *testing.T
 		"https://app.acme.io%2eevil.example/x",
 		// The right host, but with userinfo.
 		"https://x@app.acme.io/#://app.acme.io/x",
+		// The right host over http, where the Secure session cookie is never sent.
+		"http://app.acme.io/x",
 	} {
 		t.Run(original, func(t *testing.T) {
 			ctx := context.Background()
