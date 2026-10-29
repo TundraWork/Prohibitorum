@@ -109,7 +109,7 @@ Mail is used only for address-verification codes and the admin test mail; it is 
 | `PROHIBITORUM_PASSWORD_HASH_PARALLELISM` | `1` | argon2id lanes. |
 | `PROHIBITORUM_PASSWORD_HASH_MAX_CONCURRENT` | `0` (`min(4, GOMAXPROCS)`) | argon2id computations that may run at once. |
 
-Every argon2id computation takes one of `PROHIBITORUM_PASSWORD_HASH_MAX_CONCURRENT` slots while it runs: password sign-in, sudo, setting a password, recovery codes and OIDC client-secret checks share them. Memory for hashing is therefore about slots × `PROHIBITORUM_PASSWORD_HASH_MEMORY_KIB`, plus headroom for Go's garbage collector, which lets the heap grow to about twice the live data: at the default 64 MiB, each concurrent hash measured about 120 MiB. The default suits a few GiB of memory; on a smaller deployment, lower the slot count until slots × 120 MiB fits beside the rest of the process. More slots than CPU cores add memory without adding throughput, and `GOMAXPROCS` follows the container's CPU limit. A request that waits 5 seconds without getting a slot is answered `429 rate_limited` on the dashboard API and `503 temporarily_unavailable` on `/oauth/token`, `/oauth/introspect` and `/oauth/revoke`, both with `Retry-After: 1`. The limit is per process, so each replica has its own slots.
+Every argon2id computation takes one of `PROHIBITORUM_PASSWORD_HASH_MAX_CONCURRENT` slots while it runs: password sign-in, sudo, setting a password, recovery codes and OIDC client-secret checks share them. Recovery codes and OIDC client secrets always hash at 64 MiB, and a stored password is checked at the cost it was saved with until a sign-in rehashes it, so memory for hashing is about slots × the larger of 64 MiB and `PROHIBITORUM_PASSWORD_HASH_MEMORY_KIB`, plus headroom for Go's garbage collector, which lets the heap grow to about twice the live data: at 64 MiB, each concurrent hash measured about 120 MiB. The default suits a few GiB of memory; on a smaller deployment, lower the slot count until slots × 120 MiB fits beside the rest of the process. At the default parameters a slot finishes about 10 hashes a second (measured on one machine), so a site that hashes faster than its slots allow, such as a resource server that introspects every request it receives, needs more slots and the memory for them. More slots than CPU cores add memory without adding throughput, and `GOMAXPROCS` follows the container's CPU limit. A request that waits 5 seconds without getting a slot is answered `429 rate_limited` on the dashboard API and `503 temporarily_unavailable` on `/oauth/token`, `/oauth/introspect` and `/oauth/revoke`, both with `Retry-After: 1`. The limit is per process, so each replica has its own slots.
 
 ## VRChat upstream provider
 
@@ -146,25 +146,28 @@ export PROHIBITORUM_KV_REDIS_PASSWORD="$REDIS_PASSWORD"
 
 Outbound federation fetches (discovery / JWKS / token exchange) run on an SSRF-hardened client that refuses loopback, private (RFC1918 / ULA), link-local, and cloud-metadata addresses; the admin API rejects non-`https` or IP-literal issuer URLs. Every outbound request also identifies itself with the same `User-Agent` the server sends VRChat — `Prohibitorum/<version> <public origin>`, e.g. `Prohibitorum/v1.2.3 https://login.example.com` — because some upstream APIs (bgm.tv) reject library-default or missing `User-Agent` headers with `403`. Operator CLI commands, which have no public origin, send `Prohibitorum/<version>`. To federate with an IdP on a private network, enable **Admin → Identity Providers → allowPrivateNetwork** for that IdP (default `false`); the avatar picture a provider hands out is fetched the same way. A provider that serves its pictures only to authenticated clients can enable **Admin → Identity Providers → Connection → authenticateAvatarFetch** (default off): the sign-in's access token is then sent as `Authorization: Bearer …` on the picture fetch, to whatever avatar URL the provider returns — turn it on only for providers you trust with that token. A redirect that changes host drops the header (Go's default); providers without the setting, and the token-less implicit flow, always fetch anonymously.
 
-The sign-in endpoints are not rate-limited per client IP: behind a reverse proxy every user would share one budget, and the argon2id slots above already bound the server's memory under a flood. To stop one source from flooding them, limit by path at the reverse proxy, which sees the real client address. For example, with nginx:
+The sign-in endpoints are not rate-limited per client IP: behind a reverse proxy every user would share one budget, and the argon2id slots above already bound the server's memory under a flood. To stop one source from flooding them, limit by path at the reverse proxy, which sees the real client address. With nginx, key each limit on the client address for its own paths only, so the limits go into the location that already proxies to Prohibitorum and keep its `proxy_set_header` lines (a separate `location` with its own `proxy_pass` would not inherit them, and would pass a client's own `X-Forwarded-For` through untouched):
 
 ```nginx
 # http context
-limit_req_zone $binary_remote_addr zone=prohibitorum_signin:10m rate=30r/m;
-limit_req_zone $binary_remote_addr zone=prohibitorum_oauth:10m rate=600r/m;
+map $uri $prohibitorum_signin_client {
+    ~^/api/prohibitorum/auth/(password/begin|login/begin|login/complete)$ $binary_remote_addr;
+    default "";
+}
+map $uri $prohibitorum_oauth_client {
+    ~^/oauth/(token|introspect|revoke)$ $binary_remote_addr;
+    default "";
+}
+limit_req_zone $prohibitorum_signin_client zone=prohibitorum_signin:10m rate=30r/m;
+limit_req_zone $prohibitorum_oauth_client zone=prohibitorum_oauth:10m rate=600r/m;
 
-# server context, beside the location that proxies to Prohibitorum
-location = /api/prohibitorum/auth/password/begin {
-    limit_req zone=prohibitorum_signin burst=10 nodelay;
-    limit_req_status 429;
-    proxy_pass http://prohibitorum;
-}
-location ~ ^/oauth/(token|introspect|revoke)$ {
-    limit_req zone=prohibitorum_oauth burst=100 nodelay;
-    limit_req_status 429;
-    proxy_pass http://prohibitorum;
-}
+# in the location that proxies to Prohibitorum
+limit_req zone=prohibitorum_signin burst=10 nodelay;
+limit_req zone=prohibitorum_oauth burst=100 nodelay;
+limit_req_status 429;
 ```
+
+nginx does not count a request whose key is empty, so every other path is left unlimited.
 
 An application's back-end calls `/oauth/token`, `/oauth/introspect` and `/oauth/revoke` from its own server address for all of its users, and a resource server may introspect on every request it receives, so give those paths a much higher per-address rate than the sign-in page. If nginx itself sits behind another proxy or a CDN, set the client address with its `realip` module first, or every visitor counts as that proxy.
 
