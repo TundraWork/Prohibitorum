@@ -193,8 +193,8 @@ func tokenReq(form url.Values) *http.Request {
 // TestClientAuthBusyIsTemporarilyUnavailable checks that a client
 // authentication whose argon2id never ran (every slot busy) answers 503
 // temporarily_unavailable with Retry-After: 1 on every OAuth endpoint, for a
-// known client and for an unknown one alike, so a busy server reveals nothing
-// about which client_ids exist and is not reported as a bad secret.
+// known client and for an unknown one alike, so the busy answer does not tell
+// the two apart and is not reported as a bad secret.
 func TestClientAuthBusyIsTemporarilyUnavailable(t *testing.T) {
 	orig := verifyClientSecret
 	verifyClientSecret = func(context.Context, string, string) (bool, error) { return false, password.ErrBusy }

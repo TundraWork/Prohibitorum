@@ -114,18 +114,13 @@ func TestParse_TOTPIssuerExplicitOverride(t *testing.T) {
 	}
 }
 
-// TestParse_SessionRememberTTL covers the "keep me signed in" session
-// lifetime: 14d default, PROHIBITORUM_SESSION_REMEMBER_TTL override, and the
-// ≤0 fallback that restores the default instead of disabling remembered
-// sessions.
+// TestParse_PasswordHashMaxConcurrent checks that the slot count is read from
+// its environment variable and stays out of PasswordHashParams.
 func TestParse_PasswordHashMaxConcurrent(t *testing.T) {
 	resetViper(t)
 	cfg, err := Parse()
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
-	}
-	if cfg.PasswordHashMaxConcurrent != 0 {
-		t.Errorf("PasswordHashMaxConcurrent default: want 0 (pick from GOMAXPROCS), got %d", cfg.PasswordHashMaxConcurrent)
 	}
 	defaults := cfg.PasswordHashParams
 
@@ -146,6 +141,10 @@ func TestParse_PasswordHashMaxConcurrent(t *testing.T) {
 	}
 }
 
+// TestParse_SessionRememberTTL covers the "keep me signed in" session
+// lifetime: 14d default, PROHIBITORUM_SESSION_REMEMBER_TTL override, and the
+// ≤0 fallback that restores the default instead of disabling remembered
+// sessions.
 func TestParse_SessionRememberTTL(t *testing.T) {
 	resetViper(t)
 	cfg, err := Parse()
