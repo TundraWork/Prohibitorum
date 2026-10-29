@@ -108,6 +108,7 @@ type authnReqOpts struct {
 	version      string // override AuthnRequest @Version (empty = "2.0")
 	relayState   string
 	hasRelay     bool
+	rawRelay     string // RelayState exactly as sent and signed (empty = url.QueryEscape(relayState))
 	forceAuthn   bool
 	isPassive    bool
 	nameIDFormat string // NameIDPolicy/@Format (empty = no NameIDPolicy element)
@@ -209,8 +210,12 @@ func buildAuthnRedirect(t *testing.T, o authnReqOpts) *http.Request {
 	// reads these same raw bytes back out of RawQuery.
 	encReq := url.QueryEscape(samlRequest)
 	rawQuery := "SAMLRequest=" + encReq
+	encRelay := o.rawRelay
+	if encRelay == "" {
+		encRelay = url.QueryEscape(o.relayState)
+	}
 	if o.hasRelay {
-		rawQuery += "&RelayState=" + url.QueryEscape(o.relayState)
+		rawQuery += "&RelayState=" + encRelay
 	}
 
 	if o.sign {
@@ -223,7 +228,7 @@ func buildAuthnRedirect(t *testing.T, o authnReqOpts) *http.Request {
 		// Construct the signed octet string in the fixed order.
 		signed := "SAMLRequest=" + encReq
 		if o.hasRelay {
-			signed += "&RelayState=" + url.QueryEscape(o.relayState)
+			signed += "&RelayState=" + encRelay
 		}
 		signed += "&SigAlg=" + encSigAlg
 
@@ -1001,6 +1006,84 @@ func TestAuthnReqEncodedRelayStateNotSignedRejected(t *testing.T) {
 	if !errors.Is(err, ErrBadSignature) {
 		t.Fatalf("err = %v, want ErrBadSignature", err)
 	}
+}
+
+// TestAuthnReqSignedStringUsesRawValues sends a RelayState the SP encoded in a
+// form url.QueryEscape would not produce (%2d, %7E). The SP signed those exact
+// bytes, so the signed string must be rebuilt from them, not from the decoded
+// value re-encoded.
+func TestAuthnReqSignedStringUsesRawValues(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+	q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+	idp := newAuthnTestIdP(q)
+
+	req := buildAuthnRedirect(t, authnReqOpts{
+		id:          "_req-raw-relay",
+		destination: testSSOURL,
+		acsURL:      testACSURL,
+		hasRelay:    true,
+		rawRelay:    "a%2db%7E",
+		sign:        true,
+		signKey:     priv,
+	})
+
+	ar, err := idp.parseAuthnRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("parseAuthnRequest: %v", err)
+	}
+	if ar.RelayState != "a-b~" {
+		t.Errorf("RelayState = %q, want %q", ar.RelayState, "a-b~")
+	}
+}
+
+// TestAuthnReqEmptyRelayStateIsSigned pins that RelayState= with an empty value
+// is present: the SP that sent it signed "&RelayState=", and one that did not
+// send it signed nothing for it, so adding it breaks the signature.
+func TestAuthnReqEmptyRelayStateIsSigned(t *testing.T) {
+	priv, certPEM := testSPKey(t)
+
+	t.Run("signed empty RelayState verifies", func(t *testing.T) {
+		q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+		idp := newAuthnTestIdP(q)
+		req := buildAuthnRedirect(t, authnReqOpts{
+			id:          "_req-empty-relay",
+			destination: testSSOURL,
+			acsURL:      testACSURL,
+			hasRelay:    true,
+			sign:        true,
+			signKey:     priv,
+		})
+		if !strings.Contains(req.URL.RawQuery, "&RelayState=&") {
+			t.Fatalf("query %q does not carry an empty RelayState", req.URL.RawQuery)
+		}
+		ar, err := idp.parseAuthnRequest(context.Background(), req)
+		if err != nil {
+			t.Fatalf("parseAuthnRequest: %v", err)
+		}
+		if ar.RelayState != "" {
+			t.Errorf("RelayState = %q, want empty", ar.RelayState)
+		}
+	})
+
+	t.Run("added empty RelayState fails verification", func(t *testing.T) {
+		q := newAuthnQueries(defaultSP(true), acsList(), signingKeyRows(certPEM))
+		idp := newAuthnTestIdP(q)
+		req := buildAuthnRedirect(t, authnReqOpts{
+			id:          "_req-added-empty-relay",
+			destination: testSSOURL,
+			acsURL:      testACSURL,
+			sign:        true,
+			signKey:     priv,
+		})
+		req.URL.RawQuery += "&RelayState="
+		ar, err := idp.parseAuthnRequest(context.Background(), req)
+		if ar != nil {
+			t.Fatalf("accepted request %q, want ErrBadSignature", ar.RequestID)
+		}
+		if !errors.Is(err, ErrBadSignature) {
+			t.Fatalf("err = %v, want ErrBadSignature", err)
+		}
+	})
 }
 
 // TestAuthnReqEmptyID confirms an AuthnRequest with an empty @ID is rejected as
