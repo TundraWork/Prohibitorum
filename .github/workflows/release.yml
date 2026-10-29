@@ -2,7 +2,7 @@ name: release
 
 # Tag-driven release: GoReleaser + ko build the binaries + multi-arch OCI images
 # (ghcr.io/tundrawork/prohibitorum), SBOMs, checksums, cosign signatures, and
-# GitHub-native SLSA build-provenance attestations. See TOOLING.md §Prod.
+# GitHub-native SLSA build-provenance attestations. See docs/tooling.md §Prod.
 on:
   push:
     tags: ["v*"]

@@ -16,10 +16,10 @@ org.
 - **Members** sign in to reach downstream apps (via OIDC, SAML, or
   forward-auth) and manage their own identity: registering and naming
   passkeys, setting up password + TOTP fallback, viewing and revoking active
-  sessions, redeeming an enrollment invite, or using a VRChat profile to
-  prove eligibility for local registration or recovery. VRChat proof itself
-  never signs them in; they finish with the same local passkey ceremony as
-  every other enrollment. Often non-technical, they meet this UI at the login
+  sessions, redeeming an enrollment invite, or verifying a VRChat profile for
+  an invitation or a linked account. While VRChat sign-in is off, the proof
+  does not sign them in; an invitation verified this way finishes with a local
+  sign-in method. Often non-technical, they meet this UI at the login
   screen and consent screen, occasionally in their own account area.
 - **Members with assigned applications** keep normal member capabilities and can
   manage the configuration and access policy of only those applications.
@@ -27,8 +27,8 @@ org.
   providers, or instance settings. The OIDC, SAML, and forward-auth lists show
   each member only the applications assigned to them.
 - **Admins** manage the directory: creating accounts, issuing enrollment
-  invitations and resets, configuring the fixed-link-only VRChat proof
-  provider, setting roles and attributes, assigning application access, and
+  invitations and resets, configuring identity providers such as VRChat,
+  setting roles and attributes, assigning application access, and
   reviewing credentials. The same person is often both a member and an admin
   in a small org.
 
@@ -45,9 +45,9 @@ Prohibitorum is a homegrown, single-tenant identity provider for small orgs.
 It owns the account directory, authenticates users with WebAuthn, Password +
 TOTP/recovery codes, or upstream OIDC and Steam federation, evaluates
 app-bound access policy, and issues sessions plus OIDC/SAML assertions to
-downstream apps. VRChat is deliberately narrower: profile proof can authorize
-a short-lived local registration or recovery enrollment, but cannot become a
-direct sign-in credential. The UI's job is to make signing in, proof-backed
+downstream apps. VRChat starts narrower: with sign-in off, its profile proof
+verifies identity for an invitation or a linked account and signs no one in;
+an administrator may turn sign-in on. The UI's job is to make signing in, proof-backed
 local enrollment, consent, self-management, and scoped app-policy management
 effortless and trustworthy.
 
@@ -66,7 +66,7 @@ web dashboard. It serves a single small organization.
 ## Capabilities and Constraints
 
 - Deployment uses PostgreSQL and either a Redis-compatible store or the
-  in-process memory driver. Build and development commands are in `TOOLING.md`.
+  in-process memory driver. Build and development commands are in `docs/tooling.md`.
 - Recovery uses recovery codes or admin-issued enrollment; there is no email
   recovery channel. Mail, when an SMTP relay is configured, only delivers
   address-verification codes; an email address is never a way back into an
@@ -75,18 +75,13 @@ web dashboard. It serves a single small organization.
   VRChat starts with sign-in off, and an administrator may turn it on.
 - English and Chinese locale entries stay in sync. The dashboard supports
   browser use on desktop and mobile.
-- The dashboard is being rewritten. The workflows above describe product
-  capabilities; check current routes and release status before presenting a
-  workflow as available in the UI.
 
 ## Evidence on Hand
 
-- `README.md` documents deployment, capabilities, and frontend release status;
-  `TOOLING.md` documents builds and verification.
-- `api.md` and `ARCHITECTURE.md` describe API and system behavior.
+- `README.md` documents deployment and capabilities;
+  `docs/tooling.md` documents builds and verification.
+- `docs/api.md` and `docs/architecture.md` describe API and system behavior.
 - `dashboard/` contains the web interface.
-- The README's VRChat sign-in wording conflicts with the confirmed product
-  restriction above. Preserve proof-only enrollment and recovery in future work.
 
 ## Application Access Policy
 
@@ -112,11 +107,6 @@ pages used by admins. The server filters every list and object operation by exac
 assignment. Assigned members can update application configuration and access
 policy, while only admins can create applications or assign and remove accounts.
 Policy changes are audited without recording raw rules or evaluated facts.
-
-This is a destructive cutover: the prior shared policy and direct per-account
-access data are deleted and every app starts open. The deleted policy cannot be
-recovered; operators recreate per-app policy before deliberately enabling
-restriction.
 
 ## Brand Personality
 

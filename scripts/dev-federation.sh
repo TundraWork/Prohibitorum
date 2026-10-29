@@ -3,8 +3,7 @@
 # for OIDC federation behind nginx TLS, for manual end-to-end testing.
 #
 # Deployment-specific values (hostnames, cert paths) are read from the gitignored
-# .dev/dev-federation.env — NEVER hardcode real infra here. See the spec:
-# docs/superpowers/specs/2026-06-17-dev-federation-harness-design.md
+# .dev/dev-federation.env — NEVER hardcode real infra here.
 #
 #   mise run dev:federation            # bring it up (Ctrl-C stops both)
 #   mise run dev:federation -- --fresh # wipe + reseed both DBs first

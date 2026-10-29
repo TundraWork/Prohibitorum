@@ -484,7 +484,7 @@ func applyAutoProvision(
 
 // applyInviteProvision implements the invite + provider registration flow,
 // mirroring applyAutoProvision's transaction structure with the invite
-// replacing its free-authorization checks (design.md §4.3):
+// replacing its free-authorization checks:
 //
 //  1. an authoritative (iss, sub) lookup inside the tx — a hit means the
 //     upstream identity is already bound to some account, which is refused
@@ -588,7 +588,7 @@ func applyInviteProvision(
 		// Gate order matches applyAutoProvision word for word: validate the
 		// upstream-provided username before the collision lookup. In
 		// particular, a missing username_claim is a provider
-		// misconfiguration (api.md §5 / design.md §4.3: a server error, not
+		// misconfiguration (a server error, not
 		// the user-facing invalid_username page) and must surface before any
 		// collision semantics are consulted.
 		if username == "" {

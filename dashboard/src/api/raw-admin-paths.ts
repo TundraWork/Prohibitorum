@@ -5,10 +5,10 @@ import type { LoginAppearance, LoginImage, Wallpaper } from "@/api/raw-paths";
  * Management writes and the whole user-group resource, hand-written because the
  * OpenAPI schema does not cover them: Huma registers the admin *reads* and four
  * account writes, but every other admin route is a bare chi handler, and the
- * user-group resource is bare chi throughout (see `api.md`). `raw-paths.ts`
+ * user-group resource is bare chi throughout (see `docs/api.md`). `raw-paths.ts`
  * stays what it is — sign-in and session — so the two remain separable.
  *
- * Shapes here are taken from the Go handlers, not from `api.md`, wherever the
+ * Shapes here are taken from the Go handlers, not from `docs/api.md`, wherever the
  * two differ; the divergences are noted on the affected entries.
  */
 
@@ -899,7 +899,7 @@ export interface RawAdminPaths {
   };
   /**
    * Only a `pending` key can be activated. Any other state, like an unknown
-   * kid, answers 404 `credential_not_found` — not the 409 `api.md` used to say.
+   * kid, answers 404 `credential_not_found`.
    */
   "/api/prohibitorum/signing-keys/{kid}/activate": {
     post: {

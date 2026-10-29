@@ -989,7 +989,7 @@ func TestApplyInviteOnly_MissingUsernameClaimFailsWithoutConsuming(t *testing.T)
 	// A missing username claim is a provider misconfiguration: the tx fails,
 	// the invite stays redeemable, no account appears. The error must be the
 	// plain server error (same wording as applyAutoProvision), NOT the
-	// user-facing invalid_username AuthError page — api.md §5 / design §4.3.
+	// user-facing invalid_username AuthError page.
 	q := newFakeModesQueries()
 	q.consumeEnrollmentResult = makeInviteEnrollment("test-idp", "user", nil)
 	a := &recordingAudit{}

@@ -5,7 +5,7 @@ sqlc = "1.30.0"
 "aqua:pressly/goose" = "3.27.0"
 # Release tooling (used by `mise run prod:release` and the release workflow):
 # GoReleaser drives the build + multi-arch OCI images via its built-in ko
-# integration + SBOMs; cosign signs the artifacts. See TOOLING.md.
+# integration + SBOMs; cosign signs the artifacts. See docs/tooling.md.
 "aqua:goreleaser/goreleaser" = "2.16.0"
 "aqua:sigstore/cosign" = "3.1.1"
 "aqua:anchore/syft" = "1.27.1"
@@ -25,7 +25,7 @@ lockfile = true
 [env]
 # mise is the single Go source of truth (no goenv). Forbid Go's transparent
 # toolchain auto-download so it can't fetch a different compiler behind mise's
-# back — `go.mod`'s `go 1.26` stays the language floor. See TOOLING.md.
+# back — `go.mod`'s `go 1.26` stays the language floor. See docs/tooling.md.
 GOTOOLCHAIN = "local"
 
 # Dev defaults for the server, so `mise run dev:*`, `./prohibitorum` and ad-hoc
@@ -43,7 +43,7 @@ PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 = { value = "{{ get_env(name='PROHIBITORUM_D
 # =============================================================================
 # Tasks — namespaced by CONTEXT so dev, CI, and prod can't be mixed up.
 # Run with `mise run <task>`, e.g. `mise run dev:server`.
-# `mise tasks` lists visible tasks by namespace. See TOOLING.md.
+# `mise tasks` lists visible tasks by namespace. See docs/tooling.md.
 #
 #   dev:*  local development — run the app, hot reload, seed, enroll, harnesses
 #   db     local Postgres lifecycle (dev + the smoke) — `mise run db <subcommand>`
@@ -114,7 +114,7 @@ run = "scripts/db.sh"
 
 # ---- ci: the checks GitHub Actions runs (also runnable locally) -------------
 # scripts/gate.sh wraps each check step and counts its outcome on a todou card
-# for local runs (PHB-105); see TOOLING.md "Step statistics".
+# for local runs (PHB-105); see docs/tooling.md "Step statistics".
 
 [tasks.ci]
 description = "CI: API declaration drift, Go and frontend checks — the same task the CI gate job runs."

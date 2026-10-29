@@ -9,8 +9,7 @@ import (
 	"prohibitorum/pkg/authn"
 )
 
-// usernameRegex matches the strict username rule from
-// specs/2026-05-23-auth-system/design.md §1: lowercase ASCII letters,
+// usernameRegex matches the strict username rule: lowercase ASCII letters,
 // digits, underscore, dash; 2-32 chars. No normalization performed —
 // rejects strict per CLAUDE.md "fail fast on input".
 var usernameRegex = regexp.MustCompile(`^[a-z0-9_-]{2,32}$`)

@@ -1,4 +1,4 @@
-# GoReleaser + ko — prod packaging (see TOOLING.md §Prod).
+# GoReleaser + ko — prod packaging (see docs/tooling.md §Prod).
 # Builds the SPA, then a reproducible static Go binary that embeds it, then
 # multi-arch OCI images via ko, plus SBOMs, checksums, and cosign signatures.
 # Run on a git tag by .github/workflows/release.yml; dry-run locally with:

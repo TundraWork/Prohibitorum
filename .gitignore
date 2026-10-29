@@ -14,7 +14,7 @@
 *.swp
 .DS_Store
 /smoke
-# goenv artifact — Go is managed by mise (see TOOLING.md), not goenv
+# goenv artifact — Go is managed by mise (see docs/tooling.md), not goenv
 /.go-version
 # GoReleaser build output (`mise run release` / `goreleaser build`)
 /dist/

@@ -96,7 +96,6 @@ application's response. Do not add `Set-Cookie` to `authResponseHeaders`:
 that setting copies headers to the upstream request. The cookie remains a browser
 session cookie (no Max-Age); renewal extends the server lifetime without changing
 the random token, so parallel requests and sign-out refer to the same session.
-Existing sessions can renew without signing in again after upgrading.
 
 A continuously open WebSocket does not make new verify requests. Renewal occurs
 on subsequent HTTP requests that pass through the middleware.
@@ -141,7 +140,7 @@ When `GET /api/prohibitorum/forward-auth/verify` receives an `X-Prohibitorum-PAT
 | Token lookup unavailable (database error) | `503` | Retry later; the token was not judged. |
 | Valid token, owner not authorized for this app | `403` | PAT does not grant access to this app, or RBAC denied. |
 
-No `X-Prohibitorum-PAT` header present → the existing browser flow: valid cookie → `200`, no/expired cookie → `302` into the login flow.
+No `X-Prohibitorum-PAT` header present → the browser flow: valid cookie → `200`, no/expired cookie → `302` into the login flow.
 
 PATs act as the owning user with the **intersection** of the owner's authorization, the token's access level (for `selected_apps`, its listed apps), and the protected-app access policy.
 
@@ -153,12 +152,9 @@ If the token or its owner cannot be looked up because the database is
 unavailable, the verifier returns `503`, not `401`, so a client does not discard
 a good token. The verifier
 ignores `Authorization`, leaving Basic/Bearer credentials available to the
-protected application.
-
-**Upgrade:** change PAT clients from `Authorization: Bearer <PAT>` to
-`X-Prohibitorum-PAT: <PAT>`. Replace any proxy middleware that strips
-`Authorization` with one that strips only `X-Prohibitorum-PAT`, after forward-auth.
-There is no legacy Authorization fallback.
+protected application; a PAT sent as `Authorization: Bearer <PAT>` is not
+recognised. Strip only `X-Prohibitorum-PAT` after forward-auth, not
+`Authorization`.
 
 PATs are accepted at the forward-auth verify endpoint and, for `full` and `sudo` levels, at the management API under the same `X-Prohibitorum-PAT` header. They are never accepted at OIDC/SAML endpoints.
 
@@ -175,7 +171,7 @@ The gateway emits four headers on every allowed request, **all unconditionally**
 
 The application setting applies to browser sessions and PAT requests on the next verification. Choosing verified email uses the accounts primary address (always verified and, by the verified-uniqueness index, never shared with another account). If the account has no primary, verification returns `403` without identity headers instead of falling back to another identifier. Changing the primary (or the source) can make the protected application treat an existing person as a different account.
 
-The operator **must** list all four in `authResponseHeaders` (or use `authResponseHeadersRegex: "^Remote-"`, which also strips any other client-sent `Remote-*` header) so Prohibitorum's authoritative values always overwrite any client-supplied copies. Update the Traefik middleware from the example in section 2:
+The operator **must** list all four in `authResponseHeaders` (or use `authResponseHeadersRegex: "^Remote-"`, which also strips any other client-sent `Remote-*` header) so Prohibitorum's authoritative values always overwrite any client-supplied copies. The middleware example in section 2 lists them:
 
 ```yaml
 authResponseHeaders:
@@ -195,7 +191,7 @@ Two requirements:
 
 2. **An explicit `headers` middleware that removes the inbound `X-Prohibitorum-PAT` header** before the request is forwarded upstream. Do NOT rely on `authResponseHeaders` to clear `X-Prohibitorum-PAT` — that behaviour is not guaranteed across Traefik versions. Strip it explicitly on PAT-protected routers. This matters more than the gateway alone suggests: a `full` or `sudo` token that reaches the gateway also works on the management API, so an upstream that receives it unstripped holds a credential that can act as the owner everywhere, and with `sudo` can change how the owner signs in.
 
-**Upgrading from scoped PATs.** Earlier versions emitted `Remote-Scopes`, and their examples listed it in `authResponseHeaders`. Traefik replaces a listed header with the gateway's value, but does not remove a client-sent header that is no longer listed. After removing `Remote-Scopes` from the list, a client can send its own `Remote-Scopes` to the upstream. If any upstream still reads it, strip it: use `authResponseHeadersRegex: "^Remote-"` instead of `authResponseHeaders` (Traefik removes every matching request header before copying the gateway's values), or add `Remote-Scopes: ""` to the `strip-prohibitorum-pat` headers middleware below. Then change the upstream to stop reading it.
+**Unlisted `Remote-*` headers.** The gateway emits only the four headers above; it never sends `Remote-Scopes`. Traefik replaces a listed header with the gateway's value, but does not remove a client-sent header that is not listed, so a client can send its own `Remote-Scopes` (or any other unlisted `Remote-*` header) to the upstream. If any upstream reads such a header, strip it: use `authResponseHeadersRegex: "^Remote-"` instead of `authResponseHeaders` (Traefik removes every matching request header before copying the gateway's values), or add `Remote-Scopes: ""` to the `strip-prohibitorum-pat` headers middleware below. Then change the upstream to stop reading it.
 
 Example middleware and router configuration:
 

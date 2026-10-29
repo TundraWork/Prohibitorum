@@ -183,8 +183,7 @@ func newErr(status int, code, message string) *AuthError {
 }
 
 // Constructors return fresh values so callers can decorate / re-wrap without
-// sharing state. Match the catalogue in
-// specs/2026-05-23-auth-system/design.md §8.
+// sharing state.
 
 func ErrNoSession() *AuthError {
 	return newErr(http.StatusUnauthorized, "no_session", "请先登录")

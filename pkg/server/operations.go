@@ -233,7 +233,7 @@ func registerSudoOp[I, O any](
 // Used for endpoints that need to write Set-Cookie headers and read
 // streaming/JSON request bodies — Huma's typed I/O doesn't accommodate
 // cookie writes ergonomically. The trade-off is no OpenAPI doc for these
-// routes; document them in api.md manually.
+// routes; document them in docs/api.md manually.
 //
 // router is anything that exposes the chi method we need. We accept the
 // minimal interface so this helper composes with chi.Mux or a sub-router.

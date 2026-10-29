@@ -59,7 +59,7 @@ docker run -p 8080:8080 -e PROHIBITORUM_DATABASE_URL -e PROHIBITORUM_DATA_ENCRYP
 The server migrates the database on start and listens on `:8080`. Open the URL
 that `enroll-admin` prints to register the first admin's passkey; everything
 else can be set up from the dashboard. For production, read
-[`CONFIG.md`](./CONFIG.md): it covers every setting, Redis, TLS, and
+[`docs/config.md`](./docs/config.md): it covers every setting, Redis, TLS, and
 hardening.
 
 To check the image signature before running it:
@@ -84,18 +84,18 @@ and `enroll-admin`. Run `prohibitorum <command> --help` for details.
 - **Auth0 / Clerk / Stytch** — not self-hosted.
 
 Not yet available: single sign-out across applications, KMS/HSM-backed signing,
-and audit-log export. See the roadmap in [`STATUS.md`](./STATUS.md).
+and audit-log export. See the roadmap in [`docs/status.md`](./docs/status.md).
 
 ## Documentation
 
-- [`CONFIG.md`](./CONFIG.md) — settings and deployment hardening.
-- [`INTEGRATION.md`](./INTEGRATION.md) — connecting applications.
+- [`docs/config.md`](./docs/config.md) — settings and deployment hardening.
+- [`docs/integration.md`](./docs/integration.md) — connecting applications.
 - [`docs/forward-auth.md`](./docs/forward-auth.md) — protecting applications with Traefik.
-- [`api.md`](./api.md) — the HTTP API.
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — design, protocols, and threat model.
-- [`AUDIT.md`](./AUDIT.md) — standards compliance checklist.
-- [`STATUS.md`](./STATUS.md) — changes by version and the roadmap.
-- [`TOOLING.md`](./TOOLING.md) — development, CI, and release builds.
+- [`docs/api.md`](./docs/api.md) — the HTTP API.
+- [`docs/architecture.md`](./docs/architecture.md) — design, protocols, and threat model.
+- [`docs/audit.md`](./docs/audit.md) — standards compliance checklist.
+- [`docs/status.md`](./docs/status.md) — current state, known limits, and the roadmap.
+- [`docs/tooling.md`](./docs/tooling.md) — development, CI, and release builds.
 
 ## Development
 
@@ -110,7 +110,7 @@ mise run dev:dashboard               # dashboard with hot reload
 mise run ci                          # the CI checks; `mise run ci:smoke` runs the end-to-end test
 ```
 
-`mise tasks` lists every task. See [`TOOLING.md`](./TOOLING.md) for the rest.
+`mise tasks` lists every task. See [`docs/tooling.md`](./docs/tooling.md) for the rest.
 
 ## License
 

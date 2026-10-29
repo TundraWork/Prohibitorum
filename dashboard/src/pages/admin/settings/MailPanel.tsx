@@ -127,7 +127,7 @@ function MailSettings() {
               <Trans id="settings.mail.configure.hint">
                 Fill in the server and sender in the smtp section of the config
                 file, or set environment variables such as
-                PROHIBITORUM_SMTP_HOST. See CONFIG.md.
+                PROHIBITORUM_SMTP_HOST. See docs/config.md.
               </Trans>
             }
           >

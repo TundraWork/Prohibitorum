@@ -8,7 +8,7 @@
 // /revoke, /oidc/logout) are attached as methods on Provider in their own
 // files. The Provider carries every dependency those handlers need.
 //
-// See AUDIT.md for the full best-practice checklist.
+// See docs/audit.md for the full best-practice checklist.
 package oidc
 
 import (

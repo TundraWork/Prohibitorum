@@ -17,7 +17,7 @@
 
 ## Build and verification
 
-- [TOOLING.md](TOOLING.md) is the build and dependency source of truth. Use
+- [docs/tooling.md](docs/tooling.md) is the build and dependency source of truth. Use
   `mise run <task>` and the pinned tools. In `dashboard`, install with
   `pnpm install --frozen-lockfile`.
 - Edit database queries in `db/queries` and regenerate `pkg/db` with
@@ -25,7 +25,7 @@
 - Run the relevant gates: `mise run ci:go` for Go changes,
   `mise run ci:frontend` for dashboard changes, and `mise run ci:smoke`
   for API/authentication behavior against the real test database. Use
-  [TOOLING.md](TOOLING.md) for release/workflow checks when those files change.
+  [docs/tooling.md](docs/tooling.md) for release/workflow checks when those files change.
 - Verification must state what behavior was exercised and at which revision.
   Confirm that targeted tests actually ran: `go test -run` can succeed with
   no matching tests. Inspect failures and asynchronous test errors.
@@ -61,7 +61,6 @@
   using `class-variance-authority` for shared variants.
 - HTML mockups describe wireframes and interaction flows only. Implement visual
   details with the coss components rather than copying mockup styling.
-- The public flows, the console and the management pages are available.
 - The embedded bundle is generated, not committed. `pkg/webui/dist` is ignored
   apart from the tracked `.gitkeep` that keeps `go:embed all:dist` compiling on
   a clean checkout. After changing dashboard source run `mise run ci:frontend`;
