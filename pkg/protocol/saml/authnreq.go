@@ -77,9 +77,9 @@ var (
 	// exceeds maxInflatedAuthnRequest (decompression-bomb guard).
 	ErrOversizeRequest = errors.New("saml: SAMLRequest exceeds maximum inflated size")
 	// ErrMalformedRequest is returned for structurally invalid redirect-binding
-	// requests: duplicate redirect-binding params, a query that does not
-	// percent-decode (see parseRedirectQuery), or an AuthnRequest missing the
-	// required @ID.
+	// requests: duplicate redirect-binding params, a param name or a
+	// redirect-binding param value that does not percent-decode (see
+	// parseRedirectQuery), or an AuthnRequest missing the required @ID.
 	ErrMalformedRequest = errors.New("saml: AuthnRequest malformed")
 	// ErrStaleRequest is returned when the AuthnRequest's IssueInstant falls
 	// outside ±AuthnRequestTTL of now. Without this bound the only limit on how
