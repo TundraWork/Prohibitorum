@@ -3,91 +3,66 @@
 > *Index Librorum Prohibitorum*
 
 [![ci](https://github.com/TundraWork/Prohibitorum/actions/workflows/ci.yml/badge.svg)](https://github.com/TundraWork/Prohibitorum/actions/workflows/ci.yml)
-![go](https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white)
-![deploy](https://img.shields.io/badge/deploy-single%20binary-blue)
+[![release](https://img.shields.io/github/v/release/TundraWork/Prohibitorum)](https://github.com/TundraWork/Prohibitorum/releases)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 
-**A self-hosted, single-binary identity provider for small orgs.** Single-tenant,
-first-party, no email channel — recovery uses recovery codes or admin-issued enrollment.
-The dashboard SPA is embedded in the binary: one `./prohibitorum` process is the
-whole IdP plus its frontend.
+**A self-hosted identity provider for a small organization.** One binary holds
+the account directory, sign-in, single sign-on for your applications, and the
+web dashboard that members and admins use. It needs PostgreSQL, plus Redis or
+the built-in in-memory store.
 
-**Frontend rewrite (M4):** password + TOTP, recovery-code and passkey sign-in are
-available, including optional authenticator reset and a responsive bilingual console
-that now covers the signed-in account itself — profile, security, connected
-applications and device pairing. Enrollment links, sign-in through an upstream
-provider, VRChat profile verification and signing in a new device from the sign-in
-page (`/pair`) have their pages. Backend authentication and protocol APIs are
-unchanged.
+## Features
 
-- **Sign-in** — WebAuthn passkeys (preferred), Password + TOTP fallback, or federation through upstream OIDC, Steam, and VRChat providers.
-- **Downstream** — OIDC provider for modern apps, SAML 2.0 IdP for GitHub Enterprise Server and other legacy SaaS, and a forward-auth gateway.
-- **Authorization** — restricted apps use app-bound manual decisions and live calculated rules. The same service controls token/assertion issuance and app-aware group claims; a policy-management assignment never grants app usage.
+- **Sign-in** — passkeys first, with password + authenticator app and recovery
+  codes as a fallback. Members can also sign in through upstream OpenID Connect
+  and Steam providers. A VRChat profile verifies identity for invitations and
+  linked accounts, and an admin can also turn it on for sign-in.
+- **Single sign-on** — an OpenID Connect provider, a SAML 2.0 identity provider
+  (GitHub Enterprise Server compatible), and Traefik forward-auth for
+  applications without a login of their own. Personal access tokens give
+  scripts and tools access as their owner.
+- **Access control** — an application is open to every member or restricted to
+  groups: manual allow and deny lists, or rules evaluated from live account
+  facts such as verified connections and sign-in method. Groups can be sent to
+  applications as claims, and a member can be assigned to manage specific
+  applications without becoming an admin.
+- **Dashboard** — English and Chinese, light and dark, on desktop and mobile.
+  Members get an application launcher, their profile and avatar, sign-in
+  methods, sessions, connected applications, and device pairing. Admins manage
+  users, groups, invitations, identity providers, applications, signing keys,
+  the sign-in page, and the audit log.
+- **Operations** — signing keys rotate with a grace window and are encrypted at
+  rest. Releases are signed with cosign and ship with SBOMs and build
+  provenance.
 
-## Status
+Account recovery uses recovery codes or an admin-issued enrollment link. Email
+is optional and only verifies addresses; it is never a way back into an
+account.
 
-**Authentication**
-- [x] WebAuthn passkey sign-in
-- [x] Password + TOTP sign-in (fallback)
-- [x] Upstream OIDC federation
-- [x] Steam OpenID 2.0 federation
-- [x] VRChat profile-proof federation with reusable operator session
-- [x] Step-up re-authentication
-- [x] Personal access tokens — user-owned credentials for programmatic gateway access
+## Quick start
 
-**Downstream protocols**
-- [x] OIDC provider
-- [x] SAML 2.0 IdP (GHES-compatible)
-- [x] Forward-auth gateway (Traefik-compatible)
-- [ ] ~~Coordinated single sign-out~~
-
-**Authorization & delegated management**
-- [x] App-bound access policy — one optional manual group and calculated rule groups per app, evaluated from live verified-connection, login-method, and avatar facts
-- [x] Assigned-application management — any active account can manage an assigned app; assignment does not grant app access
-- [x] App-aware group claims — exposed manual allow and every exposed matching rule group for the owning app only
-
-**Dashboard — M4 rewrite**
-- [x] React/HeroUI dashboard in English and Chinese with a persisted language preference: public sign-in, consent, error and maintenance pages, the signed-in console and the management pages
-- [x] Typed OpenAPI client, shared Query cache, route loading feedback and reusable mutation/form integration
-- [x] Password + TOTP, recovery-code and passkey login; authenticator reset and one-time recovery-code saving
-- [x] Responsive console, current account, language/theme controls and sign-out
-- [x] Profile — display name and avatar, with switchable upload, upstream and no-picture sources
-- [x] Security — passkeys, password and authenticator, active sessions, connected identities and personal access tokens
-- [x] Connected applications — review approvals and remove access
-- [x] Device pairing — look up a code another device shows, then approve or decline
-- [x] Sign in with another device — show a pairing code and QR link, then add a passkey
-- [x] Step-up re-verification — one passkey/password prompt reused by every guarded action
-- [x] Enrollment UI
-- [ ] Admin console and permission-aware application management
-- [ ] App launchpad
-
-**Keys & operations**
-- [x] Signing-key lifecycle — rotation, grace windows, sealed at rest
-- [x] Signed, provenance-tracked releases
-- [ ] KMS/HSM-backed signing
-- [ ] Audit-log export to SIEM
-
-On-demand extras (DPoP, PAR, mTLS, SAML assertion encryption, pairwise `sub`) and
-non-goals are tracked in `AUDIT.md` / `ARCHITECTURE.md`.
-
-## Quickstart
-
-Deploy as one self-contained artifact: the signed multi-arch OCI image (its
-entrypoint runs both the server and the bootstrap subcommands) or a release
-binary. Requires Postgres 14+ and a Redis-compatible KV (or the in-process
-`memory` driver).
+Run the signed multi-arch image from GHCR, or a binary from the
+[releases page](https://github.com/TundraWork/Prohibitorum/releases).
+PostgreSQL 14 or newer is required.
 
 ```bash
-export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"  # keep stable; boot fails without it
+export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"  # keep it stable; boot fails without it
 export PROHIBITORUM_PUBLIC_ORIGIN="https://auth.example.com"
 export PROHIBITORUM_DATABASE_URL="postgres://user:pass@db:5432/prohibitorum?sslmode=disable"
 
-IMG=ghcr.io/tundrawork/prohibitorum:0.7.0   # pin a release; or :latest
+IMG=ghcr.io/tundrawork/prohibitorum:1.0.0   # pin a release, or use :latest
 docker run --rm -e PROHIBITORUM_DATABASE_URL -e PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 "$IMG" signing-key generate
-docker run --rm -e PROHIBITORUM_DATABASE_URL -e PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 -e PROHIBITORUM_PUBLIC_ORIGIN "$IMG" enroll-admin   # prints an enroll URL
-docker run -p 8080:8080 -e PROHIBITORUM_DATABASE_URL -e PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 -e PROHIBITORUM_PUBLIC_ORIGIN "$IMG"        # auto-migrates; serves :8080
+docker run --rm -e PROHIBITORUM_DATABASE_URL -e PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 -e PROHIBITORUM_PUBLIC_ORIGIN "$IMG" enroll-admin
+docker run -p 8080:8080 -e PROHIBITORUM_DATABASE_URL -e PROHIBITORUM_DATA_ENCRYPTION_KEY_V1 -e PROHIBITORUM_PUBLIC_ORIGIN "$IMG"
 ```
 
-Verify the image's keyless signature before running:
+The server migrates the database on start and listens on `:8080`. Open the URL
+that `enroll-admin` prints to register the first admin's passkey; everything
+else can be set up from the dashboard. For production, read
+[`CONFIG.md`](./CONFIG.md): it covers every setting, Redis, TLS, and
+hardening.
+
+To check the image signature before running it:
 
 ```bash
 cosign verify "$IMG" \
@@ -95,83 +70,50 @@ cosign verify "$IMG" \
   --certificate-identity-regexp '^https://github.com/TundraWork/Prohibitorum/[.]github/workflows/release[.]yml@'
 ```
 
-Endpoints: [`api.md`](./api.md). Config + hardening: [`CONFIG.md`](./CONFIG.md).
-Release artifacts (binaries, SBOMs, signatures): [`TOOLING.md`](./TOOLING.md).
+The same binary is also a command-line tool for scripting setup:
+`oidc-client`, `saml-sp`, `forward-auth-app`, `upstream-idp`, `signing-key`,
+and `enroll-admin`. Run `prohibitorum <command> --help` for details.
+
+## Why Prohibitorum
+
+- **Keycloak / Authentik / Authelia** — more than a small organization needs:
+  larger admin surfaces, themes, and plugin systems to maintain.
+- **Ory Hydra** — issues tokens but does not own user accounts.
+- **Zitadel** — a full identity provider with Keycloak-level operational
+  complexity.
+- **Auth0 / Clerk / Stytch** — not self-hosted.
+
+Not yet available: single sign-out across applications, KMS/HSM-backed signing,
+and audit-log export. See the roadmap in [`STATUS.md`](./STATUS.md).
+
+## Documentation
+
+- [`CONFIG.md`](./CONFIG.md) — settings and deployment hardening.
+- [`INTEGRATION.md`](./INTEGRATION.md) — connecting applications.
+- [`docs/forward-auth.md`](./docs/forward-auth.md) — protecting applications with Traefik.
+- [`api.md`](./api.md) — the HTTP API.
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — design, protocols, and threat model.
+- [`AUDIT.md`](./AUDIT.md) — standards compliance checklist.
+- [`STATUS.md`](./STATUS.md) — changes by version and the roadmap.
+- [`TOOLING.md`](./TOOLING.md) — development, CI, and release builds.
 
 ## Development
 
-Prerequisites: [`mise`](https://mise.jdx.dev) and a container runtime (podman or
-docker). `mise install` pins the toolchain; the dev DB is a `compose.yaml`
-Postgres container.
+You need [`mise`](https://mise.jdx.dev) and podman or docker. The backend is Go;
+the dashboard in `dashboard/` is React and TypeScript, built into the binary.
 
 ```bash
-mise install
-mise run dev:server                # auto-starts DB + builds SPA if changed + serves :8080
-mise run dev:enroll-admin -- --new # prints an /enroll/<token> URL
-mise run ci                        # the full gate; ci:smoke for the e2e smoke
+mise install                         # toolchain pinned in mise.lock
+mise run dev:server                  # starts a dev PostgreSQL and serves http://localhost:8080
+mise run dev:enroll-admin -- --new   # prints an enrollment URL for a dev admin
+mise run dev:dashboard               # dashboard with hot reload
+mise run ci                          # the CI checks; `mise run ci:smoke` runs the end-to-end test
 ```
 
-`mise tasks` lists every task (grouped `dev:` / `db` / `ci:` / `prod:`); full
-tooling reference in [`TOOLING.md`](./TOOLING.md). The frontend (`dashboard/`,
-React + TypeScript + HeroUI + Tailwind v4 + Lingui) uses pnpm and hot-reloads via `mise run dev:dashboard`;
-the shipped UI is `pkg/webui/dist` (go:embed), generated by
-`mise run prod:build` rather than committed.
-
-## CLI
-
-`./prohibitorum <command>` (no subcommand runs the server); every DB-backed
-command auto-migrates first. Verbs: `enroll-admin`, `signing-key`, `oidc-client`,
-`saml-sp`, `forward-auth-app`, `upstream-idp`, `openapi`, `dev-seed` — run
-`<command> --help` for flags. The admin HTTP API uses role names
-(`oidc-applications`, `saml-applications`, `identity-providers`); CLI verbs
-remain protocol-named.
-
-Access-policy commands are scoped beneath the owning app command:
-`manager list|assign|remove`, `access set-restricted`,
-`group list|select|preview`, and `decision list|set`. Use `--client-id` for
-`oidc-client` and `forward-auth-app`, or `--entity-id` for `saml-sp`.
-Global group definitions are managed through the admin API during the rewrite. Application
-commands identify them by ID because slugs may be shared.
-
-```bash
-# The account is active; assignment grants management authority, not app access.
-./prohibitorum oidc-client manager assign --client-id docs --username policy-manager
-./prohibitorum oidc-client group select --client-id docs --group-id 12 --group-id 18
-./prohibitorum oidc-client decision set --client-id docs --group-id 12 --username alice --effect=allow
-./prohibitorum oidc-client group preview --client-id docs --group-id 18
-./prohibitorum oidc-client access set-restricted --client-id docs --restricted=true
-```
-
-## Architecture
-
-Three layers, acyclic imports: an **identity store** (accounts, credentials,
-federation links), an **authentication subsystem** that turns WebAuthn,
-Password + TOTP, recovery codes, or an upstream provider (OIDC, Steam, VRChat)
-into a session, and a **protocol subsystem** that turns that session into an
-OIDC OP response or a signed SAML assertion. The `session` package is the
-contract between them — RPs see only the resulting claims. `zitadel/oidc` (the
-library) is the OIDC OP toolkit; `crewjam/saml` the SAML side.
-
-## Why not …?
-
-- **Keycloak / Authelia / Authentik** — bigger than needed; admin UIs, themes, and plugins we don't want to staff.
-- **Ory Hydra** — token issuance only; doesn't own user state.
-- **Zitadel (the service)** — full IdP, but Keycloak-level operational complexity.
-- **Auth0 / Clerk / Stytch** — not self-hosted.
-
-## Docs
-
-- [`ARCHITECTURE.md`](./ARCHITECTURE.md) — architecture, methods, protocols, threat model, scope.
-- [`STATUS.md`](./STATUS.md) — done-per-version + roadmap.
-- [`api.md`](./api.md) — the HTTP surface.
-- [`CONFIG.md`](./CONFIG.md) — env-var reference + deployment hardening.
-- [`TOOLING.md`](./TOOLING.md) — mise, lockfile, dev/CI/prod build.
-- [`INTEGRATION.md`](./INTEGRATION.md) — relying-party integration patterns.
-- [`PRODUCT.md`](./PRODUCT.md) — product framing.
-- [`AUDIT.md`](./AUDIT.md) — per-layer compliance checklist.
+`mise tasks` lists every task. See [`TOOLING.md`](./TOOLING.md) for the rest.
 
 ## License
 
-Prohibitorum is licensed under the [Apache License 2.0](./LICENSE). [`NOTICE`](./NOTICE)
-carries the project's copyright and the notices of the third-party code it
-includes.
+Prohibitorum is licensed under the [Apache License 2.0](./LICENSE).
+[`NOTICE`](./NOTICE) carries the project's copyright and the notices of the
+third-party code it includes.
