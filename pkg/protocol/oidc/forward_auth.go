@@ -509,12 +509,12 @@ func faClearCookie(secure bool) *http.Cookie {
 // Prohibitorum SSO session. The rd host is the trusted X-Forwarded-Host; the
 // sso-logout endpoint re-validates it against the registered FA hosts.
 //
-// When the app's own page asked (Sec-Fetch-Site: same-origin) and the app
-// session was live, the redirect carries a single-use sign-out pass for the
-// session's account, and sso-logout signs out without asking. Anything else (a
-// link on another site, an expired app session, a browser that does not send
-// the header, a pass that could not be stored) carries none, and sso-logout
-// asks the user first.
+// When the app's own page navigated here (see faSignOutFromAppPage) and the
+// app session was live, the redirect carries a single-use sign-out pass for
+// the session's account, and sso-logout signs out without asking. Anything
+// else (a link on another site, an image or frame on the app's page, an
+// expired app session, a browser that does not send the headers, a pass that
+// could not be stored) carries none, and sso-logout asks the user first.
 func (p *Provider) HandleForwardAuthSignOut(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	secure := schemeOf(r) == "https"
@@ -530,12 +530,25 @@ func (p *Provider) HandleForwardAuthSignOut(w http.ResponseWriter, r *http.Reque
 	rd := schemeOf(r) + "://" + hostOf(r) + "/"
 	q := url.Values{}
 	q.Set("rd", rd)
-	if sess != nil && r.Header.Get("Sec-Fetch-Site") == "same-origin" {
+	if sess != nil && faSignOutFromAppPage(r) {
 		if tok, err := mintFASignOut(ctx, p.kv, sess.AccountID); err == nil {
 			q.Set("token", tok)
 		}
 	}
 	http.Redirect(w, r, p.cfg.OIDC.Issuer+"/api/prohibitorum/forward-auth/sso-logout?"+q.Encode(), http.StatusFound)
+}
+
+// faSignOutFromAppPage reports whether the browser says a page on the
+// protected host itself navigated the whole window to sign_out: its sign-out
+// link, button or form. An image, frame, fetch or prefetch from the same
+// origin does not count, since content posted in the app could start those
+// without a click.
+func faSignOutFromAppPage(r *http.Request) bool {
+	h := r.Header
+	return h.Get("Sec-Fetch-Site") == "same-origin" &&
+		h.Get("Sec-Fetch-Mode") == "navigate" &&
+		h.Get("Sec-Fetch-Dest") == "document" &&
+		h.Get("Sec-Purpose") == ""
 }
 
 // ValidatedForwardAuthReturnURL parses rd and returns it only when its host is a

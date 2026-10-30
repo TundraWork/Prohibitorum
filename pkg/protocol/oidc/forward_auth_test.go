@@ -1073,22 +1073,28 @@ func TestHandleForwardAuthSignOut_ClearsSessionAndRedirects(t *testing.T) {
 	}
 }
 
-// Only a sign-out the app's own page starts, with a live app session, carries
-// a sign-out pass to sso-logout; the pass names the session's account and is
-// good for one use.
+// Only a sign-out the app's own page starts as a page navigation, with a live
+// app session, carries a sign-out pass to sso-logout; the pass names the
+// session's account and is good for one use.
 func TestHandleForwardAuthSignOut_SignOutPass(t *testing.T) {
 	cases := []struct {
 		name     string
-		site     string
+		site     string // Sec-Fetch-Site, Sec-Fetch-Mode, Sec-Fetch-Dest; "" leaves it out
+		mode     string
+		dest     string
+		purpose  string // Sec-Purpose
 		session  bool
 		wantPass bool
 	}{
-		{"app page", "same-origin", true, true},
-		{"link on another site", "cross-site", true, false},
-		{"sibling subdomain", "same-site", true, false},
-		{"address bar, mail or chat link", "none", true, false},
-		{"older browser", "", true, false},
-		{"app session expired", "same-origin", false, false},
+		{"app page", "same-origin", "navigate", "document", "", true, true},
+		{"link on another site", "cross-site", "navigate", "document", "", true, false},
+		{"sibling subdomain", "same-site", "navigate", "document", "", true, false},
+		{"address bar, mail or chat link", "none", "navigate", "document", "", true, false},
+		{"older browser", "", "", "", "", true, false},
+		{"app session expired", "same-origin", "navigate", "document", "", false, false},
+		{"image on an app page", "same-origin", "no-cors", "image", "", true, false},
+		{"iframe on an app page", "same-origin", "navigate", "iframe", "", true, false},
+		{"browser prefetch", "same-origin", "navigate", "document", "prefetch", true, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -1100,8 +1106,15 @@ func TestHandleForwardAuthSignOut_SignOutPass(t *testing.T) {
 				}
 			}
 			req := faRequest("https", "app.example.test", "/", &http.Cookie{Name: faCookieName(true), Value: "tok-1"})
-			if c.site != "" {
-				req.Header.Set("Sec-Fetch-Site", c.site)
+			for name, v := range map[string]string{
+				"Sec-Fetch-Site": c.site,
+				"Sec-Fetch-Mode": c.mode,
+				"Sec-Fetch-Dest": c.dest,
+				"Sec-Purpose":    c.purpose,
+			} {
+				if v != "" {
+					req.Header.Set(name, v)
+				}
 			}
 			rec := httptest.NewRecorder()
 			p.HandleForwardAuthSignOut(rec, req)
@@ -1169,6 +1182,8 @@ func TestHandleForwardAuthSignOut_PassStoreFailure(t *testing.T) {
 	p.kv = signOutPassStore{Store: store}
 	req := faRequest("https", "app.example.test", "/", &http.Cookie{Name: faCookieName(true), Value: "tok-1"})
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Dest", "document")
 	rec := httptest.NewRecorder()
 	p.HandleForwardAuthSignOut(rec, req)
 
