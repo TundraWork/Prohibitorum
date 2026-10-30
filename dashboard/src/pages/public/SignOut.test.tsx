@@ -5,7 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
-import { fakeApi, publicApi, renderApp, testSession } from "@/test/app";
+import {
+  apiError,
+  fakeApi,
+  publicApi,
+  renderApp,
+  testSession,
+} from "@/test/app";
 
 vi.mock("@/app/load-document", () => ({ loadDocument: vi.fn() }));
 
@@ -58,6 +64,38 @@ describe("the sign-out confirmation", () => {
     expect(loadDocument).toHaveBeenCalledWith(
       "/api/prohibitorum/forward-auth/sso-logout",
     );
+  });
+
+  it("stays on the page when signing out fails", async () => {
+    const api = signOutApi();
+    api.routes[`POST ${logoutPath}`] = () => apiError("server_error", 500);
+    const user = userEvent.setup();
+    renderApp("/sign-out?rd=https%3A%2F%2Fapp.example.test%2F", queryClient);
+    const signOut = await screen.findByRole("button", { name: "Sign out" });
+    await user.click(signOut);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled(),
+    );
+    expect(signOut).not.toHaveAttribute("aria-busy");
+    expect(api.sent("POST", logoutPath)).toHaveLength(1);
+    expect(loadDocument).not.toHaveBeenCalled();
+  });
+
+  it("goes home when cancelled with no page to go back to", async () => {
+    signOutApi();
+    vi.spyOn(window.history, "length", "get").mockReturnValue(1);
+    const back = vi
+      .spyOn(window.history, "back")
+      .mockImplementation(() => undefined);
+    const user = userEvent.setup();
+    const router = renderApp(
+      "/sign-out?rd=https%3A%2F%2Fapp.example.test%2F",
+      queryClient,
+    );
+    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(back).not.toHaveBeenCalled();
+    expect(loadDocument).not.toHaveBeenCalled();
   });
 
   it("goes back without signing out when cancelled", async () => {

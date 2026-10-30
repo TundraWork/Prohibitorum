@@ -3,6 +3,7 @@ package oidc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -1119,6 +1120,12 @@ func TestHandleForwardAuthSignOut_SignOutPass(t *testing.T) {
 			if rd := u.Query().Get("rd"); rd != "https://app.example.test/" {
 				t.Errorf("rd = %q, want https://app.example.test/", rd)
 			}
+			if v, _ := store.Get(ctx, faSessionKey("tok-1")); v != "" {
+				t.Error("app session still in KV")
+			}
+			if !faCookieCleared(rec) {
+				t.Error("expected cleared forward-auth cookie")
+			}
 			pass := u.Query().Get("token")
 			if !c.wantPass {
 				if pass != "" {
@@ -1137,6 +1144,56 @@ func TestHandleForwardAuthSignOut_SignOutPass(t *testing.T) {
 			}
 		})
 	}
+}
+
+// signOutPassStore fails every write of a sign-out pass.
+type signOutPassStore struct {
+	kv.Store
+}
+
+func (s signOutPassStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	if strings.HasPrefix(key, "fa:signout:") {
+		return errors.New("kv down")
+	}
+	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
+// A pass that cannot be stored costs the user a confirmation, never the
+// sign-out: the app session still ends and the redirect still happens.
+func TestHandleForwardAuthSignOut_PassStoreFailure(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	if err := store.SetEx(ctx, faSessionKey("tok-1"), `{"account_id":7,"client_id":"fa"}`, time.Hour); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	p.kv = signOutPassStore{Store: store}
+	req := faRequest("https", "app.example.test", "/", &http.Cookie{Name: faCookieName(true), Value: "tok-1"})
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthSignOut(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", rec.Code)
+	}
+	want := testIssuer + "/api/prohibitorum/forward-auth/sso-logout?rd=https%3A%2F%2Fapp.example.test%2F"
+	if loc := rec.Header().Get("Location"); loc != want {
+		t.Errorf("Location = %q, want %q", loc, want)
+	}
+	if v, _ := store.Get(ctx, faSessionKey("tok-1")); v != "" {
+		t.Error("app session still in KV")
+	}
+	if !faCookieCleared(rec) {
+		t.Error("expected cleared forward-auth cookie")
+	}
+}
+
+func faCookieCleared(rec *httptest.ResponseRecorder) bool {
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == faCookieName(true) && c.MaxAge < 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func TestConsumeForwardAuthSignOut_UnknownToken(t *testing.T) {

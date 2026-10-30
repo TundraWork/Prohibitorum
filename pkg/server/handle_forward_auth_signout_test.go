@@ -51,6 +51,7 @@ func TestForwardAuthSSOLogout(t *testing.T) {
 	cases := []struct {
 		name        string
 		session     bool
+		disabled    bool // LoadSession's stand-in for a disabled account: no Data
 		token       string
 		passes      fakeSignOutPasses
 		rd          string
@@ -58,6 +59,8 @@ func TestForwardAuthSSOLogout(t *testing.T) {
 		wantRevoked bool
 	}{
 		{name: "no session", token: "", rd: app, wantLoc: app},
+		{name: "no session, with pass", token: "p42", passes: fakeSignOutPasses{"p42": 42}, rd: app, wantLoc: app},
+		{name: "disabled account", disabled: true, token: "p42", passes: fakeSignOutPasses{"p42": 42}, rd: app, wantLoc: app},
 		{name: "valid pass", session: true, token: "p42", passes: fakeSignOutPasses{"p42": 42}, rd: app, wantLoc: app, wantRevoked: true},
 		{name: "valid pass, bad rd", session: true, token: "p42", passes: fakeSignOutPasses{"p42": 42}, rd: evil, wantLoc: "/", wantRevoked: true},
 		{name: "no pass", session: true, rd: app, wantLoc: confirm},
@@ -90,9 +93,14 @@ func TestForwardAuthSSOLogout(t *testing.T) {
 				q.Set("token", c.token)
 			}
 			req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/forward-auth/sso-logout?"+q.Encode(), nil)
-			if c.session {
+			if c.session || c.disabled {
 				req.AddCookie(&http.Cookie{Name: sessstore.SessionCookieNameFor(cfg), Value: sessstore.CookieValue(42, token)})
+			}
+			switch {
+			case c.session:
 				req = req.WithContext(authn.WithSession(req.Context(), &authn.Session{Account: &db.Account{ID: 42}, Token: token, Data: data}))
+			case c.disabled:
+				req = req.WithContext(authn.WithSession(req.Context(), &authn.Session{Account: &db.Account{ID: 42, Disabled: true}}))
 			}
 			rec := httptest.NewRecorder()
 			s.handleForwardAuthSSOLogoutHTTP(rec, req)
@@ -107,6 +115,9 @@ func TestForwardAuthSSOLogout(t *testing.T) {
 				t.Errorf("passes left unconsumed: %v", passes)
 			}
 			if !c.session {
+				if cookies := rec.Result().Cookies(); len(cookies) != 0 {
+					t.Errorf("Set-Cookie without a live session: %v", cookies)
+				}
 				return
 			}
 			_, _, loadErr := store.Load(ctx, 42, token, "192.0.2.1", "ua")
