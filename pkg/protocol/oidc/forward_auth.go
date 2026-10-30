@@ -58,7 +58,16 @@ func loadFASession(ctx context.Context, store kv.Store, token string) *faSession
 		return nil
 	}
 	raw, err := store.Get(ctx, faSessionKey(token))
-	if err != nil || raw == "" {
+	if err != nil {
+		return nil
+	}
+	return parseFASession(raw)
+}
+
+// parseFASession decodes a stored forward-auth session. Returns nil when raw
+// is empty or malformed.
+func parseFASession(raw string) *faSession {
+	if raw == "" {
 		return nil
 	}
 	var s faSession
@@ -136,6 +145,55 @@ func popFAState(ctx context.Context, store kv.Store, id string) *faState {
 		return nil
 	}
 	return &s
+}
+
+// faSignOut is the payload stored in KV for a single-use sign-out pass: the
+// account whose app session the protected-domain sign_out ended. sso-logout
+// ends the SSO session without asking only for a pass naming its account.
+type faSignOut struct {
+	AccountID int32 `json:"account_id"`
+}
+
+func faSignOutKey(token string) string { return "fa:signout:" + token }
+
+// faSignOutTTL bounds a sign-out pass; the browser follows the redirect that
+// carries it at once.
+const faSignOutTTL = 2 * time.Minute
+
+// mintFASignOut stores a single-use sign-out pass for accountID in KV and
+// returns the opaque token.
+func mintFASignOut(ctx context.Context, store kv.Store, accountID int32) (string, error) {
+	tok, err := faRandToken()
+	if err != nil {
+		return "", err
+	}
+	payload, err := json.Marshal(faSignOut{AccountID: accountID})
+	if err != nil {
+		return "", err
+	}
+	if err := store.SetEx(ctx, faSignOutKey(tok), string(payload), faSignOutTTL); err != nil {
+		return "", err
+	}
+	return tok, nil
+}
+
+// ConsumeForwardAuthSignOut atomically retrieves and removes the sign-out pass
+// HandleForwardAuthSignOut minted, enforcing single use, and returns the
+// account it names. ok is false when token is empty, unknown, expired or
+// malformed.
+func (p *Provider) ConsumeForwardAuthSignOut(ctx context.Context, token string) (accountID int32, ok bool) {
+	if token == "" {
+		return 0, false
+	}
+	raw, err := p.kv.Pop(ctx, faSignOutKey(token))
+	if err != nil || raw == "" {
+		return 0, false
+	}
+	var s faSignOut
+	if json.Unmarshal([]byte(raw), &s) != nil {
+		return 0, false
+	}
+	return s.AccountID, true
 }
 
 // faRandToken returns 32 bytes of cryptographic randomness encoded as
@@ -450,18 +508,47 @@ func faClearCookie(secure bool) *http.Cookie {
 // cookie), then 302s to the IdP-domain sso-logout endpoint to terminate the
 // Prohibitorum SSO session. The rd host is the trusted X-Forwarded-Host; the
 // sso-logout endpoint re-validates it against the registered FA hosts.
+//
+// When the app's own page navigated here (see faSignOutFromAppPage) and the
+// app session was live, the redirect carries a single-use sign-out pass for
+// the session's account, and sso-logout signs out without asking. Anything
+// else (a link on another site, an image or frame on the app's page, an
+// expired app session, a browser that does not send the headers, a pass that
+// could not be stored) carries none, and sso-logout asks the user first.
 func (p *Provider) HandleForwardAuthSignOut(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	secure := schemeOf(r) == "https"
+	// The account comes from what Pop removed, never from an earlier Get: a
+	// concurrent sign-out may take the session in between.
+	var sess *faSession
 	if c, err := r.Cookie(faCookieName(secure)); err == nil && c.Value != "" {
-		_, _ = p.kv.Pop(ctx, faSessionKey(c.Value)) // best-effort single-use removal
+		raw, _ := p.kv.Pop(ctx, faSessionKey(c.Value)) // best-effort single-use removal
+		sess = parseFASession(raw)
 	}
 	http.SetCookie(w, faClearCookie(secure))
 
 	rd := schemeOf(r) + "://" + hostOf(r) + "/"
 	q := url.Values{}
 	q.Set("rd", rd)
+	if sess != nil && faSignOutFromAppPage(r) {
+		if tok, err := mintFASignOut(ctx, p.kv, sess.AccountID); err == nil {
+			q.Set("token", tok)
+		}
+	}
 	http.Redirect(w, r, p.cfg.OIDC.Issuer+"/api/prohibitorum/forward-auth/sso-logout?"+q.Encode(), http.StatusFound)
+}
+
+// faSignOutFromAppPage reports whether the browser says a page on the
+// protected host itself navigated the whole window to sign_out: its sign-out
+// link, button or form. An image, frame, fetch or prefetch from the same
+// origin does not count, since content posted in the app could start those
+// without a click.
+func faSignOutFromAppPage(r *http.Request) bool {
+	h := r.Header
+	return h.Get("Sec-Fetch-Site") == "same-origin" &&
+		h.Get("Sec-Fetch-Mode") == "navigate" &&
+		h.Get("Sec-Fetch-Dest") == "document" &&
+		h.Get("Sec-Purpose") == ""
 }
 
 // ValidatedForwardAuthReturnURL parses rd and returns it only when its host is a

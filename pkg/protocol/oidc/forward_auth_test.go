@@ -3,6 +3,7 @@ package oidc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -1069,6 +1070,153 @@ func TestHandleForwardAuthSignOut_ClearsSessionAndRedirects(t *testing.T) {
 	}
 	if !cleared {
 		t.Error("expected cleared forward-auth cookie")
+	}
+}
+
+// Only a sign-out the app's own page starts as a page navigation, with a live
+// app session, carries a sign-out pass to sso-logout; the pass names the
+// session's account and is good for one use.
+func TestHandleForwardAuthSignOut_SignOutPass(t *testing.T) {
+	cases := []struct {
+		name     string
+		site     string // Sec-Fetch-Site, Sec-Fetch-Mode, Sec-Fetch-Dest; "" leaves it out
+		mode     string
+		dest     string
+		purpose  string // Sec-Purpose
+		session  bool
+		wantPass bool
+	}{
+		{"app page", "same-origin", "navigate", "document", "", true, true},
+		{"link on another site", "cross-site", "navigate", "document", "", true, false},
+		{"sibling subdomain", "same-site", "navigate", "document", "", true, false},
+		{"address bar, mail or chat link", "none", "navigate", "document", "", true, false},
+		{"older browser", "", "", "", "", true, false},
+		{"app session expired", "same-origin", "navigate", "document", "", false, false},
+		{"image on an app page", "same-origin", "no-cors", "image", "", true, false},
+		{"iframe on an app page", "same-origin", "navigate", "iframe", "", true, false},
+		{"browser prefetch", "same-origin", "navigate", "document", "prefetch", true, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := context.Background()
+			p, store := newFAProvider(&fakeFAQueries{})
+			if c.session {
+				if err := store.SetEx(ctx, faSessionKey("tok-1"), `{"account_id":7,"client_id":"fa"}`, time.Hour); err != nil {
+					t.Fatalf("seed: %v", err)
+				}
+			}
+			req := faRequest("https", "app.example.test", "/", &http.Cookie{Name: faCookieName(true), Value: "tok-1"})
+			for name, v := range map[string]string{
+				"Sec-Fetch-Site": c.site,
+				"Sec-Fetch-Mode": c.mode,
+				"Sec-Fetch-Dest": c.dest,
+				"Sec-Purpose":    c.purpose,
+			} {
+				if v != "" {
+					req.Header.Set(name, v)
+				}
+			}
+			rec := httptest.NewRecorder()
+			p.HandleForwardAuthSignOut(rec, req)
+
+			if rec.Code != http.StatusFound {
+				t.Fatalf("status = %d, want 302", rec.Code)
+			}
+			loc := rec.Header().Get("Location")
+			if !strings.HasPrefix(loc, testIssuer+"/api/prohibitorum/forward-auth/sso-logout?") {
+				t.Fatalf("Location = %q, want sso-logout on issuer", loc)
+			}
+			u, err := url.Parse(loc)
+			if err != nil {
+				t.Fatalf("parse Location: %v", err)
+			}
+			if rd := u.Query().Get("rd"); rd != "https://app.example.test/" {
+				t.Errorf("rd = %q, want https://app.example.test/", rd)
+			}
+			if v, _ := store.Get(ctx, faSessionKey("tok-1")); v != "" {
+				t.Error("app session still in KV")
+			}
+			if !faCookieCleared(rec) {
+				t.Error("expected cleared forward-auth cookie")
+			}
+			pass := u.Query().Get("token")
+			if !c.wantPass {
+				if pass != "" {
+					t.Errorf("Location carries token %q, want none", pass)
+				}
+				return
+			}
+			if pass == "" {
+				t.Fatalf("Location = %q, want a token", loc)
+			}
+			if id, ok := p.ConsumeForwardAuthSignOut(ctx, pass); !ok || id != 7 {
+				t.Errorf("ConsumeForwardAuthSignOut = (%d, %v), want (7, true)", id, ok)
+			}
+			if _, ok := p.ConsumeForwardAuthSignOut(ctx, pass); ok {
+				t.Error("second ConsumeForwardAuthSignOut ok, want the pass used up")
+			}
+		})
+	}
+}
+
+// signOutPassStore fails every write of a sign-out pass.
+type signOutPassStore struct {
+	kv.Store
+}
+
+func (s signOutPassStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
+	if strings.HasPrefix(key, faSignOutKey("")) {
+		return errors.New("kv down")
+	}
+	return s.Store.SetEx(ctx, key, value, ttl)
+}
+
+// A pass that cannot be stored costs the user a confirmation, never the
+// sign-out: the app session still ends and the redirect still happens.
+func TestHandleForwardAuthSignOut_PassStoreFailure(t *testing.T) {
+	ctx := context.Background()
+	p, store := newFAProvider(&fakeFAQueries{})
+	if err := store.SetEx(ctx, faSessionKey("tok-1"), `{"account_id":7,"client_id":"fa"}`, time.Hour); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	p.kv = signOutPassStore{Store: store}
+	req := faRequest("https", "app.example.test", "/", &http.Cookie{Name: faCookieName(true), Value: "tok-1"})
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	rec := httptest.NewRecorder()
+	p.HandleForwardAuthSignOut(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302", rec.Code)
+	}
+	want := testIssuer + "/api/prohibitorum/forward-auth/sso-logout?rd=https%3A%2F%2Fapp.example.test%2F"
+	if loc := rec.Header().Get("Location"); loc != want {
+		t.Errorf("Location = %q, want %q", loc, want)
+	}
+	if v, _ := store.Get(ctx, faSessionKey("tok-1")); v != "" {
+		t.Error("app session still in KV")
+	}
+	if !faCookieCleared(rec) {
+		t.Error("expected cleared forward-auth cookie")
+	}
+}
+
+func faCookieCleared(rec *httptest.ResponseRecorder) bool {
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == faCookieName(true) && c.MaxAge < 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func TestConsumeForwardAuthSignOut_UnknownToken(t *testing.T) {
+	p, _ := newFAProvider(&fakeFAQueries{})
+	for _, token := range []string{"", "never-issued"} {
+		if _, ok := p.ConsumeForwardAuthSignOut(context.Background(), token); ok {
+			t.Errorf("ConsumeForwardAuthSignOut(%q) ok, want false", token)
+		}
 	}
 }
 
