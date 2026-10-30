@@ -114,13 +114,16 @@ func TestForwardAuthSSOLogout(t *testing.T) {
 			if len(passes) != 0 {
 				t.Errorf("passes left unconsumed: %v", passes)
 			}
+			_, _, loadErr := store.Load(ctx, 42, token, "192.0.2.1", "ua")
 			if !c.session {
 				if cookies := rec.Result().Cookies(); len(cookies) != 0 {
 					t.Errorf("Set-Cookie without a live session: %v", cookies)
 				}
+				if loadErr != nil {
+					t.Errorf("session revoked without a live session: %v", loadErr)
+				}
 				return
 			}
-			_, _, loadErr := store.Load(ctx, 42, token, "192.0.2.1", "ua")
 			if revoked := loadErr != nil; revoked != c.wantRevoked {
 				t.Errorf("session revoked = %v, want %v", revoked, c.wantRevoked)
 			}

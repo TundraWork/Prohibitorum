@@ -1165,7 +1165,7 @@ type signOutPassStore struct {
 }
 
 func (s signOutPassStore) SetEx(ctx context.Context, key, value string, ttl time.Duration) error {
-	if strings.HasPrefix(key, "fa:signout:") {
+	if strings.HasPrefix(key, faSignOutKey("")) {
 		return errors.New("kv down")
 	}
 	return s.Store.SetEx(ctx, key, value, ttl)

@@ -69,15 +69,19 @@ describe("the sign-out confirmation", () => {
   it("stays on the page when signing out fails", async () => {
     const api = signOutApi();
     api.routes[`POST ${logoutPath}`] = () => apiError("server_error", 500);
+    const notifyError = vi.fn();
+    queryClient = createQueryClient(notifyError);
     const user = userEvent.setup();
     renderApp("/sign-out?rd=https%3A%2F%2Fapp.example.test%2F", queryClient);
     const signOut = await screen.findByRole("button", { name: "Sign out" });
     await user.click(signOut);
+    // The failure has been reported: the request is over, not yet to start.
+    await waitFor(() => expect(notifyError).toHaveBeenCalledOnce());
+    expect(api.sent("POST", logoutPath)).toHaveLength(1);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled(),
     );
     expect(signOut).not.toHaveAttribute("aria-busy");
-    expect(api.sent("POST", logoutPath)).toHaveLength(1);
     expect(loadDocument).not.toHaveBeenCalled();
   });
 
