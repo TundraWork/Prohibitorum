@@ -278,6 +278,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prohibitorum/auth/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the accounts signed in on this browser, in sign-in order. */
+        get: operations["listBrowserAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prohibitorum/auth/status": {
         parameters: {
             query?: never;
@@ -920,6 +937,19 @@ export interface components {
         };
         AuthStatus: {
             bootstrapped: boolean;
+        };
+        BrowserAccount: {
+            /** Format: int32 */
+            accountId: number;
+            avatarUrl?: string;
+            displayName: string;
+            u: string;
+            username: string;
+        };
+        BrowserAccounts: {
+            accounts: components["schemas"]["BrowserAccount"][] | null;
+            /** Format: int64 */
+            limit: number;
         };
         ConsentedApp: {
             clientId: string;
@@ -1966,6 +1996,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PageAuditEventView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    listBrowserAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserAccounts"];
                 };
             };
             /** @description Error */
