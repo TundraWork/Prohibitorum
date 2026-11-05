@@ -19,11 +19,9 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"prohibitorum/pkg/audit"
-	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/logx"
 	oidc "prohibitorum/pkg/protocol/oidc"
-	sessstore "prohibitorum/pkg/session"
 )
 
 // forwardAuthSignOutPasses redeems the single-use pass the protected-domain
@@ -53,6 +51,12 @@ func (s *Server) handleForwardAuthSSOLogoutHTTP(w http.ResponseWriter, r *http.R
 	if back == "" {
 		back = "/"
 	}
+	// "Back to the app" on the confirmation page: the reader chose to keep
+	// their accounts, so nothing is revoked and no pass is needed.
+	if r.URL.Query().Get("done") == "1" {
+		http.Redirect(w, r, back, http.StatusFound)
+		return
+	}
 	// The pass is used up whichever way the request goes.
 	var passAccount int32
 	passOK := false
@@ -60,13 +64,13 @@ func (s *Server) handleForwardAuthSSOLogoutHTTP(w http.ResponseWriter, r *http.R
 		passAccount, passOK = passes.ConsumeForwardAuthSignOut(ctx, token)
 	}
 
-	sess := authn.SessionFromContext(ctx)
-	if sess == nil || sess.Data == nil {
+	b := s.browser(r)
+	if b.Count() == 0 {
 		// No SSO session to end (a disabled account's was ended on load).
 		http.Redirect(w, r, back, http.StatusFound)
 		return
 	}
-	if !passOK || passAccount != sess.Data.AccountID {
+	if !passOK || !b.Has(passAccount) {
 		confirm := "/sign-out"
 		if dest != "" {
 			confirm += "?" + url.Values{"rd": {dest}}.Encode()
@@ -75,24 +79,21 @@ func (s *Server) handleForwardAuthSSOLogoutHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Terminate the SSO session (same path as POST /auth/logout).
-	if c, err := r.Cookie(sessstore.SessionCookieNameFor(s.config)); err == nil && c.Value != "" {
-		if id, tok, ok := sessstore.ParseCookieValue(c.Value); ok {
-			_ = s.sessionStore.Revoke(ctx, id, tok)
-			logx.WithContext(ctx).WithFields(logrus.Fields{
-				"event":      "auth.logout",
-				"account_id": id,
-				"client_ip":  s.clientIP.IP(r),
-				"via":        "forward_auth",
-			}).Info("auth")
-			audit.RecordOrLog(ctx, s.Audit, audit.Record{
-				AccountID: &id,
-				Factor:    audit.FactorSession,
-				Event:     audit.EventSessionEnd,
-				Detail:    map[string]any{"reason": "forward_auth_signout"},
-			})
-		}
-	}
-	http.SetCookie(w, sessstore.ClearedSessionCookie(s.config, r))
+	// The pass names the account the app signed out of: end only that
+	// account's session (same path as POST /auth/logout); the browser's
+	// other accounts stay signed in.
+	b.Remove(passAccount)
+	logx.WithContext(ctx).WithFields(logrus.Fields{
+		"event":      "auth.logout",
+		"account_id": passAccount,
+		"client_ip":  s.clientIP.IP(r),
+		"via":        "forward_auth",
+	}).Info("auth")
+	audit.RecordOrLog(ctx, s.Audit, audit.Record{
+		AccountID: &passAccount,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventSessionEnd,
+		Detail:    map[string]any{"reason": "forward_auth_signout"},
+	})
 	http.Redirect(w, r, back, http.StatusFound)
 }

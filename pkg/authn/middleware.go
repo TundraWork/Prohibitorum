@@ -71,9 +71,35 @@ type PATPrincipal struct {
 type ctxKey struct{ name string }
 
 var (
-	sessionCtxKey    = ctxKey{name: "session"}
-	patSessionCtxKey = ctxKey{name: "pat_session"}
+	sessionCtxKey        = ctxKey{name: "session"}
+	patSessionCtxKey     = ctxKey{name: "pat_session"}
+	accountMissingCtxKey = ctxKey{name: "account_missing"}
 )
+
+// WithAccountNotSignedIn records that the request named an account (the
+// X-Prohibitorum-Account header) that is not signed in on this browser, so
+// CheckContext reports account_not_signed_in instead of no_session.
+func WithAccountNotSignedIn(ctx context.Context) context.Context {
+	return context.WithValue(ctx, accountMissingCtxKey, true)
+}
+
+// AccountNotSignedIn reports whether WithAccountNotSignedIn marked ctx.
+func AccountNotSignedIn(ctx context.Context) bool {
+	v, _ := ctx.Value(accountMissingCtxKey).(bool)
+	return v
+}
+
+// CheckContext is Check for a request context: a missing session caused by
+// a header naming an account this browser is not signed in to reports
+// account_not_signed_in, which the dashboard treats as "this tab's account
+// signed out" rather than "sign in".
+func CheckContext(ctx context.Context, s *Session, req contract.AuthRequirement) error {
+	err := Check(s, req)
+	if err != nil && s == nil && AccountNotSignedIn(ctx) {
+		return ErrAccountNotSignedIn()
+	}
+	return err
+}
 
 // WithSession returns a new context with the session attached.
 func WithSession(ctx context.Context, s *Session) context.Context {

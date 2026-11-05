@@ -62,6 +62,10 @@ type Server struct {
 	webUIHandler http.Handler
 	kvStore      kv.Store
 	sessionStore *sessstore.SessionStore
+	// sessions reads and writes the accounts signed in on each browser.
+	sessions *sessstore.Manager
+	// accountRefs computes the short account reference `u`.
+	accountRefs  *sessstore.AccountRefs
 	pairingStore *pairing.PairingStore
 	rateLimiter  *authn.RateLimiter
 	// mailSender delivers outbound verification and test mail; tests replace
@@ -329,6 +333,10 @@ func NewServer(ctx context.Context) (*Server, error) {
 		kvStore = servertiming.KV(kvStore)
 	}
 	sessionStore := sessstore.NewSessionStore(kvStore, queries, config.SessionTTL, config.SessionRememberTTL)
+	accountRefs, err := sessstore.LoadAccountRefs(ctx, queries)
+	if err != nil {
+		return nil, err
+	}
 
 	wa, err := webauthnauth.NewWebAuthn(config.WebAuthn)
 	if err != nil {
@@ -359,7 +367,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 	// processing.
 	installRequestGuardChain(router, config.PublicOrigins)
 	router.Use(requestMetaMW(clientIPResolver.IP))
-	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
+	browserSessions := sessstore.NewManager(config, queries, sessionStore, clientIPResolver.IP)
+	router.Use(browserSessions.LoadSession())
 	router.Use(diagnosticCaptureMW(diagStore))
 	// Inside the diagnostic capture so PAT refusals can be looked up by request
 	// ID; LoadSession leaves the cookie unread for these requests.
@@ -431,6 +440,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		webUIHandler:          webui.Handler(brandingResolver.InstanceName),
 		kvStore:               kvStore,
 		sessionStore:          sessionStore,
+		sessions:              browserSessions,
+		accountRefs:           accountRefs,
 		pairingStore:          pairing.NewPairingStore(kvStore),
 		rateLimiter:           rateLimiter,
 		mailSender:            mailSender,
@@ -708,6 +719,8 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/login/begin", publicReq, s.handleLoginBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/login/complete", publicReq, s.handleLoginCompleteHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/logout", publicReq, s.handleLogoutHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/logout-all", publicReq, s.handleLogoutAllHTTP)
+	registerOp(mgmt, contract.OperationListBrowserAccounts, s.handleListBrowserAccounts, publicReq)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/password/begin", publicReq, s.handlePasswordBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/totp/verify", publicReq, s.handleTOTPVerifyHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery-code/verify", publicReq, s.handleRecoveryCodeVerifyHTTP)

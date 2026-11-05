@@ -231,7 +231,7 @@ func TestHandlePairComplete_RememberCookieMaxAge(t *testing.T) {
 			}
 			var sessCookie *http.Cookie
 			for _, c := range w.Result().Cookies() {
-				if c.Name == sessstore.SessionCookieName {
+				if isSessionCookie(c) {
 					sessCookie = c
 					break
 				}

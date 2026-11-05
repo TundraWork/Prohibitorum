@@ -982,7 +982,7 @@ func TestMeIdentities_LinkCallback_HappyPath(t *testing.T) {
 	// replacement session.
 	clearedFedState := false
 	for _, c := range resp.Cookies() {
-		if c.Name == sessstore.SessionCookieName {
+		if isSessionCookie(c) {
 			t.Errorf("link callback must not set session cookie; got %s=%s", c.Name, c.Value)
 		}
 		if c.Name == sessstore.FedStateCookieName && c.MaxAge < 0 && c.Value == "" {

@@ -41,9 +41,9 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/credential/totp"
+	sessstore "prohibitorum/pkg/session"
 )
 
 type partialSession struct {
@@ -331,21 +331,19 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 	if body.ResetAuthenticator {
 		amr = []string{"pwd", "otp", "mfa"}
 	}
-	ip := s.clientIP.IP(r)
-	token, data, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), amr, nil, partial.Remember)
-	if err != nil {
+	returnTo := r.URL.Query().Get("return_to")
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{AccountID: acct.ID, AMR: amr, Remember: partial.Remember}, returnTo); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, acct.ID, token, data))
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acct.ID, Factor: audit.FactorSession, Event: audit.EventSessionStart, Detail: map[string]any{"via": "recovery"}})
-	redirect := validateReturnTo(r.URL.Query().Get("return_to"), s.config)
+	result := s.loginResult(r, acct.ID, returnTo)
 	w.Header().Set("Content-Type", "application/json")
 	if body.ResetAuthenticator {
-		_ = json.NewEncoder(w).Encode(map[string]any{"redirect": redirect, "recovery_codes": recoveryCodes})
+		_ = json.NewEncoder(w).Encode(map[string]any{"redirect": result.Redirect, "account": result.Account, "recovery_codes": recoveryCodes})
 		return
 	}
-	_ = json.NewEncoder(w).Encode(contract.LoginResult{Redirect: redirect})
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 // consumePartialSession atomically retrieves and removes the KV entry via
@@ -387,14 +385,11 @@ func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request
 		writeAuthErr(w, me)
 		return
 	}
-	ip := s.clientIP.IP(r)
-	ua := r.UserAgent()
-	token, data, err := s.sessionStore.Issue(r.Context(), accountID, ip, ua, amr, nil, remember)
-	if err != nil {
+	returnTo := r.URL.Query().Get("return_to")
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{AccountID: accountID, AMR: amr, Remember: remember}, returnTo); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, accountID, token, data))
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorSession,
@@ -402,7 +397,5 @@ func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request
 		Detail:    map[string]any{"via": "password_totp"},
 	})
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(contract.LoginResult{
-		Redirect: validateReturnTo(r.URL.Query().Get("return_to"), s.config),
-	})
+	_ = json.NewEncoder(w).Encode(s.loginResult(r, accountID, returnTo))
 }

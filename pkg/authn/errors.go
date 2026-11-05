@@ -18,6 +18,9 @@ import (
 func init() {
 	defs := []weberr.Definition{
 		{Code: "no_session", Status: http.StatusUnauthorized, LocaleKey: "errors.no_session", DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "account_not_signed_in", Status: http.StatusUnauthorized, LocaleKey: "errors.account_not_signed_in", DiagnosticKind: "auth", Recovery: "reauth"},
+		{Code: "account_limit_reached", Status: http.StatusConflict, LocaleKey: "errors.account_limit_reached", DiagnosticKind: "policy"},
+		{Code: "account_chooser_expired", Status: http.StatusNotFound, LocaleKey: "errors.account_chooser_expired", DiagnosticKind: "validation"},
 		{Code: "not_admin", Status: http.StatusForbidden, LocaleKey: "errors.not_admin", DiagnosticKind: "auth"},
 		{Code: "permission_denied", Status: http.StatusForbidden, LocaleKey: "errors.permission_denied", DiagnosticKind: "auth"},
 		{Code: "account_disabled", Status: http.StatusForbidden, LocaleKey: "errors.account_disabled", DiagnosticKind: "auth"},
@@ -187,6 +190,23 @@ func newErr(status int, code, message string) *AuthError {
 
 func ErrNoSession() *AuthError {
 	return newErr(http.StatusUnauthorized, "no_session", "请先登录")
+}
+
+// ErrAccountNotSignedIn: the account a request names in
+// X-Prohibitorum-Account is not signed in on this browser.
+func ErrAccountNotSignedIn() *AuthError {
+	return newErr(http.StatusUnauthorized, "account_not_signed_in", "这个账号没有在此浏览器中登录")
+}
+
+// ErrAccountLimitReached: signing in one more account would exceed the
+// per-browser account cap.
+func ErrAccountLimitReached() *AuthError {
+	return newErr(http.StatusConflict, "account_limit_reached", "这个浏览器已登录的账号数达到上限")
+}
+
+// ErrAccountChooserExpired: the account chooser ticket is missing or expired.
+func ErrAccountChooserExpired() *AuthError {
+	return newErr(http.StatusNotFound, "account_chooser_expired", "账号选择已过期")
 }
 
 func ErrNotAdmin() *AuthError {

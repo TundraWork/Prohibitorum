@@ -36,6 +36,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/pairing"
 	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // ----- POST /auth/devices/pair/begin (anonymous) ---------------------------
@@ -174,15 +175,13 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	ip := s.clientIP.IP(r)
-	sessionToken, data, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil, body.Remember)
-	if err != nil {
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{AccountID: acct.ID, AMR: []string{"hwk"}, Remember: body.Remember}, ""); err != nil {
 		// Session issuance failed after the pairing was consumed. Do NOT
 		// resurrect the consumed state — that would reopen the race. The
 		// user restarts the pairing flow.
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, acct.ID, sessionToken, data))
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{
 		"event":      "auth.pairing_completed",

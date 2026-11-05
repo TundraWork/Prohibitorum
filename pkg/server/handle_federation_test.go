@@ -1263,7 +1263,7 @@ func TestFederationCallback_HappyPath(t *testing.T) {
 	// Session cookie should be set.
 	var sessCookie *http.Cookie
 	for _, c := range resp.Cookies() {
-		if c.Name == sessstore.SessionCookieName {
+		if isSessionCookie(c) {
 			sessCookie = c
 			break
 		}
@@ -1422,7 +1422,7 @@ func TestFederationCallback_BackfillsAMRWhenUpstreamOmits(t *testing.T) {
 	// Session cookie must be set.
 	var sessCookie *http.Cookie
 	for _, c := range resp.Cookies() {
-		if c.Name == sessstore.SessionCookieName {
+		if isSessionCookie(c) {
 			sessCookie = c
 			break
 		}

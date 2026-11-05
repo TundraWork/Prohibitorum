@@ -104,7 +104,6 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 	}
 	http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
 
-	ip := s.clientIP.IP(r)
 	// Carry the upstream AMR through the grant so a first-login user who
 	// completed MFA at the upstream IdP keeps the "mfa" amr claim in their
 	// session. Backfill with the generic RFC 8176 "federated" value only when the
@@ -119,8 +118,9 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 	}
 	// H1-sch: stamp the upstream IdP onto the session row (federated discriminator).
 	idpID := grant.ProviderID
-	sess, data, err := s.sessionStore.Issue(r.Context(), grant.AccountID, ip, r.UserAgent(), amr, &idpID, grant.Remember)
-	if err != nil {
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{
+		AccountID: grant.AccountID, AMR: amr, UpstreamIDPID: &idpID, Remember: grant.Remember,
+	}, grant.ReturnTo); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
@@ -137,8 +137,7 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 		Event:     audit.EventSessionStart,
 		Detail:    map[string]any{"via": "federation"},
 	})
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, grant.AccountID, sess, data))
-	writeJSON(w, map[string]any{"redirect": grant.ReturnTo, "offerLocalSignin": grant.OfferLocalSignin})
+	writeJSON(w, map[string]any{"redirect": s.withAccountRef(r, grant.ReturnTo, grant.AccountID), "offerLocalSignin": grant.OfferLocalSignin})
 }
 
 // handleFederationConfirmDecline serves

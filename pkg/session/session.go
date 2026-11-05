@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -574,25 +573,4 @@ func (s *SessionStore) RevokeAllForAccount(ctx context.Context, accountID int32)
 		return deleted, fmt.Errorf("session: revoke-all lease check: %w", errSessionMutationLeaseUnavailable)
 	}
 	return deleted, firstErr
-}
-
-// CookieValue formats the session cookie's value: "<account_id>.<token>".
-// Both halves are required at LoadSession time to construct the KV key.
-// Only the random token portion is secret; account_id leaks nothing.
-func CookieValue(accountID int32, token string) string {
-	return fmt.Sprintf("%d.%s", accountID, token)
-}
-
-// ParseCookieValue splits "<account_id>.<token>" into its parts.
-// Returns ok=false for any malformed input (no normalization).
-func ParseCookieValue(v string) (int32, string, bool) {
-	dot := strings.IndexByte(v, '.')
-	if dot < 1 || dot == len(v)-1 {
-		return 0, "", false
-	}
-	id, err := strconv.ParseInt(v[:dot], 10, 32)
-	if err != nil || id <= 0 {
-		return 0, "", false
-	}
-	return int32(id), v[dot+1:], true
 }

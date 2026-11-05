@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
@@ -50,129 +49,6 @@ func TestSessionCookieNameFor(t *testing.T) {
 	}
 }
 
-func TestFreshSessionCookie_SecureDeployment(t *testing.T) {
-	c := FreshSessionCookie(secureCfg(), nil, 42, "tok", time.Hour)
-	if c.Name != "__Host-"+SessionCookieName {
-		t.Errorf("Name = %q, want __Host-%s", c.Name, SessionCookieName)
-	}
-	if c.Path != "/" {
-		t.Errorf("Path = %q, want /", c.Path)
-	}
-	if !c.Secure {
-		t.Error("Secure = false, want true in https deployment")
-	}
-	if !c.HttpOnly {
-		t.Error("HttpOnly = false, want true")
-	}
-	if c.SameSite != http.SameSiteLaxMode {
-		t.Errorf("SameSite = %v, want Lax", c.SameSite)
-	}
-	if c.Domain != "" {
-		t.Errorf("Domain = %q, want empty (__Host- forbids Domain)", c.Domain)
-	}
-	if c.MaxAge != int(time.Hour.Seconds()) {
-		t.Errorf("MaxAge = %d, want %d", c.MaxAge, int(time.Hour.Seconds()))
-	}
-}
-
-func TestFreshSessionCookie_DevDeployment(t *testing.T) {
-	c := FreshSessionCookie(devCfg(), nil, 42, "tok", time.Hour)
-	if c.Name != SessionCookieName {
-		t.Errorf("Name = %q, want plain %s", c.Name, SessionCookieName)
-	}
-	if c.Path != "/" {
-		t.Errorf("Path = %q, want /", c.Path)
-	}
-	if c.Secure {
-		t.Error("Secure = true, want false over http dev (cookiejar won't send Secure over http)")
-	}
-	if c.SameSite != http.SameSiteLaxMode {
-		t.Errorf("SameSite = %v, want Lax", c.SameSite)
-	}
-}
-
-func TestClearedSessionCookie_MatchesFresh(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		cfg  *configx.Config
-	}{{"secure", secureCfg()}, {"dev", devCfg()}} {
-		t.Run(tc.name, func(t *testing.T) {
-			fresh := FreshSessionCookie(tc.cfg, nil, 42, "tok", time.Hour)
-			clear := ClearedSessionCookie(tc.cfg, nil)
-			if clear.Name != fresh.Name {
-				t.Errorf("clear Name = %q, fresh Name = %q (must match to delete)", clear.Name, fresh.Name)
-			}
-			if clear.Path != fresh.Path {
-				t.Errorf("clear Path = %q, fresh Path = %q (must match to delete)", clear.Path, fresh.Path)
-			}
-			if clear.Secure != fresh.Secure {
-				t.Errorf("clear Secure = %v, fresh Secure = %v", clear.Secure, fresh.Secure)
-			}
-			if clear.MaxAge != -1 {
-				t.Errorf("clear MaxAge = %d, want -1", clear.MaxAge)
-			}
-			if clear.Value != "" {
-				t.Errorf("clear Value = %q, want empty", clear.Value)
-			}
-		})
-	}
-}
-
-// TestSessionCookie_RemembersMaxAge pins the remember-me cookie contract:
-// remembered sessions carry Max-Age = rememberTTL; the rest omit Max-Age
-// entirely (browser-session cookie), and the clear cookie still matches both
-// on name/path/attributes.
-func TestSessionCookie_RemembersMaxAge(t *testing.T) {
-	store := NewSessionStore(nil, nil, time.Hour, 24*time.Hour)
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-
-	remembered := store.SessionCookie(devCfg(), r, 42, "tok", &authn.SessionData{Remember: true})
-	if remembered.MaxAge != int((24 * time.Hour).Seconds()) {
-		t.Errorf("remembered MaxAge = %d, want %d", remembered.MaxAge, int((24 * time.Hour).Seconds()))
-	}
-	if s := remembered.String(); !strings.Contains(s, "Max-Age=86400") {
-		t.Errorf("remembered Set-Cookie %q missing Max-Age", s)
-	}
-
-	plain := store.SessionCookie(devCfg(), r, 42, "tok", &authn.SessionData{})
-	if plain.MaxAge != 0 {
-		t.Errorf("plain MaxAge = %d, want 0", plain.MaxAge)
-	}
-	if s := plain.String(); strings.Contains(s, "Max-Age") {
-		t.Errorf("plain Set-Cookie %q must not carry Max-Age", s)
-	}
-
-	// Legacy data (nil) also decodes as not-remembered.
-	if c := store.SessionCookie(devCfg(), r, 42, "tok", nil); c.MaxAge != 0 {
-		t.Errorf("nil data MaxAge = %d, want 0", c.MaxAge)
-	}
-
-	clear := ClearedSessionCookie(devCfg(), nil)
-	if clear.Name != plain.Name || clear.Path != plain.Path || clear.Secure != plain.Secure {
-		t.Errorf("clear cookie (%q %q secure=%v) must match plain (%q %q secure=%v)",
-			clear.Name, clear.Path, clear.Secure, plain.Name, plain.Path, plain.Secure)
-	}
-	if clear.Name != remembered.Name || clear.Path != remembered.Path {
-		t.Errorf("clear cookie must also match the remembered cookie's name/path")
-	}
-}
-
-// TestFreshSessionCookie_ZeroMaxAgeOmitted pins the FreshSessionCookie
-// semantics SessionCookie builds on: maxAge 0 writes no Max-Age.
-func TestFreshSessionCookie_ZeroMaxAgeOmitted(t *testing.T) {
-	c := FreshSessionCookie(devCfg(), nil, 42, "tok", 0)
-	if c.MaxAge != 0 {
-		t.Fatalf("MaxAge = %d, want 0", c.MaxAge)
-	}
-	if s := c.String(); strings.Contains(s, "Max-Age") {
-		t.Errorf("Set-Cookie %q must not carry Max-Age for maxAge=0", s)
-	}
-	c = FreshSessionCookie(devCfg(), nil, 42, "tok", time.Hour)
-	if s := c.String(); !strings.Contains(s, "Max-Age=3600") {
-		t.Errorf("Set-Cookie %q missing Max-Age=3600", s)
-	}
-}
-
 // TestLoadSessionRenewalCookieMaxAge drives the middleware's renewal branch:
 // a remembered session that refreshes re-emits Max-Age = rememberTTL; a
 // plain one re-emits no Max-Age at all. The session's own Remember decides,
@@ -211,17 +87,26 @@ func TestLoadSessionRenewalCookieMaxAge(t *testing.T) {
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 			)
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: CookieValue(42, token)})
+			req.AddCookie(&http.Cookie{Name: cookieNameFor(tc.remember), Value: EncodeCookie([]Entry{{Seq: 1, AccountID: 42, Token: token}})})
 			handler.ServeHTTP(rec, req)
 			cookieHeader := rec.Header().Get("Set-Cookie")
 			if tc.wantPresent && !strings.Contains(cookieHeader, "Max-Age=3600") {
 				t.Errorf("renewal Set-Cookie %q missing Max-Age=3600", cookieHeader)
 			}
-			if !tc.wantPresent && strings.Contains(cookieHeader, "Max-Age") {
-				t.Errorf("plain renewal Set-Cookie %q must not carry Max-Age", cookieHeader)
+			// The temp cookie has no Max-Age to extend, so a plain renewal
+			// rewrites nothing.
+			if !tc.wantPresent && cookieHeader != "" {
+				t.Errorf("plain renewal must not rewrite a cookie, got %q", cookieHeader)
 			}
 		})
 	}
+}
+
+func cookieNameFor(remember bool) string {
+	if remember {
+		return SessionCookieName
+	}
+	return TempSessionCookieName
 }
 
 // fakeAccountQuerier answers LoadSession's GetAccountByID with an enabled

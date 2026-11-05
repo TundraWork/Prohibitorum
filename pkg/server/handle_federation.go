@@ -287,18 +287,14 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	if len(amr) == 0 {
 		amr = []string{"federated"}
 	}
-	ip := r.RemoteAddr
-	if s.clientIP != nil {
-		ip = s.clientIP.IP(r)
-	}
 	idpID := result.ProviderID
-	token, data, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, r.UserAgent(), amr, &idpID, result.Remember)
-	if err != nil {
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{
+		AccountID: result.AccountID, AMR: amr, UpstreamIDPID: &idpID, Remember: result.Remember,
+	}, result.ReturnTo); err != nil {
 		s.writeFederationCompletionError(w, r, err, mode)
 		return
 	}
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, result.AccountID, token, data))
-	s.writeFederationCompletionDestination(w, r, result.ReturnTo, mode)
+	s.writeFederationCompletionDestination(w, r, s.withAccountRef(r, result.ReturnTo, result.AccountID), mode)
 }
 
 func (s *Server) writeFederationCompletionError(w http.ResponseWriter, r *http.Request, err error, mode federationCompletionMode) {

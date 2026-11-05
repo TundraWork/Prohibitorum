@@ -72,7 +72,8 @@ func maintenanceAllowedPath(r *http.Request) bool {
 		return true
 	case p == "/api/prohibitorum/me" && r.Method == http.MethodGet:
 		return true
-	case p == "/api/prohibitorum/auth/logout":
+	case p == "/api/prohibitorum/auth/logout", p == "/api/prohibitorum/auth/logout-all",
+		p == "/api/prohibitorum/auth/accounts":
 		return true
 	case strings.HasPrefix(p, "/branding/"), strings.HasPrefix(p, "/avatar/"):
 		return true
