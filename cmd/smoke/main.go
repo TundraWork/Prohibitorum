@@ -119,7 +119,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("register/begin: %v", err)
 	}
-	log.Printf("  challenge len=%d rpId=%s userId len=%d", len(creation.Challenge), creation.RP.ID, len(creation.User.ID))
+	log.Printf("  challenge len=%d rpId=%s rpName=%q userId len=%d", len(creation.Challenge), creation.RP.ID, creation.RP.Name, len(creation.User.ID))
+	// The smoke server sets neither webauthn.rp_display_name nor an instance
+	// name, so the RP name is the built-in instance name.
+	if creation.RP.Name != "Prohibitorum" {
+		log.Fatalf("register/begin: rp.name = %q, want the instance name %q", creation.RP.Name, "Prohibitorum")
+	}
 
 	step(fmt.Sprintf("core %d/%d — building virtual authenticator credential", 3, nCore))
 	auth, err := newAuthenticator(creation.RP.ID)

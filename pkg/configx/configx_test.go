@@ -88,29 +88,48 @@ func TestParse_PasswordHashParallelismDefault(t *testing.T) {
 	}
 }
 
-func TestParse_TOTPIssuerFallsBackToRPDisplayName(t *testing.T) {
+// TestParse_IssuerAndRPNameDefaultEmpty pins that neither name is filled in
+// at parse time: an empty value is what lets the server use the instance name,
+// which can change after start-up.
+func TestParse_IssuerAndRPNameDefaultEmpty(t *testing.T) {
 	resetViper(t)
+	t.Setenv("PROHIBITORUM_BRANDING_INSTANCE_NAME", "Example Instance")
 	cfg, err := Parse()
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	// totp.issuer is left blank by default → must resolve to the (also
-	// defaulted) webauthn.rp_display_name = "Prohibitorum".
-	if cfg.TOTP.Issuer != "Prohibitorum" {
-		t.Errorf("TOTP.Issuer fallback: want %q, got %q", "Prohibitorum", cfg.TOTP.Issuer)
+	if cfg.TOTP.Issuer != "" {
+		t.Errorf("TOTP.Issuer default: want empty, got %q", cfg.TOTP.Issuer)
+	}
+	if cfg.WebAuthn.RPDisplayName != "" {
+		t.Errorf("WebAuthn.RPDisplayName default: want empty, got %q", cfg.WebAuthn.RPDisplayName)
 	}
 }
 
-func TestParse_TOTPIssuerExplicitOverride(t *testing.T) {
+// TestParse_TOTPIssuerIndependentOfRPDisplayName pins that each setting is
+// read on its own: rp_display_name is no longer a TOTP issuer fallback.
+func TestParse_TOTPIssuerIndependentOfRPDisplayName(t *testing.T) {
 	resetViper(t)
-	t.Setenv("PROHIBITORUM_TOTP_ISSUER", "Acme Corp")
 	t.Setenv("PROHIBITORUM_WEBAUTHN_RP_DISPLAY_NAME", "Acme Auth")
 	cfg, err := Parse()
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
+	if cfg.TOTP.Issuer != "" {
+		t.Errorf("TOTP.Issuer must not fall back to rp_display_name: got %q", cfg.TOTP.Issuer)
+	}
+	if cfg.WebAuthn.RPDisplayName != "Acme Auth" {
+		t.Errorf("WebAuthn.RPDisplayName: want %q, got %q", "Acme Auth", cfg.WebAuthn.RPDisplayName)
+	}
+
+	resetViper(t)
+	t.Setenv("PROHIBITORUM_TOTP_ISSUER", "Acme Corp")
+	cfg, err = Parse()
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
 	if cfg.TOTP.Issuer != "Acme Corp" {
-		t.Errorf("explicit totp.issuer must win over rp_display_name fallback: got %q", cfg.TOTP.Issuer)
+		t.Errorf("explicit totp.issuer: want %q, got %q", "Acme Corp", cfg.TOTP.Issuer)
 	}
 }
 

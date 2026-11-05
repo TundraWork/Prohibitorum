@@ -58,3 +58,27 @@ export function useInstanceBranding(): InstanceBranding {
   );
   return instanceBranding(data);
 }
+
+/**
+ * Runs of what Windows, macOS or Linux refuse in a file name, and whitespace
+ * so the name stays one word in a shell.
+ */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are among what it removes
+const unsafeFilenameRun = /[\u0000-\u001f\u007f<>:"/\\|?*\s]+/g;
+
+/**
+ * A download's file name, `{instance}-{suffix}`, so a saved secret says which
+ * instance it belongs to. Each run of characters a file name cannot hold
+ * becomes one hyphen.
+ */
+export function downloadFilename(instanceName: string, suffix: string): string {
+  const name = instanceName
+    .replace(unsafeFilenameRun, "-")
+    .replace(/^[-.]+|[-.]+$/g, "");
+  return `${name || fallbackName}-${suffix}`;
+}
+
+/** `downloadFilename` under the instance's current name. */
+export function useDownloadFilename(suffix: string): string {
+  return downloadFilename(useInstanceBranding().name, suffix);
+}

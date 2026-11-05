@@ -265,8 +265,9 @@ function mockLoginImageUrl(config: MockConfig, id: number): string {
 
 function publicConfig(config: MockConfig): PublicConfig {
   const revision = String(config.instance.imageRevision);
+  const instanceName = config.instance.name || "Prohibitorum (mock)";
   return {
-    instanceName: config.instance.name || "Prohibitorum (mock)",
+    instanceName,
     hasCustomIcon: config.instance.customIcon,
     iconUrl: mockIconUrl(config),
     iconEtag: `icon-${revision}`,
@@ -276,7 +277,8 @@ function publicConfig(config: MockConfig): PublicConfig {
     loginAppearance: config.instance.loginAppearance,
     loginImages: mockLoginImages(config),
     totp: {
-      issuer: "Prohibitorum (mock)",
+      // A deployment without totp.issuer, as the server answers it.
+      issuer: instanceName,
       algorithm: "SHA1",
       digits: 6,
       period: 30,

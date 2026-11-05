@@ -15,6 +15,13 @@
 | `PROHIBITORUM_SESSION_TTL` | `8h` | Sliding session lifetime when "keep me signed in" is not chosen; the cookie is a browser-session cookie. |
 | `PROHIBITORUM_SESSION_REMEMBER_TTL` | `336h` | Sliding session lifetime (and cookie `Max-Age`) when "keep me signed in" is chosen. No absolute cap; `≤0` falls back to the default. |
 
+## Branding
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROHIBITORUM_BRANDING_INSTANCE_NAME` | `Prohibitorum` | Instance name. A name saved in Admin → Settings takes precedence. Also the default for `PROHIBITORUM_WEBAUTHN_RP_DISPLAY_NAME`, `PROHIBITORUM_TOTP_ISSUER` and the names of files the console downloads. |
+| `PROHIBITORUM_BRANDING_ICON_PATH` | — | PNG, JPEG or WebP shown as the instance icon. An icon uploaded in Admin → Settings takes precedence. |
+
 ## KV store
 
 | Variable | Default | Meaning |
@@ -61,7 +68,7 @@ Mail is used only for address-verification codes and the admin test mail; it is 
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `PROHIBITORUM_WEBAUTHN_RP_ID` | host of `PublicOrigins[0]` | WebAuthn Relying Party ID. Override when the RP ID differs from the origin hostname. |
-| `PROHIBITORUM_WEBAUTHN_RP_DISPLAY_NAME` | `Prohibitorum` | RP display name shown by authenticators; also the TOTP issuer fallback. |
+| `PROHIBITORUM_WEBAUTHN_RP_DISPLAY_NAME` | instance name | RP display name an authenticator stores with a new passkey. When unset, each registration uses the instance name in effect at the time. Existing passkeys keep the name they were registered with. |
 | `PROHIBITORUM_WEBAUTHN_RP_ORIGINS` | `PublicOrigins` | Comma-separated allowed WebAuthn origins. |
 
 ## Upstream OIDC federation
@@ -80,7 +87,7 @@ Mail is used only for address-verification codes and the admin test mail; it is 
 | `PROHIBITORUM_TOTP_DEFAULT_ALGORITHM` | `SHA1` | RFC 6238 HMAC algorithm. |
 | `PROHIBITORUM_TOTP_DRIFT_STEPS` | `1` | Accepted ± step drift on verify. |
 | `PROHIBITORUM_TOTP_RECOVERY_CODE_COUNT` | `10` | Recovery codes minted per enrollment. |
-| `PROHIBITORUM_TOTP_ISSUER` | `webauthn.rp_display_name` | Label in the `otpauth://` URI. |
+| `PROHIBITORUM_TOTP_ISSUER` | instance name | Issuer in the `otpauth://` URI, which authenticator apps show beside the account. When unset, the instance name in effect when the code is set up. Entries already in an app keep their issuer. |
 
 ## Cross-factor auth
 

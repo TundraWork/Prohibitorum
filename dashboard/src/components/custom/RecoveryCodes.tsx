@@ -1,4 +1,5 @@
 import type { ReactNode, RefObject } from "react";
+import { useDownloadFilename } from "@/components/custom/instance-branding";
 import {
   SecretReveal,
   SecretRevealDialog,
@@ -37,7 +38,7 @@ export function RecoveryCodes({
 }) {
   const props = {
     text: codes.join("\n"),
-    filename: "prohibitorum-recovery-codes.txt",
+    filename: useDownloadFilename("recovery-codes.txt"),
     copy: firstIssue ? firstRecoveryCodesCopy : recoveryCodesCopy,
     onContinue,
   };

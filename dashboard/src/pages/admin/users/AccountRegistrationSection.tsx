@@ -9,6 +9,7 @@ import {
   InlineFailure,
   useInlineFailure,
 } from "@/components/custom/InlineFailure";
+import { useDownloadFilename } from "@/components/custom/instance-branding";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { Section } from "@/components/custom/Section";
 import { SettingRow } from "@/components/custom/SettingRow";
@@ -34,6 +35,7 @@ export function AccountRegistrationSection({
   );
   const failure = useInlineFailure();
   const [url, setUrl] = useState<string | null>(null);
+  const registrationLinkFilename = useDownloadFilename("registration-link.txt");
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
 
   const expiry =
@@ -91,7 +93,7 @@ export function AccountRegistrationSection({
         // only the reveal's own continue control can close it.
         <SecretRevealDialog
           text={url}
-          filename="prohibitorum-registration-link.txt"
+          filename={registrationLinkFilename}
           copy={registrationLinkCopyWithExpiry(expiry)}
           onContinue={async () => setUrl(null)}
         />

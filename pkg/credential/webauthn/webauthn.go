@@ -100,15 +100,22 @@ func (w *WebAuthnAccount) WebAuthnCredentials() []webauthn.Credential {
 //   - ResidentKey=Required so credentials are discoverable, enabling the
 //     username-less login flow.
 //
+// `rpName` is the RP display name the authenticator stores with the passkey;
+// it is passed per ceremony because it follows the instance name, which an
+// admin can change while the library handle lives for the whole process.
+//
 // `exclude` lists existing credentials to prevent the same authenticator from
 // double-registering (used by /me/credentials/register/begin when the caller
 // already has passkeys).
-func RegistrationOptions(exclude []protocol.CredentialDescriptor) []webauthn.RegistrationOption {
+func RegistrationOptions(rpName string, exclude []protocol.CredentialDescriptor) []webauthn.RegistrationOption {
 	opts := []webauthn.RegistrationOption{
 		webauthn.WithAuthenticatorSelection(protocol.AuthenticatorSelection{
 			ResidentKey:      protocol.ResidentKeyRequirementRequired,
 			UserVerification: protocol.VerificationRequired,
 		}),
+		func(cco *protocol.PublicKeyCredentialCreationOptions) {
+			cco.RelyingParty.Name = rpName
+		},
 	}
 	if len(exclude) > 0 {
 		opts = append(opts, webauthn.WithExclusions(exclude))

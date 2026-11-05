@@ -31,6 +31,7 @@ import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { ConfirmDialog } from "@/components/custom/ConfirmDialog";
 import { FormMessages } from "@/components/custom/FormMessages";
 import { ItemList, ItemListRow } from "@/components/custom/ItemList";
+import { useDownloadFilename } from "@/components/custom/instance-branding";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
 import { AsyncSection, Section } from "@/components/custom/Section";
 import { accessTokenCopy } from "@/components/custom/secret-reveal-copy";
@@ -201,6 +202,7 @@ function TokenList() {
   const apps = useQuery(quietQuery(forwardAuthAppsQueryOptions()));
   const session = useQuery(sessionQueryOptions());
   const [plaintext, setPlaintext] = useState<string | null>(null);
+  const accessTokenFilename = useDownloadFilename("access-token.txt");
   const [target, setTarget] = useState<Token | null>(null);
   const [creating, setCreating] = useState(false);
   // Where focus goes back to once the token has been read: the dialog it was
@@ -291,7 +293,7 @@ function TokenList() {
         // it and only the reveal's own continue control can close it.
         <SecretRevealDialog
           text={plaintext}
-          filename="prohibitorum-access-token.txt"
+          filename={accessTokenFilename}
           copy={accessTokenCopy}
           onContinue={async () => {
             setPlaintext(null);

@@ -20,6 +20,7 @@ import { CancelLink } from "@/components/custom/CancelLink";
 import { ChoiceTile } from "@/components/custom/ChoiceTile";
 import { useConsoleCrumb } from "@/components/custom/console-crumb";
 import type { EntityOption } from "@/components/custom/EntityPicker";
+import { useDownloadFilename } from "@/components/custom/instance-branding";
 import { PageBody } from "@/components/custom/PageBody";
 import { PageHeader } from "@/components/custom/PageHeader";
 import { SecretRevealDialog } from "@/components/custom/SecretReveal";
@@ -57,6 +58,7 @@ export function AdminInvitationForm() {
   );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const invitationFilename = useDownloadFilename("invitation.txt");
   const groups = useQuery(quietQuery(groupsQueryOptions()));
   const providers = useQuery(quietQuery(identityProvidersQueryOptions()));
   const create = useMutation(
@@ -394,7 +396,7 @@ export function AdminInvitationForm() {
         // Open exactly while the link is held here, so it cannot outlive it.
         <SecretRevealDialog
           text={issued.url}
-          filename="prohibitorum-invitation.txt"
+          filename={invitationFilename}
           copy={invitationLinkCopyWithExpiry(
             new Intl.DateTimeFormat(i18n.locale, {
               dateStyle: "medium",

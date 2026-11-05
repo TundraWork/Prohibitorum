@@ -407,7 +407,7 @@ func (s *Server) handleEnrollmentBeginHTTP(w http.ResponseWriter, r *http.Reques
 		})
 	}
 
-	creation, sessionData, err := s.enrollmentWebAuthn().BeginRegistration(wu, webauthnauth.RegistrationOptions(exclude)...)
+	creation, sessionData, err := s.enrollmentWebAuthn().BeginRegistration(wu, webauthnauth.RegistrationOptions(s.webauthnRPName(r.Context()), exclude)...)
 	if err != nil {
 		writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 		return

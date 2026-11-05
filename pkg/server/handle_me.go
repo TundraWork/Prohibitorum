@@ -302,7 +302,7 @@ func (s *Server) handleAddCredentialBeginHTTP(w http.ResponseWriter, r *http.Req
 	}
 	wu := &webauthnauth.WebAuthnAccount{Account: sess.Account, Credentials: creds}
 
-	creation, sessionData, err := s.webauthn.BeginRegistration(wu, webauthnauth.RegistrationOptions(exclude)...)
+	creation, sessionData, err := s.webauthn.BeginRegistration(wu, webauthnauth.RegistrationOptions(s.webauthnRPName(r.Context()), exclude)...)
 	if err != nil {
 		writeAuthErr(w, webauthnauth.MapRegisterCeremonyError(r.Context(), err))
 		return

@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 const publicConfig = {
-  instanceName: "Prohibitorum",
+  instanceName: "Example Instance",
   hasCustomIcon: false,
   iconUrl: "",
   iconEtag: "",
@@ -913,13 +913,17 @@ describe("changing one factor", () => {
     expect(dialog).toBeInTheDocument();
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:codes");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    let filename: string | undefined;
     const download = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
-      .mockImplementation(() => undefined);
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        filename = this.download;
+      });
     await user.click(
       within(dialog).getByRole("button", { name: "Download codes" }),
     );
     expect(download).toHaveBeenCalledOnce();
+    expect(filename).toBe("Example-Instance-recovery-codes.txt");
     await user.click(leave);
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),

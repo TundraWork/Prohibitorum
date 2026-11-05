@@ -18,6 +18,7 @@ import { createQueryClient } from "@/app/query-client";
 import { searchSerialization } from "@/app/search-params";
 import { i18n } from "@/i18n";
 import { TokensPanel } from "@/pages/security/TokensPanel";
+import { publicConfigFixture } from "@/test/public-config";
 
 type Session = components["schemas"]["SessionView"];
 type App = components["schemas"]["MyForwardAuthApp"];
@@ -37,6 +38,8 @@ beforeEach(() => {
   notifyError.mockReset();
   vi.stubGlobal("fetch", fetchBoundary);
   queryClient = createQueryClient(notifyError, notifySuccess);
+  // The root route loads /config before any page; the reveal names its file from it.
+  queryClient.setQueryData(["public", "config"], publicConfigFixture());
   configureSudo({
     queryClient,
     set: () => {},

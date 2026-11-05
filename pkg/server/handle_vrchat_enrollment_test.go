@@ -23,6 +23,7 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
+	"prohibitorum/pkg/branding"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/credential/enrollment"
 	"prohibitorum/pkg/credential/password"
@@ -859,11 +860,13 @@ func TestEnrollmentBeginVerifiedInviteAndAdminResetUsePublicSafeWebAuthnOptions(
 	store := kv.NewMemoryStore()
 	t.Cleanup(func() { _ = store.Close() })
 	recorder := &recordingEnrollmentWebAuthn{}
+	brandedName := "Branded Name"
 	s := &Server{
 		enrollmentQueriesOverride:  q,
 		enrollmentWebAuthnOverride: recorder,
 		federationRegistry:         vrchatEnrollmentRegistry(t),
 		kvStore:                    store,
+		branding:                   branding.NewWithStore("Config Name", &fakeBrandingStore{name: &brandedName}),
 	}
 
 	w := httptest.NewRecorder()
@@ -876,6 +879,9 @@ func TestEnrollmentBeginVerifiedInviteAndAdminResetUsePublicSafeWebAuthnOptions(
 	}
 	if len(recorder.options.CredentialExcludeList) != 0 {
 		t.Fatalf("verified invite exclusions = %v", recorder.options.CredentialExcludeList)
+	}
+	if recorder.options.RelyingParty.Name != brandedName {
+		t.Fatalf("verified invite RP name = %q, want the instance name %q", recorder.options.RelyingParty.Name, brandedName)
 	}
 	raw, err := store.Get(context.Background(), enrollCeremonyKey(verifiedInvite.Token))
 	if err != nil {
@@ -979,6 +985,7 @@ func newAtomicVRChatEnrollmentServerWithAudit(t *testing.T, e db.Enrollment, acc
 		enrollmentQueriesOverride:  q,
 		enrollmentTxRunnerOverride: &memoryEnrollmentTxRunner{root: q, audit: capture},
 		enrollmentWebAuthnOverride: &recordingEnrollmentWebAuthn{credential: credential},
+		branding:                   branding.NewWithStore("Config Name", &fakeBrandingStore{}),
 		federationRegistry:         vrchatEnrollmentRegistry(t),
 		federationService:          federation.NewService(vrchatEnrollmentRegistry(t), federation.NewProviderStore(q), nil, nil, federation.ServiceConfig{}),
 	}

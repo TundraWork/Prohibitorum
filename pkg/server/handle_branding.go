@@ -47,7 +47,7 @@ func (s *Server) handleGetPublicConfigHTTP(w http.ResponseWriter, r *http.Reques
 	var totpConfig contract.PublicTOTPConfig
 	if s.config != nil {
 		totpConfig = contract.PublicTOTPConfig{
-			Issuer:    s.config.TOTP.Issuer,
+			Issuer:    s.totpIssuer(ctx),
 			Algorithm: s.config.TOTP.DefaultAlgorithm,
 			Digits:    s.config.TOTP.DefaultDigits,
 			Period:    s.config.TOTP.DefaultPeriod,
@@ -68,6 +68,24 @@ func (s *Server) handleGetPublicConfigHTTP(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	_ = json.NewEncoder(w).Encode(cfg)
+}
+
+// totpIssuer is the issuer new authenticator entries are labelled with:
+// totp.issuer when the deployment sets one, else the effective instance name.
+func (s *Server) totpIssuer(ctx context.Context) string {
+	if s.config.TOTP.Issuer != "" {
+		return s.config.TOTP.Issuer
+	}
+	return s.branding.InstanceName(ctx)
+}
+
+// webauthnRPName is the RP display name a new passkey is stored under, chosen
+// the same way as totpIssuer.
+func (s *Server) webauthnRPName(ctx context.Context) string {
+	if s.config != nil && s.config.WebAuthn.RPDisplayName != "" {
+		return s.config.WebAuthn.RPDisplayName
+	}
+	return s.branding.InstanceName(ctx)
 }
 
 func loginImageViews(refs []branding.ImageRef) []contract.LoginImage {

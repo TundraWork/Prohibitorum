@@ -26,11 +26,14 @@ func TestLoginOptionsRequireUserVerification(t *testing.T) {
 // side of the invariant: every credential is minted UV-capable.
 func TestRegistrationOptionsRequireUserVerification(t *testing.T) {
 	cc := &protocol.PublicKeyCredentialCreationOptions{}
-	for _, apply := range RegistrationOptions(nil) {
+	for _, apply := range RegistrationOptions("Example", nil) {
 		apply(cc)
 	}
 	if cc.AuthenticatorSelection.UserVerification != protocol.VerificationRequired {
 		t.Fatalf("RegistrationOptions UserVerification = %q, want %q", cc.AuthenticatorSelection.UserVerification, protocol.VerificationRequired)
+	}
+	if cc.RelyingParty.Name != "Example" {
+		t.Fatalf("RegistrationOptions RelyingParty.Name = %q, want %q", cc.RelyingParty.Name, "Example")
 	}
 }
 

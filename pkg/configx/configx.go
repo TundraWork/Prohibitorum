@@ -79,8 +79,9 @@ type WebAuthnConfig struct {
 
 // BrandingConfig holds the deploy-time instance identity. These are DEFAULTS;
 // an admin can override the name + icon at runtime (instance_settings table).
-// InstanceName is purely cosmetic — it does NOT change the WebAuthn RPDisplayName,
-// the OIDC Issuer, or the TOTP issuer.
+// The effective instance name is also what authenticators show: it is the
+// WebAuthn RP display name and the TOTP issuer unless webauthn.rp_display_name
+// or totp.issuer is set. It never changes the OIDC Issuer.
 type BrandingConfig struct {
 	InstanceName string `mapstructure:"instance_name"`
 	// IconPath is an optional path to a PNG/JPEG/WebP the operator drops at
@@ -131,8 +132,8 @@ type FederationConfig struct {
 
 // TOTPConfig holds RFC 6238 enrollment defaults + the drift window used
 // during verification. Issuer is the label embedded in the otpauth:// URI
-// the authenticator displays alongside the account; when blank, it falls
-// back to webauthn.rp_display_name so a single brand string suffices.
+// the authenticator displays alongside the account; when blank, the
+// effective instance name is used.
 type TOTPConfig struct {
 	DefaultPeriod     int    `mapstructure:"default_period"`
 	DefaultDigits     int    `mapstructure:"default_digits"`
@@ -260,8 +261,8 @@ func Parse() (*Config, error) {
 	// there is no global config bypass for the SSRF dial screen.
 
 	// TOTP defaults — RFC 6238 §5.2 baseline, ±1 step drift window,
-	// 10 recovery codes per account. Issuer defaults to empty so the
-	// post-unmarshal step can fall back to webauthn.rp_display_name.
+	// 10 recovery codes per account. Issuer defaults to empty, which means
+	// the instance name.
 	viper.SetDefault("totp.default_period", 30)
 	viper.SetDefault("totp.default_digits", 6)
 	viper.SetDefault("totp.default_algorithm", "SHA1")
@@ -306,9 +307,10 @@ func Parse() (*Config, error) {
 	viper.SetDefault("password_hash.parallelism", 1)
 	viper.SetDefault("password_hash_max_concurrent", 0)
 
-	// WebAuthn substruct defaults — RPDisplayName defaults to the product name;
-	// RPID and RPOrigins are derived from PublicOrigins when not set explicitly.
-	viper.SetDefault("webauthn.rp_display_name", "Prohibitorum")
+	// WebAuthn substruct defaults — RPDisplayName is empty so each registration
+	// can use the instance name, which an admin may change at runtime; RPID and
+	// RPOrigins are derived from PublicOrigins when not set explicitly.
+	viper.SetDefault("webauthn.rp_display_name", "")
 	viper.SetDefault("webauthn.rp_id", "")
 
 	// Branding defaults — InstanceName falls back to the built-in product name;
@@ -362,13 +364,6 @@ func Parse() (*Config, error) {
 
 	if config.OIDC.Issuer == "" && len(config.PublicOrigins) > 0 {
 		config.OIDC.Issuer = config.PublicOrigins[0]
-	}
-
-	// TOTP issuer falls back to the WebAuthn RP display name so deployers
-	// only have to set the product name once. Resolved after Unmarshal so
-	// an explicit totp.issuer override still wins over the fallback.
-	if config.TOTP.Issuer == "" {
-		config.TOTP.Issuer = config.WebAuthn.RPDisplayName
 	}
 
 	if config.Branding.InstanceName == "" {

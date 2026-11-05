@@ -66,6 +66,43 @@ func TestBrandingConfigEndpoint(t *testing.T) {
 	}
 }
 
+// TestBrandingConfigEndpoint_TOTPIssuerFollowsInstanceName pins the fallback
+// for a deployment without totp.issuer: the effective instance name, including
+// a name saved in the settings, rather than the configured default.
+func TestBrandingConfigEndpoint_TOTPIssuerFollowsInstanceName(t *testing.T) {
+	saved := "Saved Name"
+	s := &Server{
+		branding: branding.NewWithStore("Config Name", &fakeBrandingStore{name: &saved}),
+		config: &configx.Config{
+			TOTP:     configx.TOTPConfig{DefaultAlgorithm: "SHA1", DefaultDigits: 6, DefaultPeriod: 30},
+			WebAuthn: configx.WebAuthnConfig{RPDisplayName: "RP Name"},
+		},
+	}
+	rec := httptest.NewRecorder()
+	s.handleGetPublicConfigHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/prohibitorum/config", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if want := `"totp":{"issuer":"Saved Name",`; !strings.Contains(rec.Body.String(), want) {
+		t.Fatalf("body missing %q: %s", want, rec.Body.String())
+	}
+}
+
+// TestWebAuthnRPName pins the RP display name choice: the configured name when
+// set, else the effective instance name.
+func TestWebAuthnRPName(t *testing.T) {
+	saved := "Saved Name"
+	resolver := branding.NewWithStore("Config Name", &fakeBrandingStore{name: &saved})
+	s := &Server{branding: resolver, config: &configx.Config{}}
+	if got := s.webauthnRPName(context.Background()); got != saved {
+		t.Fatalf("unset rp_display_name: got %q, want %q", got, saved)
+	}
+	s.config.WebAuthn.RPDisplayName = "RP Name"
+	if got := s.webauthnRPName(context.Background()); got != "RP Name" {
+		t.Fatalf("explicit rp_display_name: got %q, want %q", got, "RP Name")
+	}
+}
+
 func TestBrandingIconDefault_AndETag304(t *testing.T) {
 	s := &Server{branding: branding.NewWithStore("TestCo", &fakeBrandingStore{})}
 	rec := httptest.NewRecorder()
