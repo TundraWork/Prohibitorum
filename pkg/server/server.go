@@ -485,6 +485,14 @@ func NewServer(ctx context.Context) (*Server, error) {
 		on, _ := brandingResolver.Maintenance(ctx)
 		return on
 	})
+	// The SAML SSO endpoints settle which signed-in account a request acts as
+	// after the maintenance gate has run, and redirect to console pages that
+	// must carry that account's `u`.
+	s.samlIdP.SetMaintenanceChecker(func(ctx context.Context) bool {
+		on, _ := brandingResolver.Maintenance(ctx)
+		return on
+	})
+	s.samlIdP.SetAccountRefs(s.refs())
 	// The login-context endpoint answers every protocol's sign-in bounce, so
 	// it needs the SAML IdP's read-only resolver alongside its own OIDC views.
 	s.oidcOP.SetSAMLContextResolver(func(ctx context.Context, u *url.URL) (oidcop.SAMLApplication, bool, error) {
@@ -778,6 +786,7 @@ func (s *Server) registerOperations() {
 	registerSudoOp(s, mgmt, contract.OperationRevokeMyToken, s.handleRevokeMyToken, sessionReq)
 	registerOp(mgmt, contract.OperationListMyForwardAuthApps, s.handleListMyForwardAuthApps, sessionReq)
 	registerOp(mgmt, contract.OperationListMyApps, s.handleListMyApps, sessionReq)
+	registerOp(mgmt, contract.OperationLaunchMySAMLApp, s.handleLaunchMySAMLApp, browserReq)
 	registerOp(mgmt, contract.OperationListMyConsent, s.handleListMyConsent, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeConsent, s.handleRevokeMyConsent, sessionReq)
 

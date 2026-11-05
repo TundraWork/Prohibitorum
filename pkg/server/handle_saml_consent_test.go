@@ -157,8 +157,9 @@ func TestSAMLConsentContext_MissingTicket(t *testing.T) {
 	}
 }
 
-// TestSAMLConsentContext_WrongAccount: ticket belongs to account 7, but session
-// is for account 99 → invalid_consent_ticket.
+// TestSAMLConsentContext_WrongAccount: ticket belongs to account 7, but the
+// request acts as account 99 → account_not_signed_in (the page was opened for
+// account 7, which this tab's account is not).
 func TestSAMLConsentContext_WrongAccount(t *testing.T) {
 	s, _, kvStore := newSAMLConsentTestServer(t)
 
@@ -171,12 +172,12 @@ func TestSAMLConsentContext_WrongAccount(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.handleSAMLConsentContextHTTP(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d", w.Code)
 	}
 	m := decodeJSONMapSAML(t, w.Body.Bytes())
-	if m["code"] != "invalid_consent_ticket" {
-		t.Errorf("code: want invalid_consent_ticket, got %v", m["code"])
+	if m["code"] != "account_not_signed_in" {
+		t.Errorf("code: want account_not_signed_in, got %v", m["code"])
 	}
 }
 
@@ -289,8 +290,8 @@ func TestSAMLConsentDecision_DeclineSingleUse(t *testing.T) {
 }
 
 // TestSAMLConsentDecision_CrossAccount: ticket minted for account 7, POST with
-// session for account 99 → invalid_consent_ticket (approve PEEK rejects the
-// mismatched binding), and the ticket is NOT consumed.
+// session for account 99 → account_not_signed_in, and the ticket is NOT
+// consumed.
 func TestSAMLConsentDecision_CrossAccount(t *testing.T) {
 	s, _, kvStore := newSAMLConsentTestServer(t)
 
@@ -304,12 +305,12 @@ func TestSAMLConsentDecision_CrossAccount(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.handleSAMLConsentDecisionHTTP(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("status: want 400, got %d (body=%s)", w.Code, w.Body.String())
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d (body=%s)", w.Code, w.Body.String())
 	}
 	m := decodeJSONMapSAML(t, w.Body.Bytes())
-	if m["code"] != "invalid_consent_ticket" {
-		t.Errorf("code: want invalid_consent_ticket, got %v", m["code"])
+	if m["code"] != "account_not_signed_in" {
+		t.Errorf("code: want account_not_signed_in, got %v", m["code"])
 	}
 	// The mismatched-account PEEK must NOT pop the (rightful owner's) ticket.
 	if _, ok, _ := authn.PeekSAMLConsent(context.Background(), kvStore, nonce, 7); !ok {

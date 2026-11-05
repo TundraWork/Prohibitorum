@@ -143,12 +143,21 @@ func (i *IdP) postContinueRequest(ctx context.Context, r *http.Request) (*http.R
 // same URL for the redirect binding and for a request already replayed from
 // its key, and the kept form's key for a POST that came from the SP.
 func (i *IdP) ssoReturnURL(ctx context.Context, r *http.Request) (string, error) {
+	path, err := i.ssoResumePath(ctx, r)
+	if err != nil {
+		return "", err
+	}
+	return i.baseURL() + path, nil
+}
+
+// ssoResumePath is ssoReturnURL without the origin.
+func (i *IdP) ssoResumePath(ctx context.Context, r *http.Request) (string, error) {
 	if r.Method != http.MethodPost || r.URL.Query().Get(postContinueParam) != "" {
-		return i.baseURL() + r.URL.RequestURI(), nil
+		return r.URL.RequestURI(), nil
 	}
 	key, err := i.keepPostRequest(ctx, r)
 	if err != nil {
 		return "", err
 	}
-	return i.baseURL() + "/saml/sso?" + postContinueParam + "=" + key, nil
+	return "/saml/sso?" + postContinueParam + "=" + key, nil
 }

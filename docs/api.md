@@ -345,6 +345,13 @@ consent grant and has no revoke action there, including when an older grant stil
 exists. Apps requiring consent show a revoke action once a consent grant exists. This
 display policy does not bypass the server's app access controls.
 
+`POST /api/prohibitorum/me/apps/saml-launch?sp=<entity id>` opens an IdP-initiated
+SAML app as the account the request acts as (`X-Prohibitorum-Account`). It binds an
+account choice to that account and returns `{"redirect": "/saml/sso/init?sp=…&account_choice=<nonce>"}`;
+the launcher navigates there, so the app opens as the tab's account rather than the
+browser's default one. 403 `app_access_denied` when the SP is unknown, disabled, or
+does not admit the account. Browser session only.
+
 ## Avatars (self-service)
 
 An account can store an uploaded avatar (source `user`) and one avatar per connected upstream (source `upstream:<slug>`). One of them, or `none`, is in effect.
@@ -430,7 +437,7 @@ Send the raw token in `X-Prohibitorum-PAT: prohibitorum_pat_<43 chars>` (no `Bea
 
 Public routes and the OIDC/SAML protocol endpoints never see the PAT principal. The maintenance gate treats a non-admin PAT owner like a signed-in non-admin. In the OpenAPI document PAT-capable operations list both the `prohibitorumSession` and `prohibitorumPAT` security schemes; browser-only ones list only the session.
 
-**Browser-only routes** (they depend on the browser session or issue browser credentials): `/me/sudo/methods`, `/me/sudo/begin`, `/me/sudo/complete`; `/me/credentials/register/begin|complete`; `/consent` and `/saml-consent` (GET and POST); `/me/identities/link/{slug}/begin|callback`; `/require-identity/{ticket}`; `/identity-providers/{slug}/tests`, `/tests/{id}`, `/tests/{id}/complete`; `/identity-providers/{slug}/operator-session/start|verify|validate`; `/me/devices/pair/lookup|approve|cancel`. Under a PAT, `GET /me/sessions` reports `isCurrent: false` for every session.
+**Browser-only routes** (they depend on the browser session or issue browser credentials): `/me/sudo/methods`, `/me/sudo/begin`, `/me/sudo/complete`; `/me/credentials/register/begin|complete`; `/consent` and `/saml-consent` (GET and POST); `/me/identities/link/{slug}/begin|callback`; `/require-identity/{ticket}`; `/identity-providers/{slug}/tests`, `/tests/{id}`, `/tests/{id}/complete`; `/identity-providers/{slug}/operator-session/start|verify|validate`; `/me/devices/pair/lookup|approve|cancel`; `/me/apps/saml-launch`. Under a PAT, `GET /me/sessions` reports `isCurrent: false` for every session.
 
 ### Cross-origin write requests
 

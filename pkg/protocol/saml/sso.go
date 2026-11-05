@@ -119,32 +119,41 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	}
 	sp := req.SP
 
+	// (5a) Which account. With several accounts signed in and no valid
+	// account choice for this SP, the reader picks one first; a passive
+	// request cannot show the chooser and answers NoPassive. Before the
+	// replay consume, so the request comes back from the chooser intact.
+	sess, needChoice := i.chooseSession(r, authn.ChooserKindSAML, sp.EntityID)
+	if needChoice {
+		if req.IsPassive {
+			i.answerPassive(w, r, req, statusNoPassive)
+			return
+		}
+		resume, rerr := i.ssoResumePath(ctx, r)
+		if errors.Is(rerr, ErrOversizeRequest) {
+			i.ssoParseError(w, r, rerr)
+			return
+		}
+		if rerr != nil {
+			i.errorPage(w, r, "server_error", "post_request_keep", rerr)
+			return
+		}
+		if cerr := i.redirectToChooser(w, r, authn.ChooserKindSAML, sp.EntityID, resume); cerr != nil {
+			i.errorPage(w, r, "server_error", "account_chooser", cerr)
+		}
+		return
+	}
+
 	// (5) Session gate. A nil session, the disabled-mid-session sentinel
 	// (non-nil Session with Data == nil, attached by LoadSession when an
 	// account is disabled), or an explicitly-disabled account all count as
 	// "not authenticated". Widening this guard also keeps the sess.Data deref
 	// below safe (the OIDC deep-audit lesson). Mirrors OIDC HandleAuthorize.
-	sess := authn.SessionFromContext(ctx)
 	if sess == nil || sess.Data == nil || (sess.Account != nil && sess.Account.Disabled) {
 		if req.IsPassive {
-			// The SP forbade an interactive login bounce. Issue a terminal
-			// NoPassive Response (no assertion) and auto-POST it to the ACS.
-			// Because this IS a terminal Response, consume the replay key here
-			// too — a NoPassive answer counts as the single use of this ID.
-			if cerr := i.consumeRequest(ctx, r, sp.EntityID, req.RequestID); cerr != nil {
-				if errors.Is(cerr, ErrReplayedRequest) {
-					i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
-				} else {
-					i.errorPage(w, r, "server_error", "replay_consume", cerr)
-				}
-				return
-			}
-			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusNoPassive)
-			if berr != nil {
-				i.errorPage(w, r, "server_error", "build_status_response", berr)
-				return
-			}
-			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
+			// The SP forbade an interactive login bounce. Because this IS a
+			// terminal Response, the replay key is consumed here too.
+			i.answerPassive(w, r, req, statusNoPassive)
 			return
 		}
 		// Send the user to the login page; on success they return to this
@@ -162,6 +171,13 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 		}
 		loginURL := i.baseURL() + "/login?return_to=" + url.QueryEscape(returnTo)
 		http.Redirect(w, r, loginURL, http.StatusFound)
+		return
+	}
+
+	// The maintenance gate in front of this handler only saw the browser's
+	// accounts; the account this request acts as is known from here on.
+	if i.maintenanceDenies(ctx, *sess.Account) {
+		http.Redirect(w, r, "/", http.StatusFound)
 		return
 	}
 
@@ -189,27 +205,13 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 			},
 		})
 		if req.IsPassive {
-			// The SP forbade an interactive bounce. This is a terminal answer, so
-			// consume the single-use AuthnRequest ID here (mirroring the NoPassive
-			// path), then auto-POST a terminal Responder/RequestDenied Response.
-			if cerr := i.consumeRequest(ctx, r, sp.EntityID, req.RequestID); cerr != nil {
-				if errors.Is(cerr, ErrReplayedRequest) {
-					i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
-				} else {
-					i.errorPage(w, r, "server_error", "replay_consume", cerr)
-				}
-				return
-			}
-			respXML, buildErr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusRequestDenied)
-			if buildErr != nil {
-				i.errorPage(w, r, "server_error", "build_status_response", buildErr)
-				return
-			}
-			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
+			// The SP forbade an interactive bounce: a terminal
+			// Responder/RequestDenied Response, spending the request ID.
+			i.answerPassive(w, r, req, statusRequestDenied)
 			return
 		}
 		// Interactive: send the user to the IdP's own /error page.
-		u := i.baseURL() + "/error?reason=app_access_denied&app=" + url.QueryEscape(sp.DisplayName)
+		u := i.withAccountRef(r, i.baseURL()+"/error?reason=app_access_denied&app="+url.QueryEscape(sp.DisplayName), sess.Data.AccountID)
 		http.Redirect(w, r, u, http.StatusFound)
 		return
 	}
@@ -252,24 +254,8 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// compares authTime against the demand instant.
 	if req.ForceAuthn {
 		if req.IsPassive {
-			// Cannot re-authenticate interactively in passive mode. Issue a
-			// terminal NoPassive Response (no assertion). This consumes the
-			// AuthnRequest ID below only on the success path; a terminal answer
-			// here is also a single use, so consume it now.
-			if cerr := i.consumeRequest(ctx, r, sp.EntityID, req.RequestID); cerr != nil {
-				if errors.Is(cerr, ErrReplayedRequest) {
-					i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
-				} else {
-					i.errorPage(w, r, "server_error", "replay_consume", cerr)
-				}
-				return
-			}
-			respXML, berr := i.buildStatusResponse(ctx, req.ACSURL, req.RequestID, statusResponder, statusNoPassive)
-			if berr != nil {
-				i.errorPage(w, r, "server_error", "build_status_response", berr)
-				return
-			}
-			i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
+			// Cannot re-authenticate interactively in passive mode.
+			i.answerPassive(w, r, req, statusNoPassive)
 			return
 		}
 		reauthNonce := r.URL.Query().Get("reauth")
@@ -310,15 +296,12 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 				}
 				rawQuery = postContinueParam + "=" + key
 			}
-			kept := make([]string, 0)
-			for _, p := range strings.Split(rawQuery, "&") {
-				if p != "" && !strings.HasPrefix(p, "reauth=") {
-					kept = append(kept, p)
-				}
-			}
-			kept = append(kept, "reauth="+nonce)
+			kept := append(rawQueryWithout(rawQuery, "reauth"), "reauth="+nonce)
 			ret := i.baseURL() + r.URL.Path + "?" + strings.Join(kept, "&")
-			http.Redirect(w, r, i.baseURL()+"/login?return_to="+url.QueryEscape(ret), http.StatusFound)
+			// The reader re-authenticates the account this request settled
+			// on, so the sign-in page starts with it.
+			loginURL := i.baseURL() + "/login?return_to=" + url.QueryEscape(ret) + "&login_hint=" + url.QueryEscape(sess.Account.Username)
+			http.Redirect(w, r, loginURL, http.StatusFound)
 			return
 		}
 	}
@@ -387,7 +370,7 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 	// assertion from that stash — so this works for every binding, including
 	// POST-binding SP-initiated SSO whose request body the browser cannot replay.
 	if !req.IsPassive {
-		if redirected, cerr := i.maybeDemandSAMLConsent(w, r, *sess.Account, sp, req.ACSURL, req.RequestID, req.RelayState); cerr != nil {
+		if redirected, cerr := i.maybeDemandSAMLConsent(w, r, *sess.Account, sp, req.ACSURL, req.RequestID, req.RelayState, req.ForceAuthn); cerr != nil {
 			i.errorPage(w, r, "server_error", "consent_stash", cerr)
 			return
 		} else if redirected {
@@ -397,6 +380,26 @@ func (i *IdP) HandleSSO(w http.ResponseWriter, r *http.Request) {
 
 	// (6–9) Issue the assertion (shared with IdP-initiated + consent-resume).
 	i.issueAssertion(w, r, *sess.Account, sp, req.ACSURL, req.RequestID, req.RelayState, authTime, sess.Data.SessionID, "sso", decision.ExposedGroupSlugs())
+}
+
+// answerPassive answers a request with a terminal Responder/<subStatus>
+// Response carrying no assertion. A terminal answer is the single use of the
+// request ID, so it is consumed first.
+func (i *IdP) answerPassive(w http.ResponseWriter, r *http.Request, req *authnReq, subStatus string) {
+	if cerr := i.consumeRequest(r.Context(), r, req.SP.EntityID, req.RequestID); cerr != nil {
+		if errors.Is(cerr, ErrReplayedRequest) {
+			i.errorPage(w, r, "saml_replayed", "request_replayed", cerr)
+		} else {
+			i.errorPage(w, r, "server_error", "replay_consume", cerr)
+		}
+		return
+	}
+	respXML, berr := i.buildStatusResponse(r.Context(), req.ACSURL, req.RequestID, statusResponder, subStatus)
+	if berr != nil {
+		i.errorPage(w, r, "server_error", "build_status_response", berr)
+		return
+	}
+	i.writeAutoPost(w, req.ACSURL, respXML, req.RelayState)
 }
 
 // ssoParseError maps a parseAuthnRequest error to a browser-navigated /error
