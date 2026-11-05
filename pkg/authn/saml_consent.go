@@ -27,6 +27,9 @@ type SAMLConsentTicket struct {
 	ACSURL       string `json:"acs_url"`
 	InResponseTo string `json:"in_response_to"`
 	RelayState   string `json:"relay_state"`
+	// ForceAuthn carries the request's demand for a fresh sign-in, so an
+	// account switched to on the consent page re-authenticates too.
+	ForceAuthn bool `json:"force_authn,omitempty"`
 }
 
 // DemandSAMLConsent mints a single-use nonce and stores the ticket (reuses the
@@ -61,6 +64,27 @@ func PeekSAMLConsent(ctx context.Context, store kv.Store, nonce string, accountI
 		return nil, false, err
 	}
 	return decodeSAMLConsent(val, accountID)
+}
+
+// ReadSAMLConsent reads (without consuming) a ticket whichever account it
+// belongs to; nil when missing or malformed. The resume endpoint uses it to
+// learn the ticket's account before choosing that account's session.
+func ReadSAMLConsent(ctx context.Context, store kv.Store, nonce string) (*SAMLConsentTicket, error) {
+	if nonce == "" {
+		return nil, nil
+	}
+	val, err := store.Get(ctx, samlConsentKeyPrefix+nonce)
+	if errors.Is(err, kv.ErrKeyNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var t SAMLConsentTicket
+	if json.Unmarshal([]byte(val), &t) != nil {
+		return nil, nil
+	}
+	return &t, nil
 }
 
 // ConsumeSAMLConsent atomically pops the ticket (single use) iff it belongs to

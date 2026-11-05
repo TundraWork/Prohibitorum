@@ -26,6 +26,24 @@ func (s *Server) getSAMLConsentQueries() samlConsentQueries {
 	return s.queries
 }
 
+// samlConsentTicketFor reads a pending SAML consent ticket for the account the
+// request acts as. A ticket made for another account answers
+// account_not_signed_in: the page was opened for that account (its `u`), and
+// this tab's selected account is not it.
+func (s *Server) samlConsentTicketFor(r *http.Request, sess *authn.Session, nonce string) (*authn.SAMLConsentTicket, error) {
+	ticket, err := authn.ReadSAMLConsent(r.Context(), s.kvStore, nonce)
+	if err != nil {
+		return nil, err
+	}
+	if ticket == nil {
+		return nil, authn.ErrInvalidConsentTicket()
+	}
+	if ticket.AccountID != sess.Data.AccountID {
+		return nil, authn.ErrAccountNotSignedIn()
+	}
+	return ticket, nil
+}
+
 // GET /api/prohibitorum/saml-consent?ticket=
 func (s *Server) handleSAMLConsentContextHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
@@ -33,13 +51,9 @@ func (s *Server) handleSAMLConsentContextHTTP(w http.ResponseWriter, r *http.Req
 		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
-	ticket, ok, err := authn.PeekSAMLConsent(r.Context(), s.kvStore, r.URL.Query().Get("ticket"), sess.Data.AccountID)
+	ticket, err := s.samlConsentTicketFor(r, sess, r.URL.Query().Get("ticket"))
 	if err != nil {
 		writeAuthErr(w, err)
-		return
-	}
-	if !ok {
-		writeAuthErr(w, authn.ErrInvalidConsentTicket())
 		return
 	}
 	q := s.getSAMLConsentQueries()
@@ -78,16 +92,17 @@ func (s *Server) handleSAMLConsentDecisionHTTP(w http.ResponseWriter, r *http.Re
 	case "approve":
 		// Validate the ticket still belongs to this session, then hand off to the
 		// SAML resume endpoint, which records the ack and issues the assertion.
-		if _, ok, perr := authn.PeekSAMLConsent(r.Context(), s.kvStore, in.Ticket, sess.Data.AccountID); perr != nil {
+		if _, perr := s.samlConsentTicketFor(r, sess, in.Ticket); perr != nil {
 			writeAuthErr(w, perr)
-			return
-		} else if !ok {
-			writeAuthErr(w, authn.ErrInvalidConsentTicket())
 			return
 		}
 		redirect = "/saml/sso/resume?ticket=" + url.QueryEscape(in.Ticket)
 	case "decline":
 		// The user stays signed in to the IdP; they just don't enter the app.
+		if _, perr := s.samlConsentTicketFor(r, sess, in.Ticket); perr != nil {
+			writeAuthErr(w, perr)
+			return
+		}
 		if _, ok, cerr := authn.ConsumeSAMLConsent(r.Context(), s.kvStore, in.Ticket, sess.Data.AccountID); cerr != nil {
 			writeAuthErr(w, cerr)
 			return

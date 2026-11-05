@@ -99,6 +99,26 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Which account. The launcher arrives with an account_choice already
+	// bound to the tab's account; any other link to this URL on a browser
+	// holding several accounts goes through the chooser. Settled after the SP
+	// checks so the chooser is only shown for an SP that can be launched.
+	sess, needChoice := i.chooseSession(r, authn.ChooserKindSAMLInit, sp.EntityID)
+	if needChoice {
+		if cerr := i.redirectToChooser(w, r, authn.ChooserKindSAMLInit, sp.EntityID, r.URL.RequestURI()); cerr != nil {
+			i.errorPage(w, r, "server_error", "account_chooser", cerr)
+		}
+		return
+	}
+	if sess == nil || sess.Data == nil || sess.Account == nil || sess.Account.Disabled {
+		http.Redirect(w, r, i.baseURL()+"/login?return_to="+url.QueryEscape(i.baseURL()+r.URL.RequestURI()), http.StatusFound)
+		return
+	}
+	if i.maintenanceDenies(ctx, *sess.Account) {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
 	// The session carries the live db.Account row.
 	account := *sess.Account
 
@@ -125,7 +145,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 				"sp":     sp.EntityID,
 			},
 		})
-		u := i.baseURL() + "/error?reason=app_access_denied&app=" + url.QueryEscape(sp.DisplayName)
+		u := i.withAccountRef(r, i.baseURL()+"/error?reason=app_access_denied&app="+url.QueryEscape(sp.DisplayName), account.ID)
 		http.Redirect(w, r, u, http.StatusFound)
 		return
 	}
@@ -133,7 +153,7 @@ func (i *IdP) HandleIdPInitiated(w http.ResponseWriter, r *http.Request) {
 	// Advisory consent gate. IdP-initiated SSO is always interactive (no
 	// IsPassive), so always honor it. Placed after app policy and before the rate
 	// limit / build / persist so nothing is issued for an un-acknowledged SP.
-	if redirected, cerr := i.maybeDemandSAMLConsent(w, r, account, sp, acsURL, "", r.URL.Query().Get("RelayState")); cerr != nil {
+	if redirected, cerr := i.maybeDemandSAMLConsent(w, r, account, sp, acsURL, "", r.URL.Query().Get("RelayState"), false); cerr != nil {
 		i.errorPage(w, r, "server_error", "consent_stash", cerr)
 		return
 	} else if redirected {

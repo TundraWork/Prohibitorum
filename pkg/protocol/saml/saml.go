@@ -41,6 +41,25 @@ type IdP struct {
 	// where auditIP falls back to the request peer.
 	clientIP func(*http.Request) string
 	access   appaccess.SAMLAuthorizer
+	// refs computes the `u` added to console pages the IdP redirects to;
+	// nil (unit tests) adds none.
+	refs *session.AccountRefs
+	// maintenance reports whether maintenance mode is on; nil = never.
+	maintenance func(context.Context) bool
+}
+
+// SetAccountRefs injects the short account references used on redirects to
+// console pages when the browser holds several accounts.
+func (i *IdP) SetAccountRefs(refs *session.AccountRefs) { i.refs = refs }
+
+// SetMaintenanceChecker injects the maintenance-mode flag. The server's
+// maintenance gate runs before the SSO endpoints know which account a request
+// acts as, so they check the account they settled on themselves.
+func (i *IdP) SetMaintenanceChecker(fn func(context.Context) bool) { i.maintenance = fn }
+
+// maintenanceDenies reports whether maintenance mode keeps acct out.
+func (i *IdP) maintenanceDenies(ctx context.Context, acct db.Account) bool {
+	return acct.Role != "admin" && i.maintenance != nil && i.maintenance(ctx)
 }
 
 // NewIdP constructs an IdP, building the SAML signing-key cache from queries
