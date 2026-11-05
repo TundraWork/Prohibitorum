@@ -824,7 +824,7 @@ func (s *Server) registerOperations() {
 	// lives inside the handlers, not at the route layer.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities", sessionReq, s.handleMeIdentitiesListHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/identities/{id}/unlink", sessionReq, s.handleMeIdentitiesUnlinkHTTP)
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/begin", browserReq, s.handleMeIdentitiesLinkBeginHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/identities/link/{slug}/begin", browserReq, s.handleMeIdentitiesLinkBeginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/callback", browserReq, s.handleMeIdentitiesLinkCallbackHTTP)
 
 	// Device pairing

@@ -9,6 +9,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -770,7 +771,7 @@ func mountLinkRoutes(h *fedTestHarness) *httptest.Server {
 	r := chi.NewRouter()
 	r.Get("/api/prohibitorum/auth/federation/{slug}/login", h.s.handleFederationLoginHTTP)
 	r.Get("/api/prohibitorum/auth/federation/{slug}/callback", h.s.handleFederationCallbackHTTP)
-	r.Get("/api/prohibitorum/me/identities/link/{slug}/begin", withSessionMW(h.s, h.linkAccountID, h.linkToken, h.s.handleMeIdentitiesLinkBeginHTTP))
+	r.Post("/api/prohibitorum/me/identities/link/{slug}/begin", withSessionMW(h.s, h.linkAccountID, h.linkToken, h.s.handleMeIdentitiesLinkBeginHTTP))
 	r.Get("/api/prohibitorum/me/identities/link/{slug}/callback", withSessionMW(h.s, h.linkAccountID, h.linkToken, h.s.handleMeIdentitiesLinkCallbackHTTP))
 	srv := httptest.NewServer(r)
 	h.t.Cleanup(srv.Close)
@@ -839,23 +840,27 @@ func (h *fedTestHarness) grantSudoOnSession(t *testing.T) {
 	}
 }
 
-// driveLinkBegin hits /me/identities/link/{slug}/begin. Returns (Location,
-// status).
+// driveLinkBegin posts /me/identities/link/{slug}/begin. Returns the
+// upstream address from a 200 body (empty otherwise) and the response.
 func (h *fedTestHarness) driveLinkBegin(t *testing.T, slug, returnTo string) (string, *http.Response) {
 	t.Helper()
 	u := h.srvTS.URL + "/api/prohibitorum/me/identities/link/" + slug + "/begin"
-	if returnTo != "" {
-		u += "?return_to=" + url.QueryEscape(returnTo)
-	}
-	resp, err := h.client.Get(u)
+	payload, _ := json.Marshal(map[string]string{"returnTo": returnTo})
+	resp, err := h.client.Post(u, "application/json", bytes.NewReader(payload))
 	if err != nil {
-		t.Fatalf("GET %s: %v", u, err)
+		t.Fatalf("POST %s: %v", u, err)
 	}
 	t.Cleanup(func() { _ = resp.Body.Close() })
-	if resp.StatusCode != http.StatusFound {
+	if resp.StatusCode != http.StatusOK {
 		return "", resp
 	}
-	return resp.Header.Get("Location"), resp
+	var body struct {
+		Redirect string `json:"redirect"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode begin body: %v", err)
+	}
+	return body.Redirect, resp
 }
 
 // hitLinkCallback hits /me/identities/link/{slug}/callback.
@@ -889,8 +894,8 @@ func TestMeIdentities_LinkBegin_HappyPath(t *testing.T) {
 	h.grantSudoOnSession(t)
 
 	loc, resp := h.driveLinkBegin(t, "mockop", "/me")
-	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("status: want 302, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: want 200, got %d", resp.StatusCode)
 	}
 	if !strings.HasPrefix(loc, h.opTS.URL+"/authorize") {
 		t.Errorf("Location prefix: want %q, got %q", h.opTS.URL+"/authorize", loc)
@@ -921,15 +926,11 @@ func TestMeIdentities_LinkBegin_LookupFailureReturnsStateInvalid(t *testing.T) {
 	h.q.idpSlugErr = errors.New("database unavailable")
 
 	_, resp := h.driveLinkBegin(t, "mockop", "/me")
-	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("status: want 302, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status: want 401, got %d", resp.StatusCode)
 	}
-	loc := resp.Header.Get("Location")
-	if !strings.HasPrefix(loc, "/error?error=federation_state_invalid&ref=") {
-		t.Fatalf("Location = %q, want opaque federation_state_invalid redirect", loc)
-	}
-	if strings.Contains(loc, "server_error") {
-		t.Fatalf("Location exposed provider-store failure as server_error: %q", loc)
+	if body := decodeErrBody(t, resp); body.Code != "federation_state_invalid" {
+		t.Fatalf("code = %q, want the opaque federation_state_invalid rather than the provider-store failure", body.Code)
 	}
 }
 
@@ -938,13 +939,27 @@ func TestMeIdentities_LinkBegin_InvalidReturnTo(t *testing.T) {
 	h.grantSudoOnSession(t)
 
 	_, resp := h.driveLinkBegin(t, "mockop", "https://evil.example.com/")
-	// Browser-navigated error path now redirects to SPA /error page.
-	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("status: want 302, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: want 400, got %d", resp.StatusCode)
 	}
-	loc := resp.Header.Get("Location")
-	if !strings.HasPrefix(loc, "/error?error=invalid_return_to&ref=") {
-		t.Errorf("Location: want /error?error=invalid_return_to&ref=…, got %q", loc)
+	if body := decodeErrBody(t, resp); body.Code != "invalid_return_to" {
+		t.Errorf("code: want invalid_return_to, got %q", body.Code)
+	}
+}
+
+// The begin is a POST from the page: a GET (the old navigation form) no
+// longer starts a link.
+func TestMeIdentities_LinkBegin_GetNotRouted(t *testing.T) {
+	h := newLinkTestHarness(t)
+	h.grantSudoOnSession(t)
+
+	resp, err := h.client.Get(h.srvTS.URL + "/api/prohibitorum/me/identities/link/mockop/begin?return_to=/me")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("GET begin status = %d, want 405", resp.StatusCode)
 	}
 }
 
@@ -960,8 +975,8 @@ func TestMeIdentities_LinkCallback_HappyPath(t *testing.T) {
 	sessionsBefore := len(h.q.sessions)
 
 	loc, resp := h.driveLinkBegin(t, "mockop", "/me/identities")
-	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("begin: want 302, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("begin: want 200, got %d", resp.StatusCode)
 	}
 	code, state, iss := driveAuthorize(t, loc)
 
@@ -1026,8 +1041,8 @@ func TestMeIdentities_SteamLinkHTTPFlow(t *testing.T) {
 	sessionsBefore := len(h.q.sessions)
 
 	loc, resp := h.driveLinkBegin(t, provider.Slug, "/me/identities")
-	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("begin status = %d, want 302", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("begin status = %d, want 200", resp.StatusCode)
 	}
 	actionURL, err := url.Parse(loc)
 	if err != nil {
@@ -1061,8 +1076,8 @@ func TestMeIdentities_LinkCallback_SessionSwap(t *testing.T) {
 
 	// Start link as accountID=900.
 	loc, resp := h.driveLinkBegin(t, "mockop", "/me/identities")
-	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("begin: want 302, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("begin: want 200, got %d", resp.StatusCode)
 	}
 	code, state, iss := driveAuthorize(t, loc)
 
@@ -1214,8 +1229,8 @@ func TestMeIdentities_LinkCallback_EmptyQueryServesRelayPageForImplicit(t *testi
 		AllowSignIn: true, Protocol: federationoidc.Protocol, ProviderConfig: publicConfig, SecretStatus: "unconfigured",
 	}
 	authorizeURL, resp := h.driveLinkBegin(t, "mockop-public", "/me/identities")
-	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("begin status = %d, want 302", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("begin status = %d, want 200", resp.StatusCode)
 	}
 	noFollowResp, err := noFollow().Get(authorizeURL)
 	if err != nil {
