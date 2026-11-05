@@ -27,13 +27,18 @@ func (i *IdP) chooseSession(r *http.Request, kind, app string) (sess *authn.Sess
 	}
 	if id := authn.ChosenAccount(ctx, i.kv, r.URL.Query().Get(accountChoiceParam), kind, app); id != 0 {
 		if s := b.ForAccount(id); s != nil {
+			b.Touch(id)
 			return s, false
 		}
 	}
 	if b.Count() > 1 || b.Unsettled() {
 		return nil, true
 	}
-	return authn.SessionFromContext(ctx), false
+	sess = authn.SessionFromContext(ctx)
+	if sess != nil && sess.Data != nil && sess.Account != nil {
+		b.Touch(sess.Account.ID)
+	}
+	return sess, false
 }
 
 // redirectToChooser sends the reader to the account chooser for this request.

@@ -107,6 +107,14 @@ func (m *Manager) LoadSession() func(http.Handler) http.Handler {
 			if sess != nil {
 				if sess.Data != nil {
 					w.Header().Set(AccountHeader, strconv.FormatInt(int64(sess.Account.ID), 10))
+					// A request that names its account, or one from a browser
+					// holding a single account, is that account's activity. A
+					// header-less request on a multi-account browser (a page or
+					// asset load, a protocol endpoint before it settles on an
+					// account) is no particular account's, so it slides none.
+					if raw != "" || len(b.entries) == 1 {
+						b.Touch(sess.Account.ID)
+					}
 				}
 				ctx = authn.WithSession(ctx, sess)
 			}

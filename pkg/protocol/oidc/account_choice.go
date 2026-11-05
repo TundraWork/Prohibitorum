@@ -90,6 +90,18 @@ func browserUnsettled(r *http.Request) bool {
 // prompt=none is the caller's concern: it maps accountNeedsLogin and
 // accountNeedsChoice to its protocol's errors.
 func (p *Provider) resolveAccount(r *http.Request, req accountRequest) accountResolution {
+	res := p.resolveAccountOnce(r, req)
+	if res.outcome == accountResolved && res.sess != nil && res.sess.Account != nil {
+		// Signing in to an application is activity of the account chosen,
+		// and only of it.
+		if b := session.BrowserFromContext(r.Context()); b != nil {
+			b.Touch(res.sess.Account.ID)
+		}
+	}
+	return res
+}
+
+func (p *Provider) resolveAccountOnce(r *http.Request, req accountRequest) accountResolution {
 	ctx := r.Context()
 	accounts := browserAccounts(r)
 	find := func(id int32) *authn.Session {

@@ -215,6 +215,31 @@ func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string
 	return token, data, nil
 }
 
+// Peek validates a session without touching it: no sliding refresh, no
+// LastSeenIP, no backfill write. A browser checks every account it holds this
+// way; only the account a request acts as is Loaded, so listing the accounts
+// does not keep an idle one alive. Returns ErrNoSession() on missing/expired.
+func (s *SessionStore) Peek(ctx context.Context, accountID int32, token string) (*authn.SessionData, error) {
+	key := sessionKey(accountID, token)
+	raw, err := s.kv.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, kv.ErrKeyNotFound) {
+			return nil, authn.ErrNoSession()
+		}
+		return nil, fmt.Errorf("session: get: %w", err)
+	}
+	var data authn.SessionData
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		_ = s.kv.Del(ctx, key)
+		return nil, authn.ErrNoSession()
+	}
+	if time.Now().After(data.ExpiresAt) {
+		_ = s.kv.Del(ctx, key)
+		return nil, authn.ErrNoSession()
+	}
+	return &data, nil
+}
+
 // Load returns the session data and a refreshed flag. The refreshed flag is
 // true when the TTL was extended on this Load — callers re-emit Set-Cookie
 // to update the browser's expiry. Returns ErrNoSession() on missing/expired.

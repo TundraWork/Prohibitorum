@@ -232,6 +232,30 @@ func TestBrowser_DuplicateAccountKeepsEarliest(t *testing.T) {
 	}
 }
 
+// Without the __Host- prefix a sibling subdomain can plant a cookie entry for
+// any account ID. A planted entry that sorts first must not get the
+// account's real session revoked.
+func TestBrowser_PlantedDuplicateDoesNotRevokeRealSession(t *testing.T) {
+	f := newBrowserFixture(t, 10)
+	live := f.signIn(5, false)
+	planted := Entry{Seq: 1, AccountID: 5, Token: "junkjunkjunk"}
+	f.jar[TempSessionCookieName] = EncodeCookie(append(DecodeCookie(f.jar[TempSessionCookieName]), planted))
+
+	b := f.browser()
+	if got := b.Select(5); got == nil || got.Token != live.Token {
+		t.Fatalf("the live entry must win over the planted one, got %+v", got)
+	}
+	if _, err := f.store.Peek(context.Background(), 5, live.Token); err != nil {
+		t.Fatalf("real session revoked by a planted entry: %v", err)
+	}
+	rec := httptest.NewRecorder()
+	b.Flush(rec.Header())
+	f.absorb(rec.Header())
+	if strings.Contains(f.jar[TempSessionCookieName], planted.Token) {
+		t.Fatalf("planted entry must be dropped from the cookie: %q", f.jar[TempSessionCookieName])
+	}
+}
+
 func TestBrowser_LegacyCookieMigratesWithoutSignOut(t *testing.T) {
 	for _, remember := range []bool{true, false} {
 		f := newBrowserFixture(t, 10)
@@ -435,6 +459,66 @@ func TestErrorEnvelopeCodesRegistered(t *testing.T) {
 
 func sessionReq() contract.AuthRequirement {
 	return contract.AuthRequirement{Kind: contract.AuthSession}
+}
+
+func sessionExpiry(t *testing.T, f *browserFixture, accountID int32, token string) time.Duration {
+	t.Helper()
+	data, err := f.store.Peek(context.Background(), accountID, token)
+	if err != nil {
+		t.Fatalf("peek %d: %v", accountID, err)
+	}
+	return time.Until(data.ExpiresAt).Round(time.Minute)
+}
+
+// Using one account must not keep another, idle account signed in: listing
+// the accounts (the account menu, the chooser, protocol endpoints) and
+// header-less requests on a multi-account browser slide no one's expiry.
+func TestBrowser_OnlyTheActingAccountSlides(t *testing.T) {
+	f := newBrowserFixture(t, 10) // 1h idle lifetime for sessions not remembered
+	idle := f.signIn(1, false)
+	used := f.signIn(2, false)
+	nearExpiry := time.Now().Add(10 * time.Minute)
+	rewriteSessionExpiryForTest(t, f.store.kv, 1, idle.Token, nearExpiry)
+	rewriteSessionExpiryForTest(t, f.store.kv, 2, used.Token, nearExpiry)
+
+	// Account 2 lists the browser's accounts.
+	serveSelect(t, f, "/api/prohibitorum/auth/accounts", "2")
+	f.m.BrowserFor(func() *http.Request {
+		r := f.request(http.MethodGet, "/api/prohibitorum/auth/accounts")
+		r.Header.Set(AccountHeader, "2")
+		return r
+	}()).Accounts()
+	if left := sessionExpiry(t, f, 1, idle.Token); left > 10*time.Minute {
+		t.Fatalf("idle account 1 slid to %v by account 2's activity", left)
+	}
+	if left := sessionExpiry(t, f, 2, used.Token); left < 50*time.Minute {
+		t.Fatalf("account 2 acted and must slide, has %v left", left)
+	}
+
+	// A header-less request (a page or asset load) acts as no one.
+	rewriteSessionExpiryForTest(t, f.store.kv, 2, used.Token, nearExpiry)
+	serveSelect(t, f, "/assets/app.js", "")
+	serveSelect(t, f, "/api/prohibitorum/config", "")
+	for _, id := range []int32{1, 2} {
+		tok := idle.Token
+		if id == 2 {
+			tok = used.Token
+		}
+		if left := sessionExpiry(t, f, id, tok); left > 10*time.Minute {
+			t.Fatalf("header-less request slid account %d to %v", id, left)
+		}
+	}
+}
+
+// With a single account every request is that account's, as before.
+func TestBrowser_SingleAccountSlidesWithoutHeader(t *testing.T) {
+	f := newBrowserFixture(t, 10)
+	only := f.signIn(1, false)
+	rewriteSessionExpiryForTest(t, f.store.kv, 1, only.Token, time.Now().Add(10*time.Minute))
+	serveSelect(t, f, "/api/prohibitorum/me", "")
+	if left := sessionExpiry(t, f, 1, only.Token); left < 50*time.Minute {
+		t.Fatalf("single account must slide on use, has %v left", left)
+	}
 }
 
 // flakyGetKV fails Get for one account's session keys, as a KV timeout would.

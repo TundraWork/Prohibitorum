@@ -100,6 +100,7 @@ type browserEntry struct {
 	state    int
 	session  *authn.Session
 	disabled *db.Account
+	touched  bool
 }
 
 // Browser is the set of accounts signed in on one browser, read from its two
@@ -152,19 +153,55 @@ func (m *Manager) newBrowser(r *http.Request) *Browser {
 		all = append(all, kept...)
 	}
 	sort.SliceStable(all, func(i, j int) bool { return all[i].Seq < all[j].Seq })
-	seen := make(map[int32]bool, len(all))
+	count := make(map[int32]int, len(all))
 	for _, e := range all {
-		if seen[e.AccountID] {
-			// Same account twice: the earliest entry wins; the later
-			// session is revoked so it does not linger in KV.
-			_ = m.store.Revoke(b.ctx, e.AccountID, e.Token)
-			b.markDirty(e.Remember)
+		count[e.AccountID]++
+	}
+	settled := make(map[int32]bool, len(all))
+	for _, e := range all {
+		if count[e.AccountID] > 1 {
+			if settled[e.AccountID] {
+				continue
+			}
+			settled[e.AccountID] = true
+			b.entries = append(b.entries, b.pickDuplicate(all, e.AccountID))
 			continue
 		}
-		seen[e.AccountID] = true
 		b.entries = append(b.entries, &browserEntry{Entry: e})
 	}
 	return b
+}
+
+// pickDuplicate settles an account that appears in the cookies more than
+// once. The earliest entry whose session is live is kept; only other live
+// sessions are revoked. A cookie is not proof of anything — without the
+// __Host- prefix a sibling subdomain can plant an entry — so an entry that
+// does not check out must never get a real session revoked.
+func (b *Browser) pickDuplicate(all []Entry, accountID int32) *browserEntry {
+	var keep *browserEntry
+	for _, e := range all {
+		if e.AccountID != accountID {
+			continue
+		}
+		b.markDirty(e.Remember)
+		if _, err := b.m.store.Peek(b.ctx, e.AccountID, e.Token); err != nil {
+			continue
+		}
+		if keep == nil {
+			keep = &browserEntry{Entry: e}
+			continue
+		}
+		_ = b.m.store.Revoke(b.ctx, e.AccountID, e.Token)
+	}
+	if keep == nil {
+		// None is live: keep the first; checking it drops it.
+		for _, e := range all {
+			if e.AccountID == accountID {
+				return &browserEntry{Entry: e}
+			}
+		}
+	}
+	return keep
 }
 
 func (b *Browser) markDirty(remember bool) {
@@ -183,7 +220,7 @@ func (b *Browser) check(e *browserEntry) {
 		return
 	}
 	ctx := b.ctx
-	data, refreshed, err := b.m.store.Load(ctx, e.AccountID, e.Token, b.m.ipOf(b.r), b.r.UserAgent())
+	data, err := b.m.store.Peek(ctx, e.AccountID, e.Token)
 	if err != nil {
 		var ae *authn.AuthError
 		if errors.As(err, &ae) && ae.Code == "no_session" {
@@ -222,13 +259,33 @@ func (b *Browser) check(e *browserEntry) {
 		b.markDirty(e.Remember)
 		b.resort()
 	}
+	e.state = entryValid
+	e.session = &authn.Session{Account: &account, Token: e.Token, Data: data}
+}
+
+// Touch records activity on accountID's session: its idle expiry slides and
+// LastSeenIP is updated. Only the account a request acts as is touched, so
+// using one account never keeps another, idle one signed in.
+func (b *Browser) Touch(accountID int32) {
+	e := b.find(accountID)
+	if e == nil {
+		return
+	}
+	b.check(e)
+	if e.state != entryValid || e.touched {
+		return
+	}
+	e.touched = true
+	data, refreshed, err := b.m.store.Load(b.ctx, e.AccountID, e.Token, b.m.ipOf(b.r), b.r.UserAgent())
+	if err != nil {
+		return
+	}
+	*e.session.Data = *data
 	if refreshed && e.Remember {
 		// Extend the persistent cookie's Max-Age with the sliding window;
 		// the temp cookie has no Max-Age to extend.
 		b.dirtyPersistent = true
 	}
-	e.state = entryValid
-	e.session = &authn.Session{Account: &account, Token: e.Token, Data: data}
 }
 
 func (b *Browser) drop(e *browserEntry, revoke bool) {
