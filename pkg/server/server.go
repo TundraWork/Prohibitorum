@@ -773,6 +773,7 @@ func (s *Server) registerOperations() {
 	registerSudoOp(s, mgmt, contract.OperationRevokeMyToken, s.handleRevokeMyToken, sessionReq)
 	registerOp(mgmt, contract.OperationListMyForwardAuthApps, s.handleListMyForwardAuthApps, sessionReq)
 	registerOp(mgmt, contract.OperationListMyApps, s.handleListMyApps, sessionReq)
+	registerOp(mgmt, contract.OperationLaunchMySAMLApp, s.handleLaunchMySAMLApp, browserReq)
 	registerOp(mgmt, contract.OperationListMyConsent, s.handleListMyConsent, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeConsent, s.handleRevokeMyConsent, sessionReq)
 

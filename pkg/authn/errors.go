@@ -21,6 +21,7 @@ func init() {
 		{Code: "account_not_signed_in", Status: http.StatusUnauthorized, LocaleKey: "errors.account_not_signed_in", DiagnosticKind: "auth", Recovery: "reauth"},
 		{Code: "account_limit_reached", Status: http.StatusConflict, LocaleKey: "errors.account_limit_reached", DiagnosticKind: "policy"},
 		{Code: "account_chooser_expired", Status: http.StatusNotFound, LocaleKey: "errors.account_chooser_expired", DiagnosticKind: "validation"},
+		{Code: "app_access_denied", Status: http.StatusForbidden, LocaleKey: "errors.app_access_denied", DiagnosticKind: "policy"},
 		{Code: "not_admin", Status: http.StatusForbidden, LocaleKey: "errors.not_admin", DiagnosticKind: "auth"},
 		{Code: "permission_denied", Status: http.StatusForbidden, LocaleKey: "errors.permission_denied", DiagnosticKind: "auth"},
 		{Code: "account_disabled", Status: http.StatusForbidden, LocaleKey: "errors.account_disabled", DiagnosticKind: "auth"},
@@ -207,6 +208,11 @@ func ErrAccountLimitReached() *AuthError {
 // ErrAccountChooserExpired: the account chooser ticket is missing or expired.
 func ErrAccountChooserExpired() *AuthError {
 	return newErr(http.StatusNotFound, "account_chooser_expired", "账号选择已过期")
+}
+
+// ErrAppAccessDenied: the account may not use the application.
+func ErrAppAccessDenied() *AuthError {
+	return newErr(http.StatusForbidden, "app_access_denied", "这个账号无权使用此应用")
 }
 
 func ErrNotAdmin() *AuthError {
