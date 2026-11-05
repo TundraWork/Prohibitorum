@@ -76,6 +76,9 @@ type AdvanceRequest struct {
 	AccountID     *int32
 	SessionID     string
 	Input         ActionInput
+	// AccountLimitReached is set when the browser the flow completes in
+	// cannot take another account; see ResolveContext.AccountLimitReached.
+	AccountLimitReached bool
 }
 
 type avatarRefresher interface {
@@ -277,6 +280,25 @@ func (s *Service) ReadFlow(ctx context.Context, request FlowReadRequest) (*FlowV
 	return flowView(request.FlowID, state, provider), nil
 }
 
+// LinkSessionID returns the session a link flow was started from, when
+// flowID names a live link flow bound to browserToken; "" otherwise. Link
+// callbacks are full-page navigations that cannot name their account, so the
+// caller uses it to pick that session out of the browser's signed-in accounts.
+func (s *Service) LinkSessionID(ctx context.Context, flowID, browserToken string) string {
+	if !validFlowID(flowID) {
+		return ""
+	}
+	raw, err := s.kv.Get(ctx, FlowKey(flowID))
+	if err != nil {
+		return ""
+	}
+	state, err := DecodeFlowState(raw)
+	if err != nil || state.Intent != IntentLink || !BrowserBindingOK(state.BrowserDigest, browserToken) {
+		return ""
+	}
+	return state.LinkSessionID
+}
+
 // CallbackError is a failed upstream callback together with the return_to of
 // the flow it ended, so the error page can offer the way back to the sign-in
 // that was under way.
@@ -426,6 +448,7 @@ func (s *Service) VerifyFlow(ctx context.Context, request AdvanceRequest) (*Comp
 		Intent: state.Intent, EnrollmentToken: state.EnrollmentToken, LocalUsername: request.Input.LocalUsername,
 		LinkAccountID:        state.LinkAccountID,
 		RequireLocalUsername: requireLocalUsername,
+		AccountLimitReached:  request.AccountLimitReached,
 	})
 	if err != nil {
 		usernameRequired := requireLocalUsername && errors.Is(err, ErrLocalUsernameRequired)
