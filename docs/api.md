@@ -437,7 +437,7 @@ Send the raw token in `X-Prohibitorum-PAT: prohibitorum_pat_<43 chars>` (no `Bea
 
 Public routes and the OIDC/SAML protocol endpoints never see the PAT principal. The maintenance gate treats a non-admin PAT owner like a signed-in non-admin. In the OpenAPI document PAT-capable operations list both the `prohibitorumSession` and `prohibitorumPAT` security schemes; browser-only ones list only the session.
 
-**Browser-only routes** (they depend on the browser session or issue browser credentials): `/me/sudo/methods`, `/me/sudo/begin`, `/me/sudo/complete`; `/me/credentials/register/begin|complete`; `/consent` and `/saml-consent` (GET and POST); `/me/identities/link/{slug}/begin|callback`; `/require-identity/{ticket}`; `/identity-providers/{slug}/tests`, `/tests/{id}`, `/tests/{id}/complete`; `/identity-providers/{slug}/operator-session/start|verify|validate`; `/me/devices/pair/lookup|approve|cancel`; `/me/apps/saml-launch`. Under a PAT, `GET /me/sessions` reports `isCurrent: false` for every session.
+**Browser-only routes** (they depend on the browser session or issue browser credentials): `/me/sudo/methods`, `/me/sudo/begin`, `/me/sudo/complete`; `/me/credentials/register/begin|complete`; `/consent` and `/saml-consent` (GET and POST); `/me/identities/link/{slug}/begin` (POST, body `{"returnTo"}`, answers `{"redirect"}`) and `/me/identities/link/{slug}/callback`; `/require-identity/{ticket}`; `/identity-providers/{slug}/tests`, `/tests/{id}`, `/tests/{id}/complete`; `/identity-providers/{slug}/operator-session/start|verify|validate`; `/me/devices/pair/lookup|approve|cancel`; `/me/apps/saml-launch`. Under a PAT, `GET /me/sessions` reports `isCurrent: false` for every session.
 
 ### Cross-origin write requests
 

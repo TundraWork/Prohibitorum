@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"prohibitorum/pkg/audit"
+	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/avatar"
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/db"
@@ -89,6 +90,17 @@ func (s *Server) handleFederationConfirmGet(w http.ResponseWriter, r *http.Reque
 // the same (now-popped) grant fails closed (federation_state_invalid).
 func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Request) {
 	token, anti := splitConfirmCookie(cookieValue(r, sessstore.FedStateCookieName))
+	// Checked on a peek so a full browser keeps the grant: once an account
+	// is signed out here, the same confirmation can go through.
+	pending, err := s.federationService.PeekConfirmGrant(r.Context(), token, anti)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	if !s.canSignIn(r, pending.AccountID) {
+		writeAuthErr(w, authn.ErrAccountLimitReached())
+		return
+	}
 	grant, err := s.federationService.PopConfirmGrant(r.Context(), token, anti)
 	if err != nil {
 		writeAuthErr(w, err)
@@ -137,7 +149,11 @@ func (s *Server) handleFederationConfirmPost(w http.ResponseWriter, r *http.Requ
 		Event:     audit.EventSessionStart,
 		Detail:    map[string]any{"via": "federation"},
 	})
-	writeJSON(w, map[string]any{"redirect": s.withAccountRef(r, grant.ReturnTo, grant.AccountID), "offerLocalSignin": grant.OfferLocalSignin})
+	writeJSON(w, map[string]any{
+		"redirect":         s.withAccountRef(r, grant.ReturnTo, grant.AccountID),
+		"offerLocalSignin": grant.OfferLocalSignin,
+		"account":          s.signedInAccount(r, grant.AccountID),
+	})
 }
 
 // handleFederationConfirmDecline serves

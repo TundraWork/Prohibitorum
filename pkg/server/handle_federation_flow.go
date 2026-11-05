@@ -109,11 +109,30 @@ func (s *Server) localFederationAdvanceRequest(r *http.Request) federation.Advan
 	if cookie, err := r.Cookie(sessstore.FedStateCookieName); err == nil {
 		request.BrowserToken = cookie.Value
 	}
-	if session := authn.SessionFromContext(r.Context()); session != nil && session.Account != nil && session.Data != nil {
+	if session := s.linkFlowSession(r, request.FlowID, request.BrowserToken); session != nil && session.Account != nil && session.Data != nil {
 		request.AccountID = new(session.Account.ID)
 		request.SessionID = session.Data.SessionID
 	}
+	request.AccountLimitReached = s.browser(r).AtLimit()
 	return request
+}
+
+// linkFlowSession is the session a federation flow acts as. A link flow
+// records the session it was started from, and its later steps (the upstream
+// callback, the VRChat verify page) cannot name an account, so that session
+// is taken from the browser's signed-in accounts rather than the default
+// one. Anything else, or a link session no longer signed in here, falls back
+// to the request's selected session; the service then refuses a link whose
+// session does not match.
+func (s *Server) linkFlowSession(r *http.Request, flowID, browserToken string) *authn.Session {
+	if s.federationService != nil {
+		if sid := s.federationService.LinkSessionID(r.Context(), flowID, browserToken); sid != "" {
+			if session := s.browser(r).ForSessionID(sid); session != nil {
+				return session
+			}
+		}
+	}
+	return authn.SessionFromContext(r.Context())
 }
 
 // projectFederationFlow is the flow's wire view with the application the

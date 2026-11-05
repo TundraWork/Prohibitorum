@@ -1182,7 +1182,7 @@ func main() {
 		log.Fatalf("require-identity start: %v", err)
 	}
 	log.Printf("  require-identity entry → /require-identity/{ticket}, not satisfied yet ✓")
-	authorizeLink, err := c.getRedirect("/api/prohibitorum/me/identities/link/mockop/begin?return_to=" + url.QueryEscape("/require-identity/"+requireIdentity.ticket))
+	authorizeLink, err := c.beginLink("mockop", "/require-identity/"+requireIdentity.ticket)
 	if err != nil {
 		log.Fatalf("link/begin: %v", err)
 	}
@@ -2463,7 +2463,7 @@ func main() {
 		}
 		opSrv.SetClaims("admin-avatar-link", "admin@example.com", true, *username, *display)
 		opSrv.SetPicture(opSrv.PictureURL())
-		authorizeLink, err := c.getRedirect("/api/prohibitorum/me/identities/link/mockop/begin?return_to=/me")
+		authorizeLink, err := c.beginLink("mockop", "/me")
 		if err != nil {
 			log.Fatalf("avatar-fed link: begin: %v", err)
 		}
@@ -8607,6 +8607,21 @@ func (c *client) getRedirect(path string) (string, error) {
 		return "", fmt.Errorf("GET %s: 302 with empty Location", path)
 	}
 	return loc, nil
+}
+
+// beginLink starts linking the provider slug to the signed-in account and
+// returns the address the Security page navigates to next.
+func (c *client) beginLink(slug, returnTo string) (string, error) {
+	var out struct {
+		Redirect string `json:"redirect"`
+	}
+	if err := c.postJSON("/api/prohibitorum/me/identities/link/"+url.PathEscape(slug)+"/begin", map[string]string{"returnTo": returnTo}, &out); err != nil {
+		return "", err
+	}
+	if out.Redirect == "" {
+		return "", fmt.Errorf("link begin %s: empty redirect", slug)
+	}
+	return out.Redirect, nil
 }
 
 // getRedirectAbs issues GET on an absolute URL (not c.base + path) and

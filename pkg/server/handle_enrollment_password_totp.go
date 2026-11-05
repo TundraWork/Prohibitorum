@@ -51,6 +51,12 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		writeAuthErr(w, authn.ErrEnrollmentMethodNotAllowed())
 		return
 	}
+	// Before the transaction, so a browser with no room for the account
+	// leaves the invitation unconsumed.
+	if enrollmentAtLimit(s.browser(r), e) {
+		writeAuthErr(w, authn.ErrAccountLimitReached())
+		return
+	}
 
 	var body struct {
 		Username     string `json:"username,omitempty"`
@@ -329,10 +335,12 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 	type resp struct {
 		Session       contract.SessionView `json:"session"`
 		RecoveryCodes []string             `json:"recoveryCodes"`
+		enrollmentResult
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp{
-		Session:       s.sessionView(&acct),
-		RecoveryCodes: recoveryCodes,
+		Session:          s.sessionView(&acct),
+		RecoveryCodes:    recoveryCodes,
+		enrollmentResult: s.enrollmentResult(r, acct.ID),
 	})
 }

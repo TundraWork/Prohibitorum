@@ -201,7 +201,7 @@ func resolve(
 
 	switch idp.Mode {
 	case ModeAutoProvision:
-		return applyAutoProvision(ctx, q, w, idp, identity, localUsername, false, upstreamData, pool)
+		return applyAutoProvision(ctx, q, w, idp, identity, localUsername, false, upstreamData, pool, false)
 	case ModeInviteOnly, ModeLinkOnly:
 		// Neither mode may create an account through the login entrypoint.
 		// The audit reason keeps the modes distinguishable for operators;
@@ -283,6 +283,7 @@ func applyAutoProvision(
 	requireLocalUsername bool,
 	upstreamData []byte,
 	pool *pgxpool.Pool,
+	refuseNewAccount bool,
 ) (ResolveOutcome, error) {
 	username := localUsername
 	displayName := identity.DisplayName
@@ -387,6 +388,11 @@ func applyAutoProvision(
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: check username collision: %w", err)
 		}
 
+		// The browser cannot take another account, so creating one now would
+		// leave it unable to sign in (PHB-285).
+		if refuseNewAccount {
+			return ResolveOutcome{}, authn.ErrAccountLimitReached()
+		}
 		handle, err := acctpkg.GenerateUserHandle()
 		if err != nil {
 			return ResolveOutcome{}, fmt.Errorf("federation/oidc: generate webauthn user handle: %w", err)
@@ -518,6 +524,7 @@ func applyInviteProvision(
 	enrollmentToken string,
 	upstreamData []byte,
 	pool *pgxpool.Pool,
+	refuseNewAccount bool,
 ) (ResolveOutcome, error) {
 	return runProvisionTx(ctx, pool, q, w, func(qtx ModesQueries, txAudit audit.Writer, tx pgx.Tx) (ResolveOutcome, error) {
 		// One authoritative identity lookup inside the tx (same shape as
@@ -536,6 +543,12 @@ func applyInviteProvision(
 			return ResolveOutcome{}, authn.ErrFederationIdentityConflict(idp.DisplayName)
 		case !errors.Is(err, pgx.ErrNoRows):
 			return ResolveOutcome{}, fmt.Errorf("federation: authoritative identity lookup: %w", err)
+		}
+
+		// Refused before the consume so the invitation stays redeemable from
+		// a browser that has room for the new account.
+		if refuseNewAccount {
+			return ResolveOutcome{}, authn.ErrAccountLimitReached()
 		}
 
 		// Atomic, intent-scoped consume — the UPDATE ... WHERE intent='invite'
@@ -984,6 +997,10 @@ type ResolveContext struct {
 	// auto-provisioning must not silently fall back to an upstream username if
 	// the identity became unknown after its prepare-time lookup.
 	RequireLocalUsername bool
+	// AccountLimitReached marks a browser already at its signed-in account
+	// cap: an identity that would create a new account is refused with
+	// account_limit_reached before anything is written.
+	AccountLimitReached bool
 }
 
 type IdentityResolver interface {
@@ -1052,7 +1069,7 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 		if requireLocal {
 			return attachInviteIdentity(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, upstreamData, r.pool)
 		}
-		return applyInviteProvision(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, upstreamData, r.pool)
+		return applyInviteProvision(ctx, r.queries, r.audit, &row, &identity, resolution.EnrollmentToken, upstreamData, r.pool, resolution.AccountLimitReached)
 	case IntentLogin:
 		username := resolution.LocalUsername
 		if username == "" && !resolution.RequireLocalUsername {
@@ -1064,7 +1081,7 @@ func (r *Resolver) ResolveIdentity(ctx context.Context, provider Provider, ident
 			// lookup inside the provisioning transaction. It handles both a
 			// newly-known identity and an unknown identity without a preflight
 			// query that can immediately go stale.
-			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, resolution.RequireLocalUsername, upstreamData, r.pool)
+			return applyAutoProvision(ctx, r.queries, r.audit, &row, &identity, username, resolution.RequireLocalUsername, upstreamData, r.pool, resolution.AccountLimitReached)
 		case ModeInviteOnly, ModeLinkOnly:
 			return resolve(ctx, r.queries, r.audit, &row, &identity, username, upstreamData, r.pool)
 		default:

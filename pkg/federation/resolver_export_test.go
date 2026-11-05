@@ -25,5 +25,5 @@ func ApplyInviteProvisionForTest(
 	if err != nil {
 		return ResolveOutcome{}, err
 	}
-	return applyInviteProvision(ctx, q, w, &resolverIDP, identity, enrollmentToken, upstreamData, pool)
+	return applyInviteProvision(ctx, q, w, &resolverIDP, identity, enrollmentToken, upstreamData, pool, false)
 }
