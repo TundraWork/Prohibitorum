@@ -181,7 +181,7 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 
 	var scope []string
 	if s, ok := claims["scope"].(string); ok {
-		scope = strings.Fields(s)
+		scope = allowedGrantScope(strings.Fields(s), client.AllowedScopes)
 	}
 
 	var groups []string

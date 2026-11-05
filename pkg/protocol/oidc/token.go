@@ -285,9 +285,22 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// /authorize checked the scope against allowed_scopes, but the client may
+	// have lost some of it within the code window.
+	scope := allowedGrantScope(ac.Scope, client.AllowedScopes)
+	if !hasScope(scope, "openid") {
+		acID := acct.ID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &acID, map[string]any{
+			"reason":    "scope_not_allowed",
+			"client_id": client.ClientID,
+		})
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "the client is no longer allowed the openid scope")
+		return
+	}
+
 	now := time.Now()
 
-	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client, ac.Nonce, ac.SessionID, ac.ACR, ac.AMR, ac.Scope, decision.ExposedGroupSlugs(), ac.AuthTime, now)
+	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client, ac.Nonce, ac.SessionID, ac.ACR, ac.AMR, scope, decision.ExposedGroupSlugs(), ac.AuthTime, now)
 	if err != nil {
 		writeOIDCError(w, r, http.StatusInternalServerError, errCodeServerError, "could not mint tokens")
 		return
@@ -298,12 +311,12 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 	// revokes that family. issueRefresh returns the family id directly, so the
 	// replay marker is recorded without a second lookup.
 	var refreshToken string
-	if hasScope(ac.Scope, "offline_access") {
+	if hasScope(scope, "offline_access") {
 		rt, fid, err := issueRefresh(ctx, p.kv, refreshFamily{
 			ClientID:  client.ClientID,
 			AccountID: acct.ID,
 			SessionID: ac.SessionID,
-			Scope:     ac.Scope,
+			Scope:     scope,
 			AuthTime:  ac.AuthTime,
 			AMR:       ac.AMR,
 			ACR:       ac.ACR,
@@ -320,7 +333,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 	p.auditTokenEvent(ctx, r, audit.EventUse, &acctID, map[string]any{
 		"reason":    "token_issued",
 		"client_id": client.ClientID,
-		"scope":     ac.Scope,
+		"scope":     scope,
 	})
 
 	writeTokenResponse(w, tokenResponse{
@@ -329,7 +342,7 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 		ExpiresIn:    int(p.accessTokenTTL().Seconds()),
 		IDToken:      idToken,
 		RefreshToken: refreshToken,
-		Scope:        strings.Join(ac.Scope, " "),
+		Scope:        strings.Join(scope, " "),
 	})
 }
 

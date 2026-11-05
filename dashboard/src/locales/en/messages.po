@@ -2217,7 +2217,7 @@ msgstr "Clients store the subject they received for each user who has signed in.
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.scopes.remove.body"
-msgstr "Clients that still request <0/> can no longer sign in until they stop requesting {removedCount, plural, one {it} other {them}}. Refresh tokens already issued keep {removedCount, plural, one {it} other {them}} until they expire or are revoked."
+msgstr "Clients that still request <0/> can no longer sign in until they stop requesting {removedCount, plural, one {it} other {them}}. Tokens refreshed after the save no longer include {removedCount, plural, one {it} other {them}}."
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -7011,6 +7011,11 @@ msgstr "Reference <0>{ref}</0>"
 #: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.refresh"
 msgstr "Refresh"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.offline-access"
+msgstr "Refresh tokens already issued stop working."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx

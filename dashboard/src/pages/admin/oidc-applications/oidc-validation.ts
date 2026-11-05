@@ -128,8 +128,8 @@ export function scopeFormValue(saved: readonly string[]): AllowedScope[] {
  *
  * Removing an allowed scope is the scope change with a consequence past the
  * save: `/authorize` refuses a request for a scope the client is not allowed,
- * so a client that still asks for it stops signing in, while refresh tokens
- * already issued keep the scope they were granted. A saved scope the checkboxes
+ * so a client that still asks for it stops signing in, and a refresh leaves it
+ * out of tokens issued from grants made before. A saved scope the checkboxes
  * do not draw, because the instance no longer knows it, is counted here too:
  * the save drops it, and the confirmation is the only place it is named.
  */

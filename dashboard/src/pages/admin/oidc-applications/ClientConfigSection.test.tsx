@@ -152,6 +152,38 @@ describe("the sign-in section", () => {
     });
   });
 
+  it("says in the confirmation what a removal does to tokens already issued", async () => {
+    const user = userEvent.setup();
+    mount(
+      oidcAppFixture({
+        allowedScopes: ["openid", "profile", "email", "offline_access"],
+      }),
+    );
+
+    await untick(user, "email");
+    await user.click(
+      screen.getByRole("button", { name: "Remove scope and save" }),
+    );
+    let dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(
+      "Tokens refreshed after the save no longer include it.",
+    );
+    expect(dialog).not.toHaveTextContent("stop working");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+
+    await untick(user, "offline_access");
+    await user.click(
+      screen.getByRole("button", { name: "Remove scopes and save" }),
+    );
+    dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(
+      "Tokens refreshed after the save no longer include them. Refresh tokens already issued stop working.",
+    );
+  });
+
   it("leaves the one spinner to the confirmation while the removal saves", async () => {
     const user = userEvent.setup();
     let release: (response: Response) => void = () => {};

@@ -2217,7 +2217,7 @@ msgstr "客户端会为每个登录过的用户保存当时收到的 Subject。�
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/ClientConfigSection.tsx
 msgid "admin.oidc-apps.scopes.remove.body"
-msgstr "仍请求 <0/> 的客户端将无法登录，直到不再请求这些作用域。已签发的刷新令牌在过期或被吊销前仍保留这些作用域。"
+msgstr "仍请求 <0/> 的客户端将无法登录，直到不再请求这些作用域。保存后刷新得到的令牌不再包含这些作用域。"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/PairDeviceDialog.tsx
@@ -7011,6 +7011,11 @@ msgstr "参考编号 <0>{ref}</0>"
 #: src/pages/admin/logs/AdminLogs.tsx
 msgid "admin.logs.refresh"
 msgstr "刷新"
+
+#. js-lingui-explicit-id
+#: src/pages/admin/oidc-applications/ClientConfigSection.tsx
+msgid "admin.oidc-apps.scopes.remove.offline-access"
+msgstr "已签发的刷新令牌将失效。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/saml-applications/AdminSamlApplicationNew.tsx

@@ -1014,6 +1014,8 @@ curl -s -X POST https://auth.example.com/oauth/token \
 
 **Rotation + reuse detection:** each refresh rotates the token. Replaying a **superseded** refresh token is treated as compromise — it returns `400 invalid_grant` AND revokes the whole family, so even the current (rotated) token is immediately dead. The grant also re-checks the account and rejects if it was disabled (`invalid_grant`).
 
+**Scopes taken off the client:** each refresh serves only the part of the grant the client is still allowed. A scope removed from the application's allowed scopes is left out of the refreshed tokens and the response's `scope`, and `/oauth/userinfo` and `/oauth/introspect` leave it out of tokens issued before the change. Adding the scope back restores it to existing grants. Once `openid` or `offline_access` is no longer allowed, the refresh is refused with `invalid_grant` and the family is revoked; start a new authorization.
+
 ### 6. `/oauth/revoke` (RFC 7009, RP back-end)
 
 ```bash

@@ -726,8 +726,26 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 		return
 	}
 
+	// Serve only what the client is still allowed. A scope taken off the
+	// client is left out of the tokens; once openid or offline_access is gone
+	// the grant cannot be refreshed at all, so the family is revoked like
+	// every refusal above. This runs after the provider check so a deleted
+	// provider, whose scope deletion also takes off the client, is still
+	// named in the refusal.
+	scope := allowedGrantScope(fam.Scope, client.AllowedScopes)
+	if !refreshableScope(scope) {
+		_ = revokeFamily(ctx, p.kv, fam.FamilyID)
+		acctID := acct.ID
+		p.auditTokenEvent(ctx, r, audit.EventFail, &acctID, map[string]any{
+			"reason":    "scope_not_allowed",
+			"client_id": client.ClientID,
+		})
+		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "the client is no longer allowed to refresh this grant")
+		return
+	}
+
 	now := time.Now()
-	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, fam.Scope, decision.ExposedGroupSlugs(), fam.AuthTime, now)
+	accessToken, idToken, err := p.mintAccessAndIDTokens(ctx, acct, client, "" /*nonce*/, fam.SessionID, fam.ACR, fam.AMR, scope, decision.ExposedGroupSlugs(), fam.AuthTime, now)
 	if err != nil {
 		// The family is live (from this or a prior rotation). Returning no token
 		// would leave it in a live-but-unusable state the client is locked out of.
@@ -754,6 +772,6 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 		ExpiresIn:    int(p.accessTokenTTL().Seconds()),
 		IDToken:      idToken,
 		RefreshToken: newToken,
-		Scope:        strings.Join(fam.Scope, " "),
+		Scope:        strings.Join(scope, " "),
 	})
 }

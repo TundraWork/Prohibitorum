@@ -140,6 +140,7 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
   const title = t({ id: "admin.oidc-apps.sign-in.title", message: "Sign-in" });
   const removedNames = pending?.removed ?? [];
   const removedCount = pending?.removed.length ?? 0;
+  const removesOfflineAccess = removedNames.includes("offline_access");
 
   return (
     <>
@@ -251,11 +252,18 @@ export function ClientConfigSection({ app }: { app: OidcApp }) {
               Clients that still request{" "}
               <ScopeNames names={removedNames} locale={i18n.locale} /> can no
               longer sign in until they stop requesting{" "}
-              <Plural value={removedCount} one="it" other="them" />. Refresh
-              tokens already issued keep{" "}
-              <Plural value={removedCount} one="it" other="them" /> until they
-              expire or are revoked.
+              <Plural value={removedCount} one="it" other="them" />. Tokens
+              refreshed after the save no longer include{" "}
+              <Plural value={removedCount} one="it" other="them" />.
             </Trans>
+            {removesOfflineAccess && (
+              <>
+                {" "}
+                <Trans id="admin.oidc-apps.scopes.remove.offline-access">
+                  Refresh tokens already issued stop working.
+                </Trans>
+              </>
+            )}
           </p>
         }
         confirmLabel={

@@ -52,6 +52,7 @@ func confidentialClient(t *testing.T, id, secret, method string) db.OidcClient {
 		ClientID:         id,
 		ClientSecretHash: pgtype.Text{String: mustHash(t, secret), Valid: true},
 		ClientAuthMethod: method,
+		AllowedScopes:    testAllowedScopes(),
 	}
 }
 
@@ -60,7 +61,14 @@ func publicClient(id string) db.OidcClient {
 		ClientID:         id,
 		ClientSecretHash: pgtype.Text{Valid: false},
 		ClientAuthMethod: "none",
+		AllowedScopes:    testAllowedScopes(),
 	}
+}
+
+// testAllowedScopes allows a test client every scope the tests grant, so a
+// stored grant is served whole unless a test narrows the client.
+func testAllowedScopes() []string {
+	return append(SupportedScopes(), "identity:vrchat", "identity:steam", "identity:corp")
 }
 
 func postForm(id, secret string) *http.Request {

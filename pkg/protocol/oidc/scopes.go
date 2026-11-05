@@ -82,3 +82,27 @@ func ValidateAllowedScopes(scopes []string) error {
 	}
 	return nil
 }
+
+// allowedGrantScope is the part of a stored grant the client is still allowed.
+// A grant outlives the authorization that checked it against allowed_scopes,
+// so every place that turns a stored grant into tokens, claims or a scope
+// string (refresh, the code exchange, userinfo, introspection) narrows it here
+// first: taking a scope off a client takes it off the grants the client
+// already holds. The stored grant is left as it is, so putting the scope back
+// restores it to grants the user already consented to.
+func allowedGrantScope(granted, allowed []string) []string {
+	out := make([]string, 0, len(granted))
+	for _, s := range granted {
+		if slices.Contains(allowed, s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// refreshableScope reports whether a narrowed grant can still be served from a
+// refresh token: without openid it is no longer an OIDC grant, and without
+// offline_access the client may no longer hold a refresh token.
+func refreshableScope(scope []string) bool {
+	return slices.Contains(scope, "openid") && slices.Contains(scope, "offline_access")
+}

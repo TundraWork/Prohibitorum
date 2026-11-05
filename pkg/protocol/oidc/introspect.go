@@ -81,8 +81,8 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 				"client_id":  claims["client_id"],
 				"sub":        subject,
 			}
-			if v, ok := claims["scope"]; ok {
-				resp["scope"] = v
+			if v, ok := claims["scope"].(string); ok {
+				resp["scope"] = strings.Join(allowedGrantScope(strings.Fields(v), client.AllowedScopes), " ")
 			}
 			if v, ok := claims["exp"]; ok {
 				resp["exp"] = v
@@ -104,12 +104,20 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 	// mapping is retained for /revoke + reuse detection — so we additionally
 	// require it to be the family's active token (current, or in-window
 	// previous) before reporting active, per RFC 7662 §2.2.
+	//
+	// A family the client may no longer refresh (see grantRefreshToken) is
+	// inactive: the next refresh would revoke it.
 	if fam, ok := lookupRefresh(ctx, p.kv, token); ok && fam.ClientID == client.ClientID && fam.isActiveToken(token, time.Now()) {
+		scope := allowedGrantScope(fam.Scope, client.AllowedScopes)
+		if !refreshableScope(scope) {
+			writeIntrospectionInactive(w)
+			return
+		}
 		resp := map[string]any{
 			"active":     true,
 			"token_type": "refresh_token",
 			"client_id":  fam.ClientID,
-			"scope":      strings.Join(fam.Scope, " "),
+			"scope":      strings.Join(scope, " "),
 		}
 		// sub is optional for refresh tokens; include it when the account
 		// resolves cheaply.
