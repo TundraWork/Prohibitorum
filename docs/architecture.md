@@ -316,7 +316,7 @@ The audit stream records application assignment/removal with `factor=app_manager
 OIDC OP flow:
 
 1. RP redirects the browser to `/oauth/authorize` with its registered `client_id`, exact `redirect_uri`, `openid` scope, and PKCE.
-2. Prohibitorum validates the client/redirect URI and session. If needed, it redirects to `/login?return_to=...`; after authentication the browser resumes the same authorization request.
+2. Prohibitorum validates the client/redirect URI, then decides which of the browser's signed-in accounts to use (a browser can hold several; see `api.md`, "Which account a protocol flow uses"). If needed, it redirects to `/login?return_to=...` or to the account chooser; afterwards the browser resumes the same authorization request.
 3. The live app-policy service checks the active account for that client before consent or code issuance. A denied user receives the protocol-appropriate result described above.
 4. A successful authorization produces a short-lived, PKCE-bound code for that same client and redirects to its registered URI with `code`, `state`, and `iss`.
 5. The RP backend posts that code, the same redirect URI, and verifier to `/oauth/token` as the same client. The exchange revalidates client binding, session, account status, and live app policy before issuing ID/access tokens and, with `offline_access`, a refresh family.
@@ -326,7 +326,7 @@ SAML IdP flow:
 
 1. The SP sends an AuthnRequest to `/saml/sso` (Redirect or POST binding).
 2. If signature required, Prohibitorum verifies against the SP's `saml_sp_key` certs.
-3. If no session exists, the browser is redirected to `/login`, then back to `/saml/sso`: the same URL for the Redirect binding, and `/saml/sso?post=<key>` for the POST binding, whose posted form is kept briefly in KV and replayed as the same POST.
+3. If no session exists, the browser is redirected to `/login`, then back to `/saml/sso`: the same URL for the Redirect binding, and `/saml/sso?post=<key>` for the POST binding, whose posted form is kept briefly in KV and replayed as the same POST. If several accounts are signed in, the browser goes through the account chooser and comes back to the same address.
 4. Before an assertion is built, the shared live policy check authorizes the account for that exact SP.
 5. A successful request produces a signed Response targeted only to the selected ACS URL and renders the HTTP-POST self-submitting form.
 
@@ -343,6 +343,7 @@ SAML IdP flow:
 - `account` — id, username, display_name, webauthn_user_handle, role, attributes jsonb, disabled, timestamps, primary_email_id (→ account_email).
 - `account_email` — account_id, address, verified_at, verified_via (`code`/`admin`/`upstream`), verified_by_idp_id, verified_by_admin_id, created_at. Unique `(account_id, lower(address))`; verified addresses unique per `lower(address)` across accounts (partial index); at most one primary per account via `account.primary_email_id` with a composite FK keeping it inside the owning account.
 - `session` — id, account_id, auth_time, amr text[], acr, upstream_idp_id, created_at, revoked_at. Doubles as the source of OIDC `sid` claim.
+- `instance_settings.account_ref_key` — 32 random bytes generated on first start; keys the HMAC behind the short account reference `u` that console URLs carry instead of account IDs.
 - `webauthn_credential` — credential_id, public_key, cose_alg, user_handle, sign_count, transports, AAGUID, attestation_type, backup_eligible / backup_state, uv_initialized, nickname, last_used_at, clone_warning_at.
 - `password_credential` — account_id PK, hash (PHC), password_changed_at.
 - `totp_credential` — account_id PK, secret_enc + secret_nonce + key_version, period, digits, algorithm, last_step, confirmed_at.
@@ -363,7 +364,8 @@ SAML IdP flow:
 
 **KV** (KeyDB/Redis or in-process) — ephemeral state:
 
-- `session:<acct>:<SHA-256(token)>` → `SessionData` (sliding-refresh metadata); the raw cookie token is never a key.
+- `session:<acct>:<SHA-256(token)>` → `SessionData` (sliding-refresh metadata); the raw cookie token is never a key. A browser signed in to several accounts holds one such session per account; the session cookies list them (`api.md`, "Browser sessions and accounts").
+- `account-chooser:<nonce>` → the account a protocol flow should use, once the user picks it (10 minutes, bound to the flow kind and application).
 - `webauthn_ceremony:{login,enroll,add,sudo}:<token>` → go-webauthn `SessionData`.
 - `pairing:id:<id>` / `pairing:code:<code>` → device pairing state.
 - `email-code:<emailID>` → verification-code record (hash, attempts) with 15-minute TTL; `email-code:cooldown|account|address:*` and `email-test:admin:*` rate-limit keys (never keyed by IP).

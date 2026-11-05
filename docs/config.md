@@ -12,8 +12,9 @@
 | `PROHIBITORUM_HOST` | `""` (all interfaces) | Bind interface; set `127.0.0.1` to listen loopback-only behind a reverse proxy. |
 | `PROHIBITORUM_PORT` | `8080` | Bind port. |
 | `PROHIBITORUM_SERVER_TIMING` | `false` | Add a `Server-Timing` header to every response: `total`, `db` (query time and count), `db-wait` (waiting for a pooled connection) and `kv`. Shows in the browser's network panel for profiling. Leave off where untrusted clients reach the server: the breakdown reveals how much work a request did, for example whether a sign-in found an account. |
-| `PROHIBITORUM_SESSION_TTL` | `8h` | Sliding session lifetime when "keep me signed in" is not chosen; the cookie is a browser-session cookie. |
+| `PROHIBITORUM_SESSION_TTL` | `8h` | Sliding session lifetime when "keep me signed in" is not chosen; such accounts are kept in a browser-session cookie. |
 | `PROHIBITORUM_SESSION_REMEMBER_TTL` | `336h` | Sliding session lifetime (and cookie `Max-Age`) when "keep me signed in" is chosen. No absolute cap; `≤0` falls back to the default. |
+| `PROHIBITORUM_SESSION_MAX_ACCOUNTS` | `10` | How many accounts one browser can be signed in to at once, 1–20; the server refuses to start outside that range. Once a browser is at the limit, signing in another account is refused with `409 account_limit_reached` until one of its accounts signs out; signing in again as an account already there still works. Lowering the value signs nobody out: a browser above the new limit keeps its accounts and only cannot add more. |
 
 ## Branding
 
