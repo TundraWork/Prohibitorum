@@ -141,6 +141,12 @@ func (s *Server) loginResult(r *http.Request, accountID int32, rawReturnTo strin
 	redirect := validateReturnTo(rawReturnTo, s.config)
 	return contract.LoginResult{
 		Redirect: s.withAccountRef(r, redirect, accountID),
-		Account:  &contract.SignedInAccount{AccountID: accountID, U: s.accountShorts(r)[accountID]},
+		Account:  s.signedInAccount(r, accountID),
 	}
+}
+
+// signedInAccount names the account a sign-in just added, with its `u` on
+// this browser.
+func (s *Server) signedInAccount(r *http.Request, accountID int32) *contract.SignedInAccount {
+	return &contract.SignedInAccount{AccountID: accountID, U: s.accountShorts(r)[accountID]}
 }

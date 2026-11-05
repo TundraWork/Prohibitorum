@@ -167,6 +167,10 @@ type EnrollmentPreview struct {
 	// is passkey-only; every other intent offers both. The enroll page renders
 	// its method chooser from this list.
 	AllowedMethods []string `json:"allowedMethods"`
+	// AtLimit is true when this browser is at its signed-in account cap and
+	// the enrollment's account (for a reset) is not one of them, so
+	// completing it would be refused with account_limit_reached.
+	AtLimit bool `json:"atLimit"`
 
 	// RequireLocalCredential marks an invite that must be completed with a
 	// local sign-in method before the account is created

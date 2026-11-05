@@ -164,6 +164,7 @@ func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*p
 		Intent:         e.Intent,
 		ExpiresAt:      e.ExpiresAt.Time,
 		AllowedMethods: enrollmentAllowedMethods(e.Intent),
+		AtLimit:        enrollmentAtLimit(sessstore.BrowserFromContext(ctx), e),
 	}
 	switch e.Intent {
 	case enrollment.IntentBootstrap:
@@ -227,6 +228,32 @@ func (s *Server) handlePreviewEnrollment(ctx context.Context, in *previewIn) (*p
 		}
 	}
 	return &previewOut{Body: out}, nil
+}
+
+// enrollmentAtLimit reports whether finishing enrollment e could not sign its
+// account in on browser b. A reset of an account already signed in here
+// replaces that entry; anything else needs room for one more account.
+func enrollmentAtLimit(b *sessstore.Browser, e *db.Enrollment) bool {
+	if b == nil {
+		return false
+	}
+	if e.Intent == enrollment.IntentReset && e.TargetAccountID.Valid {
+		return !b.CanAttach(e.TargetAccountID.Int32)
+	}
+	return b.AtLimit()
+}
+
+// enrollmentResult is the part of an enrollment completion body that says
+// where the page goes next: the console home, as the new account when the
+// browser now holds several (api.md 5).
+type enrollmentResult struct {
+	Redirect string                    `json:"redirect"`
+	Account  *contract.SignedInAccount `json:"account,omitempty"`
+}
+
+func (s *Server) enrollmentResult(r *http.Request, accountID int32) enrollmentResult {
+	result := s.loginResult(r, accountID, "/")
+	return enrollmentResult{Redirect: result.Redirect, Account: result.Account}
 }
 
 // ----- begin (raw chi — sets KV ceremony stash) ----------------------------
@@ -434,8 +461,15 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	token := chi.URLParam(r, "token")
 	// Pre-flight: surface 404/expired/consumed before any heavy work.
 	q := s.enrollmentQ()
-	if _, err := enrollment.LoadEnrollment(r.Context(), q, token); err != nil {
+	preflight, err := enrollment.LoadEnrollment(r.Context(), q, token)
+	if err != nil {
 		writeAuthErr(w, err)
+		return
+	}
+	// Before the transaction, so a browser with no room for the account
+	// leaves the invitation unconsumed.
+	if enrollmentAtLimit(s.browser(r), preflight) {
+		writeAuthErr(w, authn.ErrAccountLimitReached())
 		return
 	}
 
@@ -721,11 +755,13 @@ func (s *Server) handleEnrollmentCompleteHTTP(w http.ResponseWriter, r *http.Req
 	type enrollCompleteResp struct {
 		Session         contract.SessionView `json:"session"`
 		NewCredentialID int32                `json:"newCredentialId"`
+		enrollmentResult
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(enrollCompleteResp{
-		Session:         s.sessionView(&acct),
-		NewCredentialID: credID,
+		Session:          s.sessionView(&acct),
+		NewCredentialID:  credID,
+		enrollmentResult: s.enrollmentResult(r, acct.ID),
 	})
 }
 
