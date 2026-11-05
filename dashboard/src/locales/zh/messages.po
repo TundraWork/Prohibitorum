@@ -95,6 +95,11 @@ msgid "settings.sign-in.unsaved"
 msgstr "{changes, plural, other {# 处未保存的修改}}"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AccountLimitAlert.tsx
+msgid "account_limit.title"
+msgstr "{count, plural, other {这个浏览器已登录 # 个账号，达到上限。}}"
+
+#. js-lingui-explicit-id
 #: src/pages/public/SignOut.tsx
 msgid "sign-out.accounts.count"
 msgstr "{count, plural, other {这个浏览器已登录 # 个账号。}}"
@@ -183,11 +188,6 @@ msgstr "{label} {row}"
 #: src/components/custom/LoginShell.tsx
 msgid "login.description.application"
 msgstr "{label} 使用你的 {instance} 账号登录。登录后将返回该应用。"
-
-#. js-lingui-explicit-id
-#: src/components/custom/AccountLimitAlert.tsx
-msgid "account_limit.title"
-msgstr "{limit, plural, other {这个浏览器已登录 # 个账号，达到上限。}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupRuleSection.tsx
@@ -1162,6 +1162,11 @@ msgstr "未完成的登录无法复用。请重新输入密码，再输入验证
 #: src/api/errors.ts
 msgid "error.unsplash_key_required"
 msgstr "使用 Unsplash 照片需要 API 密钥。"
+
+#. js-lingui-explicit-id
+#: src/pages/public/ErrorLanding.tsx
+msgid "error_page.limit_cleared"
+msgstr "这个浏览器现在可以再登录一个账号。"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -8570,7 +8575,6 @@ msgid "login.other_device"
 msgstr "使用手机或其他设备登录"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AccountMenuItems.tsx
 #: src/components/custom/RouteFeedback.tsx
 #: src/pages/public/Maintenance.tsx
 msgid "console.logout"
@@ -8589,6 +8593,11 @@ msgstr "退出登录"
 #. js-lingui-explicit-id
 #: src/components/custom/AccountLimitAlert.tsx
 msgid "account.sign_out"
+msgstr "退出"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AccountMenuItems.tsx
+msgid "account_menu.sign_out"
 msgstr "退出"
 
 #. js-lingui-explicit-id

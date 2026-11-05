@@ -323,7 +323,7 @@ describe("mocked browser accounts", () => {
       }),
     ) as { redirect: string };
     expect(chosen.redirect).toBe(
-      `/consent?ticket=mock&return_to=%2F&u=${listed(current)[2]?.u}`,
+      `/consent?ticket=mock&return_to=%2F&u=${listed(current)[2]?.u}&mock=`,
     );
     expect(
       send("POST", chooser, current, {

@@ -146,11 +146,16 @@ export async function reconcileTabAccount(
  * After this tab signs an account in: the list is read again, the tab acts
  * as the new account until its next page says otherwise, its username is
  * kept for the next sign-in, and the other tabs are told.
+ *
+ * Returns the `u` a page of this app opened next carries: the new account's
+ * while the browser holds several, none otherwise. A navigation passes it on
+ * explicitly, since the root's `retainSearchParams` would keep the `u` of the
+ * account the tab acted as before.
  */
 export async function afterSignIn(
   queryClient: QueryClient,
   signedIn: SignedInAccount | undefined,
-): Promise<void> {
+): Promise<string | undefined> {
   let accounts: BrowserAccount[] = [];
   try {
     ({ accounts } = await refreshBrowserAccounts(queryClient));
@@ -165,6 +170,7 @@ export async function afterSignIn(
     pinTabAccount(account, accounts.length);
   }
   announceAccountsChanged();
+  return accounts.length > 1 ? account?.u : undefined;
 }
 
 /**

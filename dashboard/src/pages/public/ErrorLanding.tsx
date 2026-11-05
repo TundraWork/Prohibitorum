@@ -1,8 +1,11 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { describeErrorLanding, landingAccountCondition } from "@/api/errors";
-import { sessionQueryOptions } from "@/api/queries";
+import {
+  browserAccountsQueryOptions,
+  sessionQueryOptions,
+} from "@/api/queries";
 import { followRedirect, isSitePath, sitePathOf } from "@/app/redirect";
 import { AccountLimitAlert } from "@/components/custom/AccountLimitAlert";
 import { AppStrip } from "@/components/custom/AppStrip";
@@ -54,6 +57,20 @@ export function ErrorLandingPage() {
       : undefined;
   const deniedRetry =
     retryTo !== undefined && search.reason === "app_access_denied";
+  // A sign-in stopped at the limit lists the accounts while the browser is
+  // still full; once one has signed out, the notice gives way to signing in
+  // again, as the sign-in page goes back to its form.
+  const limitCondition =
+    landingAccountCondition(search) === "account_limit_reached";
+  const { data: browserAccounts } = useQuery({
+    ...browserAccountsQueryOptions(),
+    enabled: limitCondition,
+  });
+  const atLimit =
+    limitCondition &&
+    (browserAccounts === undefined ||
+      browserAccounts.accounts.length >= browserAccounts.limit);
+  const belowLimit = limitCondition && !atLimit;
 
   return (
     <PublicStep
@@ -91,6 +108,24 @@ export function ErrorLandingPage() {
             >
               <Trans id="route.retry">Try again</Trans>
             </Button>
+          ) : belowLimit ? (
+            <Button
+              onClick={() =>
+                navigate({
+                  to: "/login",
+                  search: {
+                    add: "1",
+                    return_to: isSitePath(search.return_to)
+                      ? search.return_to
+                      : undefined,
+                    u: undefined,
+                  },
+                })
+              }
+              size="lg"
+            >
+              <Trans id="error_page.sign_in">Sign in</Trans>
+            </Button>
           ) : back ? (
             <Button
               onClick={() => followRedirect(router, back)}
@@ -119,10 +154,20 @@ export function ErrorLandingPage() {
         </PublicStep.Actions>
       }
     >
-      {landingAccountCondition(search) === "account_limit_reached" ? (
-        // A sign-in through a provider stopped at the limit: the accounts
-        // are listed so one can be signed out here (mockup C).
+      {atLimit ? (
+        // The accounts are listed so one can be signed out here (mockup C).
         <AccountLimitAlert />
+      ) : belowLimit ? (
+        <SurfaceAlert status="accent">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>
+              <Trans id="error_page.limit_cleared">
+                Another account can sign in on this browser now.
+              </Trans>
+            </SurfaceAlert.Title>
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
       ) : (
         <SurfaceAlert status="danger">
           <SurfaceAlert.Indicator />

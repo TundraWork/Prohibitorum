@@ -96,7 +96,14 @@ export function installApiMocks(application: Application): void {
   // and keeps doing so as the address changes — a walkthrough can then set up a
   // screen by editing the address bar rather than by opening the panel. The
   // subscription below picks the change up and refreshes what is already drawn.
+  // Only parameters that differ from the last ones applied are written: the
+  // address keeps them after a mocked write (a sign-out, say), and applying
+  // them again on the next navigation would undo that write.
+  let lastApplied: string | undefined;
   const applyLocation = () => {
+    const params = mockParams(window.location.search);
+    if (params === lastApplied) return;
+    lastApplied = params;
     applyMockQuery(window.location.search);
   };
   applyLocation();
@@ -182,6 +189,15 @@ export function installApiMocks(application: Application): void {
     if (!config.enabled && !wasEnabled) return;
     void refresh(application);
   });
+}
+
+/** The address's `mock` parameters, in order, as one comparable string. */
+function mockParams(search: string): string {
+  const kept = new URLSearchParams();
+  for (const [key, value] of new URLSearchParams(search)) {
+    if (key === "mock" || key.startsWith("mock.")) kept.append(key, value);
+  }
+  return kept.toString();
 }
 
 /**

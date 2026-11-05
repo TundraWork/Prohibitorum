@@ -95,6 +95,11 @@ msgid "settings.sign-in.unsaved"
 msgstr "{changes, plural, one {# unsaved change} other {# unsaved changes}}"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AccountLimitAlert.tsx
+msgid "account_limit.title"
+msgstr "{count, plural, one {# account is signed in on this browser, the most it allows.} other {# accounts are signed in on this browser, the most it allows.}}"
+
+#. js-lingui-explicit-id
 #: src/pages/public/SignOut.tsx
 msgid "sign-out.accounts.count"
 msgstr "{count, plural, one {# account is signed in on this browser.} other {# accounts are signed in on this browser.}}"
@@ -183,11 +188,6 @@ msgstr "{label} {row}"
 #: src/components/custom/LoginShell.tsx
 msgid "login.description.application"
 msgstr "{label} uses your {instance} account. After signing in, you'll return to {label}."
-
-#. js-lingui-explicit-id
-#: src/components/custom/AccountLimitAlert.tsx
-msgid "account_limit.title"
-msgstr "{limit, plural, one {# account is signed in on this browser, the most it allows.} other {# accounts are signed in on this browser, the most it allows.}}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupRuleSection.tsx
@@ -1162,6 +1162,11 @@ msgstr "An unfinished sign-in can't be reused. Enter your password again, then e
 #: src/api/errors.ts
 msgid "error.unsplash_key_required"
 msgstr "An Unsplash access key is required to use Unsplash photos."
+
+#. js-lingui-explicit-id
+#: src/pages/public/ErrorLanding.tsx
+msgid "error_page.limit_cleared"
+msgstr "Another account can sign in on this browser now."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -8570,7 +8575,6 @@ msgid "login.other_device"
 msgstr "Sign in with your phone or another device"
 
 #. js-lingui-explicit-id
-#: src/components/custom/AccountMenuItems.tsx
 #: src/components/custom/RouteFeedback.tsx
 #: src/pages/public/Maintenance.tsx
 msgid "console.logout"
@@ -8589,6 +8593,11 @@ msgstr "Sign out"
 #. js-lingui-explicit-id
 #: src/components/custom/AccountLimitAlert.tsx
 msgid "account.sign_out"
+msgstr "Sign out"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AccountMenuItems.tsx
+msgid "account_menu.sign_out"
 msgstr "Sign out"
 
 #. js-lingui-explicit-id

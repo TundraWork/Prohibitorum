@@ -45,7 +45,8 @@ export function AccountLimitAlert() {
   const { data } = useSuspenseQuery(browserAccountsQueryOptions());
   const signOut = useMutation(signOutAccountMutationOptions());
   const [pending, setPending] = useState<number>();
-  const limit = data.limit;
+  // Drawn only at the limit, where the count and the limit are the same.
+  const count = data.accounts.length;
 
   const signOutAccount = async (accountId: number) => {
     if (pending !== undefined) return;
@@ -61,47 +62,49 @@ export function AccountLimitAlert() {
     }
   };
 
+  // The list sits under the notice rather than in its indented column, which
+  // left a narrow screen too little width for the names.
   return (
-    <SurfaceAlert status="warning" role="alert">
-      <SurfaceAlert.Indicator />
-      <SurfaceAlert.Content>
-        <SurfaceAlert.Title>
-          {t({
-            id: "account_limit.title",
-            message: plural(limit, {
-              one: "# account is signed in on this browser, the most it allows.",
-              other:
-                "# accounts are signed in on this browser, the most it allows.",
-            }),
-          })}
-        </SurfaceAlert.Title>
-        <div className="mt-2.5 [svg~&]:col-start-2">
-          <AccountList
-            label={t({
-              id: "account_limit.list",
-              message: "Accounts on this browser",
+    <div data-slot="account-limit" className="flex flex-col gap-3">
+      <SurfaceAlert status="warning" role="alert">
+        <SurfaceAlert.Indicator />
+        <SurfaceAlert.Content>
+          <SurfaceAlert.Title>
+            {t({
+              id: "account_limit.title",
+              message: plural(count, {
+                one: "# account is signed in on this browser, the most it allows.",
+                other:
+                  "# accounts are signed in on this browser, the most it allows.",
+              }),
             })}
-          >
-            {data.accounts.map((account) => (
-              <AccountRow
-                key={account.accountId}
-                account={account}
-                action={
-                  <SignOutAccountButton
-                    username={account.username}
-                    pending={pending === account.accountId}
-                    disabled={
-                      pending !== undefined && pending !== account.accountId
-                    }
-                    onClick={() => void signOutAccount(account.accountId)}
-                  />
+          </SurfaceAlert.Title>
+        </SurfaceAlert.Content>
+      </SurfaceAlert>
+      <AccountList
+        label={t({
+          id: "account_limit.list",
+          message: "Accounts on this browser",
+        })}
+      >
+        {data.accounts.map((account) => (
+          <AccountRow
+            key={account.accountId}
+            account={account}
+            action={
+              <SignOutAccountButton
+                username={account.username}
+                pending={pending === account.accountId}
+                disabled={
+                  pending !== undefined && pending !== account.accountId
                 }
+                onClick={() => void signOutAccount(account.accountId)}
               />
-            ))}
-          </AccountList>
-        </div>
-      </SurfaceAlert.Content>
-    </SurfaceAlert>
+            }
+          />
+        ))}
+      </AccountList>
+    </div>
   );
 }
 

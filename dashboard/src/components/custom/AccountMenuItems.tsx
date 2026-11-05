@@ -170,7 +170,7 @@ export function SignOutMenuItems({
     <>
       <MenuItem disabled={busy} onClick={() => void menu.signOut()}>
         <LogOut aria-hidden="true" />
-        <Trans id="console.logout">Sign out</Trans>
+        <Trans id="account_menu.sign_out">Sign out</Trans>
       </MenuItem>
       {menu.total > 1 && (
         <MenuItem inset disabled={busy} onClick={() => void menu.signOutAll()}>

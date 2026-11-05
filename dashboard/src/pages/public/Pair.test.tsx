@@ -18,6 +18,8 @@ import { createAppRouter } from "@/app/router";
 import { i18n } from "@/i18n";
 import {
   apiError,
+  browserAccount,
+  browserAccountsApi,
   fakeApi,
   publicApi,
   renderApp,
@@ -320,6 +322,54 @@ describe("signing in with another device", () => {
       await screen.findByRole("heading", { name: "This device is signed in" }),
     ).toBeVisible();
     expect(api.sent("POST", completePath)).toHaveLength(2);
+  });
+
+  it("lists the accounts when the browser is full, and completes the same pairing once one signs out", async () => {
+    const carol = { id: 3, username: "carol", displayName: "Carol" };
+    let status: PairingStatus = { status: "pending" };
+    let full = true;
+    const api = pairApi({ session: testSession, status: () => status });
+    api.routes["GET /api/prohibitorum/auth/accounts"] = () =>
+      browserAccountsApi(
+        full
+          ? [browserAccount(testSession), browserAccount(carol)]
+          : [browserAccount(testSession)],
+        2,
+      )(new Request("http://test.invalid"));
+    api.routes["POST /api/prohibitorum/auth/logout"] = () => {
+      full = false;
+      return new Response(null, { status: 204 });
+    };
+    api.routes[`POST ${completePath}`] = () =>
+      full
+        ? apiError("account_limit_reached", 409)
+        : Response.json({ session: testSession, redirect: target });
+    const user = userEvent.setup();
+    renderApp("/pair", queryClient);
+    await waiting();
+
+    status = { status: "approved" };
+    await poll();
+    expect(
+      await screen.findByText(
+        "2 accounts are signed in on this browser, the most it allows.",
+      ),
+    ).toBeVisible();
+    expect(notifyError).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Sign out carol" }));
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(
+      screen.queryByText(/accounts are signed in on this browser/),
+    ).toBeNull();
+    await user.click(retry);
+    expect(
+      await screen.findByRole("heading", { name: "This device is signed in" }),
+    ).toBeVisible();
+    const sent = api.sent("POST", completePath);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.body).toEqual({ pairingId: "pairing-1", remember: true });
   });
 
   it("shows the code as expired when the approved pairing is gone by the time it completes", async () => {

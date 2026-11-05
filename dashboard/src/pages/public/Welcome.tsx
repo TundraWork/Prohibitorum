@@ -57,9 +57,9 @@ export function WelcomePage() {
         await clearSessionQueries(queryClient);
         // The local sign-in offered next is added to this account, not to
         // one the browser held before.
-        await afterSignIn(queryClient, signedIn);
+        const u = await afterSignIn(queryClient, signedIn);
         if (offerLocalSignin) {
-          await navigate({ to: "/setup-signin", search: { redirect } });
+          await navigate({ to: "/setup-signin", search: { redirect, u } });
         } else {
           await followRedirect(router, redirect);
         }

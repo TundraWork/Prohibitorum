@@ -50,7 +50,7 @@ describe("mock middleware latency", () => {
     });
     const app = application();
     // The URL control is wired at install time: the address bar is read once
-    // here and again on every navigation, so a walkthrough can set a screen up
+    // here and again on a navigation that changes it, so a walkthrough can set a screen up
     // without the panel. `installApiMocks` runs once per module, so a shuffled
     // run may reach this test after another one already claimed it — assert
     // the wiring only when this call is the one that performed it.

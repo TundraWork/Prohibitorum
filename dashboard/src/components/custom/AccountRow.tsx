@@ -57,7 +57,7 @@ export function AccountList({
 }
 
 const row = cva(
-  "flex w-full min-w-0 items-center gap-3 px-3.5 py-2.5 text-start text-sm outline-none",
+  "@container flex w-full min-w-0 items-center gap-3 px-3.5 py-2.5 text-start text-sm outline-none",
   {
     variants: {
       interactive: {
@@ -105,27 +105,31 @@ export function AccountRow({
       <span className={cn("flex shrink-0", blocked && "opacity-45")}>
         <AccountAvatar account={account} />
       </span>
-      <span
-        className={cn(
-          "grid min-w-0 flex-1 leading-tight",
-          blocked && "opacity-45",
+      {/* In a narrow row the reason goes under the name, which would
+          otherwise be squeezed to its first letter. */}
+      <span className="flex min-w-0 flex-1 flex-col gap-1 @xs:flex-row @xs:items-center @xs:gap-3">
+        <span
+          className={cn(
+            "grid min-w-0 flex-1 leading-tight",
+            blocked && "opacity-45",
+          )}
+        >
+          <span className="truncate font-medium">
+            {account.displayName || account.username}
+          </span>
+          <span className="truncate font-mono text-muted-foreground text-xs">
+            {account.username}
+          </span>
+        </span>
+        {blocked && (
+          <span className="text-muted-foreground text-xs leading-tight @xs:shrink-0">
+            {unavailable}
+          </span>
         )}
-      >
-        <span className="truncate font-medium">
-          {account.displayName || account.username}
-        </span>
-        <span className="truncate font-mono text-muted-foreground text-xs">
-          {account.username}
-        </span>
       </span>
       {tag !== undefined && !blocked && (
         <span className="shrink-0 rounded-full border px-2 text-muted-foreground text-xs">
           {tag}
-        </span>
-      )}
-      {blocked && (
-        <span className="shrink-0 text-muted-foreground text-xs">
-          {unavailable}
         </span>
       )}
       {pending && (

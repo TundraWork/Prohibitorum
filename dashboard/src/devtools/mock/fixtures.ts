@@ -1362,11 +1362,16 @@ function chooseAccount(config: MockConfig, body: unknown): MockReply {
     return { kind: "error", status: 403, code: "app_access_denied" };
   }
   const u = browserShorts(config).get(account.id) ?? "";
+  const consent =
+    browserAccounts(config).length > 1
+      ? withAccountRef(chooser.consent, u)
+      : chooser.consent;
+  // The chooser leaves by loading the page anew, which turns the mock off
+  // unless the address asks for it.
+  const url = new URL(consent, "http://mock.invalid");
+  url.searchParams.set("mock", "");
   return json({
-    redirect:
-      browserAccounts(config).length > 1
-        ? withAccountRef(chooser.consent, u)
-        : chooser.consent,
+    redirect: `${url.pathname}${url.search}${url.hash}`,
   } satisfies AccountChooserRedirect);
 }
 
