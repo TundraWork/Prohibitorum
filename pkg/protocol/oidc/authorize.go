@@ -153,7 +153,18 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		hint:          hintClaims,
 		loginHint:     q.Get("login_hint"),
 		selectAccount: slices.Contains(prompts, "select_account"),
+		hintBinds:     true,
 	})
+	// A silent request with a hint gets an answer only for an account it
+	// could have been given anyway: a hint naming an account that is not
+	// signed in here, or (below) one that may not use this client or has
+	// not consented to it, all answer login_required. Otherwise prompt=none
+	// would tell the relying party which accounts are signed in here.
+	if wantNone && resolved.hintMissed {
+		redirectError(w, r, redirectURI, errCodeLoginRequired, "authentication required", state, p.cfg.OIDC.Issuer)
+		return
+	}
+	hintedSilently := wantNone && resolved.viaHint
 	switch resolved.outcome {
 	case accountNeedsLogin:
 		if wantNone {
@@ -198,6 +209,10 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			// Fail closed, but surface as server_error (not access_denied): we
 			// could not evaluate policy, so we make no authorization claim.
 			redirectError(w, r, redirectURI, errCodeServerError, "could not evaluate access", state, p.cfg.OIDC.Issuer)
+			return
+		}
+		if hintedSilently {
+			redirectError(w, r, redirectURI, errCodeLoginRequired, "authentication required", state, p.cfg.OIDC.Issuer)
 			return
 		}
 		acctID := sess.Data.AccountID
@@ -301,6 +316,10 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if needConsent {
+			if hintedSilently {
+				redirectError(w, r, redirectURI, errCodeLoginRequired, "authentication required", state, p.cfg.OIDC.Issuer)
+				return
+			}
 			if wantNone {
 				redirectError(w, r, redirectURI, errCodeConsentRequired, "user consent is required", state, p.cfg.OIDC.Issuer)
 				return

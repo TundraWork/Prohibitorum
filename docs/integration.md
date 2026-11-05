@@ -184,10 +184,10 @@ Use these when you need guaranteed-fresh authentication (e.g. before a sensitive
 
 A browser can be signed in to several Prohibitorum accounts at once. When it is, `/oauth/authorize` shows an account chooser listing them, marks the ones that may not use your application, and offers "Use another account". You can steer the choice:
 
-- **`id_token_hint`** — an ID token you hold (expired is fine). If its account is signed in on the browser, it is used without asking.
+- **`id_token_hint`** — an ID token you hold (expired is fine). If its account is signed in on the browser, it is used without asking. If it is not, the user is asked which account to use, even when only one other account is signed in.
 - **`login_hint`** — a username or verified email. If exactly one signed-in account matches, it is used without asking; if none is signed in, the sign-in page fills it in.
 - **`prompt=select_account`** — always show the chooser, even with one account. The hints above do not skip it; `login_hint` still fills in the sign-in page behind "Use another account".
-- **`prompt=none`** with several accounts and no hint that settles it returns `error=account_selection_required`; with no account signed in it returns `login_required`.
+- **`prompt=none`** with several accounts and no hint that settles it returns `error=account_selection_required`; with no account signed in it returns `login_required`. With a hint, it returns `login_required` unless the hinted account is signed in, may use your client and has consented to it — including when the hinted account has left the browser and another one is signed in, so silent renewal never switches users.
 
 The tokens are issued for the account the user picked, and the ID token's `sid` is that account's session. The exact order is in [api.md](api.md#which-account-a-protocol-flow-uses).
 

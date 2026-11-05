@@ -26,6 +26,12 @@ type accountRequest struct {
 	hint          map[string]any
 	loginHint     string
 	selectAccount bool
+	// hintBinds makes an id_token_hint that names no account signed in here
+	// stop the automatic choice: /oauth/authorize then asks (the chooser, or
+	// login_required under prompt=none) rather than continuing as another
+	// account the relying party did not ask for. require-identity shows the
+	// mismatch itself and leaves it false.
+	hintBinds bool
 }
 
 // accountOutcome is where account resolution leaves a request.
@@ -47,6 +53,10 @@ type accountResolution struct {
 	prefill string
 	// hinted is the account id_token_hint names when it could be found.
 	hinted *db.Account
+	// viaHint: the account was picked by id_token_hint or login_hint.
+	viaHint bool
+	// hintMissed: a hint was sent and named no account signed in here.
+	hintMissed bool
 }
 
 // usableSession reports whether sess can act for a protocol request: the
@@ -126,6 +136,11 @@ func (p *Provider) resolveAccountOnce(r *http.Request, req accountRequest) accou
 	resolved := func(s *authn.Session) accountResolution {
 		return accountResolution{outcome: accountResolved, sess: s, prefill: res.prefill, hinted: res.hinted}
 	}
+	byHint := func(s *authn.Session) accountResolution {
+		out := resolved(s)
+		out.viaHint = true
+		return out
+	}
 
 	if id := authn.ChosenAccount(ctx, p.kv, req.choice, req.kind, req.app); id != 0 {
 		if s := find(id); s != nil {
@@ -137,26 +152,31 @@ func (p *Provider) resolveAccountOnce(r *http.Request, req accountRequest) accou
 		if sid, _ := req.hint["sid"].(string); sid != "" {
 			for _, s := range accounts {
 				if s.Data.SessionID == sid {
-					return resolved(s)
+					return byHint(s)
 				}
 			}
 		}
 		if res.hinted != nil {
 			if s := find(res.hinted.ID); s != nil {
-				return resolved(s)
+				return byHint(s)
 			}
 		}
 		if req.loginHint != "" {
 			if s := p.matchLoginHint(ctx, accounts, req.loginHint); s != nil {
-				return resolved(s)
+				return byHint(s)
 			}
 		}
+		res.hintMissed = req.hint != nil || req.loginHint != ""
 	}
 
 	switch {
 	case len(accounts) == 0:
 		res.outcome = accountNeedsLogin
 	case req.selectAccount || len(accounts) > 1 || browserUnsettled(r):
+		res.outcome = accountNeedsChoice
+	case req.hintBinds && req.hint != nil && !req.selectAccount:
+		// The account the relying party last saw is not here; the one that
+		// is may be someone else.
 		res.outcome = accountNeedsChoice
 	default:
 		res.outcome = accountResolved

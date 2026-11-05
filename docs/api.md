@@ -554,8 +554,10 @@ When a protocol flow cannot tell which of the browser's accounts to use, it send
 2. Skipped with `prompt=select_account`: an `id_token_hint` that verifies (an expired one is accepted) and names a session or account signed in here → that account; otherwise a `login_hint` that matches exactly one signed-in account by username or verified email, ignoring case → that account.
 3. `prompt=select_account` → the chooser, or the sign-in page when no account is signed in.
 4. No account signed in → the sign-in page, with `login_hint` passed on to fill in the username; `prompt=none` answers `error=login_required`.
-5. One account → that account, as before.
+5. One account → that account, as before — unless an `id_token_hint` was sent and names an account not signed in here: then the chooser (pre-filled with that account), and `prompt=none` answers `error=login_required`. The request never continues silently as an account the client did not ask for.
 6. Several accounts → the chooser; `prompt=none` answers `error=account_selection_required`.
+
+With `prompt=none`, a hint (`id_token_hint` or `login_hint`) gets an answer only for an account the client could be given anyway. A hint naming an account that is not signed in here, or one that is signed in but may not use the client or has not consented to it, answers `error=login_required` — the same as an account that is not signed in — instead of `account_selection_required`, `access_denied` or `consent_required`, so a client cannot learn which other accounts are signed in on the browser.
 
 The access policy, `max_age` / `prompt=login`, consent and the authorization code then apply to the chosen account's session, so the ID token's `sid` is that session. A re-authentication bounce carries `login_hint=<the account's username>`; signing in again as an account already on the browser is never refused by the limit and keeps its place. Discovery lists `select_account` in `prompt_values_supported`.
 
