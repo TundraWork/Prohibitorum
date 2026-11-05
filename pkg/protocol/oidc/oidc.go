@@ -57,11 +57,36 @@ type Provider struct {
 }
 
 // SetMaintenanceChecker injects a callback reporting whether maintenance mode is
-// on. The forward-auth gateway uses it to deny non-admin principals, which
-// authenticate off a PAT or a per-domain cookie — outside the main session
-// middleware that enforces maintenance everywhere else. nil leaves the gateway
-// unaffected (the default for tests).
+// on. The surfaces here that name an account without the main session — the
+// forward-auth gateway (a PAT or a per-domain cookie), the token endpoint's
+// grants, userinfo and introspection (client credentials or a bearer token) —
+// use it to deny non-admin accounts, because the session middleware that
+// enforces maintenance everywhere else sees no principal on those requests.
+// nil means never in maintenance (the default for tests).
 func (p *Provider) SetMaintenanceChecker(fn func(context.Context) bool) { p.maintenance = fn }
+
+func (p *Provider) inMaintenance(ctx context.Context) bool {
+	return p.maintenance != nil && p.maintenance(ctx)
+}
+
+// maintenanceDenies reports whether maintenance mode is on and acct is not an
+// admin.
+func (p *Provider) maintenanceDenies(ctx context.Context, acct db.Account) bool {
+	return acct.Role != "admin" && p.inMaintenance(ctx)
+}
+
+// refuseForMaintenance audits and answers a token-endpoint, userinfo or
+// introspection request refused for maintenance. The answer is 503
+// temporarily_unavailable, never invalid_grant or an inactive token: the grant
+// and its tokens stay good, and a client that read the refusal as a dead grant
+// would discard them and send the user through sign-in again once maintenance
+// ends.
+func (p *Provider) refuseForMaintenance(w http.ResponseWriter, r *http.Request, acct db.Account, detail map[string]any) {
+	acctID := acct.ID
+	detail["reason"] = "maintenance"
+	p.auditTokenEvent(r.Context(), r, audit.EventFail, &acctID, detail)
+	writeOIDCError(w, r, http.StatusServiceUnavailable, errCodeTemporarilyUnavailable, "service under maintenance")
+}
 
 // SAMLApplication is what the SAML IdP reports about the application a
 // sign-in bounce targets: its label, the host its assertion posts to (empty

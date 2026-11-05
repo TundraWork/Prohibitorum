@@ -6445,8 +6445,10 @@ func main() {
 	// =====================================================================
 	//  MAINTENANCE MODE — admin toggles maintenance; verify /config reflects
 	//  it and the admin is NOT locked out (own /me stays 200). Non-admin
-	//  blocking (dashboard + gateway) is covered by the Go unit tests
-	//  (pkg/server/maintenance_test.go + pkg/protocol/oidc/forward_auth_test.go)
+	//  blocking (dashboard, gateway, and the OIDC token/userinfo/introspect
+	//  back channel) is covered by the Go unit tests
+	//  (pkg/server/maintenance_test.go, pkg/protocol/oidc/forward_auth_test.go
+	//  and pkg/protocol/oidc/maintenance_test.go)
 	//  since the smoke runs only as the admin.
 	// =====================================================================
 	{

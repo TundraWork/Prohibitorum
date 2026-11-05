@@ -152,6 +152,10 @@ func (p *Provider) HandleUserinfo(w http.ResponseWriter, r *http.Request) {
 		writeBearerError(w, r, http.StatusUnauthorized, "invalid access token")
 		return
 	}
+	if p.maintenanceDenies(ctx, acct) {
+		p.refuseForMaintenance(w, r, acct, map[string]any{"client_id": clientID, "principal_kind": "access_token"})
+		return
+	}
 	decision, accessErr := p.evaluateOIDCAccess(ctx, acct.ID, clientID)
 	if accessErr != nil {
 		requestID := weberr.RequestIDFromContext(ctx)

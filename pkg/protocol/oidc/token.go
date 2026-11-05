@@ -245,6 +245,12 @@ func (p *Provider) grantAuthorizationCode(w http.ResponseWriter, r *http.Request
 		writeOIDCError(w, r, http.StatusBadRequest, errCodeInvalidGrant, "account disabled")
 		return
 	}
+	// A code minted just before maintenance began is still redeemable here, on
+	// the back channel, after /authorize has started refusing.
+	if p.maintenanceDenies(ctx, acct) {
+		p.refuseForMaintenance(w, r, acct, map[string]any{"client_id": client.ClientID})
+		return
+	}
 
 	// Re-bind the code to a still-live session. /authorize loaded the session,
 	// but within the short code window the user may have logged out or had the

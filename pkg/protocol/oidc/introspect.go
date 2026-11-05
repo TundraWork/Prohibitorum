@@ -66,6 +66,10 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 				writeIntrospectionInactive(w)
 				return
 			}
+			if p.maintenanceDenies(ctx, acct) {
+				p.refuseForMaintenance(w, r, acct, map[string]any{"client_id": client.ClientID, "token_type": "access_token"})
+				return
+			}
 			subject, subjectErr := resolvePrincipal(ctx, p.queries, acct, oidcPrincipalSource(client.PrincipalSource))
 			if subjectErr != nil {
 				writeIntrospectionInactive(w)
@@ -110,6 +114,10 @@ func (p *Provider) HandleIntrospect(w http.ResponseWriter, r *http.Request) {
 		// sub is optional for refresh tokens; include it when the account
 		// resolves cheaply.
 		if acct, err := p.queries.GetAccountByID(ctx, fam.AccountID); err == nil && !acct.Disabled {
+			if p.maintenanceDenies(ctx, acct) {
+				p.refuseForMaintenance(w, r, acct, map[string]any{"client_id": client.ClientID, "token_type": "refresh_token"})
+				return
+			}
 			if subject, subjectErr := resolvePrincipal(ctx, p.queries, acct, oidcPrincipalSource(client.PrincipalSource)); subjectErr == nil {
 				resp["sub"] = subject
 			} else {

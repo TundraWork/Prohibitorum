@@ -12,9 +12,13 @@ package server
 //   - maintenanceLockout blocks non-admins at every session-issuance point, so a
 //     non-admin cannot even sign in (the gate alone can't enforce that, since
 //     GET /me stays open to render the maintenance screen).
-//   - the forward-auth gateway carries its own check (it authenticates off a PAT
-//     or a per-domain cookie, not the main session) — see the OIDC Provider's
-//     SetMaintenanceChecker, wired in server.go.
+//   - the OIDC Provider carries its own check for the requests that name an
+//     account without the main session, so the gate sees no principal on
+//     them: the forward-auth gateway (a PAT or a per-domain cookie) and the
+//     token, userinfo and introspection endpoints (client credentials or a
+//     bearer token) — see SetMaintenanceChecker, wired in server.go. Tokens
+//     already issued stay valid wherever they are verified locally until they
+//     expire.
 
 import (
 	"context"

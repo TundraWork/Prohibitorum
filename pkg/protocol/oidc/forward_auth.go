@@ -354,7 +354,7 @@ func (p *Provider) HandleForwardAuthVerify(w http.ResponseWriter, r *http.Reques
 			denyReason := "access_evaluation_failed"
 			if accessErr == nil && decision.Allowed {
 				if acct, accountErr := p.queries.GetAccountByID(ctx, sess.AccountID); accountErr == nil && !acct.Disabled {
-					if p.maintenance != nil && p.maintenance(ctx) && acct.Role != "admin" {
+					if p.maintenanceDenies(ctx, acct) {
 						http.Error(w, "service under maintenance", http.StatusServiceUnavailable)
 						return
 					}
@@ -642,7 +642,7 @@ func (p *Provider) verifyForwardAuthPAT(w http.ResponseWriter, r *http.Request, 
 		writeBearerError(w, r, http.StatusUnauthorized, "invalid token")
 		return
 	}
-	if p.maintenance != nil && p.maintenance(ctx) && acct.Role != "admin" {
+	if p.maintenanceDenies(ctx, acct) {
 		acctID := acct.ID
 		audit.RecordOrLog(ctx, p.audit, audit.Record{
 			AccountID: &acctID,

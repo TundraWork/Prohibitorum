@@ -461,8 +461,9 @@ func NewServer(ctx context.Context) (*Server, error) {
 		appPolicyService: accessService,
 		appLister:        accessService,
 	}
-	// The forward-auth gateway authenticates off a PAT / per-domain cookie, not
-	// the main session middleware, so it gets the maintenance flag injected here.
+	// The forward-auth gateway and the token, userinfo and introspection
+	// endpoints name an account without the main session middleware, so the
+	// Provider gets the maintenance flag injected here.
 	s.oidcOP.SetMaintenanceChecker(func(ctx context.Context) bool {
 		on, _ := brandingResolver.Maintenance(ctx)
 		return on

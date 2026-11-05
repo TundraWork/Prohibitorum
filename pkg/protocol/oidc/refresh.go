@@ -557,6 +557,21 @@ func (p *Provider) grantRefreshToken(w http.ResponseWriter, r *http.Request, cli
 	ctx := r.Context()
 	presented := r.PostForm.Get("refresh_token")
 
+	// Maintenance is checked before rotation, against a read-only lookup:
+	// rotating and then refusing would leave the client holding a superseded
+	// token, which trips reuse detection and revokes the family once
+	// maintenance ends. Anything the lookup does not vouch for (a superseded
+	// or foreign token, a gone or disabled account) falls through to the
+	// checks below, which revoke what they must.
+	if p.inMaintenance(ctx) {
+		if fam, ok := lookupRefresh(ctx, p.kv, presented); ok && fam.ClientID == client.ClientID && fam.isActiveToken(presented, time.Now()) {
+			if acct, err := p.queries.GetAccountByID(ctx, fam.AccountID); err == nil && !acct.Disabled && p.maintenanceDenies(ctx, acct) {
+				p.refuseForMaintenance(w, r, acct, map[string]any{"client_id": client.ClientID})
+				return
+			}
+		}
+	}
+
 	fam, newToken, rotated, reuseAccountID, err := rotateRefresh(ctx, p.kv, p.deks, presented, p.refreshInactivityTTL(), p.refreshAbsoluteTTL())
 	if errors.Is(err, errRefreshReuse) {
 		var acctPtr *int32

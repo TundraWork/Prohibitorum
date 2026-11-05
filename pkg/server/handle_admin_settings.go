@@ -71,7 +71,7 @@ func (s *Server) handlePutInstanceIconHTTP(w http.ResponseWriter, r *http.Reques
 //	 "maintenanceDefaultLocale": "en"}
 //
 // Toggles maintenance mode, which denies all non-admin access (login, dashboard,
-// OIDC/SAML SSO, forward-auth gateway). The notice is one text per UI
+// OIDC/SAML SSO, OIDC token/userinfo/introspection, forward-auth gateway). The notice is one text per UI
 // language plus the fallback language; empty texts mean "no notice in that
 // language" and are dropped. Registered via registerAdminBodyOpHTTP — admin
 // role enforced by the route, so an admin can't be locked out.
