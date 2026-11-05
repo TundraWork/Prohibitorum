@@ -3,7 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 import { describeError, isCancellation } from "@/api/errors";
-import { identityLinkUrl } from "@/api/mutations";
+import { beginIdentityLink } from "@/api/mutations";
 import { requireIdentityRequestQueryOptions } from "@/api/queries";
 import { runWithSudo } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
@@ -16,7 +16,6 @@ import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { PublicStep } from "@/components/custom/PublicStep";
 import { SudoDialog } from "@/components/custom/SudoDialog";
 import { SurfaceAlert } from "@/components/custom/SurfaceAlert";
-import { useSwitchAccount } from "@/pages/public/consent/useSwitchAccount";
 import { Route } from "@/routes/_public.require-identity.$ticket";
 
 /**
@@ -37,7 +36,24 @@ export function RequireIdentityPage() {
   );
   const { t } = useLingui();
   const router = useRouter();
-  const switchAccount = useSwitchAccount(request.entryUrl);
+  // The account the application named is signed in on the sign-in page,
+  // beside this one, and the request starts again from its entry address.
+  const [switching, setSwitching] = useState(false);
+  const switchAccount = async () => {
+    setSwitching(true);
+    try {
+      await router.navigate({
+        to: "/login",
+        search: {
+          return_to: request.entryUrl,
+          login_hint: request.loginHint,
+          u: undefined,
+        },
+      });
+    } catch {
+      setSwitching(false);
+    }
+  };
   const [linking, setLinking] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -60,9 +76,11 @@ export function RequireIdentityPage() {
     setLinking(slug);
     void runWithSudo(
       async () => {
-        // A full-page assignment: the response is a redirect the browser has to
-        // follow, not a body the client can read.
-        loadDocument(identityLinkUrl(slug, `/require-identity/${ticket}`));
+        // The provider is a full-page load; the request that answers its
+        // address carries the tab's account, which a page load cannot.
+        loadDocument(
+          await beginIdentityLink(slug, `/require-identity/${ticket}`),
+        );
       },
       sudoReason.linkIdentity,
       { quiet: true },
@@ -87,7 +105,7 @@ export function RequireIdentityPage() {
   const returnButton = (label: ReactNode) => (
     <Button
       pending={leaving}
-      disabled={switchAccount.isPending || linking !== null}
+      disabled={switching || linking !== null}
       onClick={returnToApp}
       variant="outline"
       size="lg"
@@ -115,14 +133,14 @@ export function RequireIdentityPage() {
         actions={
           <PublicStep.Actions>
             <Button
-              pending={switchAccount.isPending}
+              pending={switching}
               disabled={leaving}
-              onClick={() => switchAccount.mutate()}
+              onClick={() => void switchAccount()}
               size="lg"
               className="w-full"
             >
-              <Trans id="require-identity.mismatch.switch">
-                Sign out and use another account
+              <Trans id="require-identity.mismatch.use_other">
+                Use another account
               </Trans>
             </Button>
             {returnButton(

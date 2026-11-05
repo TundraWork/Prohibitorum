@@ -1,17 +1,11 @@
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import {
   type ActiveOptions,
   Link,
   Outlet,
-  useNavigate,
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
@@ -24,7 +18,6 @@ import {
   Languages,
   Layers,
   LogIn,
-  LogOut,
   type LucideIcon,
   MailPlus,
   MonitorSmartphone,
@@ -39,12 +32,15 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useId } from "react";
 import type { components } from "@/api/generated/schema";
-import { logoutMutationOptions } from "@/api/mutations";
 import {
-  clearSessionQueries,
   managedApplicationsQueryOptions,
   sessionQueryOptions,
 } from "@/api/queries";
+import {
+  OtherAccountsMenuItems,
+  SignOutMenuItems,
+  useAccountMenu,
+} from "@/components/custom/AccountMenuItems";
 import {
   ConsoleCrumbProvider,
   useConsoleCrumbLabel,
@@ -73,7 +69,6 @@ import {
 import { Kbd } from "@/components/ui/kbd";
 import {
   Menu,
-  MenuItem,
   MenuLinkItem,
   MenuPopup,
   MenuSeparator,
@@ -449,14 +444,13 @@ function ConsoleIdentity() {
  */
 function ConsoleAccount({
   session,
-  pending,
-  onLogout,
+  menu,
 }: {
   session: Session;
-  pending: boolean;
-  onLogout: () => void;
+  menu: ReturnType<typeof useAccountMenu>;
 }) {
   const { t } = useLingui();
+  const pending = menu.pending !== undefined;
   const role =
     session.role === "admin"
       ? t({ id: "console.role.admin", message: "Admin" })
@@ -514,6 +508,8 @@ function ConsoleAccount({
               side="top"
               className="w-(--anchor-width) min-w-56"
             >
+              <OtherAccountsMenuItems others={menu.others} />
+              <MenuSeparator />
               <MenuLinkItem render={<Link to="/profile" />}>
                 <UserRound aria-hidden="true" />
                 <Trans id="console.profile">Profile</Trans>
@@ -542,10 +538,7 @@ function ConsoleAccount({
                 </MenuSubPopup>
               </MenuSub>
               <MenuSeparator />
-              <MenuItem disabled={pending} onClick={onLogout}>
-                <LogOut aria-hidden="true" />
-                <Trans id="console.logout">Sign out</Trans>
-              </MenuItem>
+              <SignOutMenuItems menu={menu} />
             </MenuPopup>
           </Menu>
         </SidebarMenuItem>
@@ -611,15 +604,12 @@ function ConsoleBreadcrumb({
 
 function ConsoleShell({
   session,
-  pendingLogout,
-  onLogout,
   onSearch,
 }: {
   session: Session;
-  pendingLogout: boolean;
-  onLogout: () => void;
   onSearch?: () => void;
 }) {
+  const menu = useAccountMenu();
   const { t } = useLingui();
   const activePath = useRouterState({ select: (s) => s.location.pathname });
   // An address with no page of its own stops matching at the deepest route
@@ -655,11 +645,7 @@ function ConsoleShell({
         <SidebarContent>
           <ConsoleNavigation managementSections={managementSections} />
         </SidebarContent>
-        <ConsoleAccount
-          session={session}
-          pending={pendingLogout}
-          onLogout={onLogout}
-        />
+        <ConsoleAccount session={session} menu={menu} />
       </Sidebar>
       {/* Content sits on the inset panel, so a pinned table header paints that
           surface rather than the page's. */}
@@ -711,22 +697,11 @@ function ConsoleShell({
 }
 
 export function ConsoleLayout({ onSearch }: { onSearch?: () => void } = {}) {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const { data: session } = useSuspenseQuery({
     ...sessionQueryOptions(),
     refetchOnMount: false,
     refetchOnWindowFocus: "always",
   });
-  const logout = useMutation({
-    ...logoutMutationOptions(queryClient),
-    onSuccess: async () => {
-      await clearSessionQueries(queryClient);
-      queryClient.getMutationCache().clear();
-      await navigate({ to: "/login" });
-    },
-  });
-
   // session must be not null, just a type guard
   if (session === null) {
     return null;
@@ -734,12 +709,7 @@ export function ConsoleLayout({ onSearch }: { onSearch?: () => void } = {}) {
 
   return (
     <ConsoleCrumbProvider>
-      <ConsoleShell
-        session={session}
-        pendingLogout={logout.isPending}
-        onLogout={logout.mutate}
-        onSearch={onSearch}
-      />
+      <ConsoleShell session={session} onSearch={onSearch} />
     </ConsoleCrumbProvider>
   );
 }

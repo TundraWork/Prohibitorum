@@ -25,6 +25,7 @@ import {
   MenuTrigger,
 } from "@/components/ui/menu";
 import { appTint } from "@/lib/app-color";
+import { useAppLaunch } from "@/pages/launcher/app-launch";
 import {
   type AppKind,
   ProtocolCapsule,
@@ -65,6 +66,7 @@ export function AppTile({
   order: number;
 }) {
   const { t } = useLingui();
+  const launch = useAppLaunch();
 
   return (
     <li
@@ -115,6 +117,7 @@ export function AppTile({
         href={app.launchUrl}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={launch(app.launchUrl, kind)}
         className="absolute inset-0 z-1 rounded-[22px] outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <span className="sr-only">

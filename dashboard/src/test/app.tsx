@@ -43,6 +43,7 @@ export interface RecordedRequest {
   method: string;
   url: URL;
   body: unknown;
+  headers: Headers;
 }
 
 /** What `fakeApi` hands back: the routes it answers, and what was sent. */
@@ -66,6 +67,7 @@ export function fakeApi(routes: Record<string, Handler>): FakeApi {
       method: request.method,
       url,
       body: text === "" ? undefined : JSON.parse(text),
+      headers: request.headers,
     });
     const handler = routes[`${request.method} ${url.pathname}`];
     return handler ? handler(request) : new Response(null, { status: 404 });
@@ -81,12 +83,36 @@ export function fakeApi(routes: Record<string, Handler>): FakeApi {
   };
 }
 
+/** One account signed in on the test browser, as `/auth/accounts` lists it. */
+export function browserAccount(
+  session: Pick<typeof testSession, "id" | "username" | "displayName">,
+  u = `a${session.id}`,
+): components["schemas"]["BrowserAccount"] {
+  return {
+    accountId: session.id,
+    u,
+    username: session.username,
+    displayName: session.displayName,
+  };
+}
+
+/** `GET /auth/accounts`: the browser's accounts, in sign-in order. */
+export function browserAccountsApi(
+  accounts: components["schemas"]["BrowserAccount"][],
+  limit = 10,
+): Handler {
+  return () => Response.json({ limit, accounts });
+}
+
 /** The API a public page reads before anything paints. */
 export function publicApi(
   session: typeof testSession | null,
   config: PublicConfig = testConfig,
 ): Record<string, Handler> {
   return {
+    "GET /api/prohibitorum/auth/accounts": browserAccountsApi(
+      session ? [browserAccount(session)] : [],
+    ),
     "GET /api/prohibitorum/config": () => Response.json(config),
     "GET /api/prohibitorum/auth/status": () =>
       Response.json({ bootstrapped: true }),

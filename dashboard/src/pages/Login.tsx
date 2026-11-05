@@ -3,11 +3,17 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import {
   useMutation,
+  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import type { HistoryState } from "@tanstack/react-router";
-import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  useLocation,
+  useNavigate,
+  useRouter,
+  useSearch,
+} from "@tanstack/react-router";
 import { ArrowRight, QrCode } from "lucide-react";
 import {
   useCallback,
@@ -37,6 +43,7 @@ import {
   totpMutationOptions,
 } from "@/api/mutations";
 import {
+  browserAccountsQueryOptions,
   clearSessionQueries,
   publicFederationProvidersQueryOptions,
 } from "@/api/queries";
@@ -44,11 +51,17 @@ import type {
   PublicConfig,
   RecoveryRequest,
   RecoveryResult,
+  SignedInAccount,
 } from "@/api/raw-paths";
+import { afterSignIn } from "@/app/account-sync";
 import { withInlineReport } from "@/app/query-client";
 import { followRedirect } from "@/app/redirect";
 import { withRouterSkipLoading } from "@/app/router";
 import { usePageRestore } from "@/app/use-page-restore";
+import {
+  AccountLimitAlert,
+  atAccountLimit,
+} from "@/components/custom/AccountLimitAlert";
 import { Button } from "@/components/custom/Button";
 import type { LoginFailure } from "@/components/custom/LoginShell";
 import { LoginShell, useLoginContext } from "@/components/custom/LoginShell";
@@ -156,10 +169,11 @@ function useLoginFlow(initialFailure?: LoginFailure) {
     },
     isActive: () => active.current,
   };
-  async function finish(redirect: string) {
+  async function finish(redirect: string, account?: SignedInAccount) {
     try {
       setFinishing(true);
       await clearSessionQueries(queryClient);
+      await afterSignIn(queryClient, account);
       if (!active.current) return;
       await withRouterSkipLoading(router, () =>
         followRedirect(router, redirect),
@@ -226,7 +240,8 @@ function usePasskeyAutofill({
     let signedIn = false;
     try {
       const result = await completion.mutateAsync(assertion);
-      if (flow.control.isActive()) await flow.finish(result.redirect);
+      if (flow.control.isActive())
+        await flow.finish(result.redirect, result.account);
       signedIn = true;
     } catch (error) {
       if (flow.control.isActive() && !isCancellation(error))
@@ -403,7 +418,11 @@ function FactorForm({
   returnTo?: string;
   token: string;
   onFailure: (error: unknown, reset: boolean) => void | Promise<void>;
-  onSuccess: (redirect: string, codes?: string[]) => Promise<void>;
+  onSuccess: (
+    redirect: string,
+    codes: string[] | undefined,
+    account: SignedInAccount | undefined,
+  ) => Promise<void>;
   onSwitch?: () => void;
 }) {
   const { t } = useLingui();
@@ -444,7 +463,11 @@ function FactorForm({
         formApi.reset();
         setSetup(undefined);
         if (control.isActive())
-          await onSuccess(result.redirect, result.recovery_codes);
+          await onSuccess(
+            result.redirect,
+            result.recovery_codes,
+            result.account,
+          );
       } catch (error) {
         formApi.reset();
         setSetup(undefined);
@@ -605,9 +628,26 @@ function FactorForm({
   );
 }
 
+/** The username a link names (`login_hint`), for the first step to fill in. */
+function useLoginHint(): string | undefined {
+  return useSearch({
+    strict: false,
+    select: (search) => search.login_hint,
+  });
+}
+
 export function PasswordPage() {
   const { username, failure } = useLoginRouteState() ?? {};
   const { returnTo } = useLoginContext();
+  const loginHint = useLoginHint();
+  // A decoration, not the page's data: a list that cannot be read leaves the
+  // form in place and the server refuses a sign-in over the limit.
+  const { data: browserAccounts } = useQuery(browserAccountsQueryOptions());
+  const preview = useContext(LoginPreviewContext);
+  const limited =
+    !preview &&
+    browserAccounts !== undefined &&
+    atAccountLimit(browserAccounts, username ?? loginHint);
   const flow = useLoginFlow(failure);
   const navigate = useNavigate();
   const router = useRouter();
@@ -618,7 +658,6 @@ export function PasswordPage() {
     withInlineReport(passkeyMutationOptions(returnTo, remember), true),
   );
   const resetPasskey = passkey.reset;
-  const preview = useContext(LoginPreviewContext);
   useEffect(
     () => () => {
       if (!preview) cancelPasskeyAuthentication();
@@ -630,7 +669,7 @@ export function PasswordPage() {
     flow,
     returnTo,
     remember: rememberRef,
-    enabled: !preview,
+    enabled: !preview && !limited,
   });
   const supported =
     preview || (window.isSecureContext && browserSupportsWebAuthn());
@@ -638,6 +677,13 @@ export function PasswordPage() {
   // so the button carries the wait until the page has gone.
   const passkeyPending =
     passkey.isPending || autofill.pending || flow.finishing;
+  if (limited) {
+    return (
+      <LoginShell step="password" busy={false}>
+        <AccountLimitAlert />
+      </LoginShell>
+    );
+  }
   return (
     <LoginShell
       step="password"
@@ -664,7 +710,8 @@ export function PasswordPage() {
             void (async () => {
               try {
                 const result = await passkey.mutateAsync();
-                if (flow.control.isActive()) await flow.finish(result.redirect);
+                if (flow.control.isActive())
+                  await flow.finish(result.redirect, result.account);
               } catch (error) {
                 if (flow.control.isActive() && !isCancellation(error))
                   flow.setFailure({ message: describeError(error) });
@@ -689,7 +736,7 @@ export function PasswordPage() {
         />
         <PasswordForm
           control={flow.control}
-          username={username ?? ""}
+          username={username ?? loginHint ?? ""}
           submitVariant={supported ? "outline" : "default"}
           remember={remember}
           onSuccess={async (username, token) => {
@@ -836,9 +883,9 @@ export function TotpPage() {
             }),
           );
         }}
-        onSuccess={(redirect) => {
+        onSuccess={(redirect, _codes, account) => {
           flow.setFailure(undefined);
-          return flow.finish(redirect);
+          return flow.finish(redirect, account);
         }}
         onSwitch={() =>
           void withRouterSkipLoading(router, () =>
@@ -864,6 +911,7 @@ export function RecoveryPage() {
   const [savedCodes, setSavedCodes] = useState<{
     redirect: string;
     codes: string[];
+    account: SignedInAccount | undefined;
   }>();
   const ready = usePasswordResult(token);
   if (!ready) return null;
@@ -887,7 +935,9 @@ export function RecoveryPage() {
       {savedCodes ? (
         <RecoveryCodes
           codes={savedCodes.codes}
-          onContinue={() => flow.finish(savedCodes.redirect)}
+          onContinue={() =>
+            flow.finish(savedCodes.redirect, savedCodes.account)
+          }
         />
       ) : (
         <FactorForm
@@ -914,12 +964,12 @@ export function RecoveryPage() {
               }),
             );
           }}
-          onSuccess={async (redirect, codes) => {
+          onSuccess={async (redirect, codes, account) => {
             flow.setFailure(undefined);
             if (codes) {
-              setSavedCodes({ redirect, codes });
+              setSavedCodes({ redirect, codes, account });
               await clearSessionQueries(queryClient);
-            } else await flow.finish(redirect);
+            } else await flow.finish(redirect, account);
           }}
         />
       )}

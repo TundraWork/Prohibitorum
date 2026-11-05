@@ -428,11 +428,12 @@ describe("signing in with another device", () => {
     ).toHaveAttribute("href", `/login?return_to=${encodeURIComponent(target)}`);
   });
 
-  it("sends a signed-in reader home instead of starting a pairing", async () => {
+  it("pairs a signed-in browser too, adding another account to it", async () => {
     const api = pairApi({ session: testSession });
     const router = renderApp("/pair", queryClient);
-    await waitFor(() => expect(router.state.location.pathname).toBe("/"));
-    expect(api.sent("POST", beginPath)).toHaveLength(0);
+    expect(await waiting()).toBeVisible();
+    expect(router.state.location.pathname).toBe("/pair");
+    expect(api.sent("POST", beginPath)).toHaveLength(1);
   });
 
   it("refuses a link that names its return address twice", async () => {

@@ -7,6 +7,7 @@ import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import {
   apiError,
+  browserAccount,
   fakeApi,
   publicApi,
   renderApp,
@@ -114,5 +115,91 @@ describe("the sign-out confirmation", () => {
     expect(back).toHaveBeenCalledOnce();
     expect(api.sent("POST", logoutPath)).toHaveLength(0);
     expect(loadDocument).not.toHaveBeenCalled();
+  });
+});
+
+describe("the sign-out confirmation with several accounts", () => {
+  const alice = browserAccount(testSession, "a11c");
+  const bob = browserAccount(
+    { id: 2, username: "bob", displayName: "Bob" },
+    "b0b0",
+  );
+
+  function severalApi() {
+    let accounts = [alice, bob];
+    return fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/auth/accounts": () =>
+        Response.json({ limit: 10, accounts }),
+      [`POST ${logoutPath}`]: (request) => {
+        const named = Number(request.headers.get("X-Prohibitorum-Account"));
+        accounts = accounts.filter((account) => account.accountId !== named);
+        return new Response(null, { status: 204 });
+      },
+    });
+  }
+
+  it("signs each account out on its own, then returns through sso-logout after the last", async () => {
+    const api = severalApi();
+    const user = userEvent.setup();
+    renderApp("/sign-out?rd=https%3A%2F%2Fapp.example.test%2F", queryClient);
+    expect(
+      await screen.findByText(
+        "app.example.test asked to sign out. 2 accounts are signed in on this browser.",
+      ),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Sign out bob" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Sign out bob" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText(
+        "app.example.test asked to sign out. 1 account is signed in on this browser.",
+      ),
+    ).toBeVisible();
+    expect(loadDocument).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Sign out alice" }));
+    await waitFor(() => expect(loadDocument).toHaveBeenCalledOnce());
+    expect(loadDocument).toHaveBeenCalledWith(
+      "/api/prohibitorum/forward-auth/sso-logout?rd=https%3A%2F%2Fapp.example.test%2F",
+    );
+    expect(
+      api
+        .sent("POST", logoutPath)
+        .map((request) => request.headers.get("X-Prohibitorum-Account")),
+    ).toEqual(["2", "1"]);
+  });
+
+  it("holds the other buttons while one account signs out", async () => {
+    const api = severalApi();
+    api.routes[`POST ${logoutPath}`] = () => new Promise<Response>(() => {});
+    const user = userEvent.setup();
+    renderApp("/sign-out?rd=https%3A%2F%2Fapp.example.test%2F", queryClient);
+    const bobOut = await screen.findByRole("button", { name: "Sign out bob" });
+    await user.click(bobOut);
+    await waitFor(() => expect(bobOut).toHaveAttribute("aria-busy", "true"));
+    expect(
+      screen.getByRole("button", { name: "Sign out alice" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Return to app.example.test" }),
+    ).toBeDisabled();
+  });
+
+  it("returns to the application without signing anything out", async () => {
+    const api = severalApi();
+    const user = userEvent.setup();
+    renderApp("/sign-out?rd=https%3A%2F%2Fapp.example.test%2F", queryClient);
+    await user.click(
+      await screen.findByRole("button", { name: "Return to app.example.test" }),
+    );
+    expect(loadDocument).toHaveBeenCalledWith(
+      "/api/prohibitorum/forward-auth/sso-logout?rd=https%3A%2F%2Fapp.example.test%2F&done=1",
+    );
+    expect(api.sent("POST", logoutPath)).toHaveLength(0);
   });
 });

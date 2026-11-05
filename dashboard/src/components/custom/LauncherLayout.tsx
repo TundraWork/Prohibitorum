@@ -1,22 +1,21 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
-import { Link, Outlet, useNavigate } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { Link, Outlet } from "@tanstack/react-router";
 import {
   ChevronDown,
   LayoutDashboard,
-  LogOut,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
 import type { CSSProperties } from "react";
-import { logoutMutationOptions } from "@/api/mutations";
-import { clearSessionQueries, sessionQueryOptions } from "@/api/queries";
+import { sessionQueryOptions } from "@/api/queries";
 import backdropDark from "@/assets/launcher-backdrop-dark.webp";
 import backdropLight from "@/assets/launcher-backdrop-light.webp";
+import {
+  OtherAccountsMenuItems,
+  SignOutMenuItems,
+  useAccountMenu,
+} from "@/components/custom/AccountMenuItems";
 import { AppToolbar } from "@/components/custom/AppToolbar";
 import { InstanceIdentity } from "@/components/custom/InstanceIdentity";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
@@ -24,7 +23,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   Menu,
-  MenuItem,
   MenuLinkItem,
   MenuPopup,
   MenuSeparator,
@@ -78,24 +76,17 @@ export function LauncherLayout() {
 
 /**
  * Who is signed in, and from them the way to the console: the account's own
- * pages, the management area for an administrator, and signing out.
+ * pages, the management area for an administrator, the browser's other
+ * accounts, and signing out.
  */
 function AccountMenu() {
   const { t } = useLingui();
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const { data: session } = useSuspenseQuery({
     ...sessionQueryOptions(),
     refetchOnMount: false,
   });
-  const logout = useMutation({
-    ...logoutMutationOptions(queryClient),
-    onSuccess: async () => {
-      await clearSessionQueries(queryClient);
-      queryClient.getMutationCache().clear();
-      await navigate({ to: "/login" });
-    },
-  });
+  const menu = useAccountMenu();
+  const pending = menu.pending !== undefined;
   if (session === null) return null;
   const isAdmin = session.role === "admin";
   const avatar = (size: string) => (
@@ -112,21 +103,21 @@ function AccountMenu() {
     // has gone.
     <Menu
       onOpenChange={(open, details) => {
-        if (open && logout.isPending) details.cancel();
+        if (open && pending) details.cancel();
       }}
     >
       <MenuTrigger
         render={
           <button
             type="button"
-            aria-busy={logout.isPending || undefined}
-            aria-disabled={logout.isPending || undefined}
+            aria-busy={pending || undefined}
+            aria-disabled={pending || undefined}
             aria-label={t({ id: "launcher.account", message: "Your account" })}
             className="flex h-7 cursor-pointer items-center gap-1 rounded-full ps-0.5 pe-1 outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring data-popup-open:opacity-80"
           />
         }
       >
-        {logout.isPending ? (
+        {pending ? (
           <span className="flex size-7 shrink-0 items-center justify-center">
             <Spinner aria-hidden="true" data-slot="spinner" />
           </span>
@@ -173,10 +164,9 @@ function AccountMenu() {
           </MenuLinkItem>
         )}
         <MenuSeparator />
-        <MenuItem disabled={logout.isPending} onClick={() => logout.mutate()}>
-          <LogOut aria-hidden="true" />
-          <Trans id="console.logout">Sign out</Trans>
-        </MenuItem>
+        <OtherAccountsMenuItems others={menu.others} />
+        <MenuSeparator />
+        <SignOutMenuItems menu={menu} />
       </MenuPopup>
     </Menu>
   );

@@ -1,5 +1,6 @@
 import { Trans } from "@lingui/react/macro";
 import { useRouter } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { followRedirect, sitePathOf } from "@/app/redirect";
 import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
@@ -25,8 +26,17 @@ export class ConsentExpiredError extends Error {
  * re-runs the whole authorization, so anything wrong with the application's
  * request itself is caught there, not here. Without an authorization address
  * this site can offer, there is nothing to do but say what happened.
+ *
+ * The account chooser draws its own expired ticket with the same card and
+ * its own `message`.
  */
-export function ConsentExpired({ retryTo }: { retryTo: string }) {
+export function ConsentExpired({
+  retryTo,
+  message,
+}: {
+  retryTo: string;
+  message?: ReactNode;
+}) {
   const router = useRouter();
   const restart = sitePathOf(retryTo);
   const application = useReturnToApplication(retryTo || undefined);
@@ -48,9 +58,11 @@ export function ConsentExpired({ retryTo }: { retryTo: string }) {
         <SurfaceAlert.Indicator />
         <SurfaceAlert.Content>
           <SurfaceAlert.Title>
-            <Trans id="consent.expired">
-              This authorization request has expired or was already used.
-            </Trans>
+            {message ?? (
+              <Trans id="consent.expired">
+                This authorization request has expired or was already used.
+              </Trans>
+            )}
           </SurfaceAlert.Title>
           {restart !== undefined && (
             <div className="mt-3 flex flex-wrap gap-2">

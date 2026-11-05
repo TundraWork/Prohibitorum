@@ -51,6 +51,7 @@ describe("readEnrollmentPreview", () => {
       allowedMethods: ["passkey", "password_totp"],
       expectedUpstreamIdpSlug: "gitlab",
       providers: [gitlab],
+      atLimit: false,
     });
   });
 

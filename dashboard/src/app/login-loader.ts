@@ -32,7 +32,7 @@ export async function loginLoader({
   } catch {
     return;
   }
-  if (session !== null && returnTo === undefined) {
+  if (session !== null && returnTo === undefined && !deps.add) {
     throw redirect({ to: "/", replace: true });
   }
 }

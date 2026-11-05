@@ -3,10 +3,11 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import {
   useMutation,
+  useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { generateTotpSecret } from "@/api/auth";
 import type { EnrollmentPreview } from "@/api/enrollment";
@@ -15,11 +16,18 @@ import {
   enrollPasskeyMutationOptions,
   enrollPasswordTotpMutationOptions,
 } from "@/api/mutations";
-import { clearSessionQueries, enrollmentQueryOptions } from "@/api/queries";
-import type { EnrollmentAccountFields } from "@/api/raw-paths";
+import {
+  browserAccountsQueryOptions,
+  clearSessionQueries,
+  enrollmentQueryOptions,
+} from "@/api/queries";
+import type { EnrollmentAccountFields, SignedInAccount } from "@/api/raw-paths";
+import { afterSignIn } from "@/app/account-sync";
 import { loadDocument } from "@/app/load-document";
 import { withInlineReport } from "@/app/query-client";
+import { followRedirect } from "@/app/redirect";
 import { usePageRestore } from "@/app/use-page-restore";
+import { AccountLimitAlert } from "@/components/custom/AccountLimitAlert";
 import { Button } from "@/components/custom/Button";
 import { EntityAvatar } from "@/components/custom/EntityAvatar";
 import { ReadOnlyField } from "@/components/custom/FormFields";
@@ -37,6 +45,9 @@ import {
 import { Route } from "@/routes/_public.enroll.$token";
 
 type AccountField = "username" | "displayName";
+
+/** What a finished enrollment answers: where the new account goes, and which it is. */
+type Completion = { redirect?: string; account?: SignedInAccount } | undefined;
 
 const accountFields: ServerFieldMap<AccountField> = {
   locations: { username: "username", displayName: "displayName" },
@@ -92,10 +103,18 @@ function enrollmentAddress(token: string, slug: string): string {
 export function EnrollPage() {
   const { token } = Route.useParams();
   const { data: preview } = useSuspenseQuery(enrollmentQueryOptions(token));
+  // The preview says whether the browser was full when the link was opened;
+  // the list says when an account signed out since.
+  const { data: browserAccounts } = useQuery(browserAccountsQueryOptions());
+  const atLimit =
+    preview.atLimit &&
+    (browserAccounts === undefined ||
+      browserAccounts.accounts.length >= browserAccounts.limit);
+  const router = useRouter();
+  const completed = useRef<Completion>(undefined);
   const { t, i18n } = useLingui();
   const { name: instance } = useInstanceBranding();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const passkey = useMutation(
     withInlineReport(
       enrollPasskeyMutationOptions(token),
@@ -150,8 +169,7 @@ export function EnrollPage() {
         return;
       }
       try {
-        await passkey.mutateAsync(accountValues(value));
-        await finish();
+        await finish(await passkey.mutateAsync(accountValues(value)));
       } catch (error) {
         if (!isCancellation(error)) markField(error);
       }
@@ -197,10 +215,15 @@ export function EnrollPage() {
     }
   }
 
-  async function finish() {
+  /**
+   * The new account joins the browser's others; the server says where it
+   * goes, with its `u` when there are others.
+   */
+  async function finish(result: Completion) {
     setLeaving(true);
     await clearSessionQueries(queryClient);
-    await navigate({ to: "/" });
+    await afterSignIn(queryClient, result?.account);
+    await followRedirect(router, result?.redirect ?? "/");
   }
 
   function backToChoice(field?: AccountField) {
@@ -245,6 +268,16 @@ export function EnrollPage() {
   const busy = passkeyPending || federating || changingProfile;
   const title = enrollTitle();
 
+  // Nothing is used up meanwhile: once an account here signs out, the same
+  // link goes on (mockup C).
+  if (atLimit) {
+    return (
+      <PublicStep title={title}>
+        <AccountLimitAlert />
+      </PublicStep>
+    );
+  }
+
   return (
     <>
       {mode === "password-totp" && (
@@ -259,6 +292,7 @@ export function EnrollPage() {
               secret_base32: secretBase32,
               code,
             });
+            completed.current = result;
             return result.recoveryCodes;
           }}
           onSubmitError={(error) => {
@@ -268,7 +302,7 @@ export function EnrollPage() {
             backToChoice(field);
             return true;
           }}
-          onDone={finish}
+          onDone={() => finish(completed.current)}
         />
       )}
       <div hidden={mode !== "choose"}>

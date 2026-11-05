@@ -25,6 +25,7 @@ import { ApiError, describeError } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
   authStatusQueryOptions,
+  browserAccountsQueryOptions,
   publicConfigQueryOptions,
   publicFederationProvidersQueryOptions,
   sessionQueryOptions,
@@ -89,6 +90,10 @@ function seededQueryClient(notifyError: (error: unknown) => void): QueryClient {
     bootstrapped: true,
   });
   client.setQueryData(publicFederationProvidersQueryOptions().queryKey, []);
+  client.setQueryData(browserAccountsQueryOptions().queryKey, {
+    limit: 10,
+    accounts: [],
+  });
   return client;
 }
 afterEach(() => {

@@ -46,10 +46,18 @@ export function RoutePending() {
       if (ids.some((id) => id.startsWith("/_protected"))) return "console";
       if (ids.some((id) => id.startsWith("/_launcher"))) return "launcher";
       if (ids.some((id) => consentRoutes.includes(id))) return "consent";
+      if (ids.includes(chooserRoute)) return "chooser";
       return "public";
     },
   });
-  const step = shell === "consent" ? <ConsentSkeleton /> : <StepSkeleton />;
+  const step =
+    shell === "consent" ? (
+      <ConsentSkeleton />
+    ) : shell === "chooser" ? (
+      <ChooserSkeleton />
+    ) : (
+      <StepSkeleton />
+    );
   if (where === "public") return <Loading>{step}</Loading>;
   if (where === "console") return <Loading>{<ConsolePageSkeleton />}</Loading>;
   return (
@@ -142,6 +150,51 @@ function PublicShellSkeleton({ children }: { children: ReactNode }) {
     <div className="min-h-(--app-viewport-height) bg-background">
       <ToolbarSkeleton />
       <PublicStage frame="plain">{children}</PublicStage>
+    </div>
+  );
+}
+
+/** The account chooser (`ChooseAccount`). */
+const chooserRoute = "/_public/choose-account";
+
+/**
+ * The account chooser's anatomy (mockup A1): who is asking in the strip, the
+ * heading and its line, then three account rows, a fixed three because how
+ * many accounts there are is not known until the list arrives.
+ */
+function ChooserSkeleton() {
+  const slots = useStageSlots();
+  const strip = (
+    <div aria-hidden="true" className="flex items-center gap-3.5 py-1.5">
+      <Skeleton className="size-13 shrink-0 rounded-[14px]" />
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-3.5 w-16" />
+        <Skeleton className="h-4 w-28" />
+      </div>
+    </div>
+  );
+  return (
+    <div className="flex flex-col gap-4">
+      {slots.strip ? createPortal(strip, slots.strip) : null}
+      <div className="flex flex-col gap-2.5">
+        <Skeleton className="h-7 w-2/5" />
+        <Skeleton className="h-4 w-3/5" />
+      </div>
+      <ul className="divide-y overflow-hidden rounded-xl border bg-background shadow-xs/5">
+        {[
+          ["w-28", "w-16"],
+          ["w-24", "w-14"],
+          ["w-32", undefined],
+        ].map(([name, detail]) => (
+          <li key={name} className="flex items-center gap-3 px-3.5 py-2.5">
+            <Skeleton className="size-8 shrink-0 rounded-full" />
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+              <Skeleton className={`h-3.5 ${name}`} />
+              {detail && <Skeleton className={`h-3 ${detail}`} />}
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

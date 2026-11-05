@@ -9,6 +9,7 @@ import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import {
   apiError,
+  browserAccount,
   fakeApi,
   publicApi,
   renderApp,
@@ -577,5 +578,41 @@ describe("enrollment", () => {
     expect(
       screen.getByRole("button", { name: "Back to sign-in" }),
     ).toBeVisible();
+  });
+});
+
+describe("an enrollment at the browser's account limit", () => {
+  it("lists the accounts instead of the steps, and offers the steps once one signs out", async () => {
+    let accounts = [browserAccount(testSession)];
+    const api = fakeApi({
+      ...publicApi(testSession),
+      [`GET ${previewPath}`]: () =>
+        Response.json({ ...preview(), atLimit: true }),
+      "GET /api/prohibitorum/auth/accounts": () =>
+        Response.json({ limit: 1, accounts }),
+      "POST /api/prohibitorum/auth/logout": () => {
+        accounts = [];
+        return new Response(null, { status: 204 });
+      },
+    });
+    const user = userEvent.setup();
+    renderApp(address, queryClient);
+    expect(
+      await screen.findByText(
+        "1 account is signed in on this browser, the most it allows.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("textbox", { name: "Username" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sign out alice" }));
+    expect(
+      await screen.findByRole("textbox", { name: "Username" }),
+    ).toBeVisible();
+    expect(
+      api
+        .sent("POST", "/api/prohibitorum/auth/logout")[0]
+        ?.headers.get("X-Prohibitorum-Account"),
+    ).toBe("1");
   });
 });

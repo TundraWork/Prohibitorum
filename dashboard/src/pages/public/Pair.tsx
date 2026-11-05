@@ -12,6 +12,7 @@ import {
 } from "@/api/mutations";
 import { clearSessionQueries, pairingStatusQueryOptions } from "@/api/queries";
 import type { PairingStart } from "@/api/raw-paths";
+import { afterSignIn } from "@/app/account-sync";
 import { followRedirect } from "@/app/redirect";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
@@ -171,6 +172,9 @@ function PairingStep({
         return;
       }
       await clearSessionQueries(queryClient);
+      // The passkey offered next is added to the account just signed in, not
+      // to one the browser held before.
+      await afterSignIn(queryClient, result.account);
       onSignedIn(result.redirect);
     } catch {
       // The toast has reported it; the page offers to try again.
