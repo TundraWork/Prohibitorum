@@ -4,6 +4,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { describeErrorLanding } from "@/api/errors";
 import { sessionQueryOptions } from "@/api/queries";
 import { followRedirect, isSitePath, sitePathOf } from "@/app/redirect";
+import { AccountLimitAlert } from "@/components/custom/AccountLimitAlert";
 import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
@@ -118,20 +119,26 @@ export function ErrorLandingPage() {
         </PublicStep.Actions>
       }
     >
-      <SurfaceAlert status="danger">
-        <SurfaceAlert.Indicator />
-        <SurfaceAlert.Content>
-          <SurfaceAlert.Title>{i18n._(message)}</SurfaceAlert.Title>
-          {deniedRetry && (
-            <SurfaceAlert.Description>
-              <Trans id="error_page.denied.retry_hint">
-                An administrator hasn't granted you access yet. Once access is
-                granted, you can try again.
-              </Trans>
-            </SurfaceAlert.Description>
-          )}
-        </SurfaceAlert.Content>
-      </SurfaceAlert>
+      {search.reason === "account_limit_reached" ? (
+        // A sign-in through a provider stopped at the limit: the accounts
+        // are listed so one can be signed out here (mockup C).
+        <AccountLimitAlert />
+      ) : (
+        <SurfaceAlert status="danger">
+          <SurfaceAlert.Indicator />
+          <SurfaceAlert.Content>
+            <SurfaceAlert.Title>{i18n._(message)}</SurfaceAlert.Title>
+            {deniedRetry && (
+              <SurfaceAlert.Description>
+                <Trans id="error_page.denied.retry_hint">
+                  An administrator hasn't granted you access yet. Once access is
+                  granted, you can try again.
+                </Trans>
+              </SurfaceAlert.Description>
+            )}
+          </SurfaceAlert.Content>
+        </SurfaceAlert>
+      )}
       {ref && <ReferenceLine reference={ref} />}
     </PublicStep>
   );

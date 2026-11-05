@@ -394,25 +394,36 @@ describe("OIDC consent", () => {
     },
   );
 
-  it("signs out and returns to the authorization after another account signs in", async () => {
+  it("opens the account chooser for this request without signing out", async () => {
     const api = consentApi();
-    api.routes["POST /api/prohibitorum/auth/logout"] = () => {
-      api.routes["GET /api/prohibitorum/me"] = () =>
-        apiError("no_session", 401);
-      return new Response(null, { status: 204 });
-    };
+    api.routes["POST /api/prohibitorum/account-chooser/switch"] = () =>
+      Response.json({ redirect: "/choose-account?ticket=c-1" });
+    api.routes["GET /api/prohibitorum/account-chooser"] = () =>
+      Response.json({
+        app: { kind: "oidc", key: "oidc:wiki", name: "Wiki" },
+        accounts: [
+          {
+            accountId: 1,
+            u: "a1",
+            username: "alice",
+            displayName: "Alice",
+            allowed: true,
+          },
+        ],
+        otherAccountUrl: "/login",
+      });
     const user = userEvent.setup();
     const router = renderApp(address, queryClient);
     await user.click(
-      await screen.findByRole("button", { name: "Switch account" }),
+      await screen.findByRole("button", { name: "Use another account" }),
     );
     expect(
-      await screen.findByRole("heading", { name: /^Sign in with / }),
+      await screen.findByRole("heading", { name: "Choose an account" }),
     ).toBeVisible();
-    expect(api.sent("POST", "/api/prohibitorum/auth/logout")).toHaveLength(1);
-    expect(router.state.location.pathname).toBe("/login");
     expect(
-      new URLSearchParams(router.state.location.searchStr).get("return_to"),
-    ).toBe(authorize);
+      api.sent("POST", "/api/prohibitorum/account-chooser/switch")[0]?.body,
+    ).toEqual({ kind: "oidc", consentTicket: "t-1", returnTo: authorize });
+    expect(api.sent("POST", "/api/prohibitorum/auth/logout")).toHaveLength(0);
+    expect(router.state.location.pathname).toBe("/choose-account");
   });
 });

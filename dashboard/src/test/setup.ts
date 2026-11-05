@@ -1,6 +1,8 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, configure } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
+import { browserAccountCountAtom, tabAccountAtom } from "@/app/tab-account";
+import { store } from "@/i18n";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -14,6 +16,9 @@ beforeEach(() => {
   // A destroyed jsdom history keeps rejecting writes it has already queued, so
   // window.history must be replaced before each test rather than reused.
   window.history.replaceState(null, "", "/");
+  // Node's BroadcastChannel reaches every test file running in the process;
+  // a test of the cross-tab messages puts its own in place.
+  vi.stubGlobal("BroadcastChannel", undefined);
 });
 
 Object.defineProperty(window, "matchMedia", {
@@ -46,6 +51,13 @@ HTMLElement.prototype.getAnimations = () => [];
 configure({ asyncUtilTimeout: 5000 });
 
 afterEach(cleanup);
+
+// The tab's account lives in the app-wide store, which outlives a test.
+afterEach(() => {
+  store.set(tabAccountAtom, null);
+  store.set(browserAccountCountAtom, 0);
+  window.localStorage.clear();
+});
 
 // jsdom loads no Tailwind, so `invisible` would hide nothing: a control that
 // stacks its labels and hides the inactive one would be named by both, and an

@@ -56,6 +56,7 @@ import type {
   UpsertDecisionRequest,
 } from "@/api/raw-admin-paths";
 import type {
+  AccountChooserSwitch,
   CreatedPersonalAccessToken,
   DevicePairing,
   EnrollmentAccountFields,
@@ -66,6 +67,7 @@ import type {
   RecoveryCodesResult,
   RecoveryRequest,
   RecoveryResult,
+  SignedInAccount,
   SudoMethod,
   SudoPasswordTotpComplete,
   TotpRequest,
@@ -73,6 +75,7 @@ import type {
 import { successMessage } from "@/api/success-messages";
 import { runWithSudo, sudoMethodsQueryOptions, sudoQueryKey } from "@/api/sudo";
 import { sudoReason } from "@/api/sudo-reasons";
+import { accountHeader } from "@/app/tab-account";
 
 type AccountView = components["schemas"]["AccountView"];
 type MyAvatarView = components["schemas"]["MyAvatarView"];
@@ -88,6 +91,82 @@ export function logoutMutationOptions(queryClient: QueryClient) {
       await client.POST("/api/prohibitorum/auth/logout");
     },
     onSuccess: () => clearSessionQueries(queryClient),
+  });
+}
+
+/**
+ * Signs one account on this browser out, whichever tab asks: the header
+ * names it, so the tab's own account stays signed in. Signing out an account
+ * that has already gone is not an error.
+ */
+export function signOutAccountMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: async (accountId: number) => {
+      await client.POST("/api/prohibitorum/auth/logout", {
+        headers: { [accountHeader]: String(accountId) },
+      });
+    },
+  });
+}
+
+/** Signs every account on this browser out. */
+export function logoutAllMutationOptions(queryClient: QueryClient) {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: async () => {
+      await client.POST("/api/prohibitorum/auth/logout-all");
+    },
+    onSuccess: () => clearSessionQueries(queryClient),
+  });
+}
+
+/**
+ * Chooses the account a protocol sign-in continues with. The answer is the
+ * protocol endpoint to load next, holding the choice.
+ */
+export function chooseAccountMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: (body: { ticket: string; accountId: number }) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/account-chooser", { body }),
+      ),
+  });
+}
+
+/**
+ * A consent page's "Use another account": the request is kept and the
+ * account chooser opens for it; nothing is signed out.
+ */
+export function switchAccountMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: (body: AccountChooserSwitch) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/account-chooser/switch", { body }),
+      ),
+  });
+}
+
+/**
+ * Opens a SAML service from the launcher as the tab's account: the server
+ * binds the sign-in to it and answers the address that starts it.
+ */
+export function samlLaunchMutationOptions() {
+  return mutationOptions({
+    retry: false,
+    gcTime: 0,
+    mutationFn: (sp: string) =>
+      requireJsonData(
+        client.POST("/api/prohibitorum/me/apps/saml-launch", {
+          params: { query: { sp } },
+        }),
+      ),
   });
 }
 
@@ -780,13 +859,21 @@ export function unlinkIdentityMutationOptions(queryClient: QueryClient) {
 }
 
 /**
- * Linking leaves the SPA entirely: the backend 302s to the provider and returns
- * the browser to a console route when it is done, so this is an assignment
- * rather than a fetch the client can await.
+ * Starts linking an identity as the tab's account. The answer is the
+ * provider's address, which the page loads; the provider returns the browser
+ * to `returnTo` when it is done.
  */
-export function identityLinkUrl(slug: string, returnTo = "/security"): string {
-  const query = new URLSearchParams({ return_to: returnTo });
-  return `/api/prohibitorum/me/identities/link/${encodeURIComponent(slug)}/begin?${query}`;
+export async function beginIdentityLink(
+  slug: string,
+  returnTo = "/security",
+): Promise<string> {
+  const { redirect } = await requireJsonData(
+    client.POST("/api/prohibitorum/me/identities/link/{slug}/begin", {
+      params: { path: { slug } },
+      body: { returnTo },
+    }),
+  );
+  return redirect;
 }
 
 /* --------------------------------------------------------------- tokens -- */
@@ -842,7 +929,7 @@ const pairingGone = new Set([
 ]);
 
 export type PairingCompletion =
-  | { outcome: "signed-in"; redirect: string }
+  | { outcome: "signed-in"; redirect: string; account?: SignedInAccount }
   | { outcome: "expired" };
 
 /**
@@ -863,7 +950,7 @@ export function pairingCompleteMutationOptions(returnTo: string | undefined) {
       remember: boolean;
     }): Promise<PairingCompletion> => {
       try {
-        const { redirect } = validateLoginResult(
+        const { redirect, account } = validateLoginResult(
           await requireJsonData(
             client.POST("/api/prohibitorum/auth/devices/pair/complete", {
               params: {
@@ -873,7 +960,7 @@ export function pairingCompleteMutationOptions(returnTo: string | undefined) {
             }),
           ),
         );
-        return { outcome: "signed-in", redirect };
+        return { outcome: "signed-in", redirect, account };
       } catch (error) {
         if (error instanceof ApiError && pairingGone.has(error.code ?? "")) {
           return { outcome: "expired" };

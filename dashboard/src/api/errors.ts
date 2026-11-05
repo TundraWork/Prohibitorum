@@ -115,6 +115,20 @@ const errorMessages: Readonly<Record<string, MessageDescriptor>> = {
     id: "error.account_disabled",
     message: "This account is disabled.",
   }),
+  account_not_signed_in: msg({
+    id: "error.account_not_signed_in",
+    message: "This account is not signed in on this browser.",
+  }),
+  account_limit_reached: msg({
+    id: "error.account_limit_reached",
+    message:
+      "This browser has as many accounts signed in as it allows. Sign one of them out first.",
+  }),
+  account_chooser_expired: msg({
+    id: "error.account_chooser_expired",
+    message:
+      "This account choice has expired. Go back to the app and sign in again.",
+  }),
   sudo_required: msg({
     id: "error.sudo_required",
     message: "Verify your identity again to continue.",
@@ -855,6 +869,13 @@ export function describeErrorLanding({
   instance: string;
 }): MessageDescriptor {
   if (reason === "app_access_denied") return appAccessDenied;
+  // The two account conditions arrive as a reason, like a denial.
+  if (
+    reason === "account_limit_reached" ||
+    reason === "account_chooser_expired"
+  ) {
+    return errorMessages[reason] ?? signInFailure;
+  }
   if (code === undefined || code === "") return signInFailure;
   if (Object.hasOwn(landingMessages, code)) {
     const message = landingMessages[code];
@@ -929,6 +950,8 @@ function routeRecovery(error: ApiError): RouteRecovery {
   if (error.kind === "http" && status !== undefined) {
     if (status >= 500 || status === 429) return "retry";
     if (status === 401 && error.code === "no_session") return "sign-in";
+    if (status === 401 && error.code === "account_not_signed_in")
+      return "sign-in";
     if (status === 403 && error.code === "account_disabled") return "sign-out";
   }
   return "none";

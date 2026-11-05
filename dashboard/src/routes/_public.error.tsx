@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
-import { sessionQueryOptions } from "@/api/queries";
+import {
+  browserAccountsQueryOptions,
+  sessionQueryOptions,
+} from "@/api/queries";
 import { optionalSearchText } from "@/app/search-params";
 import { ErrorLandingPage } from "@/pages/public/ErrorLanding";
 
@@ -18,8 +21,17 @@ export const Route = createFileRoute("/_public/error")({
     ref: optionalSearchText(),
     return_to: optionalSearchText(),
   }),
-  // The way out depends on whether anyone is signed in.
-  loader: ({ context: { queryClient } }) =>
-    queryClient.ensureQueryData(sessionQueryOptions()),
+  loaderDeps: ({ search: { reason } }) => ({
+    limited: reason === "account_limit_reached",
+  }),
+  // The way out depends on whether anyone is signed in; a sign-in stopped
+  // at the account limit lists the accounts.
+  loader: ({ context: { queryClient }, deps }) =>
+    Promise.all([
+      queryClient.ensureQueryData(sessionQueryOptions()),
+      deps.limited
+        ? queryClient.ensureQueryData(browserAccountsQueryOptions())
+        : undefined,
+    ]),
   component: ErrorLandingPage,
 });

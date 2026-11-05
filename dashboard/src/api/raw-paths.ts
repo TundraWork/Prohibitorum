@@ -175,8 +175,16 @@ export type RecoveryRequest =
       totp_code: string;
     };
 
+/** The account a sign-in added to this browser, as its tab names it. */
+export interface SignedInAccount {
+  accountId: number;
+  u: string;
+}
+
 export interface LoginResult {
   redirect: string;
+  /** Absent from servers that predate several accounts per browser. */
+  account?: SignedInAccount;
 }
 
 export type RecoveryResult =
@@ -245,6 +253,7 @@ export interface PairingStatus {
 export interface PairingComplete {
   session: components["schemas"]["SessionView"];
   redirect: string;
+  account?: SignedInAccount;
 }
 
 export interface CreatedPersonalAccessToken {
@@ -281,6 +290,8 @@ export interface RequireIdentityRequest {
   mismatch: boolean;
   /** The account already holds an identity at one of the providers. */
   satisfied: boolean;
+  /** With `mismatch`, the username of the account the application named. */
+  loginHint?: string;
   providers: { slug: string; displayName: string; iconUrl?: string }[];
 }
 
@@ -344,6 +355,9 @@ export interface EnrollmentAccountFields {
 export interface EnrollmentRegistered {
   session: SessionView;
   newCredentialId: number;
+  /** Where the new account goes, with its `u` when the browser has others. */
+  redirect?: string;
+  account?: SignedInAccount;
 }
 
 /**
@@ -353,6 +367,8 @@ export interface EnrollmentRegistered {
 export interface EnrollmentPasswordTotpResult {
   session: SessionView;
   recoveryCodes: string[];
+  redirect?: string;
+  account?: SignedInAccount;
 }
 
 /** `GET /auth/federation/-/confirm`: the account a first federated sign-in prepared. */
@@ -396,6 +412,44 @@ export interface FederationFlow {
 /** The part of the OIDC discovery document the console reads. */
 export interface OidcDiscovery {
   issuer: string;
+}
+
+/** The application an account chooser ticket signs in to. */
+export interface AccountChooserApp {
+  kind: "oidc" | "saml";
+  /** `oidc:<client_id>` or `saml:<sp id>`, the key "last used" is kept under. */
+  key: string;
+  name: string;
+  iconUrl?: string;
+}
+
+export interface AccountChooserAccount {
+  accountId: number;
+  u: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  /** Whether the application's access policy lets this account in. */
+  allowed: boolean;
+}
+
+/** `GET /account-chooser?ticket=`: the accounts a protocol sign-in can use. */
+export interface AccountChooser {
+  app: AccountChooserApp;
+  accounts: AccountChooserAccount[] | null;
+  loginHint?: string;
+  /** The sign-in page for an account not on this browser, back to the ticket. */
+  otherAccountUrl: string;
+}
+
+/** `POST /account-chooser/switch`: the consent page's request to choose again. */
+export type AccountChooserSwitch =
+  | { kind: "oidc"; consentTicket: string; returnTo: string }
+  | { kind: "saml"; consentTicket: string };
+
+/** A server-validated address the page loads next. */
+export interface RedirectResult {
+  redirect: string;
 }
 
 export interface RawPaths {
@@ -465,6 +519,94 @@ export interface RawPaths {
       };
       requestBody?: never;
       responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/auth/logout-all": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/account-chooser": {
+    get: {
+      parameters: {
+        query: { ticket: string };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": AccountChooser } };
+      };
+    };
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": { ticket: string; accountId: number };
+        };
+      };
+      responses: {
+        200: { content: { "application/json": RedirectResult } };
+      };
+    };
+  };
+  "/api/prohibitorum/account-chooser/switch": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": AccountChooserSwitch };
+      };
+      responses: {
+        200: { content: { "application/json": RedirectResult } };
+      };
+    };
+  };
+  "/api/prohibitorum/me/apps/saml-launch": {
+    post: {
+      parameters: {
+        query: { sp: string };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        200: { content: { "application/json": RedirectResult } };
+      };
+    };
+  };
+  "/api/prohibitorum/me/identities/link/{slug}/begin": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": { returnTo: string } };
+      };
+      responses: {
+        200: { content: { "application/json": RedirectResult } };
+      };
     };
   };
   "/api/prohibitorum/auth/password/begin": {

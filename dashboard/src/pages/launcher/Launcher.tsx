@@ -46,6 +46,7 @@ import {
   isAppKind,
   type LaunchpadApp,
 } from "@/pages/launcher/AppTile";
+import { useAppLaunch } from "@/pages/launcher/app-launch";
 import {
   type AppKind,
   ProtocolCapsule,
@@ -315,6 +316,7 @@ function AddAppDialog({
   onOpenChange: (open: boolean) => void;
   apps: { app: LaunchpadApp; kind: AppKind }[];
 }) {
+  const launch = useAppLaunch();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup>
@@ -340,7 +342,10 @@ function AddAppDialog({
                   href={app.launchUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={() => onOpenChange(false)}
+                  onClick={(event) => {
+                    launch(app.launchUrl, kind)(event);
+                    onOpenChange(false);
+                  }}
                   className="absolute inset-0 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="sr-only">

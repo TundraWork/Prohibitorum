@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
-import { fakeApi, publicApi, renderApp, testSession } from "@/test/app";
+import {
+  browserAccount,
+  browserAccountsApi,
+  fakeApi,
+  publicApi,
+  renderApp,
+  testSession,
+} from "@/test/app";
 
 let queryClient: QueryClient;
 
@@ -327,6 +334,36 @@ describe("the error landing page", () => {
     expect(
       screen.getByText(
         "The app's sign-in request has expired. Go back to the app and sign in again.",
+      ),
+    ).toBeVisible();
+  });
+});
+
+describe("the account conditions", () => {
+  it("lists the browser's accounts when a sign-in stopped at the limit", async () => {
+    fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/auth/accounts": browserAccountsApi(
+        [browserAccount(testSession)],
+        1,
+      ),
+    });
+    renderApp("/error?reason=account_limit_reached", queryClient);
+    expect(
+      await screen.findByText(
+        "1 account is signed in on this browser, the most it allows.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Sign out alice" }),
+    ).toBeVisible();
+  });
+
+  it("says an account choice that ran out has expired", async () => {
+    await open("/error?reason=account_chooser_expired");
+    expect(
+      screen.getByText(
+        "This account choice has expired. Go back to the app and sign in again.",
       ),
     ).toBeVisible();
   });

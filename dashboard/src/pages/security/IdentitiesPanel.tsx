@@ -10,7 +10,7 @@ import { useState } from "react";
 import { isCancellation } from "@/api/errors";
 import type { components } from "@/api/generated/schema";
 import {
-  identityLinkUrl,
+  beginIdentityLink,
   unlinkIdentityMutationOptions,
 } from "@/api/mutations";
 import {
@@ -109,9 +109,9 @@ function IdentityList() {
     clear();
     setLinking(slug);
     runWithSudo(async () => {
-      // A full-page load: the response is a redirect the browser has to
-      // follow, not a body the client can read.
-      loadDocument(identityLinkUrl(slug));
+      // The provider is a full-page load; the request that answers its
+      // address carries the tab's account, which a page load cannot.
+      loadDocument(await beginIdentityLink(slug));
     }, sudoReason.linkIdentity).catch((failure: unknown) => {
       setLinking(null);
       report(failure);

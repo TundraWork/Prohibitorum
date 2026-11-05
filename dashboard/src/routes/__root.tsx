@@ -1,7 +1,14 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { createRootRouteWithContext, redirect } from "@tanstack/react-router";
+import {
+  createRootRouteWithContext,
+  redirect,
+  retainSearchParams,
+} from "@tanstack/react-router";
+import { z } from "zod";
 import { publicConfigQueryOptions, sessionQueryOptions } from "@/api/queries";
 import { maintenanceRedirect } from "@/app/maintenance-guard";
+import { optionalSearchText } from "@/app/search-params";
+import { settleTabAccount } from "@/app/tab-account-guard";
 import { AppLayout } from "@/components/custom/AppLayout";
 import { AppRouteError } from "@/components/custom/RouteFeedback";
 
@@ -27,10 +34,20 @@ declare module "@tanstack/react-router" {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
+  // `u` names the account the tab acts as while the browser has several
+  // (`settleTabAccount`), so every navigation inside the app keeps it.
+  validateSearch: z.object({ u: optionalSearchText() }),
+  search: { middlewares: [retainSearchParams(["u"])] },
   // Maintenance closes every page to everyone but an administrator, so it is
   // decided before any of them loads. The session is only asked for while
   // maintenance is on.
   beforeLoad: async ({ context: { queryClient }, location, matches }) => {
+    const config = queryClient.ensureQueryData(publicConfigQueryOptions());
+    // Awaited below; a navigation that leaves first leaves it unread.
+    config.catch(() => undefined);
+    // The pages' reads name the tab's account, so it is settled before any
+    // of them goes out.
+    await settleTabAccount(queryClient, location);
     // A page that knows what its loader will wait on starts it here, beside
     // the config read (`startReads`).
     const startedReads: StartedReads = new Map();
@@ -45,14 +62,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       reads.catch(() => undefined);
       startedReads.set(match.routeId, reads);
     }
-    const config = await queryClient.ensureQueryData(
-      publicConfigQueryOptions(),
-    );
-    if (!config.maintenanceMode) return { startedReads };
+    const { maintenanceMode } = await config;
+    if (!maintenanceMode) return { startedReads };
     const session = await queryClient.ensureQueryData(sessionQueryOptions());
     if (
       maintenanceRedirect({
-        maintenanceMode: config.maintenanceMode,
+        maintenanceMode,
         session,
         pathname: location.pathname,
         search: location.search,

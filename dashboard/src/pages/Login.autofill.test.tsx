@@ -22,6 +22,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiError, describeError } from "@/api/errors";
 import {
   authStatusQueryOptions,
+  browserAccountsQueryOptions,
   publicConfigQueryOptions,
   publicFederationProvidersQueryOptions,
 } from "@/api/queries";
@@ -90,6 +91,10 @@ beforeEach(() => {
     publicFederationProvidersQueryOptions().queryKey,
     [],
   );
+  queryClient.setQueryData(browserAccountsQueryOptions().queryKey, {
+    limit: 10,
+    accounts: [],
+  });
   vi.stubGlobal("isSecureContext", true);
   vi.mocked(browserSupportsWebAuthn).mockReturnValue(true);
   vi.mocked(browserSupportsWebAuthnAutofill).mockResolvedValue(true);

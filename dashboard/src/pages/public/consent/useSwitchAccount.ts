@@ -1,21 +1,20 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { logoutMutationOptions } from "@/api/mutations";
-import { clearSessionQueries } from "@/api/queries";
+import { useMutation } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
+import { switchAccountMutationOptions } from "@/api/mutations";
+import { followRedirect } from "@/app/redirect";
 
 /**
- * Signs out and opens the sign-in page, which comes back to `returnTo` once
- * another account has signed in. The consent and require-identity pages offer
- * it to someone signed in as the wrong account.
+ * "Use another account" on a consent page: the request is kept and the
+ * account chooser opens for it, so the reader can pick another account on
+ * this browser or sign one in. Nothing is signed out. The button stays
+ * pending until the chooser has opened.
  */
-export function useSwitchAccount(returnTo: string) {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
+export function useSwitchAccount() {
+  const router = useRouter();
   return useMutation({
-    ...logoutMutationOptions(queryClient),
-    onSuccess: async () => {
-      await clearSessionQueries(queryClient);
-      await navigate({ to: "/login", search: { return_to: returnTo } });
+    ...switchAccountMutationOptions(),
+    onSuccess: async ({ redirect }) => {
+      await followRedirect(router, redirect);
     },
   });
 }

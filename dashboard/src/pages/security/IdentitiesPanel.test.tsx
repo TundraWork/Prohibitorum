@@ -204,16 +204,25 @@ describe("the link menu", () => {
 
   it("leaves for the provider and keeps the button pending until the page returns", async () => {
     const user = userEvent.setup();
-    mount([github]);
+    mount([github], providers, (request) =>
+      request.method === "POST" &&
+      new URL(request.url).pathname.endsWith("/me/identities/link/gitlab/begin")
+        ? Response.json({ redirect: "https://gitlab.example/authorize" })
+        : undefined,
+    );
     await rows();
 
     await openLinkMenu(user);
     await user.click(screen.getByRole("menuitem", { name: "GitLab" }));
 
     await waitFor(() => expect(loadDocument).toHaveBeenCalledTimes(1));
-    expect(vi.mocked(loadDocument).mock.calls[0]?.[0]).toContain(
-      "/me/identities/link/gitlab/begin",
+    expect(loadDocument).toHaveBeenCalledWith(
+      "https://gitlab.example/authorize",
     );
+    const [begin] = fetchBoundary.mock.calls
+      .map(([request]) => request)
+      .filter((request) => request.url.endsWith("/link/gitlab/begin"));
+    expect(await begin?.json()).toEqual({ returnTo: "/security" });
     const button = screen.getByRole("button", {
       name: "Link another identity",
     });
