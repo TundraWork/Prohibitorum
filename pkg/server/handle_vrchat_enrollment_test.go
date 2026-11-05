@@ -1133,7 +1133,7 @@ func TestEnrollmentCompletionIssuesBrowserSessionCookie(t *testing.T) {
 	}
 	var session *http.Cookie
 	for _, c := range w.Result().Cookies() {
-		if strings.HasSuffix(c.Name, "prohibitorum_session") {
+		if isSessionCookie(c) {
 			session = c
 		}
 	}

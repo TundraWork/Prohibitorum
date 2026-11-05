@@ -595,7 +595,7 @@ func TestTOTPVerify_Success(t *testing.T) {
 	cookies := w.Result().Cookies()
 	var sessCookie *http.Cookie
 	for _, c := range cookies {
-		if c.Name == sessstore.SessionCookieName {
+		if isSessionCookie(c) {
 			sessCookie = c
 			break
 		}
@@ -659,7 +659,7 @@ func TestTOTPVerify_RememberCookieMaxAge(t *testing.T) {
 			}
 			var sessCookie *http.Cookie
 			for _, c := range w.Result().Cookies() {
-				if c.Name == sessstore.SessionCookieName {
+				if isSessionCookie(c) {
 					sessCookie = c
 					break
 				}
@@ -930,7 +930,7 @@ func TestRecoveryCodeVerify_RememberCookieMaxAge(t *testing.T) {
 			}
 			var sessCookie *http.Cookie
 			for _, c := range w.Result().Cookies() {
-				if c.Name == sessstore.SessionCookieName {
+				if isSessionCookie(c) {
 					sessCookie = c
 					break
 				}

@@ -36,6 +36,7 @@ import (
 	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/pairing"
 	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 )
 
 // ----- POST /auth/devices/pair/begin (anonymous) ---------------------------
@@ -129,8 +130,9 @@ type pairCompleteReq struct {
 }
 
 type pairCompleteResp struct {
-	Session  contract.SessionView `json:"session"`
-	Redirect string               `json:"redirect"`
+	Session  contract.SessionView      `json:"session"`
+	Redirect string                    `json:"redirect"`
+	Account  *contract.SignedInAccount `json:"account,omitempty"`
 }
 
 func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +150,13 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 	// is NOT mutated — Consume returns pairing_not_approved and preserves the
 	// ceremony for the user to approve. A malformed or absent record fails
 	// closed without mutation.
+	// A browser with no room for the approved account is refused on a peek,
+	// so the pairing survives for when an account here has signed out.
+	if peek, err := s.pairingStore.GetByID(r.Context(), body.PairingID); err == nil &&
+		peek.Status == pairing.PairingApproved && !s.canSignIn(r, peek.ApprovedFor) {
+		writeAuthErr(w, authn.ErrAccountLimitReached())
+		return
+	}
 	p, err := s.pairingStore.Consume(r.Context(), body.PairingID)
 	if err != nil {
 		writeAuthErr(w, err)
@@ -174,15 +183,14 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	ip := s.clientIP.IP(r)
-	sessionToken, data, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"hwk"}, nil, body.Remember)
-	if err != nil {
+	returnTo := r.URL.Query().Get("return_to")
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{AccountID: acct.ID, AMR: []string{"hwk"}, Remember: body.Remember}, returnTo); err != nil {
 		// Session issuance failed after the pairing was consumed. Do NOT
 		// resurrect the consumed state — that would reopen the race. The
 		// user restarts the pairing flow.
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, acct.ID, sessionToken, data))
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{
 		"event":      "auth.pairing_completed",
@@ -197,9 +205,11 @@ func (s *Server) handlePairCompleteHTTP(w http.ResponseWriter, r *http.Request) 
 		Detail:    map[string]any{"via": "pairing"},
 	})
 
+	result := s.loginResult(r, acct.ID, returnTo)
 	writeJSON(w, pairCompleteResp{
 		Session:  s.sessionView(&acct),
-		Redirect: validateReturnTo(r.URL.Query().Get("return_to"), s.config),
+		Redirect: result.Redirect,
+		Account:  result.Account,
 	})
 }
 

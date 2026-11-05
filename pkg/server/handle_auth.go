@@ -556,13 +556,17 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	// Ceremony stash was Popped atomically above; no Del needed here.
 	http.SetCookie(w, sessstore.ClearedCeremonyCookie(s.config, r, mediation.cookieName()))
 
-	ip := s.clientIP.IP(r)
-	token, data, err := s.sessionStore.Issue(r.Context(), resolvedAccount.ID, ip, r.UserAgent(), []string{"hwk"}, nil, rememberRequested(r))
-	if err != nil {
+	returnTo := r.URL.Query().Get("return_to")
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{
+		AccountID: resolvedAccount.ID, AMR: []string{"hwk"}, Remember: rememberRequested(r),
+	}, returnTo); err != nil {
+		if ae := authn.AsAuthError(err); ae != nil {
+			writeAuthErr(w, ae)
+			return
+		}
 		writeAuthErrForCode(w, "ceremony_internal_error", fmt.Errorf("session issue: %w", err))
 		return
 	}
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, resolvedAccount.ID, token, data))
 
 	logx.WithContext(r.Context()).WithFields(logrus.Fields{
 		"event":      "auth.login_success",
@@ -592,9 +596,7 @@ func (s *Server) handleLoginCompleteHTTP(w http.ResponseWriter, r *http.Request)
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(contract.LoginResult{
-		Redirect: validateReturnTo(r.URL.Query().Get("return_to"), s.config),
-	})
+	_ = json.NewEncoder(w).Encode(s.loginResult(r, resolvedAccount.ID, returnTo))
 }
 
 // recordPasskeyLoginFailure logs and audits a passkey login that failed while
@@ -612,25 +614,48 @@ func (s *Server) recordPasskeyLoginFailure(r *http.Request, reason string) {
 	})
 }
 
-// ----- POST /auth/logout (raw chi) -----------------------------------------
+// ----- POST /auth/logout, /auth/logout-all (raw chi) -----------------------
 
+// handleLogoutHTTP signs the selected account out of this browser: the one
+// the X-Prohibitorum-Account header names, else the default account. Only
+// its entry goes; the browser's other accounts stay signed in. Signing out an
+// account that is not signed in here is a no-op 204.
 func (s *Server) handleLogoutHTTP(w http.ResponseWriter, r *http.Request) {
-	if c, err := r.Cookie(sessstore.SessionCookieNameFor(s.config)); err == nil && c.Value != "" {
-		if id, tok, ok := sessstore.ParseCookieValue(c.Value); ok {
-			_ = s.sessionStore.Revoke(r.Context(), id, tok)
-			logx.WithContext(r.Context()).WithFields(logrus.Fields{
-				"event":      "auth.logout",
-				"account_id": id,
-				"client_ip":  s.clientIP.IP(r),
-			}).Info("auth")
-			audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
-				AccountID: &id,
-				Factor:    audit.FactorSession,
-				Event:     audit.EventSessionEnd,
-				Detail:    map[string]any{"reason": "logout"},
-			})
+	if sess := authn.SessionFromContext(r.Context()); sess != nil && sess.Account != nil {
+		id := sess.Account.ID
+		if s.browser(r).Remove(id) {
+			s.recordLogout(r, id, "logout")
 		}
 	}
-	http.SetCookie(w, sessstore.ClearedSessionCookie(s.config, r))
+	s.browser(r).Flush(w.Header())
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleLogoutAllHTTP signs every account out of this browser and clears both
+// session cookies.
+func (s *Server) handleLogoutAllHTTP(w http.ResponseWriter, r *http.Request) {
+	b := s.browser(r)
+	for _, id := range b.RemoveAll() {
+		s.recordLogout(r, id, "logout_all")
+	}
+	b.Flush(w.Header())
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) recordLogout(r *http.Request, accountID int32, reason string) {
+	ip := ""
+	if s.clientIP != nil {
+		ip = s.clientIP.IP(r)
+	}
+	logx.WithContext(r.Context()).WithFields(logrus.Fields{
+		"event":      "auth." + reason,
+		"account_id": accountID,
+		"client_ip":  ip,
+	}).Info("auth")
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
+		AccountID: &accountID,
+		Factor:    audit.FactorSession,
+		Event:     audit.EventSessionEnd,
+		Detail:    map[string]any{"reason": reason},
+	})
 }

@@ -2,13 +2,14 @@ package session
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
-	"time"
 
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/credential/pat"
 	"prohibitorum/pkg/db"
+	"prohibitorum/pkg/weberr"
 )
 
 // Cookie names — referenced by handlers + tests.
@@ -53,19 +54,30 @@ func SessionCookieNameFor(cfg *configx.Config) string {
 	return sessionCookieName(secureCookies(cfg))
 }
 
-// LoadSession returns a chi middleware that:
-//  1. Reads the prohibitorum_session cookie.
-//  2. Validates it against the SessionStore.
-//  3. Fetches the live db.Account.
-//  4. Attaches *authn.Session to the request context.
+// LoadSession returns a chi middleware that reads the browser's signed-in
+// accounts from the two session cookies, selects the session this request
+// acts as, and attaches it with authn.WithSession. The Browser itself is
+// attached too (BrowserFromContext) for handlers that list, add or remove
+// accounts.
 //
-// Does NOT reject missing/invalid sessions — that's per-route via registerOp's
-// Check. DOES reject disabled accounts with 403 account_disabled (and revokes
-// the session) because a disabled account never has authority regardless of
-// what route is being hit. Failures in cookie parsing or session lookup are
-// silently swallowed — the request continues unauthenticated, and downstream
-// auth checks will produce the appropriate 401.
+// Selection: under /api/prohibitorum/ an X-Prohibitorum-Account header names
+// the account by ID; a malformed value is 400 bad_request, and an account not
+// signed in here leaves the request without a session, marked so
+// authn.CheckContext answers account_not_signed_in. Everywhere else, and
+// without the header, the default account is used: the first one signed in.
+// The URL's `u` is never read here — the dashboard resolves it to an ID.
+//
+// Does NOT reject missing/invalid sessions — that's per-route via
+// registerOp's Check. A disabled account's entry is revoked and dropped; when
+// it is the selected account a sentinel session (no token, no data) is
+// attached so Check answers account_disabled.
 func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore, ipOf func(*http.Request) string) func(http.Handler) http.Handler {
+	return NewManager(cfg, q, store, ipOf).LoadSession()
+}
+
+// LoadSession is the middleware form of the manager; see the package-level
+// LoadSession.
+func (m *Manager) LoadSession() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// A management API request carrying a PAT is authenticated by the
@@ -74,105 +86,95 @@ func LoadSession(cfg *configx.Config, q db.Querier, store *SessionStore, ipOf fu
 				next.ServeHTTP(w, r)
 				return
 			}
-			c, err := r.Cookie(SessionCookieNameFor(cfg))
-			if err != nil || c.Value == "" {
-				next.ServeHTTP(w, r)
-				return
+			b := m.newBrowser(r)
+			ctx := WithBrowser(r.Context(), b)
+			b.ctx = ctx
+
+			var sess *authn.Session
+			raw := r.Header.Get(AccountHeader)
+			if raw != "" && strings.HasPrefix(r.URL.Path, "/api/prohibitorum/") {
+				id, ok := parseAccountID(raw)
+				if !ok {
+					weberr.WriteJSON(w, "bad_request", nil, weberr.RequestIDFromContext(r.Context()))
+					return
+				}
+				if sess = b.Select(id); sess == nil {
+					ctx = authn.WithAccountNotSignedIn(ctx)
+				}
+			} else if len(b.entries) > 0 {
+				sess = b.Default()
 			}
-			accountID, token, ok := ParseCookieValue(c.Value)
-			if !ok {
-				http.SetCookie(w, ClearedSessionCookie(cfg, r))
-				next.ServeHTTP(w, r)
-				return
+			if sess != nil {
+				if sess.Data != nil {
+					w.Header().Set(AccountHeader, strconv.FormatInt(int64(sess.Account.ID), 10))
+					// A request that names its account, or one from a browser
+					// holding a single account, is that account's activity. A
+					// header-less request on a multi-account browser (a page or
+					// asset load, a protocol endpoint before it settles on an
+					// account) is no particular account's, so it slides none.
+					if raw != "" || len(b.entries) == 1 {
+						b.Touch(sess.Account.ID)
+					}
+				}
+				ctx = authn.WithSession(ctx, sess)
 			}
-			ip := ipOf(r)
-			data, refreshed, err := store.Load(r.Context(), accountID, token, ip, r.UserAgent())
-			if err != nil {
-				// Invalid/expired session: clear the cookie, continue unauthenticated.
-				http.SetCookie(w, ClearedSessionCookie(cfg, r))
-				next.ServeHTTP(w, r)
-				return
+			r = r.WithContext(ctx)
+			b.r = r
+			bw := &browserWriter{ResponseWriter: w, b: b}
+			next.ServeHTTP(bw, r)
+			if !bw.wrote {
+				// Nothing written yet: the server will send an implicit 200,
+				// so the cookies still fit in the header.
+				b.Flush(w.Header())
 			}
-			account, err := q.GetAccountByID(r.Context(), accountID)
-			if err != nil {
-				// Account vanished (e.g. deleted while session was live).
-				http.SetCookie(w, ClearedSessionCookie(cfg, r))
-				_ = store.Revoke(r.Context(), accountID, token)
-				next.ServeHTTP(w, r)
-				return
-			}
-			if account.Disabled {
-				// Disabled mid-session — kill the persistent session in KV and clear the
-				// cookie so the user is forcibly logged out. We still attach a "disabled
-				// sentinel" session to the context so per-route Check can return
-				// account_disabled (machine-readable JSON) instead of no_session.
-				//
-				// Public routes (auth/logout, enrollment consume, etc.) read the sentinel
-				// via SessionFromContext but ignore it — their AuthRequirement is AuthPublic,
-				// which Check returns nil for before inspecting the session.
-				_ = store.Revoke(r.Context(), accountID, token)
-				http.SetCookie(w, ClearedSessionCookie(cfg, r))
-				ctx := authn.WithSession(r.Context(), &authn.Session{Account: &account, Token: "", Data: nil})
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
-			}
-			if refreshed {
-				http.SetCookie(w, store.SessionCookie(cfg, r, accountID, token, data))
-			}
-			ctx := authn.WithSession(r.Context(), &authn.Session{Account: &account, Token: token, Data: data})
-			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
 
+// browserWriter rewrites the session cookies, when an entry changed during
+// the request, just before the response header goes out.
+type browserWriter struct {
+	http.ResponseWriter
+	b     *Browser
+	wrote bool
+}
+
+func (w *browserWriter) WriteHeader(code int) {
+	if !w.wrote {
+		w.wrote = true
+		w.b.Flush(w.Header())
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *browserWriter) Write(p []byte) (int, error) {
+	if !w.wrote {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(p)
+}
+
+func (w *browserWriter) Flush() {
+	if !w.wrote {
+		w.WriteHeader(http.StatusOK)
+	}
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (w *browserWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
 // ----- cookie helpers -------------------------------------------------------
 
-// FreshSessionCookie constructs the Set-Cookie value for issuing or refreshing
-// a session. Path=/ so a real browser sends it to the root-level OIDC/SAML
-// protocol endpoints (/oauth/authorize, /saml/sso, …) — it is an opaque
-// HttpOnly token, so being sent on all paths is exactly what mainstream IdPs
-// do. Name + Secure derive from the deployment scheme (see secureCookies).
-// The *http.Request is no longer needed (Secure comes from cfg) but is kept
-// for signature stability with the call sites.
-//
-// maxAge == 0 writes no Max-Age, making the cookie a browser-session cookie
-// (the "don't keep me signed in" behaviour); a positive maxAge persists it.
-func FreshSessionCookie(cfg *configx.Config, _ *http.Request, accountID int32, token string, maxAge time.Duration) *http.Cookie {
-	return &http.Cookie{
-		Name:     SessionCookieNameFor(cfg),
-		Value:    CookieValue(accountID, token),
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secureCookies(cfg),
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   int(maxAge.Seconds()),
-	}
-}
-
-// SessionCookie picks the cookie persistence for a session: remembered
-// sessions carry Max-Age = rememberTTL so they survive a browser restart;
-// the rest get 0 (no Max-Age written), so they die with the browser session.
-// LoadSession re-emits this on refresh, which keeps the browser's expiry in
-// step with the server-side sliding window.
-func (s *SessionStore) SessionCookie(cfg *configx.Config, r *http.Request, accountID int32, token string, data *authn.SessionData) *http.Cookie {
-	if data != nil && data.Remember {
-		return FreshSessionCookie(cfg, r, accountID, token, s.rememberTTL)
-	}
-	return FreshSessionCookie(cfg, r, accountID, token, 0)
-}
-
-// ClearedSessionCookie expires the session cookie. Name + Path + attributes
-// MUST match FreshSessionCookie or browsers create a new empty cookie rather
-// than clearing the existing one.
-func ClearedSessionCookie(cfg *configx.Config, _ *http.Request) *http.Cookie {
-	return &http.Cookie{
-		Name:     SessionCookieNameFor(cfg),
-		Value:    "",
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   secureCookies(cfg),
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   -1,
+// ClearedSessionCookies expires both session cookies (sign out of every
+// account). Name + Path + attributes match the set path or browsers would
+// create a new empty cookie rather than clearing the existing one.
+func ClearedSessionCookies(cfg *configx.Config) []*http.Cookie {
+	return []*http.Cookie{
+		browserCookie(cfg, true, "", 0),
+		browserCookie(cfg, false, "", 0),
 	}
 }
 

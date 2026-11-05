@@ -41,9 +41,9 @@ import (
 
 	"prohibitorum/pkg/audit"
 	"prohibitorum/pkg/authn"
-	"prohibitorum/pkg/contract"
 	"prohibitorum/pkg/credential/password"
 	"prohibitorum/pkg/credential/totp"
+	sessstore "prohibitorum/pkg/session"
 )
 
 type partialSession struct {
@@ -177,6 +177,10 @@ func (s *Server) handleTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
 		return
 	}
+	if s.partialSessionAtCap(r, body.PartialSessionToken) {
+		writeAuthErr(w, authn.ErrAccountLimitReached())
+		return
+	}
 	partial, err := s.consumePartialSession(r.Context(), body.PartialSessionToken)
 	if err != nil {
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
@@ -241,6 +245,10 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if s.partialSessionAtCap(r, body.PartialSessionToken) {
+		writeAuthErr(w, authn.ErrAccountLimitReached())
+		return
+	}
 	partial, err := s.consumePartialSession(r.Context(), body.PartialSessionToken)
 	if err != nil || partial.FactorCompleted != "password" {
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
@@ -331,21 +339,35 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 	if body.ResetAuthenticator {
 		amr = []string{"pwd", "otp", "mfa"}
 	}
-	ip := s.clientIP.IP(r)
-	token, data, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), amr, nil, partial.Remember)
-	if err != nil {
+	returnTo := r.URL.Query().Get("return_to")
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{AccountID: acct.ID, AMR: amr, Remember: partial.Remember}, returnTo); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, acct.ID, token, data))
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: &acct.ID, Factor: audit.FactorSession, Event: audit.EventSessionStart, Detail: map[string]any{"via": "recovery"}})
-	redirect := validateReturnTo(r.URL.Query().Get("return_to"), s.config)
+	result := s.loginResult(r, acct.ID, returnTo)
 	w.Header().Set("Content-Type", "application/json")
 	if body.ResetAuthenticator {
-		_ = json.NewEncoder(w).Encode(map[string]any{"redirect": redirect, "recovery_codes": recoveryCodes})
+		_ = json.NewEncoder(w).Encode(map[string]any{"redirect": result.Redirect, "account": result.Account, "recovery_codes": recoveryCodes})
 		return
 	}
-	_ = json.NewEncoder(w).Encode(contract.LoginResult{Redirect: redirect})
+	_ = json.NewEncoder(w).Encode(result)
+}
+
+// partialSessionAtCap reports, without consuming the partial session, that
+// its account could not be signed in on this browser: the cap is checked
+// before the one-time code (and a recovery code's replacement credentials)
+// is spent, so the reader can sign an account out and retry the same step.
+func (s *Server) partialSessionAtCap(r *http.Request, token string) bool {
+	raw, err := s.kvStore.Get(r.Context(), partialSessionKey(token))
+	if err != nil {
+		return false
+	}
+	var ps partialSession
+	if json.Unmarshal([]byte(raw), &ps) != nil {
+		return false
+	}
+	return !s.canSignIn(r, ps.AccountID)
 }
 
 // consumePartialSession atomically retrieves and removes the KV entry via
@@ -387,14 +409,11 @@ func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request
 		writeAuthErr(w, me)
 		return
 	}
-	ip := s.clientIP.IP(r)
-	ua := r.UserAgent()
-	token, data, err := s.sessionStore.Issue(r.Context(), accountID, ip, ua, amr, nil, remember)
-	if err != nil {
+	returnTo := r.URL.Query().Get("return_to")
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{AccountID: accountID, AMR: amr, Remember: remember}, returnTo); err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, accountID, token, data))
 	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{
 		AccountID: &accountID,
 		Factor:    audit.FactorSession,
@@ -402,7 +421,5 @@ func (s *Server) issueSessionAndSetCookie(w http.ResponseWriter, r *http.Request
 		Detail:    map[string]any{"via": "password_totp"},
 	})
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(contract.LoginResult{
-		Redirect: validateReturnTo(r.URL.Query().Get("return_to"), s.config),
-	})
+	_ = json.NewEncoder(w).Encode(s.loginResult(r, accountID, returnTo))
 }

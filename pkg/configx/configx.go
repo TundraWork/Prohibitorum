@@ -34,6 +34,10 @@ type Config struct {
 	// "keep me signed in"; SessionTTL applies otherwise. Both slide on
 	// activity with no absolute cap.
 	SessionRememberTTL time.Duration `mapstructure:"session_remember_ttl"`
+	// SessionMaxAccounts caps how many accounts one browser can be signed in
+	// to at once. Both session cookies together stay under the 4 KB cookie
+	// limit up to the maximum of 20.
+	SessionMaxAccounts int `mapstructure:"session_max_accounts"`
 
 	// ServerTiming adds a Server-Timing header (total, database, KV) to every
 	// response, for profiling. Off by default: the breakdown tells any client
@@ -237,6 +241,7 @@ func Parse() (*Config, error) {
 	// "Keep me signed in" sessions slide for 14 days by default; the
 	// session_ttl above is the not-remembered lifetime.
 	viper.SetDefault("session_remember_ttl", 14*24*time.Hour)
+	viper.SetDefault("session_max_accounts", 10)
 
 	// OIDC defaults — short access tokens, longer refresh tokens, very
 	// short authorization codes (single-use anyway).
@@ -380,6 +385,9 @@ func Parse() (*Config, error) {
 
 	if config.SessionRememberTTL <= 0 {
 		config.SessionRememberTTL = 14 * 24 * time.Hour
+	}
+	if config.SessionMaxAccounts < 1 || config.SessionMaxAccounts > 20 {
+		return nil, fmt.Errorf("config: session_max_accounts must be 1-20, got %d", config.SessionMaxAccounts)
 	}
 
 	keys, err := loadDataEncryptionKeys(os.Environ())

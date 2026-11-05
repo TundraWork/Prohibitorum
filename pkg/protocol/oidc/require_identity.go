@@ -8,7 +8,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"slices"
 	"time"
 
@@ -53,6 +52,9 @@ type RequireIdentityTicket struct {
 	SessionID   string   `json:"session_id"`
 	// Mismatch marks a request whose id_token_hint names another account.
 	Mismatch bool `json:"mismatch"`
+	// LoginHint is the username of the account a mismatched hint names, for
+	// the sign-in page "use another account" opens.
+	LoginHint string `json:"login_hint,omitempty"`
 	// Entry is the request's own address, for signing in as another account
 	// and coming back to it.
 	Entry string `json:"entry"`
@@ -114,29 +116,56 @@ func (p *Provider) HandleRequireIdentity(w http.ResponseWriter, r *http.Request)
 		hintClaims = claims
 	}
 
-	entry := p.cfg.OIDC.Issuer + r.URL.RequestURI()
-	sess := authn.SessionFromContext(ctx)
-	if sess == nil || sess.Data == nil || (sess.Account != nil && sess.Account.Disabled) {
-		http.Redirect(w, r, p.cfg.OIDC.Issuer+"/login?return_to="+url.QueryEscape(entry), http.StatusFound)
+	// The entry address is what "use another account" signs in and comes back
+	// to, so an earlier account choice is not part of it.
+	entry := p.cfg.OIDC.Issuer + r.URL.Path
+	if rq := authn.StripQueryParams(r.URL.RawQuery, authn.AccountChoiceParam); rq != "" {
+		entry += "?" + rq
+	}
+	resolved := p.resolveAccount(r, accountRequest{
+		kind:      authn.ChooserKindRequireIdentity,
+		app:       client.ClientID,
+		choice:    q.Get(authn.AccountChoiceParam),
+		hint:      hintClaims,
+		loginHint: q.Get("login_hint"),
+	})
+	switch resolved.outcome {
+	case accountNeedsLogin:
+		http.Redirect(w, r, p.loginURL(entry, resolved.prefill), http.StatusFound)
+		return
+	case accountNeedsChoice:
+		if err := p.redirectToChooser(w, r, authn.ChooserKindRequireIdentity, client.ClientID, resolved.prefill); err != nil {
+			p.requireIdentityError(w, r, errCodeServerError, "error", err.Error())
+		}
 		return
 	}
+	sess := resolved.sess
 	accountID := sess.Data.AccountID
+	if sess.Account != nil && p.maintenanceDenies(ctx, *sess.Account) {
+		http.Redirect(w, r, p.withAccountRef(r, p.cfg.OIDC.Issuer+"/", accountID), http.StatusFound)
+		return
+	}
 
 	ticket := RequireIdentityTicket{
 		ClientID: client.ClientID, RedirectURI: redirectURI, Providers: providers,
 		AccountID: accountID, SessionID: sess.Data.SessionID, Entry: entry,
 	}
 	if hintClaims != nil {
-		hinted, err := accountFromTokenClaims(ctx, p.queries, hintClaims)
+		// A hint naming an account signed in here has already chosen it; one
+		// that names any other account, or none we can find, is not proof it
+		// is this one. The page then offers to sign in as the hinted account,
+		// keeping this one signed in.
 		switch {
-		case errors.Is(err, pgx.ErrNoRows), errors.Is(err, errPrincipalUnavailable):
-			// The hint names no account we can find: not proof it is this one.
+		case resolved.hinted == nil:
+			if _, err := accountFromTokenClaims(ctx, p.queries, hintClaims); err != nil &&
+				!errors.Is(err, pgx.ErrNoRows) && !errors.Is(err, errPrincipalUnavailable) {
+				p.requireIdentityError(w, r, errCodeServerError, "error", err.Error())
+				return
+			}
 			ticket.Mismatch = true
-		case err != nil:
-			p.requireIdentityError(w, r, errCodeServerError, "error", err.Error())
-			return
-		case hinted.ID != accountID:
+		case resolved.hinted.ID != accountID:
 			ticket.Mismatch = true
+			ticket.LoginHint = resolved.hinted.Username
 		}
 		if ticket.Mismatch {
 			p.redirectToRequireIdentityPage(w, r, ticket)
@@ -161,7 +190,7 @@ func (p *Provider) HandleRequireIdentity(w http.ResponseWriter, r *http.Request)
 				"client_id": client.ClientID,
 			},
 		})
-		p.appAccessDenied(w, r, redirectURI, client.DisplayName, "", entry, false)
+		p.appAccessDenied(w, r, redirectURI, client.DisplayName, "", entry, false, accountID)
 		return
 	}
 
@@ -188,7 +217,7 @@ func (p *Provider) redirectToRequireIdentityPage(w http.ResponseWriter, r *http.
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	http.Redirect(w, r, p.cfg.OIDC.Issuer+"/require-identity/"+id, http.StatusFound)
+	http.Redirect(w, r, p.withAccountRef(r, p.cfg.OIDC.Issuer+"/require-identity/"+id, ticket.AccountID), http.StatusFound)
 }
 
 // requireIdentityError ends the request on the /error page and logs why, with

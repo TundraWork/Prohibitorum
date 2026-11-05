@@ -117,24 +117,83 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// (4) Session gate. A nil session, the disabled-mid-session sentinel
-	// (non-nil Session with Data == nil, attached by LoadSession when an
-	// account is disabled), or an explicitly-disabled account all count as
-	// "not authenticated" — bounce to login (or login_required for
-	// prompt=none). Widening this guard also keeps the sess.Data deref below
-	// safe, matching the pattern in handle_sudo.go.
-	sess := authn.SessionFromContext(r.Context())
-	if sess == nil || sess.Data == nil || (sess.Account != nil && sess.Account.Disabled) {
-		if prompt == "none" {
-			// The RP forbade an interactive login bounce.
+	// OIDC Core §3.1.2.1: validate prompt tokens against the supported set
+	// (advertised as prompt_values_supported in discovery) rather than silently
+	// ignoring unknown values, and enforce that "none" is mutually exclusive with
+	// every other value. Checked before the account is resolved, which reads
+	// select_account and none. (T2.3)
+	prompts := strings.Fields(prompt)
+	for _, pr := range prompts {
+		switch pr {
+		case "none", "login", "consent", "select_account":
+		default:
+			redirectError(w, r, redirectURI, errCodeInvalidRequest, "unsupported prompt value", state, p.cfg.OIDC.Issuer)
+			return
+		}
+	}
+	wantLogin := slices.Contains(prompts, "login")
+	wantNone := slices.Contains(prompts, "none")
+	if wantNone && len(prompts) > 1 {
+		redirectError(w, r, redirectURI, errCodeInvalidRequest, "prompt none must not be combined with other values", state, p.cfg.OIDC.Issuer)
+		return
+	}
+
+	// (4) Fix the account (design 5.3). Every step after this acts on the
+	// chosen account's session: access policy, re-auth, consent and the code,
+	// whose SessionID becomes the ID token's sid. An id_token_hint that fails
+	// verification is not an error here; it just names no account.
+	var hintClaims map[string]any
+	if hint := q.Get("id_token_hint"); hint != "" {
+		hintClaims, _ = p.verifyIDTokenHint(r.Context(), hint)
+	}
+	resolved := p.resolveAccount(r, accountRequest{
+		kind:          authn.ChooserKindOIDC,
+		app:           client.ClientID,
+		choice:        q.Get(authn.AccountChoiceParam),
+		hint:          hintClaims,
+		loginHint:     q.Get("login_hint"),
+		selectAccount: slices.Contains(prompts, "select_account"),
+		hintBinds:     true,
+	})
+	// A silent request with a hint gets an answer only for an account it
+	// could have been given anyway: a hint naming an account that is not
+	// signed in here, or (below) one that may not use this client or has
+	// not consented to it, all answer login_required. Otherwise prompt=none
+	// would tell the relying party which accounts are signed in here.
+	if wantNone && resolved.hintMissed {
+		redirectError(w, r, redirectURI, errCodeLoginRequired, "authentication required", state, p.cfg.OIDC.Issuer)
+		return
+	}
+	hintedSilently := wantNone && resolved.viaHint
+	switch resolved.outcome {
+	case accountNeedsLogin:
+		if wantNone {
 			redirectError(w, r, redirectURI, errCodeLoginRequired, "authentication required", state, p.cfg.OIDC.Issuer)
 			return
 		}
-		// Send the user to the login page; on success they return to this exact
-		// authorize URL. This is NOT an RP redirect, so use a plain redirect.
-		fullAuthorizeURL := p.cfg.OIDC.Issuer + r.URL.RequestURI()
-		loginURL := p.cfg.OIDC.Issuer + "/login?return_to=" + url.QueryEscape(fullAuthorizeURL)
-		http.Redirect(w, r, loginURL, http.StatusFound)
+		// Not an RP redirect: the login page returns to this exact URL.
+		http.Redirect(w, r, p.loginURL(p.cfg.OIDC.Issuer+r.URL.RequestURI(), resolved.prefill), http.StatusFound)
+		return
+	case accountNeedsChoice:
+		if wantNone {
+			redirectError(w, r, redirectURI, errCodeAccountSelectionRequired, "several accounts are signed in", state, p.cfg.OIDC.Issuer)
+			return
+		}
+		if err := p.redirectToChooser(w, r, authn.ChooserKindOIDC, client.ClientID, resolved.prefill); err != nil {
+			redirectError(w, r, redirectURI, errCodeServerError, "could not start account selection", state, p.cfg.OIDC.Issuer)
+		}
+		return
+	}
+	sess := resolved.sess
+
+	// The maintenance gate in front of this handler only sees the default
+	// account; the account chosen here may be another one.
+	if sess.Account != nil && p.maintenanceDenies(r.Context(), *sess.Account) {
+		if wantNone {
+			redirectError(w, r, redirectURI, errCodeTemporarilyUnavailable, "service under maintenance", state, p.cfg.OIDC.Issuer)
+			return
+		}
+		http.Redirect(w, r, p.withAccountRef(r, p.cfg.OIDC.Issuer+"/", sess.Data.AccountID), http.StatusFound)
 		return
 	}
 
@@ -152,6 +211,10 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			redirectError(w, r, redirectURI, errCodeServerError, "could not evaluate access", state, p.cfg.OIDC.Issuer)
 			return
 		}
+		if hintedSilently {
+			redirectError(w, r, redirectURI, errCodeLoginRequired, "authentication required", state, p.cfg.OIDC.Issuer)
+			return
+		}
 		acctID := sess.Data.AccountID
 		audit.RecordOrLog(r.Context(), p.audit, audit.Record{
 			AccountID: &acctID,
@@ -164,7 +227,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 				"client_id": clientID,
 			},
 		})
-		p.appAccessDenied(w, r, redirectURI, client.DisplayName, state, r.URL.RequestURI(), prompt == "none")
+		p.appAccessDenied(w, r, redirectURI, client.DisplayName, state, r.URL.RequestURI(), wantNone, acctID)
 		return
 	}
 
@@ -172,28 +235,8 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	// §3.1.2.1. A pre-existing session may NOT satisfy a re-auth demand — the
 	// user must authenticate again, producing an auth_time that post-dates the
 	// demand (tracked via a single-use KV marker carried in &reauth=<nonce>).
-	prompts := strings.Fields(prompt)
-	// OIDC Core §3.1.2.1: validate prompt tokens against the supported set
-	// (advertised as prompt_values_supported in discovery) rather than silently
-	// ignoring unknown values, and enforce that "none" is mutually exclusive with
-	// every other value. select_account is accepted but a no-op for this
-	// single-tenant OP (there is exactly one account to select). (T2.3)
-	for _, pr := range prompts {
-		switch pr {
-		case "none", "login", "consent", "select_account":
-		default:
-			redirectError(w, r, redirectURI, errCodeInvalidRequest, "unsupported prompt value", state, p.cfg.OIDC.Issuer)
-			return
-		}
-	}
-	wantLogin := slices.Contains(prompts, "login")
-	wantNone := slices.Contains(prompts, "none")
-	if wantNone && len(prompts) > 1 {
-		redirectError(w, r, redirectURI, errCodeInvalidRequest, "prompt none must not be combined with other values", state, p.cfg.OIDC.Issuer)
-		return
-	}
-
-	// (5a) Snapshot the session NOW — moved ahead of the consent check and the
+	//
+	// Snapshot the session NOW — moved ahead of the consent check and the
 	// rate limit (steps 5/6) so auth_time is available for the re-auth demand
 	// evaluation below. A deliberate ordering change.
 	row, err := p.queries.GetSession(r.Context(), sess.Data.SessionID)
@@ -240,8 +283,14 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			rq := r.URL.Query()
 			rq.Set("reauth", renonce)
 			ret += "?" + rq.Encode()
-			loginURL := p.cfg.OIDC.Issuer + "/login?return_to=" + url.QueryEscape(ret)
-			http.Redirect(w, r, loginURL, http.StatusFound)
+			// The login page pre-fills the account being re-authenticated;
+			// the URL keeps account_choice, so the same account is used
+			// when the reader comes back.
+			username := ""
+			if sess.Account != nil {
+				username = sess.Account.Username
+			}
+			http.Redirect(w, r, p.loginURL(ret, username), http.StatusFound)
 			return
 		}
 	}
@@ -267,6 +316,10 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if needConsent {
+			if hintedSilently {
+				redirectError(w, r, redirectURI, errCodeLoginRequired, "authentication required", state, p.cfg.OIDC.Issuer)
+				return
+			}
 			if wantNone {
 				redirectError(w, r, redirectURI, errCodeConsentRequired, "user consent is required", state, p.cfg.OIDC.Issuer)
 				return
@@ -299,7 +352,7 @@ func (p *Provider) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 			}
 			consentURL := p.cfg.OIDC.Issuer + "/consent?ticket=" + url.QueryEscape(nonce) +
 				"&return_to=" + url.QueryEscape(returnTo)
-			http.Redirect(w, r, consentURL, http.StatusFound)
+			http.Redirect(w, r, p.withAccountRef(r, consentURL, sess.Data.AccountID), http.StatusFound)
 			return
 		}
 	}

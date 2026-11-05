@@ -16,12 +16,28 @@ import type {
   FederationFlow,
   LoginAppearance,
   LoginImage,
+  LoginResult,
   PublicConfig,
   RequireIdentityRequest,
   SamlConsentRequest,
   SudoMethod,
   Wallpaper,
 } from "@/api/raw-paths";
+import {
+  accountFor,
+  accountShorts,
+  addBrowserAccount,
+  browserAccount,
+  browserAccounts,
+  browserAtLimit,
+  browserShorts,
+  type MockAccount,
+  nextAccountId,
+  removeAllBrowserAccounts,
+  removeBrowserAccount,
+  selectBrowserAccount,
+  setBrowserAccountRole,
+} from "@/devtools/mock/accounts";
 import {
   clampAdminCount,
   clampCount,
@@ -57,6 +73,12 @@ type Invitation = components["schemas"]["InvitationView"];
 type IdentityProvider = components["schemas"]["IdentityProviderView"];
 type AuditEvent = components["schemas"]["AuditEventView"];
 type SigningKey = components["schemas"]["SigningKeyView"];
+type BrowserAccount = components["schemas"]["BrowserAccount"];
+type BrowserAccounts = components["schemas"]["BrowserAccounts"];
+type AccountChooser = components["schemas"]["AccountChooser"];
+type AccountChooserApp = components["schemas"]["AccountChooserApp"];
+type AccountChooserRedirect = components["schemas"]["AccountChooserRedirect"];
+type SamlLaunchResult = components["schemas"]["SAMLLaunchResult"];
 
 /** Applies what a write did to the config, so the reads that follow agree with it. */
 export type MockEffect = (draft: MockConfig) => void;
@@ -77,6 +99,8 @@ export interface MockRequest {
   method: string;
   schemaPath: string;
   url: string;
+  /** The `X-Prohibitorum-Account` request header, when the tab sent one. */
+  account?: string | null;
   /** Parsed JSON body, present for a write that carried one. */
   body?: unknown;
 }
@@ -110,8 +134,29 @@ function assignedTo<T>(
   kind: keyof MockConfig["session"]["managedApps"],
   rows: T[],
 ): T[] {
-  if (config.session.role === "admin") return rows;
+  const account = actingAccount(config);
+  const role = account?.role ?? config.session.role;
+  if (role === "admin") return rows;
+  // The assignments the panel sets are account 1's; the others manage nothing.
+  if (account !== undefined && account.id !== 1) return [];
   return rows.slice(0, clampAdminCount(config.session.managedApps[kind]));
+}
+
+/**
+ * The account each request acts as, keyed by the config object
+ * `buildMockReply` hands the fixtures for that request. `null` records a
+ * request that named an account the browser does not hold.
+ */
+const actingAccounts = new WeakMap<MockConfig, MockAccount | null>();
+
+/**
+ * The account a fixture answers for: the one the request selected, or the
+ * browser's first account for a config that was not built for a request.
+ */
+function actingAccount(config: MockConfig): MockAccount | undefined {
+  const selected = actingAccounts.get(config);
+  if (selected !== undefined) return selected ?? undefined;
+  return browserAccounts(config)[0];
 }
 
 function range(count: number): number[] {
@@ -202,9 +247,75 @@ function unmocked(request: MockRequest): MockReply {
   };
 }
 
-/** Reads behind `/me` answer `no_session` while the panel is signed out. */
+/**
+ * Reads behind `/me` answer `no_session` while the browser holds no account;
+ * `buildMockReply` turns that into `account_not_signed_in` when the request
+ * named an account that is not here.
+ */
 function guarded(config: MockConfig, reply: () => MockReply): MockReply {
-  return config.session.signedIn ? reply() : noSession();
+  return actingAccount(config) ? reply() : noSession();
+}
+
+/** A copy of the config whose fixtures answer for `account`. */
+function asAccount(
+  config: MockConfig,
+  account: MockAccount | null,
+): MockConfig {
+  const view = { ...config };
+  actingAccounts.set(view, account);
+  return view;
+}
+
+function accountLimitReached(): MockReply {
+  return { kind: "error", status: 409, code: "account_limit_reached" };
+}
+
+/** A return address on the console, which carries the tab's `u`. */
+function isConsolePath(path: string): boolean {
+  return (
+    path.startsWith("/") &&
+    !["/oauth/", "/saml/", "/api/"].some((prefix) => path.startsWith(prefix))
+  );
+}
+
+function withAccountRef(path: string, u: string): string {
+  const url = new URL(path, "http://mock.invalid");
+  url.searchParams.set("u", u);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+/**
+ * A sign-in completion for account `id`, as the server shapes it: refused
+ * while the browser is full and the account is not already in it, and
+ * otherwise naming the account and adding its `u` to a console redirect once
+ * the browser holds more than one account.
+ */
+function signInReply(
+  config: MockConfig,
+  id: number,
+  body: Record<string, unknown>,
+  effect?: MockEffect,
+): MockReply {
+  if (refusedByLimit(config, id)) return accountLimitReached();
+  const ids = browserAccounts(config).map((account) => account.id);
+  if (!ids.includes(id)) ids.push(id);
+  const u = accountShorts(ids).get(id) ?? "";
+  const redirect = body.redirect;
+  return json(
+    {
+      ...body,
+      ...(typeof redirect === "string" &&
+      ids.length > 1 &&
+      isConsolePath(redirect)
+        ? { redirect: withAccountRef(redirect, u) }
+        : {}),
+      account: { accountId: id, u },
+    },
+    (draft) => {
+      addBrowserAccount(draft, id);
+      effect?.(draft);
+    },
+  );
 }
 
 /**
@@ -394,7 +505,35 @@ export function myAvatarView(config: MockConfig): MyAvatar {
   };
 }
 
+/**
+ * The picture of a browser account after the first, one hue per id, so the
+ * avatar menu and the chooser tell the accounts apart at a glance.
+ */
+function otherAccountAvatarUrl(id: number): string {
+  return avatarPictureUrl((id * 47) % 360);
+}
+
+function browserAccountAvatarUrl(
+  config: MockConfig,
+  id: number,
+): string | undefined {
+  return id === 1 ? activeAvatar(config)?.url : otherAccountAvatarUrl(id);
+}
+
 function sessionView(config: MockConfig): Session {
+  const account = actingAccount(config);
+  if (account !== undefined && account.id !== 1) {
+    return {
+      id: account.id,
+      username: account.username,
+      oidcSubject: `mock-oidc-${account.id}`,
+      displayName: account.displayName,
+      role: account.role,
+      preferences: { appearance: { scheme: null, mode: null } },
+      avatarSource: "user",
+      avatarUrl: otherAccountAvatarUrl(account.id),
+    };
+  }
   const active = activeAvatar(config);
   return {
     id: 1,
@@ -684,6 +823,13 @@ const samlAttributeLabels = [
 ];
 
 function consentAccount(config: MockConfig): ConsentAccount {
+  const account = actingAccount(config);
+  if (account !== undefined && account.id !== 1) {
+    return {
+      displayName: account.displayName,
+      avatarUrl: otherAccountAvatarUrl(account.id),
+    };
+  }
   return { displayName: config.session.displayName, avatarUrl: mockAvatarUrl };
 }
 
@@ -778,6 +924,7 @@ export function requireIdentityRequest(
     redirectUri: "/",
     entryUrl: "/",
     mismatch: state === "mismatch",
+    ...(state === "mismatch" ? { loginHint: "mock-user-2" } : {}),
     satisfied: state === "satisfied",
     providers: range(Math.max(1, providers)).map((index) => ({
       slug: `provider-${index + 1}`,
@@ -828,6 +975,21 @@ function enrollmentProviders(config: MockConfig): Provider[] {
 }
 
 /**
+ * The account an enrollment signs in: a reset re-authenticates account 1, and
+ * any other intent creates an account that takes the browser's next place.
+ */
+function enrollmentAccountId(config: MockConfig): number {
+  return config.publicFlows.enrollment.intent === "reset"
+    ? 1
+    : nextAccountId(config);
+}
+
+/** Whether signing `id` in would be refused because the browser is full. */
+function refusedByLimit(config: MockConfig, id: number): boolean {
+  return browserAccount(config, id) === undefined && browserAtLimit(config);
+}
+
+/**
  * What any enrollment token previews. The administrator's first link only
  * ever offers a passkey, as the server's does, and a reset names the account
  * the panel is signed in as.
@@ -873,6 +1035,7 @@ export function enrollmentPreview(config: MockConfig): EnrollmentPreview {
     ...(bound && !verified ? { expectedUpstreamIdpSlug: bound } : {}),
     // The server leaves the key out when there is nothing to offer.
     ...(providers.length > 0 ? { providers } : {}),
+    atLimit: refusedByLimit(config, enrollmentAccountId(config)),
   };
 }
 
@@ -908,15 +1071,26 @@ function enrollPasswordTotp(config: MockConfig, body: unknown): MockReply {
     preview.target?.displayName ??
     stringField(body, "displayName") ??
     config.session.displayName;
-  return json(
-    {
-      session: { ...sessionView(config), username, displayName },
-      recoveryCodes: freshRecoveryCodes(),
-    },
+  const id = enrollmentAccountId(config);
+  // Only account 1 has a name the panel edits; a later place in the browser is
+  // the directory row of that id, whose name is fixed.
+  const session =
+    id === 1
+      ? {
+          ...sessionView(asAccount(config, accountFor(config, 1))),
+          username,
+          displayName,
+        }
+      : sessionView(asAccount(config, accountFor(config, id)));
+  return signInReply(
+    config,
+    id,
+    { session, recoveryCodes: freshRecoveryCodes(), redirect: "/" },
     (draft) => {
-      draft.session.signedIn = true;
-      draft.session.username = username;
-      draft.session.displayName = displayName;
+      if (id === 1) {
+        draft.session.username = username;
+        draft.session.displayName = displayName;
+      }
       draft.factors.passwordSet = true;
       draft.factors.totpEnrolled = true;
       draft.factors.recoveryCodes = issuedRecoveryCodes;
@@ -985,11 +1159,19 @@ function verifyFlow(config: MockConfig, body: unknown): MockReply {
   if (flow.requiresLocalUsername && !stringField(body, "localUsername")) {
     return { kind: "error", status: 409, code: "local_username_required" };
   }
-  return json({ redirect: flowTarget(config) }, (draft) => {
-    if (flow.intent === "login") draft.session.signedIn = true;
-    // The next walkthrough starts from the beginning of a flow again.
+  // The next walkthrough starts from the beginning of a flow again.
+  const restart: MockEffect = (draft) => {
     draft.publicFlows.flow.step = "identify";
-  });
+  };
+  if (flow.intent === "login") {
+    return signInReply(
+      config,
+      nextAccountId(config),
+      { redirect: flowTarget(config) },
+      restart,
+    );
+  }
+  return json({ redirect: flowTarget(config) }, restart);
 }
 
 function sudoMethods(config: MockConfig): {
@@ -1082,17 +1264,115 @@ function completePairing(request: MockRequest, config: MockConfig): MockReply {
   if (after === 0 || live.reads < after) {
     return { kind: "error", status: 428, code: "pairing_not_approved" };
   }
+  const id = nextAccountId(config);
+  if (refusedByLimit(config, id)) return accountLimitReached();
   startedPairing = undefined;
   const returnTo = new URL(request.url).searchParams.get("return_to");
-  return json(
-    {
-      session: sessionView(config),
-      redirect: returnTo?.startsWith("/") ? returnTo : "/",
-    },
-    (draft) => {
-      draft.session.signedIn = true;
-    },
+  return signInReply(config, id, {
+    session: sessionView(asAccount(config, accountFor(config, id))),
+    redirect: returnTo?.startsWith("/") ? returnTo : "/",
+  });
+}
+
+/* ---------------------------------------------------- browser accounts -- */
+
+function signedInAccounts(config: MockConfig): BrowserAccount[] {
+  const shorts = browserShorts(config);
+  return browserAccounts(config).map((account) => {
+    const avatarUrl = browserAccountAvatarUrl(config, account.id);
+    return {
+      accountId: account.id,
+      u: shorts.get(account.id) ?? "",
+      username: account.username,
+      displayName: account.displayName,
+      ...(avatarUrl ? { avatarUrl } : {}),
+    };
+  });
+}
+
+function chooserExpired(): MockReply {
+  return { kind: "error", status: 404, code: "account_chooser_expired" };
+}
+
+/**
+ * The application a chooser ticket is for: `expired` (or none) is gone, a
+ * ticket naming `saml` is the consent fixtures' SAML service, and any other is
+ * their OIDC client, so a choice continues onto the matching consent page.
+ */
+function chooserApp(
+  config: MockConfig,
+  ticket: string,
+): { app: AccountChooserApp; consent: string } | undefined {
+  if (ticket === "" || ticket === "expired") return undefined;
+  const logo = config.publicFlows.consent.logo;
+  return ticket.includes("saml")
+    ? {
+        app: {
+          kind: "saml",
+          key: "saml:nextcloud",
+          name: "Nextcloud",
+          ...(logo ? { iconUrl: appLogoUrl("#0b6fb8", "N") } : {}),
+        },
+        consent: "/saml-consent?ticket=mock",
+      }
+    : {
+        app: {
+          kind: "oidc",
+          key: "oidc:wiki",
+          name: "Wiki",
+          ...(logo ? { iconUrl: appLogoUrl("#3b6e4f", "W") } : {}),
+        },
+        consent: "/consent?ticket=mock&return_to=%2F",
+      };
+}
+
+function accountChooser(request: MockRequest, config: MockConfig): MockReply {
+  const ticket = new URL(request.url).searchParams.get("ticket") ?? "";
+  const chooser = chooserApp(config, ticket);
+  if (!chooser) return chooserExpired();
+  const allowed = new Map(
+    browserAccounts(config).map((account) => [account.id, account.allowed]),
   );
+  return json({
+    app: chooser.app,
+    accounts: signedInAccounts(config).map((account) => ({
+      ...account,
+      allowed: allowed.get(account.accountId) ?? false,
+    })),
+    // The server's shape: the sign-in returns through its continue address,
+    // which the mock cannot serve, so a walkthrough ends where a sign-in does.
+    otherAccountUrl: `/login?${new URLSearchParams({
+      return_to: `/api/prohibitorum/account-chooser/continue?${new URLSearchParams({ ticket })}`,
+    })}`,
+  } satisfies AccountChooser);
+}
+
+/**
+ * Choosing an account resumes the protocol request, which the mock cannot;
+ * it lands on the application's consent page as that account instead.
+ */
+function chooseAccount(config: MockConfig, body: unknown): MockReply {
+  const chooser = chooserApp(config, stringField(body, "ticket") ?? "");
+  if (!chooser) return chooserExpired();
+  const account = browserAccount(config, numberField(body, "accountId") ?? 0);
+  if (!account) {
+    return { kind: "error", status: 401, code: "account_not_signed_in" };
+  }
+  if (!account.allowed) {
+    return { kind: "error", status: 403, code: "app_access_denied" };
+  }
+  const u = browserShorts(config).get(account.id) ?? "";
+  const consent =
+    browserAccounts(config).length > 1
+      ? withAccountRef(chooser.consent, u)
+      : chooser.consent;
+  // The chooser leaves by loading the page anew, which turns the mock off
+  // unless the address asks for it.
+  const url = new URL(consent, "http://mock.invalid");
+  url.searchParams.set("mock", "");
+  return json({
+    redirect: `${url.pathname}${url.search}${url.hash}`,
+  } satisfies AccountChooserRedirect);
 }
 
 /* ------------------------------------------------------- admin directory -- */
@@ -1110,11 +1390,21 @@ function accountAt(index: number, config: MockConfig): Account {
   const id = index + 1;
   const disabled = index % 4 === 3;
   const plainRole = config.admin.legacyRoleAccounts ? "member" : "user";
+  // A row signed in on the browser carries the role the panel gave it, so the
+  // directory and that account's own console agree.
+  const signedIn = id === 1 ? undefined : browserAccount(config, id);
+  const role = signedIn
+    ? signedIn.role === "admin"
+      ? "admin"
+      : plainRole
+    : index % 5 === 0
+      ? "admin"
+      : plainRole;
   return {
     id,
     username: `mock-user-${id}`,
     displayName: `Mock User ${id}`,
-    role: index % 5 === 0 ? "admin" : plainRole,
+    role,
     // The account the panel is signed in as, so a mocked profile write and the
     // signed-in session stay one account rather than two. It is written after
     // the role above on purpose: the panel's own role wins for this row.
@@ -2237,6 +2527,13 @@ function readReply(
       return json({ issuer: "https://id.mock.example.test" });
     case "/api/prohibitorum/auth/status":
       return json({ bootstrapped: config.instance.bootstrapped });
+    case "/api/prohibitorum/auth/accounts":
+      return json({
+        limit: config.session.limit,
+        accounts: signedInAccounts(config),
+      } satisfies BrowserAccounts);
+    case "/api/prohibitorum/account-chooser":
+      return accountChooser(request, config);
     // The sign-in link's target app, answered like the server would: a label
     // and host (no icon, so the initials tile shows) for this origin's
     // authorize/SSO URLs, no context otherwise.
@@ -3121,10 +3418,58 @@ function writeReply(
 ): MockReply | undefined {
   const { schemaPath, method, body } = request;
   switch (schemaPath) {
-    case "/api/prohibitorum/auth/logout":
-      return empty(204, (draft) => {
-        draft.session.signedIn = false;
-      });
+    // Only the account the request acted as leaves; naming one that is not
+    // here is still a success, as signing out is idempotent.
+    case "/api/prohibitorum/auth/logout": {
+      const account = actingAccount(config);
+      return account
+        ? empty(204, (draft) => {
+            removeBrowserAccount(draft, account.id);
+          })
+        : empty();
+    }
+
+    case "/api/prohibitorum/auth/logout-all":
+      return empty(204, removeAllBrowserAccounts);
+
+    case "/api/prohibitorum/account-chooser":
+      return chooseAccount(config, body);
+
+    case "/api/prohibitorum/account-chooser/switch":
+      return guarded(config, () =>
+        config.publicFlows.consent.ticketValid
+          ? json({
+              redirect: `/choose-account?ticket=${
+                stringField(body, "kind") === "saml" ? "mock-saml" : "mock"
+              }`,
+            } satisfies AccountChooserRedirect)
+          : invalidConsentTicket(),
+      );
+
+    // The single sign-on that follows is the server's, so a walkthrough
+    // leaves the console here as it would.
+    case "/api/prohibitorum/me/apps/saml-launch": {
+      const sp = new URL(request.url).searchParams.get("sp") ?? "";
+      return guarded(config, () =>
+        json({
+          redirect: `/saml/sso/init?${new URLSearchParams({
+            sp,
+            account_choice: "mock",
+          })}`,
+        } satisfies SamlLaunchResult),
+      );
+    }
+
+    // The provider's page cannot be mocked, so linking lands straight back
+    // where it was started, as a link that the provider confirmed at once.
+    case "/api/prohibitorum/me/identities/link/{slug}/begin": {
+      const returnTo = stringField(body, "returnTo") ?? "/security";
+      return guarded(config, () =>
+        json({
+          redirect: isConsolePath(returnTo) ? returnTo : "/security",
+        } satisfies LoginResult),
+      );
+    }
 
     case "/api/prohibitorum/auth/password/begin":
       return json({ partial_session_token: "mock-partial-session" });
@@ -3159,15 +3504,10 @@ function writeReply(
 
     case "/api/prohibitorum/auth/federation/-/confirm": {
       if (!config.publicFlows.welcome.valid) return expiredSignIn();
-      return json(
-        {
-          redirect: "/",
-          offerLocalSignin: config.publicFlows.welcome.offerLocalSignin,
-        },
-        (draft) => {
-          draft.session.signedIn = true;
-        },
-      );
+      return signInReply(config, nextAccountId(config), {
+        redirect: "/",
+        offerLocalSignin: config.publicFlows.welcome.offerLocalSignin,
+      });
     }
 
     case "/api/prohibitorum/auth/federation/-/confirm/decline":
@@ -3194,18 +3534,17 @@ function writeReply(
       return verifyFlow(config, body);
 
     case "/api/prohibitorum/auth/totp/verify":
-      return json({ redirect: "/" }, (draft) => {
-        draft.session.signedIn = true;
-      });
+      return signInReply(config, nextAccountId(config), { redirect: "/" });
 
     case "/api/prohibitorum/auth/recovery-code/verify": {
       const resets = booleanField(body, "reset_authenticator") === true;
-      return json(
+      return signInReply(
+        config,
+        nextAccountId(config),
         resets
           ? { redirect: "/", recovery_codes: freshRecoveryCodes() }
           : { redirect: "/" },
         (draft) => {
-          draft.session.signedIn = true;
           if (resets) {
             draft.factors.totpEnrolled = true;
             draft.factors.recoveryCodes = issuedRecoveryCodes;
@@ -3218,8 +3557,11 @@ function writeReply(
       if (method !== "PUT") return undefined;
       const displayName =
         stringField(body, "displayName") ?? config.session.displayName;
+      // Only account 1's name is the panel's to edit; the others keep their
+      // directory row's name.
+      const own = actingAccount(config)?.id ?? 1;
       return json({ ...sessionView(config), displayName }, (draft) => {
-        draft.session.displayName = displayName;
+        if (own === 1) draft.session.displayName = displayName;
       });
     }
 
@@ -3429,7 +3771,13 @@ function writeReply(
           draft.session.role = updated.role === "admin" ? "admin" : "member";
         });
       }
-      return json(updated);
+      return json(updated, (draft) => {
+        setBrowserAccountRole(
+          draft,
+          id,
+          updated.role === "admin" ? "admin" : "member",
+        );
+      });
     }
 
     case "/api/prohibitorum/accounts/set-disabled": {
@@ -4327,11 +4675,43 @@ export function buildMockReply(
   request: MockRequest,
   config: MockConfig,
 ): MockReply | undefined {
-  if (request.method === "GET") {
-    return readReply(request, config) ?? unmocked(request);
+  const read = request.method === "GET";
+  if (!read && !config.writes) return undefined;
+  const selection = selectBrowserAccount(config, request.account);
+  if (selection.kind === "invalid") {
+    return { kind: "error", status: 400, code: "bad_request" };
   }
-  if (!config.writes) return undefined;
-  return writeReply(request, config) ?? unmocked(request);
+  const view = asAccount(
+    config,
+    selection.kind === "account" ? selection.account : null,
+  );
+  const reply =
+    (read ? readReply(request, view) : writeReply(request, view)) ??
+    unmocked(request);
+  // A page that needs a session reports the named account as signed out
+  // rather than the browser as empty.
+  if (
+    selection.kind === "absent" &&
+    reply.kind === "error" &&
+    reply.code === "no_session"
+  ) {
+    return { ...reply, code: "account_not_signed_in" };
+  }
+  return reply;
+}
+
+/**
+ * The `X-Prohibitorum-Account` a response carries: the account the request
+ * acted as, decided before any write moves the browser's accounts.
+ */
+export function mockAccountHeader(
+  config: MockConfig,
+  header: string | null | undefined,
+): string | undefined {
+  const selection = selectBrowserAccount(config, header);
+  return selection.kind === "account"
+    ? String(selection.account.id)
+    : undefined;
 }
 
 /**

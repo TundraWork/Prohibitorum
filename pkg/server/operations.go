@@ -183,7 +183,7 @@ func registerOp[I, O any](
 	}
 	op.Middlewares = append(op.Middlewares, func(ctx huma.Context, next func(huma.Context)) {
 		sess := authn.PrincipalFromContext(ctx.Context())
-		if err := authn.Check(sess, req); err != nil {
+		if err := authn.CheckContext(ctx.Context(), sess, req); err != nil {
 			ae := authn.AsAuthError(err)
 			writeHumaPublicErr(ctx, ae.Code, ae.Details)
 			return
@@ -214,7 +214,7 @@ func registerSudoOp[I, O any](
 	}
 	op.Middlewares = append(op.Middlewares, func(ctx huma.Context, next func(huma.Context)) {
 		sess := authn.PrincipalFromContext(ctx.Context())
-		if err := authn.Check(sess, req); err != nil {
+		if err := authn.CheckContext(ctx.Context(), sess, req); err != nil {
 			ae := authn.AsAuthError(err)
 			writeHumaPublicErr(ctx, ae.Code, ae.Details)
 			return
@@ -249,7 +249,7 @@ func registerOpHTTP(
 ) {
 	wrapped := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sess := authn.PrincipalFromContext(r.Context())
-		if err := authn.Check(sess, req); err != nil {
+		if err := authn.CheckContext(r.Context(), sess, req); err != nil {
 			ae := authn.AsAuthError(err)
 			if ae == nil {
 				// authn.Check should only return AuthErrors, but guard against

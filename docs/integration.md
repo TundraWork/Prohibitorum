@@ -168,7 +168,7 @@ GET https://auth.example.com/api/prohibitorum/require-identity
 - One linked identity at **any** listed provider is enough. If the user already has one, they come straight back to `redirect_uri`. To require several identities, send one request per provider.
 - Otherwise they see a page naming your application and the providers, link one (after confirming it is them), and come back to `redirect_uri`. They can also return without linking; your application decides what happens then.
 - `redirect_uri` comes back exactly as registered, with no parameters. Read the result yourself: call `/oauth/userinfo` with your current access token (the `identities` claim, requested with `identity:<slug>`, reflects new links at once), or start a new authorization with `prompt=none`.
-- With `id_token_hint`, a user signed in as a different account is offered to sign in as the right one; nothing is linked to the wrong account. Expired ID tokens are accepted, since the hint only names the account.
+- With `id_token_hint`, the account it names is used when it is signed in on the browser, even beside other accounts. Otherwise the user is offered to sign in as that account, without signing out the others; nothing is linked to the wrong account. Expired ID tokens are accepted, since the hint only names the account. Without the hint, a browser signed in to several accounts first asks which one to use.
 - A request that is malformed or for an unregistered `redirect_uri` ends on Prohibitorum's error page and never returns to your application.
 
 ### Forced re-authentication: `prompt=login` / `max_age`
@@ -179,6 +179,17 @@ GET https://auth.example.com/api/prohibitorum/require-identity
 - **`prompt=login` + `prompt=none`** is `invalid_request`.
 
 Use these when you need guaranteed-fresh authentication (e.g. before a sensitive operation), then validate the returned `auth_time`.
+
+### Choosing the account: `prompt=select_account` / `login_hint` / `id_token_hint`
+
+A browser can be signed in to several Prohibitorum accounts at once. When it is, `/oauth/authorize` shows an account chooser listing them, marks the ones that may not use your application, and offers "Use another account". You can steer the choice:
+
+- **`id_token_hint`** — an ID token you hold (expired is fine). If its account is signed in on the browser, it is used without asking. If it is not, the user is asked which account to use, even when only one other account is signed in.
+- **`login_hint`** — a username or verified email. If exactly one signed-in account matches, it is used without asking; if none is signed in, the sign-in page fills it in.
+- **`prompt=select_account`** — always show the chooser, even with one account. The hints above do not skip it; `login_hint` still fills in the sign-in page behind "Use another account".
+- **`prompt=none`** with several accounts and no hint that settles it returns `error=account_selection_required`; with no account signed in it returns `login_required`. With a hint, it returns `login_required` unless the hinted account is signed in, may use your client and has consented to it — including when the hinted account has left the browser and another one is signed in, so silent renewal never switches users.
+
+The tokens are issued for the account the user picked, and the ID token's `sid` is that account's session. The exact order is in [api.md](api.md#which-account-a-protocol-flow-uses).
 
 ### PKCE policy: S256 only
 
@@ -347,6 +358,7 @@ The `<EntityDescriptor>` is **signed** (with the active key) and carries `validU
 None require SP-side config beyond what is noted:
 
 - **`ForceAuthn`.** `ForceAuthn="true"` makes the IdP re-authenticate even if a session exists; the assertion's `AuthnInstant` reflects the fresh authentication. (A stale session cannot satisfy it — the freshness check is request-scoped.) `ForceAuthn` + `IsPassive` both true → a `NoPassive` status Response (IsPassive wins, no assertion), per OASIS SAML Core.
+- **Several accounts on one browser.** When the browser is signed in to more than one Prohibitorum account, the user picks one on an account chooser before the assertion is built (with `ForceAuthn`, that account then re-authenticates). `IsPassive` cannot show the chooser, so it returns `NoPassive`. Opening the app from the Prohibitorum launcher (IdP-initiated) uses the account of the launcher tab, without asking.
 - **`NameIDPolicy/@Format`.** Request **`urn:oasis:names:tc:SAML:1.1:nameid-format:persistent`** (the configured format), **`urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified`**, or omit `NameIDPolicy/@Format` entirely — all proceed to a normal assertion. Any other concrete Format (e.g. `emailAddress`) the IdP cannot produce returns a status Response with `InvalidNameIDPolicy` and NO assertion. GHES uses `persistent` (the default), so it is unaffected.
 - **SSO binding: POST and Redirect both work.** `/saml/sso` accepts HTTP-Redirect (DEFLATE + signed query string) and **HTTP-POST** (form `SAMLRequest`, base64, **enveloped** signature). Pick whichever your SP emits.
 
@@ -407,8 +419,11 @@ curl -X POST http://localhost:8080/api/prohibitorum/auth/totp/verify \
   -H 'Content-Type: application/json' \
   -c cookies.txt \
   -d '{"partial_session_token":"<token>","code":"123456"}'
-# 204 No Content
-# Set-Cookie: prohibitorum_session=...; HttpOnly; SameSite=Lax
+# 200 OK
+# { "redirect": "/", "account": { "accountId": 12, "u": "3fa9" } }
+# Set-Cookie: prohibitorum_session_temp=2:...; HttpOnly; SameSite=Lax
+# (prohibitorum_session instead when step 1 sent "remember": true; signing in
+#  another account later adds it to the same browser, up to the account limit.)
 ```
 
 The session from step 2a carries `amr=["pwd","otp","mfa"]` (ID tokens project this).
@@ -796,16 +811,20 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/begin \
   -b cookies.txt -d '{"method":"webauthn"}'
 # ... (run the WebAuthn ceremony, POST /me/sudo/complete) ...
 
-# 2. Kick off the link flow:
-curl -i 'http://localhost:8080/api/prohibitorum/me/identities/link/okta/begin?return_to=/settings/identities' \
-  -b cookies.txt
-# 302 Found
-# Location: https://example.okta.com/oauth2/.../authorize?...
+# 2. Kick off the link flow (X-Prohibitorum-Account names the account when
+#    several are signed in on the browser):
+curl -i -X POST 'http://localhost:8080/api/prohibitorum/me/identities/link/okta/begin' \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt -c cookies.txt -d '{"returnTo":"/settings/identities"}'
+# 200 OK
+# {"redirect":"https://example.okta.com/oauth2/.../authorize?..."}
+# The browser then navigates to the redirect address.
 
 # 3. User authenticates upstream. Okta bounces to:
 #    /api/prohibitorum/me/identities/link/okta/callback?code=...&state=...&iss=...
-# Prohibitorum validates the state matches the *current session*'s
-# account_id (session-swap defense), inserts the account_identity row,
+# Prohibitorum takes the session the link was started from out of the
+# browser's signed-in accounts, validates the state matches it
+# (session-swap defense), inserts the account_identity row,
 # emits a 'link' audit event, and 302s to /settings/identities.
 # IMPORTANT: NO new session is issued — the user remains signed in
 # under their original session cookie.
@@ -850,7 +869,7 @@ Key facts:
 - OP endpoints are mounted at the **issuer root**, NOT under `/api/prohibitorum` (list in Pattern A above).
 - **PKCE: public clients must send it; confidential clients default to it (an operator may relax per client); S256-only either way.** `plain` is rejected; `code_challenge_method` must be `S256`.
 - **A refresh token is issued only when the `offline_access` scope is granted.** Without it the token response has no `refresh_token`.
-- **Who calls what:** a real RP back-end makes the `/oauth/token`, `/oauth/userinfo`, `/oauth/introspect`, `/oauth/revoke` calls (with its client credentials). `/oauth/authorize` is a **browser** redirect requiring the user to already hold a logged-in Prohibitorum **session cookie** — you cannot drive it with a bare curl unless you attach a valid `prohibitorum_session` cookie. A no-session `/oauth/authorize` 302s the browser to `Issuer + /login?return_to=<authorize URL>`.
+- **Who calls what:** a real RP back-end makes the `/oauth/token`, `/oauth/userinfo`, `/oauth/introspect`, `/oauth/revoke` calls (with its client credentials). `/oauth/authorize` is a **browser** redirect requiring the user to already hold a logged-in Prohibitorum **session cookie** — you cannot drive it with a bare curl unless you attach a valid `prohibitorum_session` or `prohibitorum_session_temp` cookie. A no-session `/oauth/authorize` 302s the browser to `Issuer + /login?return_to=<authorize URL>`; a cookie holding several accounts 302s to the account chooser `/choose-account?ticket=…` unless the request names one of them (see "Choosing the account" above).
 
 ### 0. Provision a signing key and a client (operator, one-time)
 
@@ -1068,8 +1087,8 @@ OP endpoints are rate-limited on **identity**, not client IP (client IP is untru
 
 Three coordinated paths:
 
-1. **RP logout (OIDC)**: clear the RP's own session, then 302 to `https://auth.example.com/oidc/logout?id_token_hint=...&post_logout_redirect_uri=https://rp.example.com/`. The `post_logout_redirect_uri` must match a value in `oidc_client.post_logout_redirect_uris`. The user is logged out of Prohibitorum and bounced back.
-2. **Prohibitorum-initiated logout**: the user signs out of the Prohibitorum dashboard; Prohibitorum revokes the session. The RP's session continues until it detects the user is gone: the next refresh-token grant tied to that session fails with `invalid_grant`.
+1. **RP logout (OIDC)**: clear the RP's own session, then 302 to `https://auth.example.com/oidc/logout?id_token_hint=...&post_logout_redirect_uri=https://rp.example.com/`. The `post_logout_redirect_uri` must match a value in `oidc_client.post_logout_redirect_uris`. The Prohibitorum session the hint's `sid` names is revoked, so that account is signed out; other accounts signed in on the same browser stay signed in. The browser is then bounced back.
+2. **Prohibitorum-initiated logout**: the user signs out of the Prohibitorum dashboard; Prohibitorum revokes that account's session (other accounts signed in on the same browser stay signed in, unless the user signs out of all of them at once). The RP's session continues until it detects the user is gone: the next refresh-token grant tied to that session fails with `invalid_grant`.
 3. **SAML SLO (Pattern B)**: a signed `LogoutRequest` to `/saml/slo` revokes the bound Prohibitorum session and returns a signed `LogoutResponse`. This is **IdP-local** — it does NOT propagate a front-channel logout to the user's other SPs (coordinated multi-SP sign-out is not implemented). See Pattern B → "Single Logout (SLO)".
 
 ## What Prohibitorum does NOT do for you

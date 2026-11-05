@@ -18,6 +18,7 @@ function raw(overrides: Partial<Raw> = {}): Raw {
     expiresAt: "2026-10-03T00:00:00Z",
     allowedMethods: ["passkey", "password_totp"],
     providers: [gitlab],
+    atLimit: false,
     ...overrides,
   };
 }
@@ -51,6 +52,7 @@ describe("readEnrollmentPreview", () => {
       allowedMethods: ["passkey", "password_totp"],
       expectedUpstreamIdpSlug: "gitlab",
       providers: [gitlab],
+      atLimit: false,
     });
   });
 

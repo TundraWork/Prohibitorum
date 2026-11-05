@@ -167,6 +167,10 @@ type EnrollmentPreview struct {
 	// is passkey-only; every other intent offers both. The enroll page renders
 	// its method chooser from this list.
 	AllowedMethods []string `json:"allowedMethods"`
+	// AtLimit is true when this browser is at its signed-in account cap and
+	// the enrollment's account (for a reset) is not one of them, so
+	// completing it would be refused with account_limit_reached.
+	AtLimit bool `json:"atLimit"`
 
 	// RequireLocalCredential marks an invite that must be completed with a
 	// local sign-in method before the account is created
@@ -330,6 +334,31 @@ var OperationLogout = huma.Operation{
 	Method:      http.MethodPost,
 	Path:        "/auth/logout",
 	Summary:     "Revoke the current session (idempotent).",
+}
+
+var OperationListBrowserAccounts = huma.Operation{
+	OperationID: "listBrowserAccounts",
+	Method:      http.MethodGet,
+	Path:        "/auth/accounts",
+	Summary:     "List the accounts signed in on this browser, in sign-in order.",
+}
+
+// BrowserAccount is one account signed in on this browser.
+type BrowserAccount struct {
+	AccountID int32 `json:"accountId"`
+	// U is the short account reference a tab's URL carries; 4 hex digits, or
+	// 8 when another account here shares the first 4.
+	U           string  `json:"u"`
+	Username    string  `json:"username"`
+	DisplayName string  `json:"displayName"`
+	AvatarURL   *string `json:"avatarUrl,omitempty"`
+}
+
+// BrowserAccounts is the body of GET /auth/accounts.
+type BrowserAccounts struct {
+	// Limit is how many accounts one browser can be signed in to at once.
+	Limit    int              `json:"limit"`
+	Accounts []BrowserAccount `json:"accounts"`
 }
 
 var OperationGetMe = huma.Operation{
@@ -643,6 +672,10 @@ type RequireIdentityRequest struct {
 	// Mismatch: the application's ID token names another account than the one
 	// signed in.
 	Mismatch bool `json:"mismatch"`
+	// LoginHint is the username of the account the application's ID token
+	// names, when it could be found, for the sign-in page that "use another
+	// account" opens with EntryURL as its return address.
+	LoginHint string `json:"loginHint,omitempty"`
 	// Satisfied: the account already holds an identity at one of the providers.
 	Satisfied bool                      `json:"satisfied"`
 	Providers []RequireIdentityProvider `json:"providers"`
@@ -691,6 +724,16 @@ type ConsentResult struct {
 // LoginResult tells the SPA where to navigate after a successful login.
 type LoginResult struct {
 	Redirect string `json:"redirect"`
+	// Account is the account just signed in, so the dashboard can record its
+	// `u` for later pre-fill and open its tab.
+	Account *SignedInAccount `json:"account,omitempty"`
+}
+
+// SignedInAccount names an account signed in on this browser: its ID and the
+// short reference `u` a tab's URL carries for it.
+type SignedInAccount struct {
+	AccountID int32  `json:"accountId"`
+	U         string `json:"u"`
 }
 
 // FederationProvider is one entry in GET /api/prohibitorum/auth/federation.

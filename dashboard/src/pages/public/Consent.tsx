@@ -193,9 +193,9 @@ export function ConsentPage() {
           throw error;
         }
       }}
-      // The authorization is resumed from the start, so the next account is
-      // asked about it afresh; the ticket belongs to this one.
-      switchAccountTo={returnTo}
+      // The chooser resumes the authorization from the start, so the account
+      // chosen there is asked about it afresh.
+      switchAccount={{ kind: "oidc", consentTicket: ticket, returnTo }}
     />
   );
 }

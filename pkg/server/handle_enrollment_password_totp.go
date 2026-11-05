@@ -23,6 +23,7 @@ import (
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/federation"
 	"prohibitorum/pkg/logx"
+	sessstore "prohibitorum/pkg/session"
 )
 
 const (
@@ -48,6 +49,12 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 	}
 	if e.Intent == enrollment.IntentBootstrap {
 		writeAuthErr(w, authn.ErrEnrollmentMethodNotAllowed())
+		return
+	}
+	// Before the transaction, so a browser with no room for the account
+	// leaves the invitation unconsumed.
+	if enrollmentAtLimit(s.browser(r), e) {
+		writeAuthErr(w, authn.ErrAccountLimitReached())
 		return
 	}
 
@@ -314,9 +321,7 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		writeAuthErr(w, me)
 		return
 	}
-	ip := s.clientIP.IP(r)
-	sessionToken, data, err := s.sessionStore.Issue(r.Context(), acct.ID, ip, r.UserAgent(), []string{"pwd", "otp", "mfa"}, nil, false)
-	if err != nil {
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{AccountID: acct.ID, AMR: []string{"pwd", "otp", "mfa"}}, ""); err != nil {
 		writeAuthErr(w, fmt.Errorf("enrollment/password-totp/verify: session issue: %w", err))
 		return
 	}
@@ -326,15 +331,16 @@ func (s *Server) handleEnrollmentPasswordTOTPVerifyHTTP(w http.ResponseWriter, r
 		Event:     audit.EventSessionStart,
 		Detail:    map[string]any{"via": "enrollment"},
 	})
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, acct.ID, sessionToken, data))
 
 	type resp struct {
 		Session       contract.SessionView `json:"session"`
 		RecoveryCodes []string             `json:"recoveryCodes"`
+		enrollmentResult
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp{
-		Session:       s.sessionView(&acct),
-		RecoveryCodes: recoveryCodes,
+		Session:          s.sessionView(&acct),
+		RecoveryCodes:    recoveryCodes,
+		enrollmentResult: s.enrollmentResult(r, acct.ID),
 	})
 }

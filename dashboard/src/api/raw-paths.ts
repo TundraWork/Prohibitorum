@@ -175,8 +175,16 @@ export type RecoveryRequest =
       totp_code: string;
     };
 
+/** The account a sign-in added to this browser, as its tab names it. */
+export interface SignedInAccount {
+  accountId: number;
+  u: string;
+}
+
 export interface LoginResult {
   redirect: string;
+  /** Absent when the answer signs nobody in, such as linking an identity. */
+  account?: SignedInAccount;
 }
 
 export type RecoveryResult =
@@ -245,6 +253,7 @@ export interface PairingStatus {
 export interface PairingComplete {
   session: components["schemas"]["SessionView"];
   redirect: string;
+  account?: SignedInAccount;
 }
 
 export interface CreatedPersonalAccessToken {
@@ -281,6 +290,8 @@ export interface RequireIdentityRequest {
   mismatch: boolean;
   /** The account already holds an identity at one of the providers. */
   satisfied: boolean;
+  /** With `mismatch`, the username of the account the application named. */
+  loginHint?: string;
   providers: { slug: string; displayName: string; iconUrl?: string }[];
 }
 
@@ -344,6 +355,9 @@ export interface EnrollmentAccountFields {
 export interface EnrollmentRegistered {
   session: SessionView;
   newCredentialId: number;
+  /** Where the new account goes, with its `u` when the browser has others. */
+  redirect: string;
+  account?: SignedInAccount;
 }
 
 /**
@@ -353,6 +367,8 @@ export interface EnrollmentRegistered {
 export interface EnrollmentPasswordTotpResult {
   session: SessionView;
   recoveryCodes: string[];
+  redirect: string;
+  account?: SignedInAccount;
 }
 
 /** `GET /auth/federation/-/confirm`: the account a first federated sign-in prepared. */
@@ -372,6 +388,7 @@ export interface FederationConfirm {
 export interface FederationConfirmResult {
   redirect: string;
   offerLocalSignin: boolean;
+  account: SignedInAccount;
 }
 
 export type FederationFlowIntent = "login" | "link" | "invite";
@@ -397,6 +414,21 @@ export interface FederationFlow {
 export interface OidcDiscovery {
   issuer: string;
 }
+
+export type AccountChooserApp = components["schemas"]["AccountChooserApp"];
+
+export type AccountChooserAccount =
+  components["schemas"]["AccountChooserAccount"];
+
+/** `GET /account-chooser?ticket=`: the accounts a protocol sign-in can use. */
+export type AccountChooser = components["schemas"]["AccountChooser"];
+
+/**
+ * `POST /account-chooser/switch`: the consent page's request to choose again.
+ * The server reads `returnTo` only for `oidc`.
+ */
+export type AccountChooserSwitch =
+  components["schemas"]["SwitchConsentAccountInput"];
 
 export interface RawPaths {
   "/.well-known/openid-configuration": {
@@ -465,6 +497,34 @@ export interface RawPaths {
       };
       requestBody?: never;
       responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/auth/logout-all": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: { 204: { content?: never } };
+    };
+  };
+  "/api/prohibitorum/me/identities/link/{slug}/begin": {
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: { slug: string };
+        cookie?: never;
+      };
+      requestBody: {
+        content: { "application/json": { returnTo?: string } };
+      };
+      responses: {
+        200: { content: { "application/json": LoginResult } };
+      };
     };
   };
   "/api/prohibitorum/auth/password/begin": {

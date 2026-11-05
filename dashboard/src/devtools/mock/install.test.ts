@@ -6,7 +6,11 @@ import {
   mocksInstallable,
   refreshTarget,
 } from "@/devtools/mock/install";
-import { resetMockConfig, updateMockConfig } from "@/devtools/mock/model";
+import {
+  getMockConfig,
+  resetMockConfig,
+  updateMockConfig,
+} from "@/devtools/mock/model";
 
 type Application = Parameters<typeof installApiMocks>[0];
 
@@ -46,7 +50,7 @@ describe("mock middleware latency", () => {
     });
     const app = application();
     // The URL control is wired at install time: the address bar is read once
-    // here and again on every navigation, so a walkthrough can set a screen up
+    // here and again on a navigation that changes it, so a walkthrough can set a screen up
     // without the panel. `installApiMocks` runs once per module, so a shuffled
     // run may reach this test after another one already claimed it — assert
     // the wiring only when this call is the one that performed it.
@@ -155,5 +159,61 @@ describe("mock session refresh", () => {
     }
     // A prefix only counts with the token after it.
     expect(refreshTarget("/enrollments", false)).toBe("/login");
+    expect(refreshTarget("/choose-account", false)).toBeUndefined();
+  });
+
+  it("leaves a signed-in reader on a sign-in page that adds an account", () => {
+    expect(refreshTarget("/login", true, "?add=1")).toBeUndefined();
+    expect(refreshTarget("/login", true, "?login_hint=lin")).toBeUndefined();
+    expect(refreshTarget("/choose-account", true)).toBeUndefined();
+  });
+});
+
+describe("mock account header", () => {
+  beforeEach(() => {
+    updateMockConfig((draft) => {
+      draft.enabled = true;
+      draft.writes = true;
+      draft.delayMs = 0;
+      draft.session.others = "m";
+    });
+    installApiMocks(application());
+  });
+
+  it("answers as the account the request names and says so in the response", async () => {
+    const result = await client.GET("/api/prohibitorum/me", {
+      headers: { "X-Prohibitorum-Account": "2" },
+    });
+    expect(result.data).toMatchObject({ id: 2, username: "mock-user-2" });
+    expect(result.response.headers.get("X-Prohibitorum-Account")).toBe("2");
+
+    const fallback = await client.GET("/api/prohibitorum/me");
+    expect(fallback.data).toMatchObject({ id: 1 });
+    expect(fallback.response.headers.get("X-Prohibitorum-Account")).toBe("1");
+  });
+
+  it("fails a request for an account the browser does not hold", async () => {
+    const error = await client
+      .GET("/api/prohibitorum/me", {
+        headers: { "X-Prohibitorum-Account": "7" },
+      })
+      .catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 401,
+      code: "account_not_signed_in",
+    });
+  });
+
+  it("signs out only the named account", async () => {
+    const result = await client.POST("/api/prohibitorum/auth/logout", {
+      headers: { "X-Prohibitorum-Account": "2" },
+    });
+    expect(result.response.status).toBe(204);
+    expect(result.response.headers.get("X-Prohibitorum-Account")).toBe("2");
+    expect(getMockConfig().session).toMatchObject({
+      signedIn: true,
+      others: "",
+    });
   });
 });

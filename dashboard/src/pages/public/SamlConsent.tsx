@@ -70,9 +70,8 @@ export function SamlConsentPage() {
         // the page.
         loadDocument(redirect);
       }}
-      // The ticket belongs to this account; another one starts the sign-in
-      // from the service again.
-      switchAccountTo="/"
+      // The chooser resumes this SAML request with the account chosen there.
+      switchAccount={{ kind: "saml", consentTicket: ticket }}
     />
   );
 }

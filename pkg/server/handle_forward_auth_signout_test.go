@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/configx"
 	"prohibitorum/pkg/db"
 	"prohibitorum/pkg/kv"
@@ -41,9 +40,17 @@ func (f fakeSignOutPasses) ConsumeForwardAuthSignOut(_ context.Context, token st
 	return id, ok
 }
 
-// sso-logout ends the SSO session only for a pass naming the session's
-// account; any other request with a session goes to the confirmation page and
-// leaves the session alone.
+type signOutAccounts struct {
+	disabled bool
+}
+
+func (a signOutAccounts) GetAccountByID(_ context.Context, id int32) (db.Account, error) {
+	return db.Account{ID: id, Disabled: a.disabled}, nil
+}
+
+// sso-logout ends the SSO session only for a pass naming an account signed in
+// on this browser, and only that account's; any other request with a session
+// goes to the confirmation page and leaves the sessions alone.
 func TestForwardAuthSSOLogout(t *testing.T) {
 	const app = "https://app.example.test/"
 	const evil = "https://evil.example/"
@@ -51,29 +58,40 @@ func TestForwardAuthSSOLogout(t *testing.T) {
 	cases := []struct {
 		name        string
 		session     bool
-		disabled    bool // LoadSession's stand-in for a disabled account: no Data
+		second      bool // a second account (43) is signed in too
+		disabled    bool // account 42 was disabled mid-session
 		token       string
+		done        bool
 		passes      fakeSignOutPasses
 		rd          string
 		wantLoc     string
-		wantRevoked bool
+		wantRevoked bool // account 42's session
+		want43Gone  bool
 	}{
 		{name: "no session", token: "", rd: app, wantLoc: app},
 		{name: "no session, with pass", token: "p42", passes: fakeSignOutPasses{"p42": 42}, rd: app, wantLoc: app},
-		{name: "disabled account", disabled: true, token: "p42", passes: fakeSignOutPasses{"p42": 42}, rd: app, wantLoc: app},
+		{name: "disabled account", session: true, disabled: true, token: "p42", passes: fakeSignOutPasses{"p42": 42}, rd: app, wantLoc: app, wantRevoked: true},
 		{name: "valid pass", session: true, token: "p42", passes: fakeSignOutPasses{"p42": 42}, rd: app, wantLoc: app, wantRevoked: true},
 		{name: "valid pass, bad rd", session: true, token: "p42", passes: fakeSignOutPasses{"p42": 42}, rd: evil, wantLoc: "/", wantRevoked: true},
 		{name: "no pass", session: true, rd: app, wantLoc: confirm},
-		{name: "pass for another account", session: true, token: "p43", passes: fakeSignOutPasses{"p43": 43}, rd: app, wantLoc: confirm},
+		{name: "pass for an account not here", session: true, token: "p43", passes: fakeSignOutPasses{"p43": 43}, rd: app, wantLoc: confirm},
 		{name: "unknown pass", session: true, token: "nope", rd: app, wantLoc: confirm},
 		{name: "no pass, bad rd", session: true, rd: evil, wantLoc: "/sign-out"},
+		{name: "pass for the second account signs out only it", session: true, second: true, token: "p43", passes: fakeSignOutPasses{"p43": 43}, rd: app, wantLoc: app, want43Gone: true},
+		{name: "several accounts, no pass", session: true, second: true, rd: app, wantLoc: confirm},
+		{name: "back to the app revokes nothing", session: true, second: true, done: true, rd: app, wantLoc: app},
+		{name: "back to the app, bad rd", session: true, done: true, rd: evil, wantLoc: "/"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.Background()
-			cfg := &configx.Config{PublicOrigins: []string{"https://id.example.test"}}
+			cfg := &configx.Config{PublicOrigins: []string{"http://id.example.test"}}
 			store := sessstore.NewSessionStore(kv.NewMemoryStore(), noopSessionQueriesForServer{}, time.Hour, time.Hour)
-			token, data, err := store.Issue(ctx, 42, "192.0.2.1", "ua", []string{"hwk"}, nil, false)
+			token, _, err := store.Issue(ctx, 42, "192.0.2.1", "ua", []string{"hwk"}, nil, false)
+			if err != nil {
+				t.Fatalf("issue session: %v", err)
+			}
+			token43, _, err := store.Issue(ctx, 43, "192.0.2.1", "ua", []string{"hwk"}, nil, false)
 			if err != nil {
 				t.Fatalf("issue session: %v", err)
 			}
@@ -84,6 +102,7 @@ func TestForwardAuthSSOLogout(t *testing.T) {
 			s := &Server{
 				config:                           cfg,
 				sessionStore:                     store,
+				accountLookup:                    signOutAccounts{disabled: c.disabled},
 				forwardAuthSignOutOverride:       ssoLogoutHosts{},
 				forwardAuthSignOutPassesOverride: passes,
 			}
@@ -92,18 +111,22 @@ func TestForwardAuthSSOLogout(t *testing.T) {
 			if c.token != "" {
 				q.Set("token", c.token)
 			}
-			req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/forward-auth/sso-logout?"+q.Encode(), nil)
-			if c.session || c.disabled {
-				req.AddCookie(&http.Cookie{Name: sessstore.SessionCookieNameFor(cfg), Value: sessstore.CookieValue(42, token)})
+			if c.done {
+				q.Set("done", "1")
 			}
-			switch {
-			case c.session:
-				req = req.WithContext(authn.WithSession(req.Context(), &authn.Session{Account: &db.Account{ID: 42}, Token: token, Data: data}))
-			case c.disabled:
-				req = req.WithContext(authn.WithSession(req.Context(), &authn.Session{Account: &db.Account{ID: 42, Disabled: true}}))
+			req := httptest.NewRequest(http.MethodGet, "/api/prohibitorum/forward-auth/sso-logout?"+q.Encode(), nil)
+			var entries []sessstore.Entry
+			if c.session {
+				entries = append(entries, sessstore.Entry{Seq: 1, AccountID: 42, Token: token})
+			}
+			if c.second {
+				entries = append(entries, sessstore.Entry{Seq: 2, AccountID: 43, Token: token43})
+			}
+			if len(entries) > 0 {
+				req.AddCookie(&http.Cookie{Name: sessstore.TempCookieName(cfg), Value: sessstore.EncodeCookie(entries)})
 			}
 			rec := httptest.NewRecorder()
-			s.handleForwardAuthSSOLogoutHTTP(rec, req)
+			s.browserSessions().LoadSession()(http.HandlerFunc(s.handleForwardAuthSSOLogoutHTTP)).ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusFound {
 				t.Fatalf("status = %d, want 302", rec.Code)
@@ -111,30 +134,23 @@ func TestForwardAuthSSOLogout(t *testing.T) {
 			if loc := rec.Header().Get("Location"); loc != c.wantLoc {
 				t.Errorf("Location = %q, want %q", loc, c.wantLoc)
 			}
-			if len(passes) != 0 {
+			if !c.done && len(passes) != 0 {
 				t.Errorf("passes left unconsumed: %v", passes)
 			}
 			_, _, loadErr := store.Load(ctx, 42, token, "192.0.2.1", "ua")
-			if !c.session {
-				if cookies := rec.Result().Cookies(); len(cookies) != 0 {
-					t.Errorf("Set-Cookie without a live session: %v", cookies)
-				}
-				if loadErr != nil {
-					t.Errorf("session revoked without a live session: %v", loadErr)
-				}
-				return
+			if revoked := loadErr != nil; c.session && revoked != c.wantRevoked {
+				t.Errorf("session 42 revoked = %v, want %v", revoked, c.wantRevoked)
 			}
-			if revoked := loadErr != nil; revoked != c.wantRevoked {
-				t.Errorf("session revoked = %v, want %v", revoked, c.wantRevoked)
+			if !c.session && loadErr != nil {
+				t.Errorf("session revoked without being signed in here: %v", loadErr)
 			}
-			cleared := false
-			for _, ck := range rec.Result().Cookies() {
-				if ck.Name == sessstore.SessionCookieNameFor(cfg) && ck.MaxAge < 0 {
-					cleared = true
-				}
+			_, _, load43 := store.Load(ctx, 43, token43, "192.0.2.1", "ua")
+			if gone := load43 != nil; c.second && gone != c.want43Gone {
+				t.Errorf("session 43 revoked = %v, want %v", gone, c.want43Gone)
 			}
-			if cleared != c.wantRevoked {
-				t.Errorf("session cookie cleared = %v, want %v", cleared, c.wantRevoked)
+			changed := len(rec.Result().Cookies()) > 0
+			if changed != (c.wantRevoked || c.want43Gone) {
+				t.Errorf("cookie rewritten = %v, want %v", changed, c.wantRevoked || c.want43Gone)
 			}
 		})
 	}

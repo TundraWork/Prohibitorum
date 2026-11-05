@@ -10,9 +10,17 @@ import {
   pairingStartMutationOptions,
   setupPasskeyMutationOptions,
 } from "@/api/mutations";
-import { clearSessionQueries, pairingStatusQueryOptions } from "@/api/queries";
+import {
+  browserAccountsQueryOptions,
+  clearSessionQueries,
+  pairingStatusQueryOptions,
+  refreshBrowserAccounts,
+} from "@/api/queries";
 import type { PairingStart } from "@/api/raw-paths";
+import { afterSignIn } from "@/app/account-sync";
+import { withInlineReport } from "@/app/query-client";
 import { followRedirect } from "@/app/redirect";
+import { AccountLimitAlert } from "@/components/custom/AccountLimitAlert";
 import { Button } from "@/components/custom/Button";
 import { useInstanceBranding } from "@/components/custom/instance-branding";
 import { PasskeyButton } from "@/components/custom/PasskeyButton";
@@ -158,7 +166,16 @@ function PairingStep({
     ...pairingStatusQueryOptions(pairing?.pairingId ?? ""),
     enabled: pairing !== undefined && !claimed && !gone && !outOfTime,
   });
-  const complete = useMutation(pairingCompleteMutationOptions(returnTo));
+  const complete = useMutation(
+    withInlineReport(pairingCompleteMutationOptions(returnTo), limitReached),
+  );
+  const { data: browserAccounts } = useQuery(browserAccountsQueryOptions());
+  // The approval is not used up by a refusal at the limit, so once an account
+  // here signs out the same pairing can be completed (mockup C).
+  const limited =
+    limitReached(complete.error) &&
+    (browserAccounts === undefined ||
+      browserAccounts.accounts.length >= browserAccounts.limit);
 
   const finish = async (pairingId: string) => {
     try {
@@ -171,9 +188,16 @@ function PairingStep({
         return;
       }
       await clearSessionQueries(queryClient);
+      // The passkey offered next is added to the account just signed in, not
+      // to one the browser held before.
+      await afterSignIn(queryClient, result.account);
       onSignedIn(result.redirect);
-    } catch {
-      // The toast has reported it; the page offers to try again.
+    } catch (error) {
+      // The limit is shown on the page from a fresh list; anything else the
+      // toast has reported, and the page offers to try again.
+      if (limitReached(error)) {
+        await refreshBrowserAccounts(queryClient).catch(() => undefined);
+      }
     }
   };
 
@@ -210,7 +234,7 @@ function PairingStep({
         <Trans id="pair.restart">Get a new code</Trans>
       </Button>
     );
-  } else if (approved && complete.isError) {
+  } else if (approved && complete.isError && !limited) {
     actions = (
       <Button
         onClick={() => pairing && void finish(pairing.pairingId)}
@@ -272,7 +296,8 @@ function PairingStep({
       <p className="sr-only" role="status">
         {announcement}
       </p>
-      {(pairing !== undefined || starting) && (
+      {limited && <AccountLimitAlert />}
+      {!limited && (pairing !== undefined || starting) && (
         <div
           data-slot="pairing-code"
           className={cn(
@@ -307,7 +332,7 @@ function PairingStep({
           )}
         </div>
       )}
-      {pairing !== undefined && !expired && (
+      {pairing !== undefined && !expired && !limited && (
         <p className="text-center text-muted-foreground text-sm">
           <Trans id="pair.qr_hint">Or scan the QR code with that device.</Trans>
         </p>
@@ -323,7 +348,8 @@ function PairingStep({
         </SurfaceAlert>
       ) : (
         pairing !== undefined &&
-        secondsLeft !== undefined && (
+        secondsLeft !== undefined &&
+        !limited && (
           <p className="text-balance text-center text-muted-foreground text-sm">
             {!(approved && complete.isError) && (
               <Spinner
@@ -355,6 +381,10 @@ function WaitingLine({ left }: { left: ReactNode }) {
       Waiting for approval… The code expires in {left}.
     </Trans>
   );
+}
+
+function limitReached(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "account_limit_reached";
 }
 
 function timedOut(error: unknown): boolean {

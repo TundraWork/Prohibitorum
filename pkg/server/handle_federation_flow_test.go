@@ -713,7 +713,7 @@ func TestFederationCompletionInviteEnrollRedirectMode(t *testing.T) {
 		t.Fatalf("enrollment issued %d sessions", len(h.q.sessions))
 	}
 	for _, cookie := range rr.Result().Cookies() {
-		if cookie.Name == sessstore.SessionCookieName && cookie.Value != "" {
+		if isSessionCookie(cookie) && cookie.Value != "" {
 			t.Fatalf("enrollment set session cookie: %+v", cookie)
 		}
 	}
@@ -761,7 +761,7 @@ func TestFederationCompletionConfirmedLoginJSON(t *testing.T) {
 	var cleared, session bool
 	for _, cookie := range rr.Result().Cookies() {
 		cleared = cleared || cookie.Name == sessstore.FedStateCookieName && cookie.MaxAge < 0
-		session = session || cookie.Name == sessstore.SessionCookieName && cookie.Value != ""
+		session = session || isSessionCookie(cookie) && cookie.Value != ""
 	}
 	if !cleared || !session {
 		t.Fatalf("completion cookies = %+v", rr.Result().Cookies())
@@ -792,7 +792,7 @@ func TestFederationCompletionRememberCookieMaxAge(t *testing.T) {
 			}
 			var sessCookie *http.Cookie
 			for _, c := range rr.Result().Cookies() {
-				if c.Name == sessstore.SessionCookieName && c.Value != "" {
+				if isSessionCookie(c) && c.Value != "" {
 					sessCookie = c
 					break
 				}

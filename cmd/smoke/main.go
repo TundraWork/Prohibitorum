@@ -1182,7 +1182,7 @@ func main() {
 		log.Fatalf("require-identity start: %v", err)
 	}
 	log.Printf("  require-identity entry → /require-identity/{ticket}, not satisfied yet ✓")
-	authorizeLink, err := c.getRedirect("/api/prohibitorum/me/identities/link/mockop/begin?return_to=" + url.QueryEscape("/require-identity/"+requireIdentity.ticket))
+	authorizeLink, err := c.beginLink("mockop", "/require-identity/"+requireIdentity.ticket)
 	if err != nil {
 		log.Fatalf("link/begin: %v", err)
 	}
@@ -2463,7 +2463,7 @@ func main() {
 		}
 		opSrv.SetClaims("admin-avatar-link", "admin@example.com", true, *username, *display)
 		opSrv.SetPicture(opSrv.PictureURL())
-		authorizeLink, err := c.getRedirect("/api/prohibitorum/me/identities/link/mockop/begin?return_to=/me")
+		authorizeLink, err := c.beginLink("mockop", "/me")
 		if err != nil {
 			log.Fatalf("avatar-fed link: begin: %v", err)
 		}
@@ -3299,6 +3299,9 @@ func main() {
 		log.Fatalf("saml: c has no live session at start of SAML steps: %v", err)
 	}
 	log.Printf("  smoke-admin id=%d back in session for SAML steps", samlMe.ID)
+
+	// multi-account arc: runs on its own cookie jar; c stays as it is.
+	runMultiAccountArc(c, *baseURL, auth, oidcMe, rpClientID, rpSecret, rpRedirectURI, issuer)
 
 	step(fmt.Sprintf("saml %d/%d — GET /saml/metadata → EntityDescriptor with ≥1 signing KeyDescriptor", 2, nSAML))
 	idpMetaXML, err := fetchSAMLMetadata(*baseURL)
@@ -4542,7 +4545,7 @@ func main() {
 				req.Header.Set("Sec-Fetch-Site", secFetchSite)
 			}
 			for _, ck := range c.jar.Cookies(selectionURL) {
-				if ck.Name == "prohibitorum_session" || ck.Name == "__Host-prohibitorum_session" {
+				if isSessionCookieName(ck.Name) {
 					req.AddCookie(ck)
 				}
 			}
@@ -7632,9 +7635,9 @@ func (c *client) completeLoginRaw(a *authenticator, sig *assertionResult, query 
 // no session cookie came back at all; value is "" when the cookie carries no
 // Max-Age (the not-remembered shape).
 func sessionCookieMaxAge(resp *http.Response) (value string, found bool) {
-	const nameSuffix = "prohibitorum_session="
 	for _, sc := range resp.Header.Values("Set-Cookie") {
-		if !strings.Contains(sc, nameSuffix) {
+		name, _, _ := strings.Cut(sc, "=")
+		if !isSessionCookieName(name) || strings.Contains(sc, "Max-Age=0") || strings.Contains(sc, "Max-Age=-1") {
 			continue
 		}
 		for _, part := range strings.Split(sc, ";") {
@@ -8607,6 +8610,21 @@ func (c *client) getRedirect(path string) (string, error) {
 		return "", fmt.Errorf("GET %s: 302 with empty Location", path)
 	}
 	return loc, nil
+}
+
+// beginLink starts linking the provider slug to the signed-in account and
+// returns the address the Security page navigates to next.
+func (c *client) beginLink(slug, returnTo string) (string, error) {
+	var out struct {
+		Redirect string `json:"redirect"`
+	}
+	if err := c.postJSON("/api/prohibitorum/me/identities/link/"+url.PathEscape(slug)+"/begin", map[string]string{"returnTo": returnTo}, &out); err != nil {
+		return "", err
+	}
+	if out.Redirect == "" {
+		return "", fmt.Errorf("link begin %s: empty redirect", slug)
+	}
+	return out.Redirect, nil
 }
 
 // getRedirectAbs issues GET on an absolute URL (not c.base + path) and
@@ -9893,7 +9911,7 @@ func assertSessionCookieAtRoot(c *client) {
 		// Match either the plain (HTTP dev) or __Host- (HTTPS) session cookie
 		// name so this guard can never pass vacuously if the smoke is pointed
 		// at an https origin.
-		if ck.Name == "prohibitorum_session" || ck.Name == "__Host-prohibitorum_session" {
+		if isSessionCookieName(ck.Name) {
 			return
 		}
 	}

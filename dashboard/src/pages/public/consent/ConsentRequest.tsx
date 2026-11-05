@@ -1,6 +1,6 @@
 import { Trans } from "@lingui/react/macro";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import type { ConsentAccount } from "@/api/raw-paths";
+import type { AccountChooserSwitch, ConsentAccount } from "@/api/raw-paths";
 import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
 import { PublicStep } from "@/components/custom/PublicStep";
@@ -32,7 +32,7 @@ export function ConsentRequest({
   decline,
   approve,
   onDecide,
-  switchAccountTo,
+  switchAccount: switchRequest,
 }: {
   app: { displayName: string; logoUri?: string; host?: string };
   title: ReactNode;
@@ -46,8 +46,8 @@ export function ConsentRequest({
   decline: ReactNode;
   approve: ReactNode;
   onDecide: (choice: ConsentChoice) => Promise<void>;
-  /** Where the sign-in page returns once another account has signed in. */
-  switchAccountTo: string;
+  /** The request "Use another account" opens the account chooser for. */
+  switchAccount: AccountChooserSwitch;
 }) {
   const [pending, setPending] = useState<ConsentChoice>();
   const mounted = useRef(true);
@@ -57,7 +57,7 @@ export function ConsentRequest({
       mounted.current = false;
     };
   }, []);
-  const switchAccount = useSwitchAccount(switchAccountTo);
+  const switchAccount = useSwitchAccount();
   const busy = pending !== undefined || switchAccount.isPending;
 
   const decide = async (choice: ConsentChoice) => {
@@ -121,9 +121,11 @@ export function ConsentRequest({
           className="ms-auto"
           pending={switchAccount.isPending}
           disabled={busy && !switchAccount.isPending}
-          onClick={() => switchAccount.mutate()}
+          onClick={() => {
+            if (!busy) switchAccount.mutate(switchRequest);
+          }}
         >
-          <Trans id="consent.switch_account">Switch account</Trans>
+          <Trans id="consent.use_other_account">Use another account</Trans>
         </Button>
       </div>
       <div className="flex flex-col gap-2">

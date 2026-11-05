@@ -572,23 +572,6 @@ func TestSession_ExpiredEntryReturnsNoSession(t *testing.T) {
 	}
 }
 
-func TestCookieValue_Roundtrip(t *testing.T) {
-	cases := []struct {
-		id    int32
-		token string
-	}{
-		{1, "abc"},
-		{99999, "xY_Z-1234567890"},
-	}
-	for _, c := range cases {
-		v := CookieValue(c.id, c.token)
-		id, tok, ok := ParseCookieValue(v)
-		if !ok || id != c.id || tok != c.token {
-			t.Errorf("roundtrip %+v: ParseCookieValue(%q) = (%d, %q, %v)", c, v, id, tok, ok)
-		}
-	}
-}
-
 func TestSession_IssueRollsBackKVWhenPGInsertFails(t *testing.T) {
 	mem := kv.NewMemoryStore()
 	s := NewSessionStore(mem, failingSessionQueries{}, time.Hour, time.Hour)
@@ -658,23 +641,6 @@ func TestSession_IssueRejectsEmptyAMR(t *testing.T) {
 	}
 	if err == nil || err.Error() == "" {
 		t.Fatalf("expected non-empty error, got %v", err)
-	}
-}
-
-func TestParseCookieValue_Malformed(t *testing.T) {
-	bad := []string{
-		"",
-		".",
-		".token",
-		"42.",
-		"notanint.token",
-		"-1.token",
-		"0.token",
-	}
-	for _, v := range bad {
-		if _, _, ok := ParseCookieValue(v); ok {
-			t.Errorf("%q should not parse", v)
-		}
 	}
 }
 

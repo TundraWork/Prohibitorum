@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -214,6 +213,31 @@ func (s *SessionStore) Issue(ctx context.Context, accountID int32, ip, ua string
 		return "", nil, fmt.Errorf("session: insert pg: %w", err)
 	}
 	return token, data, nil
+}
+
+// Peek validates a session without touching it: no sliding refresh, no
+// LastSeenIP, no backfill write. A browser checks every account it holds this
+// way; only the account a request acts as is Loaded, so listing the accounts
+// does not keep an idle one alive. Returns ErrNoSession() on missing/expired.
+func (s *SessionStore) Peek(ctx context.Context, accountID int32, token string) (*authn.SessionData, error) {
+	key := sessionKey(accountID, token)
+	raw, err := s.kv.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, kv.ErrKeyNotFound) {
+			return nil, authn.ErrNoSession()
+		}
+		return nil, fmt.Errorf("session: get: %w", err)
+	}
+	var data authn.SessionData
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		_ = s.kv.Del(ctx, key)
+		return nil, authn.ErrNoSession()
+	}
+	if time.Now().After(data.ExpiresAt) {
+		_ = s.kv.Del(ctx, key)
+		return nil, authn.ErrNoSession()
+	}
+	return &data, nil
 }
 
 // Load returns the session data and a refreshed flag. The refreshed flag is
@@ -574,25 +598,4 @@ func (s *SessionStore) RevokeAllForAccount(ctx context.Context, accountID int32)
 		return deleted, fmt.Errorf("session: revoke-all lease check: %w", errSessionMutationLeaseUnavailable)
 	}
 	return deleted, firstErr
-}
-
-// CookieValue formats the session cookie's value: "<account_id>.<token>".
-// Both halves are required at LoadSession time to construct the KV key.
-// Only the random token portion is secret; account_id leaks nothing.
-func CookieValue(accountID int32, token string) string {
-	return fmt.Sprintf("%d.%s", accountID, token)
-}
-
-// ParseCookieValue splits "<account_id>.<token>" into its parts.
-// Returns ok=false for any malformed input (no normalization).
-func ParseCookieValue(v string) (int32, string, bool) {
-	dot := strings.IndexByte(v, '.')
-	if dot < 1 || dot == len(v)-1 {
-		return 0, "", false
-	}
-	id, err := strconv.ParseInt(v[:dot], 10, 32)
-	if err != nil || id <= 0 {
-		return 0, "", false
-	}
-	return int32(id), v[dot+1:], true
 }

@@ -595,7 +595,7 @@ var browserOnlyRoutes = []struct{ method, path string }{
 	{"POST", "/api/prohibitorum/consent"},
 	{"GET", "/api/prohibitorum/saml-consent"},
 	{"POST", "/api/prohibitorum/saml-consent"},
-	{"GET", "/api/prohibitorum/me/identities/link/github/begin"},
+	{"POST", "/api/prohibitorum/me/identities/link/github/begin"},
 	{"GET", "/api/prohibitorum/me/identities/link/github/callback"},
 	{"POST", "/api/prohibitorum/identity-providers/github/tests"},
 	{"GET", "/api/prohibitorum/identity-providers/github/tests/1"},

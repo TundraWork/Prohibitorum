@@ -5,7 +5,7 @@
 //
 //	GET  /api/prohibitorum/me/identities                       — list rows
 //	POST /api/prohibitorum/me/identities/{id}/unlink           — sudo; delete row
-//	GET  /api/prohibitorum/me/identities/link/{slug}/begin     — sudo; → upstream
+//	POST /api/prohibitorum/me/identities/link/{slug}/begin     — sudo; → upstream address
 //	GET  /api/prohibitorum/me/identities/link/{slug}/callback  — bind upstream
 //
 // The link/begin + link/callback pair uses the protocol-neutral federation
@@ -274,52 +274,80 @@ func (s *Server) beginMeIdentitiesTx(ctx context.Context) (meIdentitiesQueries, 
 	return qtx, commit, rollback, nil
 }
 
-// GET /api/prohibitorum/me/identities/link/{slug}/begin
+// linkBeginBody is the body of POST /me/identities/link/{slug}/begin.
+type linkBeginBody struct {
+	ReturnTo string `json:"returnTo,omitempty"`
+}
+
+// POST /api/prohibitorum/me/identities/link/{slug}/begin
+//
+// A POST from the page rather than a navigation, so the request names the
+// tab's account in its header and the flow records that account's session;
+// the page then navigates to the returned upstream address.
 func (s *Server) handleMeIdentitiesLinkBeginHTTP(w http.ResponseWriter, r *http.Request) {
 	sess := authn.SessionFromContext(r.Context())
 	if s.requireFreshSudo(r.Context(), w, sess) {
 		return
 	}
 
+	var body linkBeginBody
+	if r.ContentLength != 0 {
+		if err := decodeStrictOperatorJSON(r, &body); err != nil {
+			writeAuthErr(w, authn.ErrBadRequest())
+			return
+		}
+	}
 	slug := chi.URLParam(r, "slug")
-	returnTo, err := s.validateFederationReturnTo(r.URL.Query().Get("return_to"))
+	returnTo, err := s.validateFederationReturnTo(body.ReturnTo)
 	if err != nil {
-		redirectAuthErrToError(w, r, err)
+		writeAuthErr(w, err)
 		return
 	}
 
 	req, err := s.federationService.BeginLink(r.Context(), slug, returnTo, sess.Account.ID, sess.Data.SessionID)
 	if err != nil {
-		// returnTo is validated + same-origin (e.g. /security) — forward it so
-		// the /error "go back" link returns the user to where they started.
 		if errors.Is(err, federation.ErrUnknownProvider) {
 			// Collapse "no such slug" onto the generic state-invalid code —
 			// mirrors handleFederationLoginHTTP so admins can't enumerate
 			// configured IdPs via the link surface either.
-			redirectAuthErrToErrorReturn(w, r, authn.ErrFederationStateInvalid(), returnTo)
+			writeAuthErr(w, authn.ErrFederationStateInvalid())
 			return
 		}
-		redirectAuthErrToErrorReturn(w, r, err, returnTo)
+		writeAuthErr(w, err)
 		return
 	}
 	destination, err := federationBeginDestination(req)
 	if err != nil {
-		redirectAuthErrToErrorReturn(w, r, err, returnTo)
+		writeAuthErr(w, err)
 		return
 	}
 
 	http.SetCookie(w, sessstore.FedStateCookie(s.config, r, req.BrowserToken))
-	http.Redirect(w, r, destination, http.StatusFound)
+	writeJSON(w, contract.LoginResult{Redirect: destination})
 }
 
 // GET /api/prohibitorum/me/identities/link/{slug}/callback
 func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *http.Request) {
-	sess := authn.SessionFromContext(r.Context())
+	q := r.URL.Query()
+	browserToken := ""
+	if cookie, cookieErr := r.Cookie(sessstore.FedStateCookieName); cookieErr == nil {
+		browserToken = cookie.Value
+	}
+	sess := s.linkFlowSession(r, q.Get("state"), browserToken)
+	if sess == nil || sess.Account == nil || sess.Data == nil {
+		redirectAuthErrToError(w, r, authn.ErrNoSession())
+		return
+	}
+	// The maintenance gate lets a navigation through when any account here
+	// is an admin; the link acts as this one.
+	if me := s.maintenanceLockout(r.Context(), sess.Account.ID); me != nil {
+		redirectAuthErrToError(w, r, me)
+		return
+	}
 	// No sudo here — the link callback completes a ceremony the user
 	// initiated under sudo at /begin. Forcing sudo again after the upstream
 	// round-trip would force a re-elevation in the same browser flow.
 
-	q := r.URL.Query()
 	upstreamErr := q.Get("error")
 	upstreamDesc := q.Get("error_description")
 	state := q.Get("state")
@@ -368,10 +396,6 @@ func (s *Server) handleMeIdentitiesLinkCallbackHTTP(w http.ResponseWriter, r *ht
 		return
 	}
 
-	browserToken := ""
-	if cookie, cookieErr := r.Cookie(sessstore.FedStateCookieName); cookieErr == nil {
-		browserToken = cookie.Value
-	}
 	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
 		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
 		CallbackRoute: federation.CallbackRouteLink,

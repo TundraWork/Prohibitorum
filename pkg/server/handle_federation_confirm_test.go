@@ -60,7 +60,7 @@ func TestFederationCallback_UnconfirmedRedirectsToWelcome(t *testing.T) {
 
 	// NO session cookie may be set on the unconfirmed path.
 	for _, c := range resp.Cookies() {
-		if c.Name == sessstore.SessionCookieName && c.Value != "" {
+		if isSessionCookie(c) && c.Value != "" {
 			t.Fatalf("session cookie set on unconfirmed path: %q", c.Value)
 		}
 	}
@@ -225,7 +225,7 @@ func TestFederationConfirmPost_RememberCookieMaxAge(t *testing.T) {
 			}
 			var sessCookie *http.Cookie
 			for _, c := range resp.Cookies() {
-				if c.Name == sessstore.SessionCookieName && c.Value != "" {
+				if isSessionCookie(c) && c.Value != "" {
 					sessCookie = c
 					break
 				}
@@ -321,7 +321,7 @@ func TestFederationConfirmPost_ConfirmsAndIssuesSession(t *testing.T) {
 	// Session cookie issued.
 	var sessCookie *http.Cookie
 	for _, c := range resp.Cookies() {
-		if c.Name == sessstore.SessionCookieName {
+		if isSessionCookie(c) {
 			sessCookie = c
 			break
 		}

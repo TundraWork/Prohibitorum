@@ -95,6 +95,16 @@ msgid "settings.sign-in.unsaved"
 msgstr "{changes, plural, one {# unsaved change} other {# unsaved changes}}"
 
 #. js-lingui-explicit-id
+#: src/components/custom/AccountLimitAlert.tsx
+msgid "account_limit.title"
+msgstr "{count, plural, one {# account is signed in on this browser, the most it allows.} other {# accounts are signed in on this browser, the most it allows.}}"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.accounts.count"
+msgstr "{count, plural, one {# account is signed in on this browser.} other {# accounts are signed in on this browser.}}"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/ProviderClaimsSection.tsx
 msgid "admin.federation.claims.subject.confirm.body"
 msgstr "{count, plural, one {# account is} other {# accounts are}} linked to {name} by the <0>{current}</0> claim. After the change to <1>{next}</1>, these links no longer match, and each person is treated as a new identity at their next sign-in."
@@ -163,6 +173,11 @@ msgstr "{factText} is {valueText}"
 #: src/pages/admin/groups/RuleBuilder.tsx
 msgid "admin.group.rule.summary-negated"
 msgstr "{factText} is not {valueText}"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.accounts.description.host"
+msgstr "{host} asked to sign out. {signedIn}"
 
 #. js-lingui-explicit-id
 #: src/components/custom/UriList.tsx
@@ -596,6 +611,11 @@ msgid "admin.invitations.new.username"
 msgstr "Account username"
 
 #. js-lingui-explicit-id
+#: src/pages/public/ChooseAccount.tsx
+msgid "choose_account.list"
+msgstr "Accounts"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/identity-providers/AdminIdentityProviders.tsx
 msgid "admin.federation.column.linked-accounts"
 msgstr "Accounts"
@@ -619,6 +639,16 @@ msgstr "Accounts are linked by the value of this claim."
 #: src/pages/admin/users/AccountIdentitiesSection.tsx
 msgid "admin.user.identities.description"
 msgstr "Accounts at other providers linked to this account for signing in. Only the account holder can unlink them; administrators cannot."
+
+#. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.accounts.list"
+msgstr "Accounts on this browser"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AccountLimitAlert.tsx
+msgid "account_limit.list"
+msgstr "Accounts on this browser"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupMatchesFrame.tsx
@@ -694,6 +724,11 @@ msgstr "Add a service behind your reverse proxy that requires sign-in."
 #: src/pages/public/SetupSignin.tsx
 msgid "setup_signin.title"
 msgstr "Add a way to sign in"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AccountMenuItems.tsx
+msgid "account_menu.add"
+msgstr "Add account"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/EmailsPanel.tsx
@@ -1080,6 +1115,11 @@ msgstr "An administrator hasn't granted you access yet. Once access is granted, 
 
 #. js-lingui-explicit-id
 #: src/pages/public/SignOut.tsx
+msgid "sign-out.accounts.description"
+msgstr "An application asked to sign out. {signedIn}"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
 msgid "sign-out.description"
 msgstr "An application asked to sign you out of {name}. If you did not choose to sign out, cancel."
 
@@ -1122,6 +1162,11 @@ msgstr "An unfinished sign-in can't be reused. Enter your password again, then e
 #: src/api/errors.ts
 msgid "error.unsplash_key_required"
 msgstr "An Unsplash access key is required to use Unsplash photos."
+
+#. js-lingui-explicit-id
+#: src/pages/public/ErrorLanding.tsx
+msgid "error_page.limit_cleared"
+msgstr "Another account can sign in on this browser now."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/oidc-validation.ts
@@ -2002,6 +2047,11 @@ msgid "error.local_username_required"
 msgstr "Choose a username for your new account."
 
 #. js-lingui-explicit-id
+#: src/pages/public/ChooseAccount.tsx
+msgid "choose_account.title"
+msgstr "Choose an account"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/AddDecisionDialog.tsx
 msgid "admin.group.decisions.dialog.required"
 msgstr "Choose an account first."
@@ -2481,6 +2531,11 @@ msgstr "Continue"
 #: src/components/custom/secret-reveal-copy.ts
 msgid "login.codes.continue"
 msgstr "Continue"
+
+#. js-lingui-explicit-id
+#: src/pages/public/ChooseAccount.tsx
+msgid "choose_account.description.app"
+msgstr "Continue to {app} as one of the accounts signed in on this browser."
 
 #. js-lingui-explicit-id
 #: src/pages/public/SamlConsent.tsx
@@ -4905,6 +4960,11 @@ msgid "admin.federation.claims.column.returned.field"
 msgstr "Last test returned:"
 
 #. js-lingui-explicit-id
+#: src/pages/public/ChooseAccount.tsx
+msgid "choose_account.last_used"
+msgstr "Last used"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountPasskeysSection.tsx
 msgid "admin.user.passkeys.detail.lastUsed"
 msgstr "Last used <0/>"
@@ -6003,6 +6063,11 @@ msgid "theme.scheme.nord"
 msgstr "Nord"
 
 #. js-lingui-explicit-id
+#: src/pages/public/ChooseAccount.tsx
+msgid "choose_account.denied"
+msgstr "Not allowed to use this app"
+
+#. js-lingui-explicit-id
 #: src/pages/admin/groups/GroupExplainFrame.tsx
 msgid "admin.group.explain.out"
 msgstr "Not in this group"
@@ -6389,6 +6454,11 @@ msgstr "Order"
 #: src/components/custom/AppAccessSection.tsx
 msgid "app.access.order.label"
 msgstr "Order of checks"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AccountMenuItems.tsx
+msgid "account_menu.others"
+msgstr "Other accounts"
 
 #. js-lingui-explicit-id
 #: src/pages/profile/AvatarPanel.tsx
@@ -7603,6 +7673,16 @@ msgid "require-identity.return"
 msgstr "Return to {app}"
 
 #. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.accounts.return.host"
+msgstr "Return to {host}"
+
+#. js-lingui-explicit-id
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.accounts.return"
+msgstr "Return to the app"
+
+#. js-lingui-explicit-id
 #: src/pages/public/FederationFlow.tsx
 msgid "federation_flow.proof.step.verify"
 msgstr "Return to this page and select Verify."
@@ -8495,8 +8575,6 @@ msgid "login.other_device"
 msgstr "Sign in with your phone or another device"
 
 #. js-lingui-explicit-id
-#: src/components/custom/ConsoleLayout.tsx
-#: src/components/custom/LauncherLayout.tsx
 #: src/components/custom/RouteFeedback.tsx
 #: src/pages/public/Maintenance.tsx
 msgid "console.logout"
@@ -8508,9 +8586,24 @@ msgid "sign-out.confirm"
 msgstr "Sign out"
 
 #. js-lingui-explicit-id
-#: src/pages/public/RequireIdentity.tsx
-msgid "require-identity.mismatch.switch"
-msgstr "Sign out and use another account"
+#: src/pages/public/SignOut.tsx
+msgid "sign-out.accounts.title"
+msgstr "Sign out"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AccountLimitAlert.tsx
+msgid "account.sign_out"
+msgstr "Sign out"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AccountMenuItems.tsx
+msgid "account_menu.sign_out"
+msgstr "Sign out"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AccountLimitAlert.tsx
+msgid "account.sign_out.label"
+msgstr "Sign out {username}"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
@@ -8526,6 +8619,11 @@ msgstr "Sign out everywhere"
 #: src/pages/public/SignOut.tsx
 msgid "sign-out.title"
 msgstr "Sign out of {name}?"
+
+#. js-lingui-explicit-id
+#: src/components/custom/AccountMenuItems.tsx
+msgid "account_menu.sign_out_all"
+msgstr "Sign out of all accounts"
 
 #. js-lingui-explicit-id
 #: src/pages/devices/DeviceSessionList.tsx
@@ -8931,11 +9029,6 @@ msgstr "Submitting…"
 #: src/pages/admin/settings/sign-in-page/ColorControl.tsx
 msgid "settings.sign-in.color.suggested"
 msgstr "Suggested colors"
-
-#. js-lingui-explicit-id
-#: src/pages/public/consent/ConsentRequest.tsx
-msgid "consent.switch_account"
-msgstr "Switch account"
 
 #. js-lingui-explicit-id
 #: src/pages/security/PasskeysPanel.tsx
@@ -9969,6 +10062,16 @@ msgid "app.managers.confirm.body"
 msgstr "This account can no longer change this application. The account itself is not affected."
 
 #. js-lingui-explicit-id
+#: src/routes/_public.choose-account.tsx
+msgid "choose_account.expired"
+msgstr "This account choice has expired. Go back to the app and sign in again."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.account_chooser_expired"
+msgstr "This account choice has expired. Go back to the app and sign in again."
+
+#. js-lingui-explicit-id
 #: src/pages/admin/users/AccountEmailsSection.tsx
 msgid "admin.user.emails.no_primary"
 msgstr "This account has no primary address and may be unable to sign in to apps that require one. The first verified address becomes the primary address."
@@ -9992,6 +10095,11 @@ msgstr "This account is disabled and cannot sign in. Once enabled, it can sign i
 #: src/api/errors.ts
 msgid "error.account_disabled"
 msgstr "This account is disabled."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.account_not_signed_in"
+msgstr "This account is not signed in on this browser."
 
 #. js-lingui-explicit-id
 #: src/pages/admin/users/AccountSessionsSection.tsx
@@ -10022,6 +10130,11 @@ msgstr "This address is already in the list."
 #: src/pages/profile/EmailsPanel.tsx
 msgid "profile.emails.error.exists"
 msgstr "This address is already in your list."
+
+#. js-lingui-explicit-id
+#: src/pages/public/ChooseAccount.tsx
+msgid "choose_account.description.address"
+msgstr "This address matches more than one account signed in on this browser."
 
 #. js-lingui-explicit-id
 #: src/api/errors.ts
@@ -10067,6 +10180,11 @@ msgstr "This authorization stays in effect, and {app} won't ask again when you s
 #: src/api/errors.ts
 msgid "error.passkey_unsupported"
 msgstr "This browser does not support passkeys."
+
+#. js-lingui-explicit-id
+#: src/api/errors.ts
+msgid "error.account_limit_reached"
+msgstr "This browser has as many accounts signed in as it allows. Sign one of them out first."
 
 #. js-lingui-explicit-id
 #: src/components/custom/SudoDialog.tsx
@@ -10851,6 +10969,21 @@ msgstr "Use an http or https address."
 #: src/pages/admin/identity-providers/provider-validation.ts
 msgid "admin.federation.url.https"
 msgstr "Use an https address."
+
+#. js-lingui-explicit-id
+#: src/pages/public/ChooseAccount.tsx
+msgid "choose_account.other"
+msgstr "Use another account"
+
+#. js-lingui-explicit-id
+#: src/pages/public/RequireIdentity.tsx
+msgid "require-identity.mismatch.use_other"
+msgstr "Use another account"
+
+#. js-lingui-explicit-id
+#: src/pages/public/consent/ConsentRequest.tsx
+msgid "consent.use_other_account"
+msgstr "Use another account"
 
 #. js-lingui-explicit-id
 #: src/pages/admin/oidc-applications/AdminOidcApplicationNew.tsx
@@ -11703,6 +11836,7 @@ msgstr "You're signed in as a different account"
 
 #. js-lingui-explicit-id
 #: src/components/custom/LoginShell.tsx
+#: src/pages/public/ChooseAccount.tsx
 #: src/pages/public/consent/ConsentExpired.tsx
 #: src/pages/public/ErrorLanding.tsx
 #: src/pages/public/FederationFlow.tsx

@@ -49,6 +49,26 @@ var OperationListMyApps = huma.Operation{
 	Summary:     "List the apps the signed-in account may launch",
 }
 
+var OperationLaunchMySAMLApp = huma.Operation{
+	OperationID: "launchMySAMLApp",
+	Method:      http.MethodPost,
+	Path:        "/me/apps/saml-launch",
+	Summary:     "Start an IdP-initiated SAML sign-in as the selected account",
+	Description: "Binds an account choice to the account the request acts as and returns the " +
+		"/saml/sso/init address that carries it, so the application opens as that account " +
+		"rather than the browser's default one.",
+}
+
+// SAMLLaunchInput names the SAML service provider to open.
+type SAMLLaunchInput struct {
+	SP string `query:"sp" required:"true" doc:"The service provider's entity ID."`
+}
+
+// SAMLLaunchResult is the address the launcher navigates to.
+type SAMLLaunchResult struct {
+	Redirect string `json:"redirect"`
+}
+
 var OperationListMyConsent = huma.Operation{
 	OperationID: "listMyConsent",
 	Method:      http.MethodGet,

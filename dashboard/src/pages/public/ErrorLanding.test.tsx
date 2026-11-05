@@ -5,7 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
-import { fakeApi, publicApi, renderApp, testSession } from "@/test/app";
+import {
+  browserAccount,
+  browserAccountsApi,
+  fakeApi,
+  publicApi,
+  renderApp,
+  testSession,
+} from "@/test/app";
 
 let queryClient: QueryClient;
 
@@ -327,6 +334,103 @@ describe("the error landing page", () => {
     expect(
       screen.getByText(
         "The app's sign-in request has expired. Go back to the app and sign in again.",
+      ),
+    ).toBeVisible();
+  });
+});
+
+describe("the account conditions", () => {
+  it("lists the browser's accounts when a sign-in stopped at the limit", async () => {
+    fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/auth/accounts": browserAccountsApi(
+        [browserAccount(testSession)],
+        1,
+      ),
+    });
+    renderApp("/error?reason=account_limit_reached", queryClient);
+    expect(
+      await screen.findByText(
+        "1 account is signed in on this browser, the most it allows.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Sign out alice" }),
+    ).toBeVisible();
+  });
+
+  it("lists the accounts when a provider's callback reports the limit as its error", async () => {
+    fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/auth/accounts": browserAccountsApi(
+        [browserAccount(testSession)],
+        1,
+      ),
+    });
+    renderApp("/error?error=account_limit_reached&ref=abcd1234", queryClient);
+    expect(
+      await screen.findByText(
+        "1 account is signed in on this browser, the most it allows.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("abcd1234", { exact: false })).toBeVisible();
+  });
+
+  it("drops the limit notice once an account signs out, and offers the sign-in again", async () => {
+    const carol = { id: 3, username: "carol", displayName: "Carol" };
+    let full = true;
+    const api = fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/auth/accounts": () =>
+        browserAccountsApi(
+          full
+            ? [browserAccount(testSession), browserAccount(carol)]
+            : [browserAccount(testSession)],
+          2,
+        )(new Request("http://test.invalid")),
+      "POST /api/prohibitorum/auth/logout": () => {
+        full = false;
+        return new Response(null, { status: 204 });
+      },
+    });
+    const user = userEvent.setup();
+    const router = renderApp("/error?error=account_limit_reached", queryClient);
+    expect(
+      await screen.findByText(
+        "2 accounts are signed in on this browser, the most it allows.",
+      ),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Sign out carol" }));
+    expect(
+      await screen.findByText(
+        "Another account can sign in on this browser now.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(/accounts? (is|are) signed in on this browser/),
+    ).toBeNull();
+    expect(api.sent("POST", "/api/prohibitorum/auth/logout")).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/login"));
+    expect(router.state.location.search).toMatchObject({ add: "1" });
+  });
+
+  it("says an account choice that ran out has expired, whichever parameter names it", async () => {
+    await open("/error?error=account_chooser_expired&ref=abcd1234");
+    expect(
+      screen.getByText(
+        "This account choice has expired. Go back to the app and sign in again.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("says an account choice that ran out has expired", async () => {
+    await open("/error?reason=account_chooser_expired");
+    expect(
+      screen.getByText(
+        "This account choice has expired. Go back to the app and sign in again.",
       ),
     ).toBeVisible();
   });

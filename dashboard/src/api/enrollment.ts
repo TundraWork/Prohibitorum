@@ -28,6 +28,11 @@ export interface EnrollmentPreview {
   /** An invitation that must be accepted through this provider. */
   expectedUpstreamIdpSlug?: string;
   providers: FederationProvider[];
+  /**
+   * The browser holds as many accounts as it may, and the account this link
+   * signs in is not one of them.
+   */
+  atLimit: boolean;
 }
 
 const intents: readonly EnrollmentIntent[] = ["bootstrap", "invite", "reset"];
@@ -92,5 +97,6 @@ export function readEnrollmentPreview(
       : {}),
     ...(bound ? { expectedUpstreamIdpSlug: bound } : {}),
     providers,
+    atLimit: raw.atLimit,
   };
 }

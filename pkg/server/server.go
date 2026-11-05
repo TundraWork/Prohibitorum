@@ -62,6 +62,10 @@ type Server struct {
 	webUIHandler http.Handler
 	kvStore      kv.Store
 	sessionStore *sessstore.SessionStore
+	// sessions reads and writes the accounts signed in on each browser.
+	sessions *sessstore.Manager
+	// accountRefs computes the short account reference `u`.
+	accountRefs  *sessstore.AccountRefs
 	pairingStore *pairing.PairingStore
 	rateLimiter  *authn.RateLimiter
 	// mailSender delivers outbound verification and test mail; tests replace
@@ -220,6 +224,11 @@ type Server struct {
 	appPolicyQueriesOverride  appPolicyQueries
 	appPolicyService          appPolicyService
 	appPolicyTxRunnerOverride appPolicyTxRunner
+	// appAccess decides which accounts the account chooser offers for an
+	// application. accountChooserOverride stands in for s.queries in focused
+	// chooser tests.
+	appAccess              appAccessEvaluator
+	accountChooserOverride accountChooserQueries
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -329,6 +338,10 @@ func NewServer(ctx context.Context) (*Server, error) {
 		kvStore = servertiming.KV(kvStore)
 	}
 	sessionStore := sessstore.NewSessionStore(kvStore, queries, config.SessionTTL, config.SessionRememberTTL)
+	accountRefs, err := sessstore.LoadAccountRefs(ctx, queries)
+	if err != nil {
+		return nil, err
+	}
 
 	wa, err := webauthnauth.NewWebAuthn(config.WebAuthn)
 	if err != nil {
@@ -359,7 +372,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 	// processing.
 	installRequestGuardChain(router, config.PublicOrigins)
 	router.Use(requestMetaMW(clientIPResolver.IP))
-	router.Use(sessstore.LoadSession(config, queries, sessionStore, clientIPResolver.IP))
+	browserSessions := sessstore.NewManager(config, queries, sessionStore, clientIPResolver.IP)
+	router.Use(browserSessions.LoadSession())
 	router.Use(diagnosticCaptureMW(diagStore))
 	// Inside the diagnostic capture so PAT refusals can be looked up by request
 	// ID; LoadSession leaves the cookie unread for these requests.
@@ -431,6 +445,8 @@ func NewServer(ctx context.Context) (*Server, error) {
 		webUIHandler:          webui.Handler(brandingResolver.InstanceName),
 		kvStore:               kvStore,
 		sessionStore:          sessionStore,
+		sessions:              browserSessions,
+		accountRefs:           accountRefs,
 		pairingStore:          pairing.NewPairingStore(kvStore),
 		rateLimiter:           rateLimiter,
 		mailSender:            mailSender,
@@ -460,6 +476,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		cursorCodec:      cursorCodec,
 		appPolicyService: accessService,
 		appLister:        accessService,
+		appAccess:        accessService,
 	}
 	// The forward-auth gateway and the token, userinfo and introspection
 	// endpoints name an account without the main session middleware, so the
@@ -468,12 +485,21 @@ func NewServer(ctx context.Context) (*Server, error) {
 		on, _ := brandingResolver.Maintenance(ctx)
 		return on
 	})
+	// The SAML SSO endpoints settle which signed-in account a request acts as
+	// after the maintenance gate has run, and redirect to console pages that
+	// must carry that account's `u`.
+	s.samlIdP.SetMaintenanceChecker(func(ctx context.Context) bool {
+		on, _ := brandingResolver.Maintenance(ctx)
+		return on
+	})
+	s.samlIdP.SetAccountRefs(s.refs())
 	// The login-context endpoint answers every protocol's sign-in bounce, so
 	// it needs the SAML IdP's read-only resolver alongside its own OIDC views.
 	s.oidcOP.SetSAMLContextResolver(func(ctx context.Context, u *url.URL) (oidcop.SAMLApplication, bool, error) {
 		app, ok, err := s.samlIdP.LoginContext(ctx, u)
 		return oidcop.SAMLApplication{Label: app.Label, Host: app.Host, SPID: app.SPID}, ok, err
 	})
+	s.oidcOP.SetAccountRefs(accountRefs)
 	s.oidcOP.SetIconURLResolver(func(ctx context.Context, kind, id string) string {
 		if u := s.enrichIconURL(ctx, kind, id); u != nil {
 			return *u
@@ -708,9 +734,17 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/login/begin", publicReq, s.handleLoginBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/login/complete", publicReq, s.handleLoginCompleteHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/logout", publicReq, s.handleLogoutHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/logout-all", publicReq, s.handleLogoutAllHTTP)
+	registerOp(mgmt, contract.OperationListBrowserAccounts, s.handleListBrowserAccounts, publicReq)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/password/begin", publicReq, s.handlePasswordBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/totp/verify", publicReq, s.handleTOTPVerifyHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery-code/verify", publicReq, s.handleRecoveryCodeVerifyHTTP)
+
+	// Account chooser for protocol requests (OIDC, SAML, require-identity).
+	registerOp(mgmt, contract.OperationGetAccountChooser, s.handleGetAccountChooser, publicReq)
+	registerOp(mgmt, contract.OperationChooseAccount, s.handleChooseAccount, publicReq)
+	registerOpHTTP(s.router, "GET", accountChooserContinuePath, publicReq, s.handleAccountChooserContinueHTTP)
+	registerOp(mgmt, contract.OperationSwitchConsentAccount, s.handleSwitchConsentAccount, browserReq)
 
 	// federation: upstream OIDC login + /me/identities management
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation", publicReq, s.handleListFederationProvidersHTTP)
@@ -752,6 +786,7 @@ func (s *Server) registerOperations() {
 	registerSudoOp(s, mgmt, contract.OperationRevokeMyToken, s.handleRevokeMyToken, sessionReq)
 	registerOp(mgmt, contract.OperationListMyForwardAuthApps, s.handleListMyForwardAuthApps, sessionReq)
 	registerOp(mgmt, contract.OperationListMyApps, s.handleListMyApps, sessionReq)
+	registerOp(mgmt, contract.OperationLaunchMySAMLApp, s.handleLaunchMySAMLApp, browserReq)
 	registerOp(mgmt, contract.OperationListMyConsent, s.handleListMyConsent, sessionReq)
 	registerOp(mgmt, contract.OperationRevokeConsent, s.handleRevokeMyConsent, sessionReq)
 
@@ -811,7 +846,7 @@ func (s *Server) registerOperations() {
 	// lives inside the handlers, not at the route layer.
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities", sessionReq, s.handleMeIdentitiesListHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/identities/{id}/unlink", sessionReq, s.handleMeIdentitiesUnlinkHTTP)
-	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/begin", browserReq, s.handleMeIdentitiesLinkBeginHTTP)
+	registerOpHTTP(s.router, "POST", "/api/prohibitorum/me/identities/link/{slug}/begin", browserReq, s.handleMeIdentitiesLinkBeginHTTP)
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/me/identities/link/{slug}/callback", browserReq, s.handleMeIdentitiesLinkCallbackHTTP)
 
 	// Device pairing

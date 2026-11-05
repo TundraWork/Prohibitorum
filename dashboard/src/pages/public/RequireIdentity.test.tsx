@@ -58,13 +58,15 @@ function requireIdentityApi(
     "GET /api/prohibitorum/require-identity/t-1": reply,
     "GET /api/prohibitorum/me/sudo/methods": () =>
       Response.json({ methods: ["password_totp"], fresh: true }),
+    "POST /api/prohibitorum/me/identities/link/vrchat/begin": () =>
+      Response.json({ redirect: "https://vrchat.example/authorize" }),
   });
 }
 
 describe("require identity", () => {
   it("names the app and its providers, and links the one picked back to this page", async () => {
-    requireIdentityApi();
     const user = userEvent.setup();
+    const api = requireIdentityApi();
     renderApp(address, queryClient);
     expect(
       await screen.findByRole("heading", {
@@ -80,9 +82,13 @@ describe("require identity", () => {
     );
     await waitFor(() =>
       expect(loadDocument).toHaveBeenCalledWith(
-        "/api/prohibitorum/me/identities/link/vrchat/begin?return_to=%2Frequire-identity%2Ft-1",
+        "https://vrchat.example/authorize",
       ),
     );
+    expect(
+      api.sent("POST", "/api/prohibitorum/me/identities/link/vrchat/begin")[0]
+        ?.body,
+    ).toEqual({ returnTo: "/require-identity/t-1" });
   });
 
   it("keeps the picked provider waiting, and the way back locked, while the page leaves", async () => {
@@ -147,13 +153,10 @@ describe("require identity", () => {
 
   it("offers to sign in as the app's account instead of linking to this one", async () => {
     const api = requireIdentityApi(() =>
-      Response.json(request({ mismatch: true, satisfied: true })),
+      Response.json(
+        request({ mismatch: true, satisfied: true, loginHint: "bob" }),
+      ),
     );
-    api.routes["POST /api/prohibitorum/auth/logout"] = () => {
-      api.routes["GET /api/prohibitorum/me"] = () =>
-        apiError("no_session", 401);
-      return new Response(null, { status: 204 });
-    };
     const user = userEvent.setup();
     const router = renderApp(address, queryClient);
     expect(
@@ -169,15 +172,17 @@ describe("require identity", () => {
       screen.getByRole("button", { name: "Return to Wiki" }),
     ).toBeVisible();
     await user.click(
-      screen.getByRole("button", { name: "Sign out and use another account" }),
+      screen.getByRole("button", { name: "Use another account" }),
     );
     expect(
-      await screen.findByRole("heading", { name: /^Sign in to / }),
-    ).toBeVisible();
+      await screen.findByRole("textbox", { name: "Username" }),
+    ).toHaveValue("bob");
     expect(router.state.location.pathname).toBe("/login");
-    expect(
-      new URLSearchParams(router.state.location.searchStr).get("return_to"),
-    ).toBe(entry);
+    const search = new URLSearchParams(router.state.location.searchStr);
+    expect(search.get("return_to")).toBe(entry);
+    expect(search.get("login_hint")).toBe("bob");
+    // The account signed in here stays signed in beside the other.
+    expect(api.sent("POST", "/api/prohibitorum/auth/logout")).toHaveLength(0);
   });
 
   it("says an expired request is gone", async () => {

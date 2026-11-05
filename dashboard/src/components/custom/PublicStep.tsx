@@ -108,8 +108,11 @@ const actionsLayout = cva("empty:hidden", {
       single:
         "flex flex-col gap-2 [&_button:not([data-size=xl])]:h-auto [&_button:not([data-size=xl])]:min-h-10 [&_button:not([data-size=xl])]:whitespace-normal [&_button:not([data-size=xl])]:text-balance [&_button:not([data-size=xl])]:py-[calc(--spacing(1.5)-1px)] sm:[&_button:not([data-size=xl])]:min-h-9",
       // Two equal choices side by side, the one that goes ahead on the right
-      // as in a dialog's footer. The card is never too narrow for two.
-      decision: "grid grid-cols-2 gap-2",
+      // as in a dialog's footer. A label can name a host of any length, so
+      // below `sm` they stack with that one on top, and a label wraps inside
+      // its button, breaking a host name where it has to.
+      decision:
+        "flex flex-col-reverse gap-2 sm:grid sm:grid-cols-2 [&_button]:h-auto [&_button]:min-h-10 [&_button]:whitespace-normal [&_button]:text-balance [&_button]:wrap-anywhere [&_button]:py-[calc(--spacing(1.5)-1px)] sm:[&_button]:min-h-9",
     },
   },
   defaultVariants: { layout: "single" },

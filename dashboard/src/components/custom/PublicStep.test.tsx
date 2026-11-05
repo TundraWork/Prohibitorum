@@ -47,7 +47,7 @@ it("names its back button", async () => {
   expect(onClick).toHaveBeenCalledOnce();
 });
 
-it("puts the answer that goes ahead on the right of a decision", () => {
+it("puts the answer that goes ahead on the right of a decision, and on top below sm", () => {
   render(
     <PublicStep
       title="Allow Wiki?"
@@ -62,5 +62,9 @@ it("puts the answer that goes ahead on the right of a decision", () => {
   const [deny, allow] = screen.getAllByRole("button");
   expect(deny).toHaveAccessibleName("Deny");
   expect(allow).toHaveAccessibleName("Allow");
-  expect(allow?.parentElement).toHaveClass("grid", "grid-cols-2");
+  expect(allow?.parentElement).toHaveClass(
+    "flex-col-reverse",
+    "sm:grid",
+    "sm:grid-cols-2",
+  );
 });

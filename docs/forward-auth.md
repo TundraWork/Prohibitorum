@@ -110,6 +110,12 @@ Clears the per-domain cookie + session, bounces to Prohibitorum to terminate the
 
 Followed from the app's own pages (a link, button or form, not an image or frame), the link signs out at once and returns to the app. In every other case (the link sits on another site or another host, the app's session has already expired, or the browser does not send `Sec-Fetch-*` headers) Prohibitorum first asks the user to confirm on its own page before it ends the SSO session.
 
+A browser can be signed in to several Prohibitorum accounts at once. Sign-out ends one account at a time:
+
+- Followed from the app's own pages, the link carries a single-use pass naming the account the app was signed in as. Only that account is signed out of Prohibitorum; the browser's other accounts stay signed in.
+- On the confirmation page, a browser with one account is asked to sign it out, as before. A browser with several accounts sees each of them with its own **Sign out** button; a signed-out account leaves the list, and the others stay signed in. When the last one is signed out, the browser returns to the app.
+- **Back to the app** on the confirmation page returns to the app without signing anyone out. It goes through `sso-logout` with `done=1`, which only checks that the return address is a registered forward-auth host, so the browser does not land on the confirmation page again.
+
 > `sign_out` is served by Prohibitorum, so the same `PathPrefix(/.prohibitorum-forward-auth/)` router already covers it — no extra Traefik config needed.
 
 ---
@@ -266,7 +272,8 @@ Open the protected app URL; after login you should see the identity headers echo
    Traefik ForwardAuth → GET https://auth.example.com/api/prohibitorum/forward-auth/verify
                          (Traefik forwards X-Forwarded-* + app.acme.io cookies)
 2. No/expired forward-auth cookie → 302 into Prohibitorum's OIDC login
-   (on auth.example.com, where your Prohibitorum session lives; access is enforced here)
+   (on auth.example.com, where your Prohibitorum session lives; access is enforced here;
+   a browser signed in to several accounts first picks one on the account chooser)
 3. → 302 app.acme.io/.prohibitorum-forward-auth/callback?code=…&state=…
    Traefik routes that path to Prohibitorum, which plants a host-only
    forward-auth cookie on app.acme.io and 302s back to /foo
@@ -277,4 +284,4 @@ Open the protected app URL; after login you should see the identity headers echo
 Endpoints:
 - **`GET /api/prohibitorum/forward-auth/verify`** — the ForwardAuth target: `200` + identity headers (allowed), `302` to login (unauthenticated), `400` (a request bound for login whose `X-Forwarded-Uri` is not empty and does not start with `/`, usually a proxy misconfiguration), or `403` (host not a registered forward-auth service).
 - **`/.prohibitorum-forward-auth/callback`** — routed by you on each protected domain to Prohibitorum; completes the OIDC exchange and sets the per-domain cookie.
-- **`/.prohibitorum-forward-auth/sign_out`** — routed the same way; clears the per-domain cookie + session and `302`s to **`GET /api/prohibitorum/forward-auth/sso-logout`**, adding a single-use sign-out pass only when the app's own page navigates there (`Sec-Fetch-Site: same-origin`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`, no `Sec-Purpose`) with a live forward-auth session. sso-logout terminates the SSO session at once only for a valid pass that belongs to the signed-in account; with no SSO session it returns straight to the app, and anything else goes to the confirmation page `/sign-out`. It redirects back only to a validated forward-auth host.
+- **`/.prohibitorum-forward-auth/sign_out`** — routed the same way; clears the per-domain cookie + session and `302`s to **`GET /api/prohibitorum/forward-auth/sso-logout`**, adding a single-use sign-out pass only when the app's own page navigates there (`Sec-Fetch-Site: same-origin`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`, no `Sec-Purpose`) with a live forward-auth session. sso-logout signs out at once only the account a valid pass names, and only when that account is signed in on the browser; with no account signed in it returns straight to the app, with `done=1` it returns without signing anyone out, and anything else goes to the confirmation page `/sign-out`. It redirects back only to a validated forward-auth host.

@@ -179,8 +179,9 @@ func (s *Server) handleFederationCallbackHTTP(w http.ResponseWriter, r *http.Req
 
 	result, err := s.federationService.AdvanceCallback(r.Context(), federation.AdvanceRequest{
 		FlowID: state, BrowserToken: browserToken, ProviderSlug: chi.URLParam(r, "slug"),
-		CallbackRoute: federation.CallbackRoutePublic,
-		Input:         federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, IDToken: idToken, AccessToken: accessToken, Params: r.URL.Query()},
+		CallbackRoute:       federation.CallbackRoutePublic,
+		Input:               federation.ActionInput{Kind: federation.ActionRedirect, Code: code, Issuer: iss, IDToken: idToken, AccessToken: accessToken, Params: r.URL.Query()},
+		AccountLimitReached: s.browser(r).AtLimit(),
 	})
 	if err != nil {
 		// HandleCallback returns structured *authn.AuthError for every
@@ -261,10 +262,16 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	}
 	if result.Intent == federation.IntentLink {
 		http.SetCookie(w, sessstore.ClearedFedStateCookie(s.config, r))
-		s.writeFederationCompletionDestination(w, r, linkCompletionDestination(result.ReturnTo), mode)
+		s.writeFederationCompletionDestination(w, r, s.withAccountRef(r, linkCompletionDestination(result.ReturnTo), result.AccountID), mode)
 		return
 	}
 	if !result.Confirmed {
+		// Refused here rather than after the welcome page, which could not
+		// sign the account in on this browser anyway.
+		if !s.canSignIn(r, result.AccountID) {
+			s.writeFederationCompletionError(w, r, authn.ErrAccountLimitReached(), mode)
+			return
+		}
 		token, antiForgery, err := s.federationService.CreateConfirmGrant(
 			r.Context(), result.AccountID, result.IdentityID, result.ProviderID,
 			result.ProviderSlug, result.ReturnTo, result.App, result.AMR, result.OfferLocalSignin, result.Remember,
@@ -287,18 +294,19 @@ func (s *Server) writeFederationCompletion(w http.ResponseWriter, r *http.Reques
 	if len(amr) == 0 {
 		amr = []string{"federated"}
 	}
-	ip := r.RemoteAddr
-	if s.clientIP != nil {
-		ip = s.clientIP.IP(r)
-	}
 	idpID := result.ProviderID
-	token, data, err := s.sessionStore.Issue(r.Context(), result.AccountID, ip, r.UserAgent(), amr, &idpID, result.Remember)
-	if err != nil {
+	if _, err := s.issueBrowserSession(w, r, sessstore.AttachParams{
+		AccountID: result.AccountID, AMR: amr, UpstreamIDPID: &idpID, Remember: result.Remember,
+	}, result.ReturnTo); err != nil {
 		s.writeFederationCompletionError(w, r, err, mode)
 		return
 	}
-	http.SetCookie(w, s.sessionStore.SessionCookie(s.config, r, result.AccountID, token, data))
-	s.writeFederationCompletionDestination(w, r, result.ReturnTo, mode)
+	destination := s.withAccountRef(r, result.ReturnTo, result.AccountID)
+	if mode == federationCompletionJSON {
+		writeJSON(w, contract.LoginResult{Redirect: destination, Account: s.signedInAccount(r, result.AccountID)})
+		return
+	}
+	s.writeFederationCompletionDestination(w, r, destination, mode)
 }
 
 func (s *Server) writeFederationCompletionError(w http.ResponseWriter, r *http.Request, err error, mode federationCompletionMode) {

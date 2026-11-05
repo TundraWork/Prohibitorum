@@ -225,7 +225,11 @@ true when the invitation demands it or the bound provider has sign-in off. A
 reset preview is
 `{"intent":"reset","target":{"username":"<username>","displayName":"<display name>"},"expiresAt":"<timestamp>"}`,
 naming the account that gets a new sign-in method. A reset whose target
-account cannot be read fails the preview. No shape exposes the provider
+account cannot be read fails the preview. Both shapes also carry `atLimit`,
+true when this browser already holds the maximum number of accounts and the
+link's account is not one of them; completing the link would then be refused
+with `409 account_limit_reached` (see
+[Signing in another account](#signing-in-another-account)). No shape exposes the provider
 subject, proof material, operator session, or internal enrollment snapshot.
 Enrollment tokens are opaque bearer values and must not be logged or treated
 as API-readable state.
@@ -345,6 +349,13 @@ consent grant and has no revoke action there, including when an older grant stil
 exists. Apps requiring consent show a revoke action once a consent grant exists. This
 display policy does not bypass the server's app access controls.
 
+`POST /api/prohibitorum/me/apps/saml-launch?sp=<entity id>` opens an IdP-initiated
+SAML app as the account the request acts as (`X-Prohibitorum-Account`). It binds an
+account choice to that account and returns `{"redirect": "/saml/sso/init?sp=…&account_choice=<nonce>"}`;
+the launcher navigates there, so the app opens as the tab's account rather than the
+browser's default one. 403 `app_access_denied` when the SP is unknown, disabled, or
+does not admit the account. Browser session only.
+
 ## Avatars (self-service)
 
 An account can store an uploaded avatar (source `user`) and one avatar per connected upstream (source `upstream:<slug>`). One of them, or `none`, is in effect.
@@ -430,7 +441,7 @@ Send the raw token in `X-Prohibitorum-PAT: prohibitorum_pat_<43 chars>` (no `Bea
 
 Public routes and the OIDC/SAML protocol endpoints never see the PAT principal. The maintenance gate treats a non-admin PAT owner like a signed-in non-admin. In the OpenAPI document PAT-capable operations list both the `prohibitorumSession` and `prohibitorumPAT` security schemes; browser-only ones list only the session.
 
-**Browser-only routes** (they depend on the browser session or issue browser credentials): `/me/sudo/methods`, `/me/sudo/begin`, `/me/sudo/complete`; `/me/credentials/register/begin|complete`; `/consent` and `/saml-consent` (GET and POST); `/me/identities/link/{slug}/begin|callback`; `/require-identity/{ticket}`; `/identity-providers/{slug}/tests`, `/tests/{id}`, `/tests/{id}/complete`; `/identity-providers/{slug}/operator-session/start|verify|validate`; `/me/devices/pair/lookup|approve|cancel`. Under a PAT, `GET /me/sessions` reports `isCurrent: false` for every session.
+**Browser-only routes** (they depend on the browser session or issue browser credentials): `/me/sudo/methods`, `/me/sudo/begin`, `/me/sudo/complete`; `/me/credentials/register/begin|complete`; `/consent` and `/saml-consent` (GET and POST); `/me/identities/link/{slug}/begin` (POST, body `{"returnTo"}`, answers `{"redirect"}`) and `/me/identities/link/{slug}/callback`; `/require-identity/{ticket}`; `/identity-providers/{slug}/tests`, `/tests/{id}`, `/tests/{id}/complete`; `/identity-providers/{slug}/operator-session/start|verify|validate`; `/me/devices/pair/lookup|approve|cancel`; `/me/apps/saml-launch`. Under a PAT, `GET /me/sessions` reports `isCurrent: false` for every session.
 
 ### Cross-origin write requests
 
@@ -457,6 +468,107 @@ Admin routes for inspecting and revoking any user's PATs. Gate notation follows 
 
 ---
 
+## Browser sessions and accounts
+
+One browser can be signed in to several accounts at once, up to `PROHIBITORUM_SESSION_MAX_ACCOUNTS` (default 10, see [config.md](config.md#core)). Each account has its own session; signing one account in or out leaves the others as they are.
+
+### Session cookies
+
+| Cookie (`__Host-` prefix and `Secure` in HTTPS deployments) | Holds | Lifetime |
+|---|---|---|
+| `prohibitorum_session` | accounts signed in with "keep me signed in" | `Max-Age` = `session_remember_ttl` |
+| `prohibitorum_session_temp` | accounts signed in without it | no `Max-Age`; the browser drops it when its session ends |
+
+Both are `HttpOnly`, `SameSite=Lax`, `Path=/`, with no `Domain`. A cookie has only one lifetime, hence two. The value is a list of entries:
+
+```
+value  = "2:" entry *( "~" entry )
+entry  = seq "." account_id "." token
+seq    = 1*base36             ; millisecond time the account first signed in on this browser
+token  = 43 base64url characters
+legacy = account_id "." token  ; the single-account value of earlier releases, read from prohibitorum_session only
+```
+
+Sorting the entries of both cookies by `seq` gives the browser's fixed account order; the first account in it is the **default account**. Signing an account in again (a new sign-in, a re-authentication, a reset) replaces its entry but keeps its `seq`, so neither the order nor the default account moves; a different "keep me signed in" choice moves the entry to the other cookie. A new account goes to the end. The limit counts the entries of both cookies together. An entry that does not parse is dropped and the others are kept. An entry whose session expired or was revoked, or whose account was deleted or disabled, is dropped on the next request that reads it, and the cookies are rewritten; a disabled account that the request selected still answers `account_disabled`. A legacy value is read as one entry and rewritten in the new format the next time the cookies are written, so upgrading signs nobody out. A cookie left with no entries is cleared.
+
+### Choosing the account a request acts as
+
+| Header | Direction | Meaning |
+|---|---|---|
+| `X-Prohibitorum-Account: <account ID>` | request | Act as this account. Read only under `/api/prohibitorum/`; protocol endpoints ignore it. A value that is not a positive decimal integer returns `400 bad_request`; an account not signed in on this browser returns `401 account_not_signed_in`. |
+| `X-Prohibitorum-Account: <account ID>` | response | The account whose session the request used. Set whenever the session came from the cookies; never set for PAT requests. |
+
+Without the request header a request acts as the default account. The dashboard sends the header only while more than one account is signed in. It treats a response header naming another account, or `account_not_signed_in`, as its tab's account having signed out.
+
+Account IDs are not secret (`/me` returns them and the cookies carry them), but console URLs carry a short reference `u` instead, so addresses and browser history do not show them. `u` is the first 4 hex digits of an HMAC-SHA256 of the account ID, keyed with `instance_settings.account_ref_key` (32 random bytes generated on first start, independent of the data encryption key, so rotating that key does not change `u`). When two accounts on the same browser share those 4 digits, both use 8. The server computes `u` and puts it into account lists and the console addresses it redirects to; it never reads `u` from a URL. The dashboard matches `u` against the account list by prefix.
+
+### Routes
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/auth/accounts` | public | `{limit, accounts:[{accountId, u, username, displayName, avatarUrl?}]}` in the fixed order, valid entries only; `accounts: []` when none. Ignores `X-Prohibitorum-Account`. `u` already has 4 or 8 digits as this browser's accounts require. |
+| POST | `/api/prohibitorum/auth/logout` | public | Signs out only the account the request acts as (the header's, else the default account): its entry is removed and its session revoked; the other accounts stay signed in. 204, also when that account is not signed in here. Audit `session_end`, reason `logout`. |
+| POST | `/api/prohibitorum/auth/logout-all` | public | Signs out every account on this browser and clears both cookies. 204. One `session_end` per account, reason `logout_all`. |
+
+### Signing in another account
+
+Every route that issues a session adds an account to the browser instead of replacing the cookie: `POST /auth/login/complete` (passkey), `/auth/totp/verify` (password + TOTP), `/auth/recovery-code/verify`, `/auth/devices/pair/complete`, `/enrollments/{token}/register/complete` and the enrollment password + TOTP completion, the upstream sign-in callback, `POST /auth/federation/-/confirm` and the VRChat flow. All of them work while the browser is already signed in.
+
+- The limit is checked before a session is issued. When the browser is at the limit, an account not yet on it is refused with `409 account_limit_reached` and no session is issued; signing in again as an account already there always works. Enrollment checks before it consumes the invitation, so a refused registration can be retried. The upstream callback is a page navigation, so at the limit it redirects to `/error?reason=account_limit_reached`. The first-sign-in confirmation checks before it creates the account.
+- The JSON completions answer `{"redirect": "<path>", "account": {"accountId": 12, "u": "3fa9"}}`. `redirect` is the validated `return_to`. When it is a console page (not under `/oauth/`, `/oidc/`, `/saml/`, `/api/` or `/.well-known/`) and the browser now holds more than one account, it carries `u=<the new account's u>`, so the page opens as that account. Enrollment continues to `/`, with `u` under the same rule. Server redirects to console pages during a sign-in or a protocol flow (`/consent`, `/saml-consent`, `/require-identity/{ticket}`, `/setup-signin`, `/error?reason=app_access_denied`) follow the same rule.
+- The enrollment preview (`GET /enrollments/{token}`) carries `atLimit: true` when the browser is at the limit and the account the link is for is not already signed in on it.
+
+### Linking an identity
+
+`POST /api/prohibitorum/me/identities/link/{slug}/begin` (🔐, sent with `X-Prohibitorum-Account`) takes `{"returnTo": "/security"}`, sets the federation state cookie and answers `{"redirect": "<upstream URL>"}`; the page then navigates there. It replaces the earlier `GET`, which a page navigation could not send with the header. The callback and the VRChat link flow use the session recorded when the link began, not the default account, so the identity is linked to the account whose tab began it.
+
+### Error codes
+
+| Code | Status | When |
+|------|--------|------|
+| `account_not_signed_in` | 401 | `X-Prohibitorum-Account`, or the account picked on the chooser, names an account not signed in on this browser. |
+| `account_limit_reached` | 409 | Signing in another account while this browser holds the maximum number of accounts. |
+| `account_chooser_expired` | 404 | The account-chooser ticket does not exist or has expired. |
+
+`/oauth/authorize` with `prompt=none` returns the OIDC error `account_selection_required` to the client's `redirect_uri` when several accounts are signed in and the request does not say which one to use (see [Which account a protocol flow uses](#which-account-a-protocol-flow-uses)).
+
+---
+
+## Account chooser
+
+When a protocol flow cannot tell which of the browser's accounts to use, it sends the browser to the chooser page `/choose-account?ticket=<nonce>`. The choice is kept in a KV ticket `account-chooser:<nonce>` (32 random bytes, base64url; 10 minutes) that holds the flow kind (`oidc`, `saml`, `saml_init` or `require_identity`), the application, the URL to resume, an optional `login_hint` and, once picked, the account. The protocol endpoint is then reopened with `account_choice=<nonce>`. A relying party cannot forge the choice, a ticket made for one application is ignored by another, and the ticket can be used again until it expires, so a choice survives re-authentication and the consent page on the way back to the same request.
+
+| Method | Path | Gate | Notes |
+|--------|------|------|-------|
+| GET | `/api/prohibitorum/account-chooser?ticket=<nonce>` | public | `{app:{kind, key, name, iconUrl?}, accounts:[{accountId, u, username, displayName, avatarUrl?, allowed}], loginHint?, otherAccountUrl}`. `app.key` is `oidc:<client_id>` or `saml:<sp id>`. `allowed` is the live app-access decision for that account, without the reason. `otherAccountUrl` is the sign-in page for "Use another account", with `login_hint`. 404 `account_chooser_expired`. |
+| POST | `/api/prohibitorum/account-chooser` | public | `{ticket, accountId}` → `{"redirect": "<resume URL>&account_choice=<nonce>"}`. 404 `account_chooser_expired`; 401 `account_not_signed_in` when the account is not on this browser; 403 `app_access_denied` when it may not use the application. The account can be changed by posting again. |
+| GET | `/api/prohibitorum/account-chooser/continue?ticket=<nonce>` | public | Page navigation. "Use another account" signs in with this as `return_to`, and the sign-in records the account it signed in on the ticket, whichever method it used. 302 to the resume URL with `account_choice` when the ticket has an account that is still signed in here, else 302 `/choose-account?ticket=<nonce>`; a missing ticket redirects to `/error?reason=account_chooser_expired`. |
+| POST | `/api/prohibitorum/account-chooser/switch` | signed in | "Use another account" on the consent pages. `{"kind":"oidc","consentTicket":"…","returnTo":"/oauth/authorize?…"}` or `{"kind":"saml","consentTicket":"…"}`. The consent ticket is read, not consumed, and must belong to the account the request acts as; an OIDC `returnTo` must be a same-origin `/oauth/authorize` URL for the consent ticket's client. Answers `{"redirect": "/choose-account?ticket=<nonce>"}`. An invalid consent ticket returns the consent page's own error. The current account stays signed in. |
+| POST | `/api/prohibitorum/me/apps/saml-launch?sp=<entity id>` | signed in | The launcher's entry to an IdP-initiated SAML app. Creates a ticket already bound to the account the request acts as and answers `{"redirect": "/saml/sso/init?sp=…&account_choice=<nonce>"}`, so the app opens as the tab's account. 403 `app_access_denied` when that account may not use the SP. |
+
+### Which account a protocol flow uses
+
+`/oauth/authorize` decides after the client and parameter checks and before the access policy, in this order:
+
+1. A valid `account_choice` (the ticket exists, its kind and client match, it has an account, and that account is signed in here) → that account. It also satisfies `prompt=select_account`.
+2. Skipped with `prompt=select_account`: an `id_token_hint` that verifies (an expired one is accepted) and names a session or account signed in here → that account; otherwise a `login_hint` that matches exactly one signed-in account by username or verified email, ignoring case → that account.
+3. `prompt=select_account` → the chooser, or the sign-in page when no account is signed in.
+4. No account signed in → the sign-in page, with `login_hint` passed on to fill in the username; `prompt=none` answers `error=login_required`.
+5. One account → that account, as before — unless an `id_token_hint` was sent and names an account not signed in here: then the chooser (pre-filled with that account), and `prompt=none` answers `error=login_required`. The request never continues silently as an account the client did not ask for.
+6. Several accounts → the chooser; `prompt=none` answers `error=account_selection_required`.
+
+With `prompt=none`, a hint (`id_token_hint` or `login_hint`) gets an answer only for an account the client could be given anyway. A hint naming an account that is not signed in here, or one that is signed in but may not use the client or has not consented to it, answers `error=login_required` — the same as an account that is not signed in — instead of `account_selection_required`, `access_denied` or `consent_required`, so a client cannot learn which other accounts are signed in on the browser.
+
+The access policy, `max_age` / `prompt=login`, consent and the authorization code then apply to the chosen account's session, so the ID token's `sid` is that session. A re-authentication bounce carries `login_hint=<the account's username>`; signing in again as an account already on the browser is never refused by the limit and keeps its place. Discovery lists `select_account` in `prompt_values_supported`.
+
+`/saml/sso` and `/saml/sso/init`: with more than one account and no valid `account_choice`, the browser goes to the chooser and resumes at the same address the sign-in would return to (the original URL for the Redirect binding, `/saml/sso?post=<key>` for the POST binding); `account_choice` is appended after the signed query string, as `reauth` is. `IsPassive` with several accounts and no choice answers `NoPassive`. `ForceAuthn` re-authenticates the chosen account, with its username filled in. `/saml/sso/resume?ticket=` uses the account bound to the consent ticket; with an `account_choice` for a different account it consumes the old consent ticket, checks access for the chosen account, and then either asks that account for consent or issues its assertion.
+
+`GET /api/prohibitorum/require-identity` uses the same order (ticket kind `require_identity`). Forward auth signs in to its domain through `/oauth/authorize`, so the same choice applies there.
+
+Page navigations carry no header, so the maintenance gate lets one through when any account on the browser is an admin, and a protocol endpoint checks maintenance again for the account it chose. An API request is judged by the account it acts as.
+
+---
+
 ## Require identity
 
 GET /api/prohibitorum/require-identity is a browser navigation an application
@@ -473,13 +585,17 @@ returns JSON. In order:
 | `redirect_uri` missing or not registered | 302 `/error?error=require_identity_invalid_redirect_uri` |
 | No providers, more than 10, or one unknown or disabled | 302 `/error?error=require_identity_invalid_providers` |
 | `id_token_hint` unverifiable or for another client | 302 `/error?error=require_identity_invalid_id_token` |
-| No session | 302 `/login?return_to=<this request>` |
-| `id_token_hint` names another account | 302 `/require-identity/{ticket}`, a ticket marked as a mismatch |
+| No account signed in on the browser | 302 `/login?return_to=<this request>` |
+| `id_token_hint` names an account signed in on the browser | that account is used for the rows below |
+| `id_token_hint` names an account not signed in on the browser | 302 `/require-identity/{ticket}`, a ticket marked as a mismatch; its "Use another account" opens the sign-in page with that account filled in and signs nobody out |
+| Several accounts, no `id_token_hint`, no valid `account_choice` | 302 `/choose-account?ticket=<nonce>` (see [Account chooser](#account-chooser)) |
 | No access to the application | 302 `/error?reason=app_access_denied&app=<name>&return_to=<this request>`, audited `access_denied` |
 | A confirmed link at any listed provider | 302 to `redirect_uri` as registered, with no parameters |
 | Otherwise | 302 `/require-identity/{ticket}` |
 
-A ticket lives 30 minutes and only the session that created it can read it.
+A ticket lives 30 minutes and only the session that created it can read it. With
+more than one account on the browser the redirect to `/require-identity/{ticket}`
+carries that account's `u`.
 
 GET /api/prohibitorum/require-identity/{ticket} (browser session) returns the
 in-between page's data: `{client:{displayName,iconUrl?}, redirectUri, entryUrl,
@@ -563,6 +679,19 @@ with the flow's `return_to`, which the page resolves through this endpoint.
 - `403`: valid token, but the owner is not authorized for this application by the live app-bound policy or the PAT's app restriction.
 
 The PAT path takes precedence: if an `X-Prohibitorum-PAT` header is present the request is always handled as a PAT regardless of any cookie. Empty, repeated or malformed PAT headers, including whitespace or a comma inside the value, return 401; spaces around the value are removed by the HTTP server before the check. A database failure during the lookup returns 503. A `selected_apps` PAT reaches only its listed apps (403 elsewhere); the other levels reach any app the owner may use. `Authorization` is ignored by this verifier and remains available to the protected application. Proxies must strip `X-Prohibitorum-PAT` after verification and preserve `Authorization`.
+
+### Forward-auth sign-out
+
+`GET /api/prohibitorum/forward-auth/sso-logout?rd=<app URL>[&token=<pass>][&done=1]` is the page navigation an app's `/.prohibitorum-forward-auth/sign_out` link ends on. `rd` is used only when it is a registered forward-auth host; otherwise the browser goes to `/`.
+
+| Case | Response |
+|---|---|
+| `done=1` | 302 to `rd`. Nothing is revoked and no pass is checked: the confirmation page's "Back to the app" uses it. |
+| No account signed in on the browser | 302 to `rd` |
+| A valid single-use pass whose account is signed in here | Only that account is signed out (audit `session_end`, reason `forward_auth_signout`); the browser's other accounts stay signed in. 302 to `rd`. |
+| Otherwise (no pass, a used or expired one, or its account is not here) | 302 `/sign-out?rd=<app URL>`, the confirmation page |
+
+With one account the confirmation page asks to sign it out. With several it lists them, each with its own sign-out button (`POST /auth/logout` sent with that account's `X-Prohibitorum-Account`); once the last one is signed out the page returns to sso-logout, which then finds no account and goes back to the app. The page never redirects to `rd` itself. See [forward-auth.md](forward-auth.md#sign-out).
 
 
 ## Sudo grace period

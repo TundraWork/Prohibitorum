@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { client, requireJsonData } from "@/api/client";
 import { ApiError, describeError, isCancellation } from "@/api/errors";
+import { pinTabAccount, setTabAccountCheck } from "@/app/tab-account";
 
 const fetchBoundary = vi.fn<(request: Request) => Promise<Response>>();
 
@@ -234,5 +235,112 @@ describe("typed API transport", () => {
       nickname: "Desk key",
     });
     expect(exchange?.response).toBeUndefined();
+  });
+});
+
+describe("the tab's account on API requests", () => {
+  const lin = { accountId: 12, u: "3fa9", username: "lin", displayName: "Lin" };
+  const check = vi.fn();
+
+  beforeEach(() => {
+    check.mockReset();
+    setTabAccountCheck(check);
+  });
+
+  afterEach(() => setTabAccountCheck(undefined));
+
+  function sentHeader(index = 0) {
+    return fetchBoundary.mock.calls[index]?.[0].headers.get(
+      "X-Prohibitorum-Account",
+    );
+  }
+
+  it("names the tab's account only while the browser has several", async () => {
+    fetchBoundary.mockImplementation(async () => Response.json({}));
+    pinTabAccount(lin, 1);
+    await client.GET("/api/prohibitorum/me");
+    expect(sentHeader(0)).toBeNull();
+    pinTabAccount(lin, 3);
+    await client.GET("/api/prohibitorum/me");
+    expect(sentHeader(1)).toBe("12");
+  });
+
+  it("names the tab's account on a write even when it last saw one account", async () => {
+    // Another tab may have signed this tab's account out and another in; a
+    // header-less write would then act as that other account.
+    fetchBoundary.mockImplementation(
+      async () => new Response(null, { status: 204 }),
+    );
+    pinTabAccount(lin, 1);
+    await client.POST("/api/prohibitorum/auth/logout");
+    expect(sentHeader(0)).toBe("12");
+  });
+
+  it("keeps a header the caller set, and leaves the browser's own reads unnamed", async () => {
+    fetchBoundary.mockImplementation(
+      async () => new Response(null, { status: 204 }),
+    );
+    pinTabAccount(lin, 3);
+    await client.POST("/api/prohibitorum/auth/logout", {
+      headers: { "X-Prohibitorum-Account": "40" },
+    });
+    expect(sentHeader(0)).toBe("40");
+    await client.GET("/api/prohibitorum/auth/accounts");
+    expect(sentHeader(1)).toBeNull();
+    await client.POST("/api/prohibitorum/auth/logout-all");
+    expect(sentHeader(2)).toBeNull();
+  });
+
+  it("checks the tab's account when a response comes back as another", async () => {
+    pinTabAccount(lin, 1);
+    fetchBoundary.mockResolvedValueOnce(
+      Response.json({}, { headers: { "X-Prohibitorum-Account": "12" } }),
+    );
+    await client.GET("/api/prohibitorum/me");
+    expect(check).not.toHaveBeenCalled();
+    fetchBoundary.mockResolvedValueOnce(
+      Response.json({}, { headers: { "X-Prohibitorum-Account": "40" } }),
+    );
+    await client.GET("/api/prohibitorum/me");
+    expect(check).toHaveBeenCalledOnce();
+  });
+
+  it("ignores the account a sign-in or a deliberate other account answers as", async () => {
+    pinTabAccount(lin, 3);
+    fetchBoundary.mockImplementation(async () =>
+      Response.json({}, { headers: { "X-Prohibitorum-Account": "40" } }),
+    );
+    await client.POST("/api/prohibitorum/auth/logout", {
+      headers: { "X-Prohibitorum-Account": "40" },
+    });
+    await client.GET("/api/prohibitorum/me", {
+      headers: { "X-Prohibitorum-Account": "40" },
+    });
+    expect(check).not.toHaveBeenCalled();
+  });
+
+  it("checks the tab's account when the server says it is not signed in", async () => {
+    pinTabAccount(lin, 3);
+    fetchBoundary.mockResolvedValue(
+      Response.json(
+        { code: "account_not_signed_in", requestId: "r" },
+        { status: 401 },
+      ),
+    );
+    await expect(
+      requireJsonData(client.GET("/api/prohibitorum/me")),
+    ).rejects.toMatchObject({ code: "account_not_signed_in" });
+    expect(sentHeader(0)).toBe("12");
+    expect(check).toHaveBeenCalledOnce();
+  });
+
+  it("says nothing while the tab has no account", async () => {
+    pinTabAccount(null, 0);
+    fetchBoundary.mockResolvedValue(
+      Response.json({}, { headers: { "X-Prohibitorum-Account": "40" } }),
+    );
+    await client.GET("/api/prohibitorum/me");
+    expect(sentHeader(0)).toBeNull();
+    expect(check).not.toHaveBeenCalled();
   });
 });

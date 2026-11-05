@@ -18,6 +18,7 @@ import { Route as ProtectedAppsRouteImport } from './routes/_protected.apps'
 import { Route as ProtectedDevicesRouteImport } from './routes/_protected.devices'
 import { Route as ProtectedProfileRouteImport } from './routes/_protected.profile'
 import { Route as ProtectedSecurityRouteImport } from './routes/_protected.security'
+import { Route as PublicChooseAccountRouteImport } from './routes/_public.choose-account'
 import { Route as PublicConsentRouteImport } from './routes/_public.consent'
 import { Route as PublicErrorRouteImport } from './routes/_public.error'
 import { Route as PublicLoginRouteImport } from './routes/_public.login'
@@ -99,6 +100,11 @@ const ProtectedSecurityRoute = ProtectedSecurityRouteImport.update({
   id: '/security',
   path: '/security',
   getParentRoute: () => ProtectedRoute,
+} as any)
+const PublicChooseAccountRoute = PublicChooseAccountRouteImport.update({
+  id: '/choose-account',
+  path: '/choose-account',
+  getParentRoute: () => PublicRoute,
 } as any)
 const PublicConsentRoute = PublicConsentRouteImport.update({
   id: '/consent',
@@ -326,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/devices': typeof ProtectedDevicesRoute
   '/profile': typeof ProtectedProfileRoute
   '/security': typeof ProtectedSecurityRoute
+  '/choose-account': typeof PublicChooseAccountRoute
   '/consent': typeof PublicConsentRoute
   '/error': typeof PublicErrorRoute
   '/login': typeof PublicLoginRoute
@@ -372,6 +379,7 @@ export interface FileRoutesByTo {
   '/devices': typeof ProtectedDevicesRoute
   '/profile': typeof ProtectedProfileRoute
   '/security': typeof ProtectedSecurityRoute
+  '/choose-account': typeof PublicChooseAccountRoute
   '/consent': typeof PublicConsentRoute
   '/error': typeof PublicErrorRoute
   '/login': typeof PublicLoginRoute
@@ -420,6 +428,7 @@ export interface FileRoutesById {
   '/_protected/devices': typeof ProtectedDevicesRoute
   '/_protected/profile': typeof ProtectedProfileRoute
   '/_protected/security': typeof ProtectedSecurityRoute
+  '/_public/choose-account': typeof PublicChooseAccountRoute
   '/_public/consent': typeof PublicConsentRoute
   '/_public/error': typeof PublicErrorRoute
   '/_public/login': typeof PublicLoginRoute
@@ -470,6 +479,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/profile'
     | '/security'
+    | '/choose-account'
     | '/consent'
     | '/error'
     | '/login'
@@ -516,6 +526,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/profile'
     | '/security'
+    | '/choose-account'
     | '/consent'
     | '/error'
     | '/login'
@@ -563,6 +574,7 @@ export interface FileRouteTypes {
     | '/_protected/devices'
     | '/_protected/profile'
     | '/_protected/security'
+    | '/_public/choose-account'
     | '/_public/consent'
     | '/_public/error'
     | '/_public/login'
@@ -675,6 +687,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/security'
       preLoaderRoute: typeof ProtectedSecurityRouteImport
       parentRoute: typeof ProtectedRoute
+    }
+    '/_public/choose-account': {
+      id: '/_public/choose-account'
+      path: '/choose-account'
+      fullPath: '/choose-account'
+      preLoaderRoute: typeof PublicChooseAccountRouteImport
+      parentRoute: typeof PublicRoute
     }
     '/_public/consent': {
       id: '/_public/consent'
@@ -1064,6 +1083,7 @@ const ProtectedRouteWithChildren = ProtectedRoute._addFileChildren(
 )
 
 interface PublicRouteChildren {
+  PublicChooseAccountRoute: typeof PublicChooseAccountRoute
   PublicConsentRoute: typeof PublicConsentRoute
   PublicErrorRoute: typeof PublicErrorRoute
   PublicLoginRoute: typeof PublicLoginRoute
@@ -1082,6 +1102,7 @@ interface PublicRouteChildren {
 }
 
 const PublicRouteChildren: PublicRouteChildren = {
+  PublicChooseAccountRoute: PublicChooseAccountRoute,
   PublicConsentRoute: PublicConsentRoute,
   PublicErrorRoute: PublicErrorRoute,
   PublicLoginRoute: PublicLoginRoute,

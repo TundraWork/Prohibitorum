@@ -8,7 +8,14 @@ package server
 //
 //   - maintenanceGateMW blocks authenticated non-admin requests to the gated
 //     surfaces (dashboard API, OIDC authorize, SAML SSO). The session cookie is
-//     left intact, so users are simply restored when maintenance ends.
+//     left intact, so users are simply restored when maintenance ends. With
+//     several accounts signed in on one browser, an API request is judged as
+//     the account it acts as: the one X-Prohibitorum-Account names, else the
+//     default account. A page navigation that picks its account only later
+//     (the OIDC and SAML endpoints, the require-identity entry, the identity
+//     link callback) passes when any account on the browser is an admin, and
+//     that endpoint checks the account it settles on with maintenanceLockout
+//     (or the Provider's maintenance checker and the account's role).
 //   - maintenanceLockout blocks non-admins at every session-issuance point, so a
 //     non-admin cannot even sign in (the gate alone can't enforce that, since
 //     GET /me stays open to render the maintenance screen).
@@ -27,6 +34,7 @@ import (
 
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/branding"
+	sessstore "prohibitorum/pkg/session"
 )
 
 const roleAdmin = "admin"
@@ -50,6 +58,10 @@ func maintenanceGateMW(b *branding.Resolver) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+			if sess.PAT == nil && accountPickedLater(r) && browserHasAdmin(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
 			// Browser-navigation SSO surfaces bounce to the SPA (which renders the
 			// maintenance screen); XHR/API callers get a JSON 503 they can map.
 			if maintenanceBrowserNav(r.URL.Path) {
@@ -59,6 +71,35 @@ func maintenanceGateMW(b *branding.Resolver) func(http.Handler) http.Handler {
 			writeAuthErr(w, authn.ErrMaintenanceMode())
 		})
 	}
+}
+
+// accountPickedLater reports whether the request is a page navigation that
+// settles on an account itself and checks maintenance for it.
+func accountPickedLater(r *http.Request) bool {
+	p := r.URL.Path
+	if !strings.HasPrefix(p, "/api/prohibitorum/") {
+		return true
+	}
+	if r.Header.Get(sessstore.AccountHeader) != "" || r.Method != http.MethodGet {
+		return false
+	}
+	return p == "/api/prohibitorum/require-identity" ||
+		strings.HasPrefix(p, "/api/prohibitorum/me/identities/link/") && strings.HasSuffix(p, "/callback")
+}
+
+// browserHasAdmin reports whether any account signed in on the request's
+// browser is an admin.
+func browserHasAdmin(r *http.Request) bool {
+	b := sessstore.BrowserFromContext(r.Context())
+	if b == nil {
+		return false
+	}
+	for _, sess := range b.Accounts() {
+		if sess.Account != nil && sess.Account.Role == roleAdmin {
+			return true
+		}
+	}
+	return false
 }
 
 // maintenanceAllowedPath reports the requests a blocked non-admin may still make
@@ -72,7 +113,12 @@ func maintenanceAllowedPath(r *http.Request) bool {
 		return true
 	case p == "/api/prohibitorum/me" && r.Method == http.MethodGet:
 		return true
-	case p == "/api/prohibitorum/auth/logout":
+	case p == "/api/prohibitorum/auth/logout", p == "/api/prohibitorum/auth/logout-all",
+		p == "/api/prohibitorum/auth/accounts":
+		return true
+	case p == "/api/prohibitorum/account-chooser", p == accountChooserContinuePath:
+		// The account picked here may be an admin's; the protocol endpoint
+		// it resumes checks maintenance for that account.
 		return true
 	case strings.HasPrefix(p, "/branding/"), strings.HasPrefix(p, "/avatar/"):
 		return true
@@ -98,7 +144,8 @@ func maintenanceBrowserNav(p string) bool {
 
 // maintenanceLockout returns ErrMaintenanceMode when maintenance mode is on and
 // the account being signed in is not an admin. Called at every session-issuance
-// point so non-admins cannot establish a session during maintenance. The DB
+// point so non-admins cannot establish a session during maintenance, and by
+// navigations that act as an account other than the one the gate judged. The DB
 // role lookup runs only while maintenance is on (a cached bool check otherwise),
 // so normal logins are unaffected.
 func (s *Server) maintenanceLockout(ctx context.Context, accountID int32) *authn.AuthError {

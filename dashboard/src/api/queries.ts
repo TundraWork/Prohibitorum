@@ -13,6 +13,7 @@ import type {
   WallpaperPreviewQuery,
 } from "@/api/raw-admin-paths";
 import type {
+  AccountChooser,
   FederationConfirm,
   LoginAppearance,
   PairingStatus,
@@ -108,6 +109,59 @@ export function sessionQueryOptions() {
         }
         throw error;
       }
+    },
+  });
+}
+
+/**
+ * The accounts signed in on this browser, in sign-in order, and how many it
+ * may hold. It is the browser's list, not one account's, so it carries no
+ * session marker and outlives a sign-out. Every tab reads it to know which
+ * account it acts as; it is read again when the window regains focus or
+ * another tab says the list changed (`account-sync.ts`), and on demand after
+ * this tab signs an account in or out (`refreshBrowserAccounts`). A failed
+ * read is not a toast: the pages that draw the list report it themselves.
+ */
+export function browserAccountsQueryOptions() {
+  return queryOptions({
+    queryKey: ["browser-accounts"],
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnWindowFocus: "always",
+    meta: { quiet: true },
+    queryFn: async ({ signal }) => {
+      const list = await requireJsonData(
+        client.GET("/api/prohibitorum/auth/accounts", { signal }),
+      );
+      return { limit: list.limit, accounts: list.accounts ?? [] };
+    },
+  });
+}
+
+export function refreshBrowserAccounts(queryClient: QueryClient) {
+  return queryClient.fetchQuery({
+    ...browserAccountsQueryOptions(),
+    staleTime: 0,
+  });
+}
+
+/**
+ * The accounts a protocol sign-in can continue with, from its chooser
+ * ticket. Never served from cache: an account may have signed out, or its
+ * access changed, since the last look.
+ */
+export function accountChooserQueryOptions(ticket: string) {
+  return queryOptions({
+    queryKey: ["account-chooser", ticket],
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+    queryFn: async ({ signal }): Promise<AccountChooser> => {
+      const chooser = await requireJsonData(
+        client.GET("/api/prohibitorum/account-chooser", {
+          params: { query: { ticket } },
+          signal,
+        }),
+      );
+      return { ...chooser, accounts: chooser.accounts ?? [] };
     },
   });
 }
