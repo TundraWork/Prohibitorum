@@ -1,3 +1,4 @@
+import { clampAccountLimit } from "@/devtools/mock/accounts";
 import {
   clampAdminCount,
   clampAvatarUpstreams,
@@ -147,6 +148,7 @@ function setPath(
 /** Counts are clamped to the same ceilings the panel's own controls use. */
 function clampFor(path: string, value: number): number {
   if (path === "delayMs") return clampDelay(value);
+  if (path === "session.limit") return clampAccountLimit(value);
   if (
     path === "pairing.expiresInSeconds" ||
     path === "publicFlows.pairing.expiresInSeconds"

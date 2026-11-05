@@ -14,8 +14,28 @@ export interface MockConfig {
   writes: boolean;
   /** Milliseconds every mocked response waits before it is answered. */
   delayMs: number;
+  /**
+   * The accounts signed in on this browser. `signedIn`, the names, the role
+   * and the managed applications describe account 1; `others` adds the
+   * accounts after it.
+   */
   session: {
+    /** Whether account 1 is signed in on this browser. */
     signedIn: boolean;
+    /**
+     * The accounts after account 1, one letter per account id from 2 on: `a`
+     * an admin, `m` a member, `.` not signed in. A gap keeps the later ids, as
+     * signing one account out leaves the others' references alone. A string
+     * rather than a list, so it survives the stored-config overlay.
+     */
+    others: string;
+    /** How many accounts the browser may hold, 1–20 (`mockAccountLimitMax`). */
+    limit: number;
+    /**
+     * Which accounts may not use the application the account chooser is asked
+     * for, one letter per account id from 1 on: `x` may not.
+     */
+    chooserDenied: string;
     displayName: string;
     username: string;
     /**
@@ -381,6 +401,9 @@ export const defaultMockConfig: MockConfig = {
   delayMs: 700,
   session: {
     signedIn: true,
+    others: "",
+    limit: 10,
+    chooserDenied: "",
     displayName: "Mock Member",
     username: "mock",
     role: "admin",

@@ -199,6 +199,22 @@ describe("mock URL control", () => {
     expect(getMockConfig().instance.loginAppearance.theme).toBe("dark");
   });
 
+  it("sets up the browser's accounts, keeping the limit within the server's range", () => {
+    applyMockQuery(
+      "?mock.session.others=ma&mock.session.chooserDenied=.x&mock.session.limit=3",
+    );
+    expect(getMockConfig().session).toMatchObject({
+      others: "ma",
+      chooserDenied: ".x",
+      limit: 3,
+    });
+
+    applyMockQuery("?mock.session.limit=50");
+    expect(getMockConfig().session.limit).toBe(20);
+    applyMockQuery("?mock.session.limit=0");
+    expect(getMockConfig().session.limit).toBe(1);
+  });
+
   it("sets a nested count without disturbing its siblings", () => {
     applyMockQuery("?mock.session.managedApps.oidc=3");
     const config = getMockConfig();
