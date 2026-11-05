@@ -81,11 +81,30 @@ db_reset() {
 	db_start
 }
 
+# prohibitorum_smoke belongs to the ci:smoke run that holds the smoke lock; a
+# drop from anywhere else lands in the middle of that run (PHB-287). ci:smoke
+# hands down its locked fd 9: flock on that same open file succeeds again,
+# while a caller that opens the lock file itself would only race the run.
+smoke_lock_inherited() {
+	local lock="${XDG_RUNTIME_DIR:-/tmp}/prohibitorum-smoke/ci-smoke.lock"
+	if { true >&9; } 2>/dev/null && [ /dev/fd/9 -ef "$lock" ] && flock -n 9; then
+		# The caller keeps the lock; podman must not inherit it (see ci:smoke).
+		exec 9>&-
+		return 0
+	fi
+	echo "error: prohibitorum_smoke is recreated only by mise run ci:smoke, which may be using it now." >&2
+	echo "Use a database with another name for your own server or tests, e.g. scripts/db.sh recreate-db prohibitorum_scratch, and drop it when you are done." >&2
+	return 1
+}
+
 # Drop + recreate ONE named database (the smoke uses this for a clean slate).
 # Exposed as a subcommand so callers that can't source this file — e.g. a mise
 # task body, which may run under plain sh — get it by EXECUTING db.sh instead.
 db_recreate() {
 	local name="${1:?usage: db.sh recreate-db <dbname>}"
+	if [ "$name" = prohibitorum_smoke ]; then
+		smoke_lock_inherited || return 1
+	fi
 	pg psql -U prohibitorum -d postgres -c "DROP DATABASE IF EXISTS $name WITH (FORCE)" >/dev/null
 	pg createdb -U prohibitorum "$name"
 	echo "recreated database $name"

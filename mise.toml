@@ -214,12 +214,13 @@ fi
 # Worktrees must address the repository's canonical compose project rather than
 # creating a second Postgres container that collides on host port 5432.
 export COMPOSE_PROJECT_NAME=prohibitorum
-# fd 9 must not cross into db.sh: children inherit it, and when `db.sh ensure`
+# fd 9 must not cross into `db.sh ensure`: children inherit it, and when it
 # has to start Postgres, rootless podman leaves conmon holding the lock after
 # the task exits — every later smoke then queues behind a conmon pid. The
-# server and mocks can keep fd 9 (they die with the task).
+# server and mocks can keep fd 9 (they die with the task). `recreate-db`
+# needs fd 9 to prove it runs under this lock, and closes it before podman.
 scripts/db.sh ensure 9>&-
-scripts/db.sh recreate-db prohibitorum_smoke 9>&-
+scripts/db.sh recreate-db prohibitorum_smoke
 export PROHIBITORUM_DATABASE_URL="postgres://prohibitorum:prohibitorum@localhost:5432/prohibitorum_smoke?sslmode=disable"
 export PROHIBITORUM_DATA_ENCRYPTION_KEY_V1="$(openssl rand -base64 32)"
 export PROHIBITORUM_PUBLIC_ORIGIN="https://127.0.0.1:18443"
