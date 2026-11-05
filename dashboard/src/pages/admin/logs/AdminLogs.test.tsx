@@ -365,6 +365,12 @@ describe("a custom range", () => {
 
   it("takes both days from the calendar and keeps them in the address", async () => {
     const user = userEvent.setup();
+    // The calendar shuts days after today, so the 12th and 14th need a today
+    // that is past them.
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date(2026, 8, 25, 12),
+    });
     const { api, router } = await mount(
       [passkeyUse],
       "/admin/logs?range=custom",
@@ -376,13 +382,11 @@ describe("a custom range", () => {
     await user.click(within(dialog).getByRole("button", { name: / 12th, / }));
     await user.click(within(dialog).getByRole("button", { name: / 14th, / }));
 
-    const now = new Date();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
     await waitFor(() =>
       expect(addressOf(router)).toMatchObject({
         range: "custom",
-        from: `${now.getFullYear()}-${month}-12`,
-        to: `${now.getFullYear()}-${month}-14`,
+        from: "2026-09-12",
+        to: "2026-09-14",
       }),
     );
     await waitFor(() => expect(api.sent("GET", listPath)).toHaveLength(1));
