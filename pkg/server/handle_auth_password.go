@@ -177,6 +177,10 @@ func (s *Server) handleTOTPVerifyHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
 		return
 	}
+	if s.partialSessionAtCap(r, body.PartialSessionToken) {
+		writeAuthErr(w, authn.ErrAccountLimitReached())
+		return
+	}
 	partial, err := s.consumePartialSession(r.Context(), body.PartialSessionToken)
 	if err != nil {
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
@@ -241,6 +245,10 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if s.partialSessionAtCap(r, body.PartialSessionToken) {
+		writeAuthErr(w, authn.ErrAccountLimitReached())
+		return
+	}
 	partial, err := s.consumePartialSession(r.Context(), body.PartialSessionToken)
 	if err != nil || partial.FactorCompleted != "password" {
 		writeAuthErr(w, authn.ErrPartialSessionInvalid())
@@ -344,6 +352,22 @@ func (s *Server) handleRecoveryCodeVerifyHTTP(w http.ResponseWriter, r *http.Req
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+// partialSessionAtCap reports, without consuming the partial session, that
+// its account could not be signed in on this browser: the cap is checked
+// before the one-time code (and a recovery code's replacement credentials)
+// is spent, so the reader can sign an account out and retry the same step.
+func (s *Server) partialSessionAtCap(r *http.Request, token string) bool {
+	raw, err := s.kvStore.Get(r.Context(), partialSessionKey(token))
+	if err != nil {
+		return false
+	}
+	var ps partialSession
+	if json.Unmarshal([]byte(raw), &ps) != nil {
+		return false
+	}
+	return !s.canSignIn(r, ps.AccountID)
 }
 
 // consumePartialSession atomically retrieves and removes the KV entry via

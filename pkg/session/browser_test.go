@@ -3,8 +3,10 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -433,4 +435,41 @@ func TestErrorEnvelopeCodesRegistered(t *testing.T) {
 
 func sessionReq() contract.AuthRequirement {
 	return contract.AuthRequirement{Kind: contract.AuthSession}
+}
+
+// flakyGetKV fails Get for one account's session keys, as a KV timeout would.
+type flakyGetKV struct {
+	kv.Store
+	failAccount int32
+}
+
+func (s *flakyGetKV) Get(ctx context.Context, key string) (string, error) {
+	if strings.HasPrefix(key, "session:"+strconv.Itoa(int(s.failAccount))+":") {
+		return "", errors.New("kv: i/o timeout")
+	}
+	return s.Store.Get(ctx, key)
+}
+
+func TestBrowser_UnreadableEntryIsNotSkipped(t *testing.T) {
+	f := newBrowserFixture(t, 2)
+	f.signIn(1, false)
+	f.signIn(2, false)
+	f.store.kv = &flakyGetKV{Store: f.store.kv, failAccount: 1}
+
+	b := f.browser()
+	if d := b.Default(); d != nil {
+		t.Fatalf("default must not fall through to account %d while account 1 is unreadable", d.Account.ID)
+	}
+	if !b.Unsettled() || b.Count() != 1 {
+		t.Fatalf("unsettled=%v count=%d, want true 1", b.Unsettled(), b.Count())
+	}
+	if b.CanAttach(3) || !b.AtLimit() {
+		t.Fatal("an unreadable entry still counts toward the cap")
+	}
+	// It stays in the cookie: nothing is rewritten for it.
+	rec := httptest.NewRecorder()
+	b.Flush(rec.Header())
+	if rec.Header().Get("Set-Cookie") != "" {
+		t.Fatalf("unreadable entry must not be dropped: %v", rec.Header().Values("Set-Cookie"))
+	}
 }

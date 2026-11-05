@@ -68,6 +68,15 @@ func (b *testBrowser) signIn(accountID int32, remember bool) string {
 	return token
 }
 
+// signOut signs accountID out through POST /auth/logout.
+func (b *testBrowser) signOut(accountID int32) {
+	b.t.Helper()
+	rec := b.serve(b.s.handleLogoutHTTP, withAccountHeader(httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/logout", nil), accountID))
+	if rec.Code != http.StatusNoContent {
+		b.t.Fatalf("sign out %d = %d", accountID, rec.Code)
+	}
+}
+
 func (b *testBrowser) httpCookies() []*http.Cookie {
 	var out []*http.Cookie
 	for name, value := range b.cookies {
@@ -493,6 +502,17 @@ func TestSignInAtAccountLimitIssuesNothing(t *testing.T) {
 		assertNoSessionCookieSet(t, rec)
 		if len(f.sessions) != sessionsBefore {
 			t.Fatalf("sessions issued = %d, want 0", len(f.sessions)-sessionsBefore)
+		}
+		// Refused before anything is spent: the same step can be retried
+		// once an account is signed out.
+		if _, err := s.kvStore.Get(context.Background(), partialSessionKey(token)); err != nil {
+			t.Fatalf("partial session consumed by a refused verify: %v", err)
+		}
+		b.signOut(1)
+		req = httptest.NewRequest(http.MethodPost, "/api/prohibitorum/auth/recovery-code/verify",
+			strings.NewReader(fmt.Sprintf(`{"partial_session_token":%q,"code":%q,"reset_authenticator":false}`, token, codes[0])))
+		if rec := b.serve(s.handleRecoveryCodeVerifyHTTP, req); rec.Code != http.StatusOK {
+			t.Fatalf("retry with the same code after signing out = %d %s", rec.Code, rec.Body.String())
 		}
 	})
 	t.Run("passkey sign-in", func(t *testing.T) {
@@ -1011,6 +1031,16 @@ func TestMaintenanceGateWithSeveralAccounts(t *testing.T) {
 			if rec := b.serve(gate.ServeHTTP, httptest.NewRequest(http.MethodGet, path, nil)); rec.Code != http.StatusOK {
 				t.Fatalf("%s with an admin beside the default member = %d, want 200", path, rec.Code)
 			}
+		}
+	})
+	t.Run("API request without a header is judged as the default account", func(t *testing.T) {
+		_, b := newBrowser(t, member, admin)
+		if rec := b.serve(gate.ServeHTTP, httptest.NewRequest(http.MethodPost, "/api/prohibitorum/me/tokens", nil)); rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf("header-less API write as the default member = %d, want 503", rec.Code)
+		}
+		_, b = newBrowser(t, admin, member)
+		if rec := b.serve(gate.ServeHTTP, httptest.NewRequest(http.MethodPost, "/api/prohibitorum/me/tokens", nil)); rec.Code != http.StatusOK {
+			t.Fatalf("header-less API write as the default admin = %d, want 200", rec.Code)
 		}
 	})
 	t.Run("navigation is blocked when no account here is an admin", func(t *testing.T) {

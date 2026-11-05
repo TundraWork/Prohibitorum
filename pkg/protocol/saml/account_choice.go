@@ -30,7 +30,7 @@ func (i *IdP) chooseSession(r *http.Request, kind, app string) (sess *authn.Sess
 			return s, false
 		}
 	}
-	if b.Count() > 1 {
+	if b.Count() > 1 || b.Unsettled() {
 		return nil, true
 	}
 	return authn.SessionFromContext(ctx), false

@@ -68,6 +68,13 @@ func browserAccounts(r *http.Request) []*authn.Session {
 	return nil
 }
 
+// browserUnsettled reports an account on the browser whose session could not
+// be read this request, so "the only account" may not be the only one.
+func browserUnsettled(r *http.Request) bool {
+	b := session.BrowserFromContext(r.Context())
+	return b != nil && b.Unsettled()
+}
+
 // resolveAccount fixes the account a protocol request acts as (design 5.3):
 //
 //  1. a valid account_choice for this kind and application;
@@ -137,7 +144,7 @@ func (p *Provider) resolveAccount(r *http.Request, req accountRequest) accountRe
 	switch {
 	case len(accounts) == 0:
 		res.outcome = accountNeedsLogin
-	case req.selectAccount || len(accounts) > 1:
+	case req.selectAccount || len(accounts) > 1 || browserUnsettled(r):
 		res.outcome = accountNeedsChoice
 	default:
 		res.outcome = accountResolved

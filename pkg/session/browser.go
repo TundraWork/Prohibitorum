@@ -288,6 +288,32 @@ func (b *Browser) AccountIDs() []int32 {
 // Count is the number of signed-in accounts.
 func (b *Browser) Count() int { return len(b.ordered()) }
 
+// held counts the entries still in the cookies, including ones whose session
+// could not be read this request; the cap applies to all of them.
+func (b *Browser) held() int {
+	b.checkAll()
+	n := 0
+	for _, e := range b.entries {
+		if e.state == entryValid || e.state == entryUnavailable {
+			n++
+		}
+	}
+	return n
+}
+
+// Unsettled reports whether an entry's session could not be read this
+// request (a transient store failure). Accounts() then lacks an account that
+// is still signed in, so a protocol flow must not pick "the only account".
+func (b *Browser) Unsettled() bool {
+	b.checkAll()
+	for _, e := range b.entries {
+		if e.state == entryUnavailable {
+			return true
+		}
+	}
+	return false
+}
+
 // HasAnyEntry reports whether the cookies name any account, without
 // validating them; cheap enough for every page load.
 func (b *Browser) HasAnyEntry() bool {
@@ -309,6 +335,11 @@ func (b *Browser) Default() *authn.Session {
 		b.check(e)
 		if e.state == entryValid {
 			return e.session
+		}
+		if e.state == entryUnavailable {
+			// The default account could not be read this time; acting as
+			// the next account instead would switch identity silently.
+			return nil
 		}
 	}
 	if b.disabledSeen != nil {
@@ -388,11 +419,11 @@ func (b *Browser) CanAttach(accountID int32) bool {
 	if b.Has(accountID) {
 		return true
 	}
-	return b.Count() < b.m.Limit()
+	return b.held() < b.m.Limit()
 }
 
 // AtLimit reports whether no further account can be signed in.
-func (b *Browser) AtLimit() bool { return b.Count() >= b.m.Limit() }
+func (b *Browser) AtLimit() bool { return b.held() >= b.m.Limit() }
 
 // ErrAccountLimit is returned by Attach when the browser is at its cap.
 var ErrAccountLimit = errors.New("session: browser account limit reached")
@@ -423,7 +454,7 @@ func (b *Browser) Attach(w http.ResponseWriter, p AttachParams) (*authn.Session,
 	if existing != nil && existing.state != entryValid {
 		existing = nil
 	}
-	if existing == nil && b.Count() >= b.m.Limit() {
+	if existing == nil && b.held() >= b.m.Limit() {
 		return nil, ErrAccountLimit
 	}
 	token, data, err := b.m.store.Issue(b.ctx, p.AccountID, b.m.ipOf(b.r), b.r.UserAgent(), p.AMR, p.UpstreamIDPID, p.Remember)

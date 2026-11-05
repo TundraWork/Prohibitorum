@@ -9,14 +9,13 @@ package server
 //   - maintenanceGateMW blocks authenticated non-admin requests to the gated
 //     surfaces (dashboard API, OIDC authorize, SAML SSO). The session cookie is
 //     left intact, so users are simply restored when maintenance ends. With
-//     several accounts signed in on one browser, an API request that names
-//     its account (X-Prohibitorum-Account) is judged as that account; a
-//     request that names none — a page navigation — passes when any account
-//     on the browser is an admin, since it cannot say which one it acts as.
-//     Whatever then picks an account for such a navigation checks that
-//     account itself with maintenanceLockout: the link callback here, and the
-//     OIDC and SAML endpoints once they have resolved the account (through
-//     the Provider's maintenance checker and the account's role).
+//     several accounts signed in on one browser, an API request is judged as
+//     the account it acts as: the one X-Prohibitorum-Account names, else the
+//     default account. A page navigation that picks its account only later
+//     (the OIDC and SAML endpoints, the require-identity entry, the identity
+//     link callback) passes when any account on the browser is an admin, and
+//     that endpoint checks the account it settles on with maintenanceLockout
+//     (or the Provider's maintenance checker and the account's role).
 //   - maintenanceLockout blocks non-admins at every session-issuance point, so a
 //     non-admin cannot even sign in (the gate alone can't enforce that, since
 //     GET /me stays open to render the maintenance screen).
@@ -59,7 +58,7 @@ func maintenanceGateMW(b *branding.Resolver) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if sess.PAT == nil && !namesAccount(r) && browserHasAdmin(r) {
+			if sess.PAT == nil && accountPickedLater(r) && browserHasAdmin(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -74,10 +73,18 @@ func maintenanceGateMW(b *branding.Resolver) func(http.Handler) http.Handler {
 	}
 }
 
-// namesAccount reports whether the request selects its account by header,
-// which only API requests can do.
-func namesAccount(r *http.Request) bool {
-	return r.Header.Get(sessstore.AccountHeader) != "" && strings.HasPrefix(r.URL.Path, "/api/prohibitorum/")
+// accountPickedLater reports whether the request is a page navigation that
+// settles on an account itself and checks maintenance for it.
+func accountPickedLater(r *http.Request) bool {
+	p := r.URL.Path
+	if !strings.HasPrefix(p, "/api/prohibitorum/") {
+		return true
+	}
+	if r.Header.Get(sessstore.AccountHeader) != "" || r.Method != http.MethodGet {
+		return false
+	}
+	return p == "/api/prohibitorum/require-identity" ||
+		strings.HasPrefix(p, "/api/prohibitorum/me/identities/link/") && strings.HasSuffix(p, "/callback")
 }
 
 // browserHasAdmin reports whether any account signed in on the request's
