@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { components } from "@/api/generated/schema";
 import {
   accountShorts,
   browserAccounts,
@@ -286,25 +287,23 @@ describe("mocked browser accounts", () => {
     });
     const body = bodyOf(
       send("GET", chooser, current, { query: "?ticket=mock" }),
-    ) as {
-      app: unknown;
-      accounts: (Listed & { allowed: boolean })[];
-      otherAccountUrl: string;
-    };
+    ) as components["schemas"]["AccountChooser"];
     expect(body.app).toMatchObject({
       kind: "oidc",
       key: "oidc:wiki",
       name: "Wiki",
     });
-    expect(body.accounts.map((account) => account.allowed)).toEqual([
+    expect(body.accounts?.map((account) => account.allowed)).toEqual([
       true,
       false,
       true,
     ]);
-    expect(body.accounts.map((account) => account.u)).toEqual(
+    expect(body.accounts?.map((account) => account.u)).toEqual(
       listed(current).map((account) => account.u),
     );
-    expect(body.otherAccountUrl).toMatch(/^\/login\?return_to=/);
+    expect(body.otherAccountUrl).toBe(
+      "/login?return_to=%2Fapi%2Fprohibitorum%2Faccount-chooser%2Fcontinue%3Fticket%3Dmock",
+    );
     expect(
       bodyOf(send("GET", chooser, current, { query: "?ticket=mock-saml" })),
     ).toMatchObject({ app: { kind: "saml", key: "saml:nextcloud" } });

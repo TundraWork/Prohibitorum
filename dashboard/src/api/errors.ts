@@ -848,6 +848,30 @@ const appAccessDenied = msg({
   message: "An administrator has not granted your account access to this app.",
 });
 
+export type LandingAccountCondition =
+  | "account_limit_reached"
+  | "account_chooser_expired";
+
+/**
+ * The account condition an `/error` link reports, from either parameter: a
+ * federation callback stopped at the limit writes `error=` like every other
+ * failure it redirects, while the account chooser writes `reason=`.
+ */
+export function landingAccountCondition(search: {
+  error?: string;
+  reason?: string;
+}): LandingAccountCondition | undefined {
+  for (const value of [search.reason, search.error]) {
+    if (
+      value === "account_limit_reached" ||
+      value === "account_chooser_expired"
+    ) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 /**
  * What the `/error` page says about a flow the server stopped. Its inputs are
  * the page's search values, which anyone can write, so only a code one of the
@@ -869,13 +893,8 @@ export function describeErrorLanding({
   instance: string;
 }): MessageDescriptor {
   if (reason === "app_access_denied") return appAccessDenied;
-  // The two account conditions arrive as a reason, like a denial.
-  if (
-    reason === "account_limit_reached" ||
-    reason === "account_chooser_expired"
-  ) {
-    return errorMessages[reason] ?? signInFailure;
-  }
+  const condition = landingAccountCondition({ error: code, reason });
+  if (condition) return errorMessages[condition] ?? signInFailure;
   if (code === undefined || code === "") return signInFailure;
   if (Object.hasOwn(landingMessages, code)) {
     const message = landingMessages[code];

@@ -50,6 +50,7 @@ function preview(overrides: Partial<Preview> = {}): Preview {
     intent: "invite",
     expiresAt: "2026-10-03T12:00:00Z",
     allowedMethods: ["passkey", "password_totp"],
+    atLimit: false,
     ...overrides,
   };
 }

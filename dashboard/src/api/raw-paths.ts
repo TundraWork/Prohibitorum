@@ -183,7 +183,7 @@ export interface SignedInAccount {
 
 export interface LoginResult {
   redirect: string;
-  /** Absent from servers that predate several accounts per browser. */
+  /** Absent when the answer signs nobody in, such as linking an identity. */
   account?: SignedInAccount;
 }
 
@@ -356,7 +356,7 @@ export interface EnrollmentRegistered {
   session: SessionView;
   newCredentialId: number;
   /** Where the new account goes, with its `u` when the browser has others. */
-  redirect?: string;
+  redirect: string;
   account?: SignedInAccount;
 }
 
@@ -367,7 +367,7 @@ export interface EnrollmentRegistered {
 export interface EnrollmentPasswordTotpResult {
   session: SessionView;
   recoveryCodes: string[];
-  redirect?: string;
+  redirect: string;
   account?: SignedInAccount;
 }
 
@@ -388,6 +388,7 @@ export interface FederationConfirm {
 export interface FederationConfirmResult {
   redirect: string;
   offerLocalSignin: boolean;
+  account: SignedInAccount;
 }
 
 export type FederationFlowIntent = "login" | "link" | "invite";
@@ -414,43 +415,20 @@ export interface OidcDiscovery {
   issuer: string;
 }
 
-/** The application an account chooser ticket signs in to. */
-export interface AccountChooserApp {
-  kind: "oidc" | "saml";
-  /** `oidc:<client_id>` or `saml:<sp id>`, the key "last used" is kept under. */
-  key: string;
-  name: string;
-  iconUrl?: string;
-}
+export type AccountChooserApp = components["schemas"]["AccountChooserApp"];
 
-export interface AccountChooserAccount {
-  accountId: number;
-  u: string;
-  username: string;
-  displayName: string;
-  avatarUrl?: string;
-  /** Whether the application's access policy lets this account in. */
-  allowed: boolean;
-}
+export type AccountChooserAccount =
+  components["schemas"]["AccountChooserAccount"];
 
 /** `GET /account-chooser?ticket=`: the accounts a protocol sign-in can use. */
-export interface AccountChooser {
-  app: AccountChooserApp;
-  accounts: AccountChooserAccount[] | null;
-  loginHint?: string;
-  /** The sign-in page for an account not on this browser, back to the ticket. */
-  otherAccountUrl: string;
-}
+export type AccountChooser = components["schemas"]["AccountChooser"];
 
-/** `POST /account-chooser/switch`: the consent page's request to choose again. */
+/**
+ * `POST /account-chooser/switch`: the consent page's request to choose again.
+ * The server reads `returnTo` only for `oidc`.
+ */
 export type AccountChooserSwitch =
-  | { kind: "oidc"; consentTicket: string; returnTo: string }
-  | { kind: "saml"; consentTicket: string };
-
-/** A server-validated address the page loads next. */
-export interface RedirectResult {
-  redirect: string;
-}
+  components["schemas"]["SwitchConsentAccountInput"];
 
 export interface RawPaths {
   "/.well-known/openid-configuration": {
@@ -533,66 +511,6 @@ export interface RawPaths {
       responses: { 204: { content?: never } };
     };
   };
-  "/api/prohibitorum/account-chooser": {
-    get: {
-      parameters: {
-        query: { ticket: string };
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        200: { content: { "application/json": AccountChooser } };
-      };
-    };
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody: {
-        content: {
-          "application/json": { ticket: string; accountId: number };
-        };
-      };
-      responses: {
-        200: { content: { "application/json": RedirectResult } };
-      };
-    };
-  };
-  "/api/prohibitorum/account-chooser/switch": {
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody: {
-        content: { "application/json": AccountChooserSwitch };
-      };
-      responses: {
-        200: { content: { "application/json": RedirectResult } };
-      };
-    };
-  };
-  "/api/prohibitorum/me/apps/saml-launch": {
-    post: {
-      parameters: {
-        query: { sp: string };
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        200: { content: { "application/json": RedirectResult } };
-      };
-    };
-  };
   "/api/prohibitorum/me/identities/link/{slug}/begin": {
     post: {
       parameters: {
@@ -602,10 +520,10 @@ export interface RawPaths {
         cookie?: never;
       };
       requestBody: {
-        content: { "application/json": { returnTo: string } };
+        content: { "application/json": { returnTo?: string } };
       };
       responses: {
-        200: { content: { "application/json": RedirectResult } };
+        200: { content: { "application/json": LoginResult } };
       };
     };
   };

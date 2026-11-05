@@ -97,7 +97,6 @@ export function readEnrollmentPreview(
       : {}),
     ...(bound ? { expectedUpstreamIdpSlug: bound } : {}),
     providers,
-    // Older servers leave it out; they hold one account per browser.
-    atLimit: (raw as { atLimit?: unknown }).atLimit === true,
+    atLimit: raw.atLimit,
   };
 }

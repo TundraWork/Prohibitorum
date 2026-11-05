@@ -3,11 +3,14 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FederationConfirm } from "@/api/raw-paths";
+import { readKnownAccounts } from "@/app/account-storage";
 import { loadDocument } from "@/app/load-document";
 import { createQueryClient } from "@/app/query-client";
 import { i18n } from "@/i18n";
 import {
   apiError,
+  browserAccount,
+  browserAccountsApi,
   fakeApi,
   publicApi,
   renderApp,
@@ -128,6 +131,26 @@ describe("the account a first federated sign-in prepared", () => {
     expect(
       screen.getByRole("button", { name: "This isn't me" }),
     ).toBeDisabled();
+  });
+
+  it("records the account it signed in before going on", async () => {
+    const api = welcomeApi();
+    const target = "/oauth/authorize?client_id=wiki";
+    api.routes[`POST ${confirmPath}`] = () => {
+      api.routes["GET /api/prohibitorum/auth/accounts"] = browserAccountsApi([
+        browserAccount(testSession, "a7c1"),
+      ]);
+      return Response.json({
+        redirect: target,
+        offerLocalSignin: false,
+        account: { accountId: testSession.id, u: "a7c1" },
+      });
+    };
+    const user = userEvent.setup();
+    renderApp("/welcome", queryClient);
+    await user.click(await screen.findByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(loadDocument).toHaveBeenCalledWith(target));
+    expect(readKnownAccounts()).toEqual({ a7c1: testSession.username });
   });
 
   it("turns the account down and goes to the sign-in page", async () => {

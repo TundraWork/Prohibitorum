@@ -1,7 +1,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { describeErrorLanding } from "@/api/errors";
+import { describeErrorLanding, landingAccountCondition } from "@/api/errors";
 import { sessionQueryOptions } from "@/api/queries";
 import { followRedirect, isSitePath, sitePathOf } from "@/app/redirect";
 import { AccountLimitAlert } from "@/components/custom/AccountLimitAlert";
@@ -119,7 +119,7 @@ export function ErrorLandingPage() {
         </PublicStep.Actions>
       }
     >
-      {search.reason === "account_limit_reached" ? (
+      {landingAccountCondition(search) === "account_limit_reached" ? (
         // A sign-in through a provider stopped at the limit: the accounts
         // are listed so one can be signed out here (mockup C).
         <AccountLimitAlert />

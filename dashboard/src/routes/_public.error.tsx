@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+import { landingAccountCondition } from "@/api/errors";
 import {
   browserAccountsQueryOptions,
   sessionQueryOptions,
@@ -21,8 +22,8 @@ export const Route = createFileRoute("/_public/error")({
     ref: optionalSearchText(),
     return_to: optionalSearchText(),
   }),
-  loaderDeps: ({ search: { reason } }) => ({
-    limited: reason === "account_limit_reached",
+  loaderDeps: ({ search }) => ({
+    limited: landingAccountCondition(search) === "account_limit_reached",
   }),
   // The way out depends on whether anyone is signed in; a sign-in stopped
   // at the account limit lists the accounts.

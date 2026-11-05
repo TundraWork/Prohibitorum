@@ -15,6 +15,7 @@ import {
   federationConfirmQueryOptions,
 } from "@/api/queries";
 import type { FederationConfirm } from "@/api/raw-paths";
+import { afterSignIn } from "@/app/account-sync";
 import { followRedirect } from "@/app/redirect";
 import { AppStrip } from "@/components/custom/AppStrip";
 import { Button } from "@/components/custom/Button";
@@ -48,8 +49,15 @@ export function WelcomePage() {
     await queryClient.cancelQueries({ queryKey: base.queryKey });
     try {
       if (choice === "confirm") {
-        const { redirect, offerLocalSignin } = await confirm.mutateAsync();
+        const {
+          redirect,
+          offerLocalSignin,
+          account: signedIn,
+        } = await confirm.mutateAsync();
         await clearSessionQueries(queryClient);
+        // The local sign-in offered next is added to this account, not to
+        // one the browser held before.
+        await afterSignIn(queryClient, signedIn);
         if (offerLocalSignin) {
           await navigate({ to: "/setup-signin", search: { redirect } });
         } else {

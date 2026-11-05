@@ -502,6 +502,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prohibitorum/me/apps/saml-launch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start an IdP-initiated SAML sign-in as the selected account
+         * @description Binds an account choice to the account the request acts as and returns the /saml/sso/init address that carries it, so the application opens as that account rather than the browser's default one.
+         */
+        post: operations["launchMySAMLApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prohibitorum/me/avatar": {
         parameters: {
             query?: never;
@@ -1080,6 +1100,7 @@ export interface components {
         };
         EnrollmentPreview: {
             allowedMethods: string[] | null;
+            atLimit: boolean;
             expectedUpstreamIdpSlug?: string;
             /** Format: date-time */
             expiresAt: string;
@@ -1387,6 +1408,9 @@ export interface components {
             /** Format: date-time */
             notAfter?: string;
             use: string;
+        };
+        SAMLLaunchResult: {
+            redirect: string;
         };
         SendMyEmailCodeInBody: {
             locale?: string;
@@ -2572,6 +2596,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LaunchpadApp"][] | null;
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    launchMySAMLApp: {
+        parameters: {
+            query: {
+                /** @description The service provider's entity ID. */
+                sp: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SAMLLaunchResult"];
                 };
             };
             /** @description Error */

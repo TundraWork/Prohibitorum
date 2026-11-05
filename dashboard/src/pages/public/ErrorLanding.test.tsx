@@ -359,6 +359,32 @@ describe("the account conditions", () => {
     ).toBeVisible();
   });
 
+  it("lists the accounts when a provider's callback reports the limit as its error", async () => {
+    fakeApi({
+      ...publicApi(testSession),
+      "GET /api/prohibitorum/auth/accounts": browserAccountsApi(
+        [browserAccount(testSession)],
+        1,
+      ),
+    });
+    renderApp("/error?error=account_limit_reached&ref=abcd1234", queryClient);
+    expect(
+      await screen.findByText(
+        "1 account is signed in on this browser, the most it allows.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("abcd1234", { exact: false })).toBeVisible();
+  });
+
+  it("says an account choice that ran out has expired, whichever parameter names it", async () => {
+    await open("/error?error=account_chooser_expired&ref=abcd1234");
+    expect(
+      screen.getByText(
+        "This account choice has expired. Go back to the app and sign in again.",
+      ),
+    ).toBeVisible();
+  });
+
   it("says an account choice that ran out has expired", async () => {
     await open("/error?reason=account_chooser_expired");
     expect(

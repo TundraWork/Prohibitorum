@@ -16,6 +16,7 @@ import type {
   FederationFlow,
   LoginAppearance,
   LoginImage,
+  LoginResult,
   PublicConfig,
   RequireIdentityRequest,
   SamlConsentRequest,
@@ -72,6 +73,12 @@ type Invitation = components["schemas"]["InvitationView"];
 type IdentityProvider = components["schemas"]["IdentityProviderView"];
 type AuditEvent = components["schemas"]["AuditEventView"];
 type SigningKey = components["schemas"]["SigningKeyView"];
+type BrowserAccount = components["schemas"]["BrowserAccount"];
+type BrowserAccounts = components["schemas"]["BrowserAccounts"];
+type AccountChooser = components["schemas"]["AccountChooser"];
+type AccountChooserApp = components["schemas"]["AccountChooserApp"];
+type AccountChooserRedirect = components["schemas"]["AccountChooserRedirect"];
+type SamlLaunchResult = components["schemas"]["SAMLLaunchResult"];
 
 /** Applies what a write did to the config, so the reads that follow agree with it. */
 export type MockEffect = (draft: MockConfig) => void;
@@ -917,6 +924,7 @@ export function requireIdentityRequest(
     redirectUri: "/",
     entryUrl: "/",
     mismatch: state === "mismatch",
+    ...(state === "mismatch" ? { loginHint: "mock-user-2" } : {}),
     satisfied: state === "satisfied",
     providers: range(Math.max(1, providers)).map((index) => ({
       slug: `provider-${index + 1}`,
@@ -967,11 +975,6 @@ function enrollmentProviders(config: MockConfig): Provider[] {
 }
 
 /**
- * What any enrollment token previews. The administrator's first link only
- * ever offers a passkey, as the server's does, and a reset names the account
- * the panel is signed in as.
- */
-/**
  * The account an enrollment signs in: a reset re-authenticates account 1, and
  * any other intent creates an account that takes the browser's next place.
  */
@@ -986,11 +989,12 @@ function refusedByLimit(config: MockConfig, id: number): boolean {
   return browserAccount(config, id) === undefined && browserAtLimit(config);
 }
 
-// `atLimit` is not in the generated schema until it is regenerated with the
-// PHB-285 endpoints.
-export function enrollmentPreview(
-  config: MockConfig,
-): EnrollmentPreview & { atLimit: boolean } {
+/**
+ * What any enrollment token previews. The administrator's first link only
+ * ever offers a passkey, as the server's does, and a reset names the account
+ * the panel is signed in as.
+ */
+export function enrollmentPreview(config: MockConfig): EnrollmentPreview {
   const enrollment = config.publicFlows.enrollment;
   const bootstrap = enrollment.intent === "bootstrap";
   const providers = bootstrap ? [] : enrollmentProviders(config);
@@ -1272,7 +1276,7 @@ function completePairing(request: MockRequest, config: MockConfig): MockReply {
 
 /* ---------------------------------------------------- browser accounts -- */
 
-function signedInAccounts(config: MockConfig) {
+function signedInAccounts(config: MockConfig): BrowserAccount[] {
   const shorts = browserShorts(config);
   return browserAccounts(config).map((account) => {
     const avatarUrl = browserAccountAvatarUrl(config, account.id);
@@ -1295,7 +1299,10 @@ function chooserExpired(): MockReply {
  * ticket naming `saml` is the consent fixtures' SAML service, and any other is
  * their OIDC client, so a choice continues onto the matching consent page.
  */
-function chooserApp(config: MockConfig, ticket: string) {
+function chooserApp(
+  config: MockConfig,
+  ticket: string,
+): { app: AccountChooserApp; consent: string } | undefined {
   if (ticket === "" || ticket === "expired") return undefined;
   const logo = config.publicFlows.consent.logo;
   return ticket.includes("saml")
@@ -1306,7 +1313,6 @@ function chooserApp(config: MockConfig, ticket: string) {
           name: "Nextcloud",
           ...(logo ? { iconUrl: appLogoUrl("#0b6fb8", "N") } : {}),
         },
-        resume: "/saml/sso/resume?ticket=mock",
         consent: "/saml-consent?ticket=mock",
       }
     : {
@@ -1316,7 +1322,6 @@ function chooserApp(config: MockConfig, ticket: string) {
           name: "Wiki",
           ...(logo ? { iconUrl: appLogoUrl("#3b6e4f", "W") } : {}),
         },
-        resume: "/oauth/authorize?client_id=wiki",
         consent: "/consent?ticket=mock&return_to=%2F",
       };
 }
@@ -1334,8 +1339,12 @@ function accountChooser(request: MockRequest, config: MockConfig): MockReply {
       ...account,
       allowed: allowed.get(account.accountId) ?? false,
     })),
-    otherAccountUrl: `/login?${new URLSearchParams({ return_to: chooser.resume })}`,
-  });
+    // The server's shape: the sign-in returns through its continue address,
+    // which the mock cannot serve, so a walkthrough ends where a sign-in does.
+    otherAccountUrl: `/login?${new URLSearchParams({
+      return_to: `/api/prohibitorum/account-chooser/continue?${new URLSearchParams({ ticket })}`,
+    })}`,
+  } satisfies AccountChooser);
 }
 
 /**
@@ -1358,7 +1367,7 @@ function chooseAccount(config: MockConfig, body: unknown): MockReply {
       browserAccounts(config).length > 1
         ? withAccountRef(chooser.consent, u)
         : chooser.consent,
-  });
+  } satisfies AccountChooserRedirect);
 }
 
 /* ------------------------------------------------------- admin directory -- */
@@ -2517,7 +2526,7 @@ function readReply(
       return json({
         limit: config.session.limit,
         accounts: signedInAccounts(config),
-      });
+      } satisfies BrowserAccounts);
     case "/api/prohibitorum/account-chooser":
       return accountChooser(request, config);
     // The sign-in link's target app, answered like the server would: a label
@@ -3428,7 +3437,7 @@ function writeReply(
               redirect: `/choose-account?ticket=${
                 stringField(body, "kind") === "saml" ? "mock-saml" : "mock"
               }`,
-            })
+            } satisfies AccountChooserRedirect)
           : invalidConsentTicket(),
       );
 
@@ -3442,7 +3451,7 @@ function writeReply(
             sp,
             account_choice: "mock",
           })}`,
-        }),
+        } satisfies SamlLaunchResult),
       );
     }
 
@@ -3451,7 +3460,9 @@ function writeReply(
     case "/api/prohibitorum/me/identities/link/{slug}/begin": {
       const returnTo = stringField(body, "returnTo") ?? "/security";
       return guarded(config, () =>
-        json({ redirect: isConsolePath(returnTo) ? returnTo : "/security" }),
+        json({
+          redirect: isConsolePath(returnTo) ? returnTo : "/security",
+        } satisfies LoginResult),
       );
     }
 
