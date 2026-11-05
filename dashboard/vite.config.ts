@@ -58,11 +58,14 @@ function precompress(): Plugin {
 export default defineConfig({
   plugins: [
     // Must run before the framework plugins: it injects the source attributes
-    // the inspector reads, pipes console output between the browser and the
-    // terminal, and strips every Devtools import and element from the
+    // the inspector reads and strips every Devtools import and element from the
     // production build. Its dev-only stages key off the Vite mode, so Vitest is
-    // left untouched.
-    devtools(),
+    // left untouched. Console piping is off: it holds one SSE connection per
+    // loaded page open (`/__tsd/console-pipe/sse`, no client-side close, no
+    // server heartbeat), and a string of full reloads leaves enough of them
+    // behind to occupy the browser's six-connections-per-origin HTTP/1.1
+    // budget, starving the next load of its module requests.
+    devtools({ consolePiping: { enabled: false } }),
     // Tests import the committed routeTree.gen.ts; generation would
     // double-evaluate route modules under Vitest's resetModules.
     ...(process.env.VITEST
