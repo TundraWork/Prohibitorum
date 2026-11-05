@@ -147,6 +147,18 @@ func (v *vrchatSmoke) begin(c *client, path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return flowIDFrom(location)
+}
+
+func (v *vrchatSmoke) beginLink(c *client) (string, error) {
+	location, err := c.beginLink(vrchatSlug, "/security")
+	if err != nil {
+		return "", err
+	}
+	return flowIDFrom(location)
+}
+
+func flowIDFrom(location string) (string, error) {
 	const prefix = "/federation/flow/"
 	if !strings.HasPrefix(location, prefix) {
 		return "", fmt.Errorf("flow destination = %q", location)
@@ -724,7 +736,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	step(fmt.Sprintf("vrchat %d/%d — authenticated Security link remains session-bound", 17, nVRChat))
 	v.fixture.CurrentUserID, v.fixture.PublicUserID, v.fixture.DisplayName, v.fixture.BioLinks = vrchatUserA, vrchatUserA, "VRChat Smoke Alpha Refreshed", nil
 	_ = v.setFixture()
-	conflictFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/security")
+	conflictFlow, err := v.beginLink(admin)
 	if err != nil {
 		return err
 	}
@@ -740,7 +752,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 	if err != nil {
 		return err
 	}
-	linkFlow, err := v.begin(admin, "/api/prohibitorum/me/identities/link/"+vrchatSlug+"/begin?return_to=/security")
+	linkFlow, err := v.beginLink(admin)
 	if err != nil {
 		return err
 	}

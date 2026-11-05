@@ -796,16 +796,20 @@ curl -X POST http://localhost:8080/api/prohibitorum/me/sudo/begin \
   -b cookies.txt -d '{"method":"webauthn"}'
 # ... (run the WebAuthn ceremony, POST /me/sudo/complete) ...
 
-# 2. Kick off the link flow:
-curl -i 'http://localhost:8080/api/prohibitorum/me/identities/link/okta/begin?return_to=/settings/identities' \
-  -b cookies.txt
-# 302 Found
-# Location: https://example.okta.com/oauth2/.../authorize?...
+# 2. Kick off the link flow (X-Prohibitorum-Account names the account when
+#    several are signed in on the browser):
+curl -i -X POST 'http://localhost:8080/api/prohibitorum/me/identities/link/okta/begin' \
+  -H 'Content-Type: application/json' \
+  -b cookies.txt -c cookies.txt -d '{"returnTo":"/settings/identities"}'
+# 200 OK
+# {"redirect":"https://example.okta.com/oauth2/.../authorize?..."}
+# The browser then navigates to the redirect address.
 
 # 3. User authenticates upstream. Okta bounces to:
 #    /api/prohibitorum/me/identities/link/okta/callback?code=...&state=...&iss=...
-# Prohibitorum validates the state matches the *current session*'s
-# account_id (session-swap defense), inserts the account_identity row,
+# Prohibitorum takes the session the link was started from out of the
+# browser's signed-in accounts, validates the state matches it
+# (session-swap defense), inserts the account_identity row,
 # emits a 'link' audit event, and 302s to /settings/identities.
 # IMPORTANT: NO new session is issued — the user remains signed in
 # under their original session cookie.
