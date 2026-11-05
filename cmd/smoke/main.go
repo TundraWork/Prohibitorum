@@ -3300,6 +3300,9 @@ func main() {
 	}
 	log.Printf("  smoke-admin id=%d back in session for SAML steps", samlMe.ID)
 
+	// multi-account arc: runs on its own cookie jar; c stays as it is.
+	runMultiAccountArc(c, *baseURL, auth, oidcMe, rpClientID, rpSecret, rpRedirectURI, issuer)
+
 	step(fmt.Sprintf("saml %d/%d — GET /saml/metadata → EntityDescriptor with ≥1 signing KeyDescriptor", 2, nSAML))
 	idpMetaXML, err := fetchSAMLMetadata(*baseURL)
 	if err != nil {
@@ -4542,7 +4545,7 @@ func main() {
 				req.Header.Set("Sec-Fetch-Site", secFetchSite)
 			}
 			for _, ck := range c.jar.Cookies(selectionURL) {
-				if ck.Name == "prohibitorum_session" || ck.Name == "__Host-prohibitorum_session" {
+				if isSessionCookieName(ck.Name) {
 					req.AddCookie(ck)
 				}
 			}
@@ -7632,9 +7635,9 @@ func (c *client) completeLoginRaw(a *authenticator, sig *assertionResult, query 
 // no session cookie came back at all; value is "" when the cookie carries no
 // Max-Age (the not-remembered shape).
 func sessionCookieMaxAge(resp *http.Response) (value string, found bool) {
-	const nameSuffix = "prohibitorum_session="
 	for _, sc := range resp.Header.Values("Set-Cookie") {
-		if !strings.Contains(sc, nameSuffix) {
+		name, _, _ := strings.Cut(sc, "=")
+		if !isSessionCookieName(name) || strings.Contains(sc, "Max-Age=0") || strings.Contains(sc, "Max-Age=-1") {
 			continue
 		}
 		for _, part := range strings.Split(sc, ";") {
@@ -9908,7 +9911,7 @@ func assertSessionCookieAtRoot(c *client) {
 		// Match either the plain (HTTP dev) or __Host- (HTTPS) session cookie
 		// name so this guard can never pass vacuously if the smoke is pointed
 		// at an https origin.
-		if ck.Name == "prohibitorum_session" || ck.Name == "__Host-prohibitorum_session" {
+		if isSessionCookieName(ck.Name) {
 			return
 		}
 	}

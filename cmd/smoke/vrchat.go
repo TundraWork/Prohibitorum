@@ -315,9 +315,17 @@ func enrollmentTokenFromCompletion(body []byte) (string, error) {
 	return token, nil
 }
 
+// isSessionCookieName matches either session cookie (remembered accounts in
+// prohibitorum_session, the rest in prohibitorum_session_temp), plain or
+// with the __Host- prefix.
+func isSessionCookieName(name string) bool {
+	name = strings.TrimPrefix(name, "__Host-")
+	return name == "prohibitorum_session" || name == "prohibitorum_session_temp"
+}
+
 func hasSessionCookie(cookies []*http.Cookie) bool {
 	for _, cookie := range cookies {
-		if strings.TrimPrefix(cookie.Name, "__Host-") == "prohibitorum_session" {
+		if isSessionCookieName(cookie.Name) {
 			return true
 		}
 	}
@@ -554,7 +562,7 @@ func runVRChatSmoke(admin *client, base, control, caFile, serverLog, mockLog str
 		return fmt.Errorf("invitation preview allowedMethods = %v", inviteePreview.AllowedMethods)
 	}
 	for field := range inviteeFields {
-		if field != "intent" && field != "expiresAt" && field != "requireLocalCredential" && field != "verifiedIdentity" && field != "allowedMethods" && field != "expectedUpstreamIdpSlug" && field != "providers" {
+		if field != "intent" && field != "expiresAt" && field != "requireLocalCredential" && field != "verifiedIdentity" && field != "allowedMethods" && field != "expectedUpstreamIdpSlug" && field != "providers" && field != "atLimit" {
 			return fmt.Errorf("invitation preview exposed unexpected field %q", field)
 		}
 	}
