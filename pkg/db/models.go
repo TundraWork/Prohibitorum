@@ -156,6 +156,7 @@ type InstanceSetting struct {
 	PixabayKeyEnc            []byte             `json:"pixabayKeyEnc"`
 	PixabayKeyNonce          []byte             `json:"pixabayKeyNonce"`
 	PixabayKeyVersion        pgtype.Int4        `json:"pixabayKeyVersion"`
+	AccountRefKey            []byte             `json:"accountRefKey"`
 }
 
 type LoginBackgroundImage struct {

@@ -133,6 +133,7 @@ type Querier interface {
 	// the primary inside the owning account, and this keeps the answer verified
 	// even if some future writer pointed it at an unverified row.
 	GetAccountPrimaryEmail(ctx context.Context, id int32) (string, error)
+	GetAccountRefKey(ctx context.Context) ([]byte, error)
 	GetActiveAvatarBySubject(ctx context.Context, oidcSubject pgtype.UUID) (GetActiveAvatarBySubjectRow, error)
 	GetActiveSigningKey(ctx context.Context) (SigningKey, error)
 	GetAuthThrottle(ctx context.Context, arg GetAuthThrottleParams) (AuthThrottle, error)
@@ -175,6 +176,7 @@ type Querier interface {
 	// providers: what an application's require-identity request asks.
 	HasConfirmedIdentityForProviders(ctx context.Context, arg HasConfirmedIdentityForProvidersParams) (bool, error)
 	HasSAMLConsent(ctx context.Context, arg HasSAMLConsentParams) (bool, error)
+	InitAccountRefKey(ctx context.Context, accountRefKey []byte) error
 	InsertAccount(ctx context.Context, arg InsertAccountParams) (Account, error)
 	InsertAccountEmail(ctx context.Context, arg InsertAccountEmailParams) (AccountEmail, error)
 	// Used by admin assertion and upstream absorption; the caller has already

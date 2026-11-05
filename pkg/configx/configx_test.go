@@ -195,6 +195,34 @@ func TestParse_SessionRememberTTL(t *testing.T) {
 	}
 }
 
+// TestParse_SessionMaxAccounts covers the per-browser account cap: 10 by
+// default, overridable, and refused at startup outside 1–20.
+func TestParse_SessionMaxAccounts(t *testing.T) {
+	resetViper(t)
+	cfg, err := Parse()
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cfg.SessionMaxAccounts != 10 {
+		t.Errorf("SessionMaxAccounts default: want 10, got %d", cfg.SessionMaxAccounts)
+	}
+
+	for _, ok := range []string{"1", "20"} {
+		resetViper(t)
+		t.Setenv("PROHIBITORUM_SESSION_MAX_ACCOUNTS", ok)
+		if _, err := Parse(); err != nil {
+			t.Errorf("SessionMaxAccounts=%s: unexpected error %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"0", "21", "-3"} {
+		resetViper(t)
+		t.Setenv("PROHIBITORUM_SESSION_MAX_ACCOUNTS", bad)
+		if _, err := Parse(); err == nil || !strings.Contains(err.Error(), "session_max_accounts") {
+			t.Errorf("SessionMaxAccounts=%s: want a session_max_accounts error, got %v", bad, err)
+		}
+	}
+}
+
 // TestParse_RejectsShortDEK asserts that a base64-valid but cryptographically
 // undersized data-encryption key is rejected at Parse startup. A 4-byte key
 // decodes cleanly from base64 but is far too short for AES-256, so the failure
