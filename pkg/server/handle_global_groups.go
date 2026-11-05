@@ -472,8 +472,6 @@ func (s *Server) handleGetGlobalGroupHTTP(w http.ResponseWriter, r *http.Request
 		writeAuthErr(w, err)
 		return
 	}
-	sess := authn.SessionFromContext(r.Context())
-	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: auditActor(sess), Factor: audit.FactorAppPolicy, Event: audit.EventUpdate, Detail: map[string]any{"group_id": group.ID, "group_kind": group.Kind}})
 	writeJSON(w, view)
 }
 
@@ -524,6 +522,8 @@ func (s *Server) handleUpdateGlobalGroupHTTP(w http.ResponseWriter, r *http.Requ
 		writeAuthErr(w, appGroupWriteErr(err))
 		return
 	}
+	sess := authn.SessionFromContext(r.Context())
+	audit.RecordOrLog(r.Context(), s.Audit, audit.Record{AccountID: auditActor(sess), Factor: audit.FactorAppPolicy, Event: audit.EventUpdate, Detail: map[string]any{"group_id": group.ID, "group_kind": group.Kind}})
 	view, err := s.appGroupView(r.Context(), group)
 	if err != nil {
 		writeAuthErr(w, err)

@@ -1124,6 +1124,36 @@ func TestManagedRulePreviewUsesSharedJSONBodyControls(t *testing.T) {
 	s.router.ServeHTTP(tooLarge, reqWithSession(http.MethodPost, managedURL("oidc", "wiki", "/rule-preview"), oversized, "", session))
 	assertManagedAPIError(t, tooLarge, http.StatusRequestEntityTooLarge, "request_too_large")
 }
+
+func TestGlobalGroupDetailAndUpdateAuditRecords(t *testing.T) {
+	s, _, auditCapture := newPolicyTestServer()
+	admin := managedAppSession(99, "admin", false)
+
+	rr := managedRequest(t, s, http.MethodGet, "/api/prohibitorum/groups/1", "", admin)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("get status = %d, want 200; body: %s", rr.Code, rr.Body.String())
+	}
+
+	if len(auditCapture.records) != 0 {
+		t.Fatalf("get audit records = %d, want none; records: %#v", len(auditCapture.records), auditCapture.records)
+	}
+	updated := managedRequest(t, s, http.MethodPut, "/api/prohibitorum/groups/1", `{"slug":"exceptions","displayName":"Exceptions v2","description":"updated by test"}`, admin)
+	if updated.Code != http.StatusOK {
+		t.Fatalf("update status = %d, want 200; body: %s", updated.Code, updated.Body.String())
+	}
+
+	if len(auditCapture.records) != 1 {
+		t.Fatalf("audit records = %d, want exactly the update record; records: %#v", len(auditCapture.records), auditCapture.records)
+	}
+	record := auditCapture.records[0]
+	if record.Factor != audit.FactorAppPolicy || record.Event != audit.EventUpdate {
+		t.Fatalf("audit record = factor %q event %q, want app_policy update", record.Factor, record.Event)
+	}
+	if record.Detail["group_id"] != int32(1) || record.Detail["group_kind"] != "manual" {
+		t.Fatalf("audit detail = %#v, want group_id 1 and group_kind manual", record.Detail)
+	}
+}
+
 func TestManagedRouteInputIdentifiersRemainOpaque(t *testing.T) {
 	for _, badID := range []string{"", "0", "-1", "not-a-number"} {
 		t.Run(strconv.Quote(badID), func(t *testing.T) {
