@@ -54,7 +54,14 @@ type Provider struct {
 	samlContext func(context.Context, *url.URL) (SAMLApplication, bool, error)
 	// iconURL resolves an application's uploaded icon URL; nil omits icons.
 	iconURL func(ctx context.Context, kind, id string) string
+	// refs computes the short account reference `u` the console pages this
+	// provider redirects to carry when several accounts are signed in. nil
+	// leaves `u` off.
+	refs *session.AccountRefs
 }
+
+// SetAccountRefs injects the instance's short account references.
+func (p *Provider) SetAccountRefs(refs *session.AccountRefs) { p.refs = refs }
 
 // SetMaintenanceChecker injects a callback reporting whether maintenance mode is
 // on. The surfaces here that name an account without the main session — the
@@ -269,7 +276,8 @@ func (p *Provider) HandleDiscovery(w http.ResponseWriter, r *http.Request) {
 		"code_challenge_methods_supported": []string{"S256"},
 		"subject_types_supported":          []string{"public"},
 		// OIDC Core §3.1.2.1 prompt values honored by /authorize (T2.3).
-		// select_account is accepted but a no-op for this single-tenant OP.
+		// select_account opens the account chooser over the accounts signed
+		// in on the browser, even when only one is.
 		"prompt_values_supported": []string{"none", "login", "consent", "select_account"},
 
 		// RFC 9207: we set the `iss` parameter on authorization responses.

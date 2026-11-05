@@ -6,6 +6,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/url"
+	"slices"
+	"strings"
 	"time"
 
 	"prohibitorum/pkg/kv"
@@ -101,6 +104,45 @@ func ChosenAccount(ctx context.Context, store kv.Store, nonce, kind, app string)
 		return 0
 	}
 	return t.AccountID
+}
+
+// AccountChoiceParam is the query parameter that carries an account chooser
+// nonce back to a protocol endpoint.
+const AccountChoiceParam = "account_choice"
+
+// StripQueryParams drops every pair named in names from rawQuery and keeps
+// the rest byte for byte, in order. A SAML Redirect-binding query is signed
+// over its exact bytes, so it cannot be decoded and re-encoded.
+func StripQueryParams(rawQuery string, names ...string) string {
+	if rawQuery == "" {
+		return ""
+	}
+	var kept []string
+	for _, part := range strings.Split(rawQuery, "&") {
+		if part == "" {
+			continue
+		}
+		key, _, _ := strings.Cut(part, "=")
+		if k, err := url.QueryUnescape(key); err == nil {
+			key = k
+		}
+		if !slices.Contains(names, key) {
+			kept = append(kept, part)
+		}
+	}
+	return strings.Join(kept, "&")
+}
+
+// ResumeWithChoice is resumeURL with account_choice=nonce appended after its
+// existing query, replacing an earlier choice.
+func ResumeWithChoice(resumeURL, nonce string) string {
+	base, rawQuery, _ := strings.Cut(resumeURL, "?")
+	rawQuery = StripQueryParams(rawQuery, AccountChoiceParam)
+	choice := AccountChoiceParam + "=" + url.QueryEscape(nonce)
+	if rawQuery == "" {
+		return base + "?" + choice
+	}
+	return base + "?" + rawQuery + "&" + choice
 }
 
 func putAccountChooser(ctx context.Context, store kv.Store, nonce string, t *AccountChooserTicket) error {

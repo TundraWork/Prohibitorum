@@ -15,11 +15,12 @@ import (
 //     back into an RP error loop. returnTo is the address the flow was started
 //     from (the authorize or require-identity URL): a denial can be lifted by an
 //     administrator while the user waits, so the page offers to run that address
-//     again. Pass "" when there is none to re-run.
+//     again. Pass "" when there is none to re-run. With several accounts on the
+//     browser the page carries the denied account's `u`, so it names that one.
 //   - prompt=none flows (the RP forbade any interactive UI) instead receive the
 //     protocol-native access_denied error redirected to the RP's redirect_uri,
 //     per OIDC Core §3.1.2.6, so the RP can handle it programmatically.
-func (p *Provider) appAccessDenied(w http.ResponseWriter, r *http.Request, redirectURI, appName, state, returnTo string, promptNone bool) {
+func (p *Provider) appAccessDenied(w http.ResponseWriter, r *http.Request, redirectURI, appName, state, returnTo string, promptNone bool, accountID int32) {
 	if promptNone {
 		redirectError(w, r, redirectURI, errCodeAccessDenied, "not authorized for this application", state, p.cfg.OIDC.Issuer)
 		return
@@ -28,5 +29,5 @@ func (p *Provider) appAccessDenied(w http.ResponseWriter, r *http.Request, redir
 	if returnTo != "" {
 		u += "&return_to=" + url.QueryEscape(returnTo)
 	}
-	http.Redirect(w, r, u, http.StatusFound)
+	http.Redirect(w, r, p.withAccountRef(r, u, accountID), http.StatusFound)
 }

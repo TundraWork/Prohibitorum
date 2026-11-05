@@ -86,6 +86,7 @@ func (s *Server) handleRequireIdentityRequestHTTP(w http.ResponseWriter, r *http
 		RedirectURI: ticket.RedirectURI,
 		EntryURL:    ticket.Entry,
 		Mismatch:    ticket.Mismatch,
+		LoginHint:   ticket.LoginHint,
 		Providers:   []contract.RequireIdentityProvider{},
 	}
 	for _, slug := range ticket.Providers {
