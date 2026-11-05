@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -196,6 +197,47 @@ func TestConsentContext_FirstTime(t *testing.T) {
 	// The strip names the host the reader goes back to, as the sign-in page does.
 	if out.Client.Host != "rp" {
 		t.Errorf("Client.Host: want rp (the redirect_uri's host), got %q", out.Client.Host)
+	}
+}
+
+// TestConsent_TicketOfAnotherAccount: with several accounts signed in, the
+// page's selected account must be the ticket's. Another account gets
+// account_not_signed_in (not "ticket gone"), and a decision sent as it leaves
+// the ticket for its owner.
+func TestConsent_TicketOfAnotherAccount(t *testing.T) {
+	fq := &fakeOIDCConsentQ{client: db.OidcClient{ClientID: "rp1", DisplayName: "My App"}, noGrant: true}
+	s, kvStore := newOIDCConsentTestServer(t, fq)
+	s.config = cfg("https://idp.example")
+	nonce := mintOIDCTicket(t, kvStore, authn.ConsentTicket{
+		AccountID: 8, ClientID: "rp1", Scopes: []string{"openid"}, RedirectURI: "https://rp/cb",
+	})
+	wantCode := func(w *httptest.ResponseRecorder, status int, code string) {
+		t.Helper()
+		var body struct {
+			Code string `json:"code"`
+		}
+		_ = json.Unmarshal(w.Body.Bytes(), &body)
+		if w.Code != status || body.Code != code {
+			t.Fatalf("want %d %s, got %d %s", status, code, w.Code, w.Body.String())
+		}
+	}
+
+	w := httptest.NewRecorder()
+	s.handleConsentContextHTTP(w, oidcConsentGETReq(t, newOIDCConsentSession(7), nonce))
+	wantCode(w, http.StatusUnauthorized, "account_not_signed_in")
+
+	decide := func(accountID int32, ticket string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest(http.MethodPost, "/api/prohibitorum/consent",
+			strings.NewReader(fmt.Sprintf(`{"ticket":%q,"decision":"deny"}`, ticket)))
+		r = r.WithContext(authn.WithSession(r.Context(), newOIDCConsentSession(accountID)))
+		w := httptest.NewRecorder()
+		s.handleConsentDecisionHTTP(w, r)
+		return w
+	}
+	wantCode(decide(7, nonce), http.StatusUnauthorized, "account_not_signed_in")
+	wantCode(decide(7, "missing"), http.StatusBadRequest, "invalid_consent_ticket")
+	if w := decide(8, nonce); w.Code != http.StatusOK {
+		t.Fatalf("the owner's decision after another account's: %d %s", w.Code, w.Body.String())
 	}
 }
 

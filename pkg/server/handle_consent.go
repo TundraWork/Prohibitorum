@@ -56,13 +56,13 @@ func (s *Server) handleConsentContextHTTP(w http.ResponseWriter, r *http.Request
 		writeAuthErr(w, authn.ErrNoSession())
 		return
 	}
-	ticket, ok, err := authn.PeekConsent(r.Context(), s.kvStore, r.URL.Query().Get("ticket"), sess.Data.AccountID)
+	ticket, err := authn.LookupConsent(r.Context(), s.kvStore, r.URL.Query().Get("ticket"))
 	if err != nil {
 		writeAuthErr(w, err)
 		return
 	}
-	if !ok {
-		writeAuthErr(w, authn.ErrInvalidConsentTicket())
+	if err := consentTicketCheck(ticket != nil, ticket != nil && ticket.AccountID == sess.Data.AccountID); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 	q := s.getOIDCConsentQueries()
@@ -136,6 +136,17 @@ func (s *Server) handleConsentDecisionHTTP(w http.ResponseWriter, r *http.Reques
 	var in contract.ConsentDecision
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeAuthErr(w, authn.ErrBadRequest())
+		return
+	}
+	// Checked before consuming: a decision sent as another account than the
+	// ticket's must not use up the ticket.
+	peeked, err := authn.LookupConsent(r.Context(), s.kvStore, in.Ticket)
+	if err != nil {
+		writeAuthErr(w, err)
+		return
+	}
+	if err := consentTicketCheck(peeked != nil, peeked != nil && peeked.AccountID == sess.Data.AccountID); err != nil {
+		writeAuthErr(w, err)
 		return
 	}
 	ticket, ok, err := authn.ConsumeConsent(r.Context(), s.kvStore, in.Ticket, sess.Data.AccountID)

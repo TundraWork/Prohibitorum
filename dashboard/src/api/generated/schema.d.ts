@@ -4,6 +4,41 @@
  */
 
 export interface paths {
+    "/api/prohibitorum/account-chooser": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read an account chooser: the application and the accounts signed in on this browser. */
+        get: operations["getAccountChooser"];
+        put?: never;
+        /** Choose the account a protocol request continues as. */
+        post: operations["chooseAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/account-chooser/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open the account chooser for the request a consent page is showing. */
+        post: operations["switchConsentAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prohibitorum/accounts": {
         parameters: {
             query?: never;
@@ -270,6 +305,23 @@ export interface paths {
         };
         /** List credential/admin audit events, newest first, with filters and keyset pagination (admin only). */
         get: operations["listAuditEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prohibitorum/auth/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the accounts signed in on this browser, in sign-in order. */
+        get: operations["listBrowserAccounts"];
         put?: never;
         post?: never;
         delete?: never;
@@ -848,6 +900,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AccountChooser: {
+            accounts: components["schemas"]["AccountChooserAccount"][] | null;
+            app: components["schemas"]["AccountChooserApp"];
+            loginHint?: string;
+            otherAccountUrl: string;
+        };
+        AccountChooserAccount: {
+            /** Format: int32 */
+            accountId: number;
+            allowed: boolean;
+            avatarUrl?: string;
+            displayName: string;
+            u: string;
+            username: string;
+        };
+        AccountChooserApp: {
+            iconUrl?: string;
+            key: string;
+            /** @enum {string} */
+            kind: "oidc" | "saml";
+            name: string;
+        };
+        AccountChooserRedirect: {
+            redirect: string;
+        };
         AccountEmailsView: {
             emails: components["schemas"]["EmailAddressView"][] | null;
             /** Format: int64 */
@@ -920,6 +997,24 @@ export interface components {
         };
         AuthStatus: {
             bootstrapped: boolean;
+        };
+        BrowserAccount: {
+            /** Format: int32 */
+            accountId: number;
+            avatarUrl?: string;
+            displayName: string;
+            u: string;
+            username: string;
+        };
+        BrowserAccounts: {
+            accounts: components["schemas"]["BrowserAccount"][] | null;
+            /** Format: int64 */
+            limit: number;
+        };
+        ChooseAccountInput: {
+            /** Format: int32 */
+            accountId: number;
+            ticket: string;
         };
         ConsentedApp: {
             clientId: string;
@@ -1348,6 +1443,12 @@ export interface components {
             status: string;
             use: string;
         };
+        SwitchConsentAccountInput: {
+            consentTicket: string;
+            /** @enum {string} */
+            kind: "oidc" | "saml";
+            returnTo?: string;
+        };
         UpdateAccountInBody: {
             attributes?: {
                 [key: string]: unknown;
@@ -1372,6 +1473,103 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAccountChooser: {
+        parameters: {
+            query?: {
+                ticket?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountChooser"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    chooseAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChooseAccountInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountChooserRedirect"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    switchConsentAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SwitchConsentAccountInput"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountChooserRedirect"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
     listAccounts: {
         parameters: {
             query?: {
@@ -1966,6 +2164,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PageAuditEventView"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicError"];
+                };
+            };
+        };
+    };
+    listBrowserAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserAccounts"];
                 };
             };
             /** @description Error */

@@ -26,6 +26,10 @@ const (
 	errCodeTemporarilyUnavailable  = "temporarily_unavailable"
 	errCodeLoginRequired           = "login_required"
 	errCodeConsentRequired         = "consent_required"
+	// errCodeAccountSelectionRequired answers prompt=none when several
+	// accounts are signed in and nothing in the request picks one (OIDC Core
+	// §3.1.2.6).
+	errCodeAccountSelectionRequired = "account_selection_required"
 	// errCodeInvalidToken is the RFC 6750 §3.1 bearer-token error code used by
 	// the /userinfo endpoint when the presented access token is missing,
 	// malformed, expired, or otherwise unverifiable. It is distinct from the

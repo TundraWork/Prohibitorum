@@ -668,6 +668,10 @@ type RequireIdentityRequest struct {
 	// Mismatch: the application's ID token names another account than the one
 	// signed in.
 	Mismatch bool `json:"mismatch"`
+	// LoginHint is the username of the account the application's ID token
+	// names, when it could be found, for the sign-in page that "use another
+	// account" opens with EntryURL as its return address.
+	LoginHint string `json:"loginHint,omitempty"`
 	// Satisfied: the account already holds an identity at one of the providers.
 	Satisfied bool                      `json:"satisfied"`
 	Providers []RequireIdentityProvider `json:"providers"`

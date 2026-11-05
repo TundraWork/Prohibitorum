@@ -224,6 +224,11 @@ type Server struct {
 	appPolicyQueriesOverride  appPolicyQueries
 	appPolicyService          appPolicyService
 	appPolicyTxRunnerOverride appPolicyTxRunner
+	// appAccess decides which accounts the account chooser offers for an
+	// application. accountChooserOverride stands in for s.queries in focused
+	// chooser tests.
+	appAccess              appAccessEvaluator
+	accountChooserOverride accountChooserQueries
 }
 
 // accountLookupQueries is the narrow query surface the step-2 handlers
@@ -471,6 +476,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		cursorCodec:      cursorCodec,
 		appPolicyService: accessService,
 		appLister:        accessService,
+		appAccess:        accessService,
 	}
 	// The forward-auth gateway and the token, userinfo and introspection
 	// endpoints name an account without the main session middleware, so the
@@ -485,6 +491,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 		app, ok, err := s.samlIdP.LoginContext(ctx, u)
 		return oidcop.SAMLApplication{Label: app.Label, Host: app.Host, SPID: app.SPID}, ok, err
 	})
+	s.oidcOP.SetAccountRefs(accountRefs)
 	s.oidcOP.SetIconURLResolver(func(ctx context.Context, kind, id string) string {
 		if u := s.enrichIconURL(ctx, kind, id); u != nil {
 			return *u
@@ -724,6 +731,12 @@ func (s *Server) registerOperations() {
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/password/begin", publicReq, s.handlePasswordBeginHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/totp/verify", publicReq, s.handleTOTPVerifyHTTP)
 	registerOpHTTP(s.router, "POST", "/api/prohibitorum/auth/recovery-code/verify", publicReq, s.handleRecoveryCodeVerifyHTTP)
+
+	// Account chooser for protocol requests (OIDC, SAML, require-identity).
+	registerOp(mgmt, contract.OperationGetAccountChooser, s.handleGetAccountChooser, publicReq)
+	registerOp(mgmt, contract.OperationChooseAccount, s.handleChooseAccount, publicReq)
+	registerOpHTTP(s.router, "GET", accountChooserContinuePath, publicReq, s.handleAccountChooserContinueHTTP)
+	registerOp(mgmt, contract.OperationSwitchConsentAccount, s.handleSwitchConsentAccount, browserReq)
 
 	// federation: upstream OIDC login + /me/identities management
 	registerOpHTTP(s.router, "GET", "/api/prohibitorum/auth/federation", publicReq, s.handleListFederationProvidersHTTP)
