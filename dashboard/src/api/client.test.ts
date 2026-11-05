@@ -265,6 +265,17 @@ describe("the tab's account on API requests", () => {
     expect(sentHeader(1)).toBe("12");
   });
 
+  it("names the tab's account on a write even when it last saw one account", async () => {
+    // Another tab may have signed this tab's account out and another in; a
+    // header-less write would then act as that other account.
+    fetchBoundary.mockImplementation(
+      async () => new Response(null, { status: 204 }),
+    );
+    pinTabAccount(lin, 1);
+    await client.POST("/api/prohibitorum/auth/logout");
+    expect(sentHeader(0)).toBe("12");
+  });
+
   it("keeps a header the caller set, and leaves the browser's own reads unnamed", async () => {
     fetchBoundary.mockImplementation(
       async () => new Response(null, { status: 204 }),

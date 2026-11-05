@@ -111,7 +111,7 @@ client.use({
   onRequest({ request }) {
     if (request.headers.has(accountHeader)) return;
     if (accountPath(request) === undefined) return;
-    const id = headerAccountId();
+    const id = headerAccountId(request.method);
     if (id !== undefined) request.headers.set(accountHeader, String(id));
   },
   async onResponse({ request, response }) {

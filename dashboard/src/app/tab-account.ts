@@ -60,14 +60,18 @@ export function pinTabAccount(
 
 /**
  * The account the API header names, or undefined to let the server use its
- * default. A browser with one account sends nothing, so a request reads the
- * same as it did before several accounts were possible.
+ * default. Reads from a browser with one account send nothing, so they look
+ * the same as before several accounts were possible. Writes always name the
+ * tab's account: the count this tab last saw can be stale (its account signed
+ * out and another signed in, in another tab, before the change reached this
+ * one), and a header-less write would then act as that other account. Named,
+ * it is refused with account_not_signed_in instead.
  */
-export function headerAccountId(): number | undefined {
+export function headerAccountId(method = "GET"): number | undefined {
   const pinned = store.get(tabAccountAtom);
-  if (pinned === null || store.get(browserAccountCountAtom) <= 1) {
-    return undefined;
-  }
+  if (pinned === null) return undefined;
+  const read = method === "GET" || method === "HEAD";
+  if (read && store.get(browserAccountCountAtom) <= 1) return undefined;
   return pinned.accountId;
 }
 

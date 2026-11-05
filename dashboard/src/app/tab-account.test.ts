@@ -109,15 +109,27 @@ describe("resolveTabAccount", () => {
 });
 
 describe("the tab's account", () => {
-  it("names itself in the header only while the browser has several", () => {
+  it("names itself on reads only while the browser has several", () => {
     pinTabAccount(lin, 1);
     expect(headerAccountId()).toBeUndefined();
+    expect(headerAccountId("HEAD")).toBeUndefined();
     pinTabAccount(lin, 2);
     expect(headerAccountId()).toBe(12);
     pinTabAccount(null, 2);
     expect(headerAccountId()).toBeUndefined();
     expect(store.get(tabAccountAtom)).toBeNull();
     expect(store.get(browserAccountCountAtom)).toBe(2);
+  });
+
+  it("names itself on every write, whatever count it last saw", () => {
+    // The tab saw one account; another tab may since have signed it out
+    // and signed someone else in. A write must not act as that account.
+    pinTabAccount(lin, 1);
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      expect(headerAccountId(method)).toBe(12);
+    }
+    pinTabAccount(null, 1);
+    expect(headerAccountId("POST")).toBeUndefined();
   });
 
   it("keeps the pages that are no one account's apart", () => {
