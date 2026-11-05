@@ -8,7 +8,15 @@ package server
 //
 //   - maintenanceGateMW blocks authenticated non-admin requests to the gated
 //     surfaces (dashboard API, OIDC authorize, SAML SSO). The session cookie is
-//     left intact, so users are simply restored when maintenance ends.
+//     left intact, so users are simply restored when maintenance ends. With
+//     several accounts signed in on one browser, an API request that names
+//     its account (X-Prohibitorum-Account) is judged as that account; a
+//     request that names none — a page navigation — passes when any account
+//     on the browser is an admin, since it cannot say which one it acts as.
+//     Whatever then picks an account for such a navigation checks that
+//     account itself with maintenanceLockout: the link callback here, and the
+//     OIDC and SAML endpoints once they have resolved the account (through
+//     the Provider's maintenance checker and the account's role).
 //   - maintenanceLockout blocks non-admins at every session-issuance point, so a
 //     non-admin cannot even sign in (the gate alone can't enforce that, since
 //     GET /me stays open to render the maintenance screen).
@@ -27,6 +35,7 @@ import (
 
 	"prohibitorum/pkg/authn"
 	"prohibitorum/pkg/branding"
+	sessstore "prohibitorum/pkg/session"
 )
 
 const roleAdmin = "admin"
@@ -50,6 +59,10 @@ func maintenanceGateMW(b *branding.Resolver) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+			if sess.PAT == nil && !namesAccount(r) && browserHasAdmin(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
 			// Browser-navigation SSO surfaces bounce to the SPA (which renders the
 			// maintenance screen); XHR/API callers get a JSON 503 they can map.
 			if maintenanceBrowserNav(r.URL.Path) {
@@ -59,6 +72,27 @@ func maintenanceGateMW(b *branding.Resolver) func(http.Handler) http.Handler {
 			writeAuthErr(w, authn.ErrMaintenanceMode())
 		})
 	}
+}
+
+// namesAccount reports whether the request selects its account by header,
+// which only API requests can do.
+func namesAccount(r *http.Request) bool {
+	return r.Header.Get(sessstore.AccountHeader) != "" && strings.HasPrefix(r.URL.Path, "/api/prohibitorum/")
+}
+
+// browserHasAdmin reports whether any account signed in on the request's
+// browser is an admin.
+func browserHasAdmin(r *http.Request) bool {
+	b := sessstore.BrowserFromContext(r.Context())
+	if b == nil {
+		return false
+	}
+	for _, sess := range b.Accounts() {
+		if sess.Account != nil && sess.Account.Role == roleAdmin {
+			return true
+		}
+	}
+	return false
 }
 
 // maintenanceAllowedPath reports the requests a blocked non-admin may still make
@@ -99,7 +133,8 @@ func maintenanceBrowserNav(p string) bool {
 
 // maintenanceLockout returns ErrMaintenanceMode when maintenance mode is on and
 // the account being signed in is not an admin. Called at every session-issuance
-// point so non-admins cannot establish a session during maintenance. The DB
+// point so non-admins cannot establish a session during maintenance, and by
+// navigations that act as an account other than the one the gate judged. The DB
 // role lookup runs only while maintenance is on (a cached bool check otherwise),
 // so normal logins are unaffected.
 func (s *Server) maintenanceLockout(ctx context.Context, accountID int32) *authn.AuthError {
