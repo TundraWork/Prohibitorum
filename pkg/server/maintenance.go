@@ -75,6 +75,10 @@ func maintenanceAllowedPath(r *http.Request) bool {
 	case p == "/api/prohibitorum/auth/logout", p == "/api/prohibitorum/auth/logout-all",
 		p == "/api/prohibitorum/auth/accounts":
 		return true
+	case p == "/api/prohibitorum/account-chooser", p == accountChooserContinuePath:
+		// The account picked here may be an admin's; the protocol endpoint
+		// it resumes checks maintenance for that account.
+		return true
 	case strings.HasPrefix(p, "/branding/"), strings.HasPrefix(p, "/avatar/"):
 		return true
 	}

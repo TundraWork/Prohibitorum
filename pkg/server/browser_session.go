@@ -120,14 +120,6 @@ func (s *Server) issueBrowserSession(w http.ResponseWriter, r *http.Request, p s
 	return sess, nil
 }
 
-// bindChooserTicket binds a newly signed-in account to the account chooser
-// ticket when returnTo is the chooser's continue address ("use another
-// account"), whichever way the reader signed in.
-func (s *Server) bindChooserTicket(r *http.Request, returnTo string, accountID int32) {
-	// Filled in with the account chooser (handle_account_chooser.go).
-	_, _, _ = r, returnTo, accountID
-}
-
 // canSignIn reports whether accountID can be signed in on this browser:
 // it already is, or the browser is below its cap.
 func (s *Server) canSignIn(r *http.Request, accountID int32) bool {
