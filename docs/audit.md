@@ -338,7 +338,7 @@ Public surfaces without account context (`/auth/password/begin`, `/auth/login/{b
 | Method-selection login UX | ⚠️ deferred | WebAuthn vs password+TOTP vs federation |
 | CSRF on state-changing `/me/*` | ✅ | `SameSite=Lax` session cookie + same-origin |
 | Conditional UI (passkey autofill) | ✅ | `/auth/login/{begin,complete}?mediation=conditional`; the login username field uses `autocomplete="username webauthn"` |
-| Content Security Policy (CSP) | ✅ | set in `pkg/webui/webui.go` (CSP + `X-Frame-Options: DENY` + `X-Content-Type-Options: nosniff`) |
+| Content Security Policy (CSP) | ✅ | set in `pkg/webui/webui.go` (CSP + `Referrer-Policy: no-referrer` + `X-Frame-Options: DENY` + `X-Content-Type-Options: nosniff`) |
 | HSTS | ⚠️ deferred | TLS-layer header; set at the reverse proxy |
 
 ## Threats this codebase does NOT protect against

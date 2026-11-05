@@ -171,6 +171,10 @@ func setSecurityHeaders(w http.ResponseWriter) {
 	// image hosts.
 	w.Header().Set("Content-Security-Policy",
 		"default-src 'self'; script-src 'self'; style-src-elem 'self' 'sha256-kLmvWqfziFavKtqHqRsb90f006UAK2Dmd0It5Iz2KFA='; style-src-attr 'unsafe-inline'; connect-src 'self' blob:; img-src 'self' data: blob: https://www.bing.com https://images.unsplash.com; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'none'")
+	// Page addresses can carry query the wallpaper hosts must not see back —
+	// /login?return_to= holds the full authorize request — and cross-origin
+	// Referer suppression cannot be left to browser defaults.
+	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 }

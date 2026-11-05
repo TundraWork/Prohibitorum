@@ -166,6 +166,9 @@ func main() {
 		if resp.StatusCode != http.StatusOK {
 			log.Fatalf("SPA shell GET %s: status %d (want 200)", p, resp.StatusCode)
 		}
+		if resp.Header.Get("Referrer-Policy") != "no-referrer" {
+			log.Fatalf("SPA shell GET %s: Referrer-Policy = %q (want no-referrer)", p, resp.Header.Get("Referrer-Policy"))
+		}
 		if !strings.Contains(string(body), `id="root"`) {
 			log.Fatalf("SPA shell GET %s: body missing id=\"root\" (got %d bytes)", p, len(body))
 		}

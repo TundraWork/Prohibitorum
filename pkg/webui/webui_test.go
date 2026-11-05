@@ -62,6 +62,29 @@ func TestHandler_ShellNotCacheable(t *testing.T) {
 	}
 }
 
+// The login page's address carries the full authorize request in its query,
+// and its wallpapers load from third-party hosts; the Referer those hosts
+// would receive must be suppressed by the server, not by browser defaults.
+func TestShell_ReferrerPolicyNoReferrer(t *testing.T) {
+	h := Handler(func(context.Context) string { return "Prohibitorum" })
+	for _, path := range []string{
+		"/",
+		"/login?return_to=%2Foauth2%2Fauthorize%3Fclient_id%3Dwiki",
+		"/login",
+		"/some/console/page",
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if got := rec.Header().Get("Referrer-Policy"); got != "no-referrer" {
+			t.Errorf("GET %s: Referrer-Policy = %q, want no-referrer", path, got)
+		}
+	}
+	rec := getAsset(t, "/assets/app-abc.js", "")
+	if got := rec.Header().Get("Referrer-Policy"); got != "no-referrer" {
+		t.Errorf("asset response: Referrer-Policy = %q, want no-referrer", got)
+	}
+}
+
 func TestSecurityHeaders_StyleSrcElem(t *testing.T) {
 	rec := httptest.NewRecorder()
 	Handler(func(context.Context) string { return "Prohibitorum" }).ServeHTTP(
