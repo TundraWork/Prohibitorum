@@ -2194,7 +2194,10 @@ describe("mocked enrollment and federation pages", () => {
 
   it("signs the new account in with its first codes, and names the provider a bound invitation needs", () => {
     const verify = "/api/prohibitorum/enrollments/{token}/password-totp/verify";
-    const current = writes();
+    const current = config((draft) => {
+      draft.writes = true;
+      draft.session.signedIn = false;
+    });
     const reply = call("POST", verify, current, {
       token: "t",
       username: "carol",
@@ -2237,7 +2240,10 @@ describe("mocked enrollment and federation pages", () => {
 
   it("shows the prepared account's picture as the panel sets it, and confirms with the offer the panel sets", () => {
     const confirm = "/api/prohibitorum/auth/federation/-/confirm";
-    const current = writes();
+    const current = config((draft) => {
+      draft.writes = true;
+      draft.session.signedIn = false;
+    });
     expect(
       (bodyOf(read(confirm, current)) as FederationConfirm).avatarUrl,
     ).toMatch(/^data:image\/svg\+xml/);
@@ -2249,7 +2255,11 @@ describe("mocked enrollment and federation pages", () => {
     ).toBeUndefined();
 
     const reply = call("POST", confirm, current, {});
-    expect(bodyOf(reply)).toEqual({ redirect: "/", offerLocalSignin: true });
+    expect(bodyOf(reply)).toEqual({
+      redirect: "/",
+      offerLocalSignin: true,
+      account: { accountId: 1, u: expect.stringMatching(/^[0-9a-f]{4}$/) },
+    });
     expect(applied(reply, current).session.signedIn).toBe(true);
 
     const expired = config((draft) => {
@@ -2263,7 +2273,10 @@ describe("mocked enrollment and federation pages", () => {
 
   it("walks a VRChat flow from the profile to the proof and finishes it", () => {
     const flow = "/api/prohibitorum/auth/federation/-/flows/{flow}";
-    const current = writes();
+    const current = config((draft) => {
+      draft.writes = true;
+      draft.session.signedIn = false;
+    });
     const first = readFederationFlow(bodyOf(read(flow, current)));
     expect(first.step).toBe("identify");
 
@@ -2281,6 +2294,7 @@ describe("mocked enrollment and federation pages", () => {
       bodyOf(call("POST", `${flow}/verify`, proof, { flow: "f" })),
     ).toEqual({
       redirect: "/",
+      account: { accountId: 1, u: expect.stringMatching(/^[0-9a-f]{4}$/) },
     });
   });
 
@@ -2370,6 +2384,7 @@ describe("mocked pairing of a new device", () => {
   it("approves on the configured read and signs the device in", () => {
     const current = config((draft) => {
       draft.writes = true;
+      draft.session.signedIn = false;
       draft.publicFlows.pairing.approveAfterPolls = 2;
     });
     const { pairingId } = start(current);

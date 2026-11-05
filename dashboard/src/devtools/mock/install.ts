@@ -3,7 +3,8 @@ import type { RegisteredRouter } from "@tanstack/react-router";
 import { client } from "@/api/client";
 import { httpFailure } from "@/api/exchange";
 import { sessionQueryOptions } from "@/api/queries";
-import { buildMockReply } from "@/devtools/mock/fixtures";
+import { accountHeader } from "@/devtools/mock/accounts";
+import { buildMockReply, mockAccountHeader } from "@/devtools/mock/fixtures";
 import {
   getMockConfig,
   subscribeMockConfig,
@@ -33,6 +34,7 @@ const publicPaths = [
   "/setup-signin",
   "/pair",
   "/sign-out",
+  "/choose-account",
 ];
 const publicPrefixes = ["/enroll/", "/federation/flow/", "/verify/vrchat/"];
 
@@ -51,8 +53,15 @@ export function isPublicPath(pathname: string): boolean {
 export function refreshTarget(
   pathname: string,
   signedIn: boolean,
+  search = "",
 ): "/" | "/login" | undefined {
-  if (signedIn) return signInPaths.includes(pathname) ? "/" : undefined;
+  if (signedIn) {
+    // Adding an account, or signing one in by name, is a sign-in page a
+    // signed-in browser stays on; the limit alert is drawn there.
+    const params = new URLSearchParams(search);
+    if (params.has("add") || params.has("login_hint")) return undefined;
+    return signInPaths.includes(pathname) ? "/" : undefined;
+  }
   if (signInPaths.includes(pathname) || isPublicPath(pathname)) {
     return undefined;
   }
@@ -98,16 +107,21 @@ export function installApiMocks(application: Application): void {
     async onRequest({ schemaPath, request, id }) {
       const config = getMockConfig();
       if (!config.enabled) return undefined;
+      const selected = request.headers.get(accountHeader);
       const reply = buildMockReply(
         {
           method: request.method,
           schemaPath,
           url: request.url,
+          account: selected,
           body: request.method === "GET" ? undefined : await jsonBody(request),
         },
         config,
       );
       if (!reply) return undefined;
+      const acting = mockAccountHeader(config, selected);
+      const accountHeaders: Record<string, string> =
+        acting === undefined ? {} : { [accountHeader]: acting };
       // Latency is part of what the panel fakes: an instant reply hides the
       // pending states a page shows while it waits.
       await wait(config.delayMs);
@@ -131,23 +145,29 @@ export function installApiMocks(application: Application): void {
             },
             {
               status: reply.status,
-              // The server answers a 429 with the wait in this header rather
-              // than in the body, so the mock does both shapes alike.
-              ...(reply.status === 429 &&
-              typeof retryAfter === "number" &&
-              retryAfter > 0
-                ? { headers: { "Retry-After": String(retryAfter) } }
-                : {}),
+              headers: {
+                ...accountHeaders,
+                // The server answers a 429 with the wait in this header
+                // rather than in the body, so the mock does both shapes alike.
+                ...(reply.status === 429 &&
+                typeof retryAfter === "number" &&
+                retryAfter > 0
+                  ? { "Retry-After": String(retryAfter) }
+                  : {}),
+              },
             },
           ),
         );
       }
       if (reply.kind === "empty") {
-        return new Response(null, { status: reply.status });
+        return new Response(null, {
+          status: reply.status,
+          headers: accountHeaders,
+        });
       }
       return new Response(JSON.stringify(reply.body), {
         status: reply.status,
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...accountHeaders },
       });
     },
   });
@@ -199,6 +219,7 @@ async function refresh(application: Application): Promise<void> {
   const target = refreshTarget(
     router.state.location.pathname,
     session !== null,
+    router.state.location.searchStr,
   );
   try {
     if (target !== undefined) await router.navigate({ to: target });

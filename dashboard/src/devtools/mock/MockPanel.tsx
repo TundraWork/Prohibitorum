@@ -1,6 +1,16 @@
 import { type ReactNode, useSyncExternalStore } from "react";
 import type { LoginBackgroundSource } from "@/api/raw-paths";
 import {
+  browserAccounts,
+  browserShorts,
+  clampAccountLimit,
+  fillBrowserToLimit,
+  mockAccountLimitMax,
+  setBrowserAccountCount,
+  setBrowserAccountRole,
+  setChooserAllowed,
+} from "@/devtools/mock/accounts";
+import {
   clampAdminCount,
   clampAvatarUpstreams,
   clampCount,
@@ -9,6 +19,7 @@ import {
   clampEnrollmentProviders,
   clampPairingExpiry,
   getMockConfig,
+  type MockConfig,
   mockAdminListMax,
   mockAvatarUpstreamsMax,
   mockDecisionsMax,
@@ -259,6 +270,201 @@ function Seconds({
   );
 }
 
+/** A whole number between two bounds, laid out like the counts. */
+function Bounded({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (next: number) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 py-1">
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(event) => {
+          const next = Number(event.target.value);
+          if (!Number.isFinite(next)) return;
+          onChange(Math.max(min, Math.min(max, Math.floor(next))));
+        }}
+        className={`w-14 text-left tabular-nums ${controlClass}`}
+      />
+      <span className="min-w-0">{label}</span>
+    </label>
+  );
+}
+
+/**
+ * Opens the console as one account. A tab keeps the account it started with,
+ * so another account needs a fresh document; `mock` keeps the mock on there.
+ */
+function consoleAs(u: string): string {
+  return `/?${new URLSearchParams({ u, mock: "" })}`;
+}
+
+/**
+ * The browser's accounts: how many there are, the cap, each one's role and
+ * whether it may use the chooser's application, and which one a tab uses.
+ */
+function BrowserAccounts({ config }: { config: MockConfig }) {
+  const accounts = browserAccounts(config);
+  const shorts = browserShorts(config);
+  const urlU = new URLSearchParams(window.location.search).get("u");
+  const tabAccount =
+    accounts.find((account) => shorts.get(account.id) === urlU) ?? accounts[0];
+  return (
+    <>
+      <Bounded
+        label="Accounts in this browser"
+        value={accounts.length}
+        min={0}
+        max={mockAccountLimitMax}
+        onChange={(next) =>
+          updateMockConfig((draft) => {
+            setBrowserAccountCount(draft, next);
+          })
+        }
+      />
+      <Bounded
+        label="Account limit"
+        value={config.session.limit}
+        min={1}
+        max={mockAccountLimitMax}
+        onChange={(next) =>
+          updateMockConfig((draft) => {
+            draft.session.limit = clampAccountLimit(next);
+          })
+        }
+      />
+      <div className="flex items-center gap-2 py-1">
+        <button
+          type="button"
+          onClick={() => updateMockConfig(fillBrowserToLimit)}
+          className={controlClass}
+        >
+          Fill to the limit
+        </button>
+        <span className="min-w-0 text-xs opacity-60">
+          {accounts.length >= config.session.limit
+            ? "At the limit"
+            : `${config.session.limit - accounts.length} below the limit`}
+        </span>
+      </div>
+      {accounts.length > 0 ? (
+        <table className="my-1 w-full text-xs">
+          <thead className="text-left opacity-60">
+            <tr>
+              <th className="font-normal">Account</th>
+              <th className="font-normal">Admin</th>
+              <th className="font-normal">Chooser app</th>
+              <th className="font-normal">Tab</th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map((account) => {
+              const u = shorts.get(account.id) ?? "";
+              return (
+                <tr key={account.id}>
+                  <td className="py-0.5 pr-2">
+                    <span className="tabular-nums">#{account.id}</span>{" "}
+                    {account.username} <code className="opacity-60">u={u}</code>
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Account ${account.id} is an admin`}
+                      checked={account.role === "admin"}
+                      onChange={(event) =>
+                        updateMockConfig((draft) => {
+                          setBrowserAccountRole(
+                            draft,
+                            account.id,
+                            event.target.checked ? "admin" : "member",
+                          );
+                        })
+                      }
+                      className="size-4 accent-emerald-500"
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`Account ${account.id} may use the chooser's application`}
+                      checked={account.allowed}
+                      onChange={(event) =>
+                        updateMockConfig((draft) => {
+                          setChooserAllowed(
+                            draft,
+                            account.id,
+                            event.target.checked,
+                          );
+                        })
+                      }
+                      className="size-4 accent-emerald-500"
+                    />
+                  </td>
+                  <td className="whitespace-nowrap">
+                    {account.id === tabAccount?.id ? (
+                      <span className="opacity-60">this tab</span>
+                    ) : (
+                      <span className="flex gap-2">
+                        <a
+                          href={consoleAs(u)}
+                          className="underline"
+                          title="Reload this tab as this account"
+                        >
+                          use
+                        </a>
+                        <a
+                          href={consoleAs(u)}
+                          target="_blank"
+                          rel="noopener"
+                          className="underline"
+                        >
+                          new tab
+                        </a>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : null}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 py-1 text-xs">
+        <a href="/choose-account?ticket=mock&mock" className="underline">
+          Chooser (OIDC)
+        </a>
+        <a href="/choose-account?ticket=mock-saml&mock" className="underline">
+          Chooser (SAML)
+        </a>
+        <a href="/choose-account?ticket=expired&mock" className="underline">
+          Chooser, expired
+        </a>
+        <a href="/login?add=1&mock" className="underline">
+          Add an account
+        </a>
+        <a
+          href="/sign-out?rd=https%3A%2F%2Fwiki.example.test%2F&mock"
+          className="underline"
+        >
+          Sign-out page
+        </a>
+      </div>
+    </>
+  );
+}
+
 /**
  * The mock controls: whether reads and writes are answered from here, and the
  * account the console should believe it is serving. Answers land through the
@@ -330,7 +536,7 @@ export function MockPanel() {
       >
         <Section title="Session">
           <Toggle
-            label="Signed in"
+            label="Account 1 signed in"
             checked={config.session.signedIn}
             onChange={(next) =>
               updateMockConfig((draft) => {
@@ -369,6 +575,10 @@ export function MockPanel() {
               })
             }
           />
+        </Section>
+
+        <Section title="Browser accounts">
+          <BrowserAccounts config={config} />
         </Section>
 
         <Section title="Avatar">
