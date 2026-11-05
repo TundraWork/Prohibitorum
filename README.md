@@ -28,7 +28,8 @@ the built-in in-memory store.
   applications without becoming an admin.
 - **Dashboard** — English and Chinese, light and dark, on desktop and mobile.
   Members get an application launcher, their profile and avatar, sign-in
-  methods, sessions, connected applications, and device pairing. Admins manage
+  methods, sessions, connected applications, and device pairing, and can stay
+  signed in to several accounts in one browser. Admins manage
   users, groups, invitations, identity providers, applications, signing keys,
   the sign-in page, and the audit log.
 - **Operations** — signing keys rotate with a grace window and are encrypted at

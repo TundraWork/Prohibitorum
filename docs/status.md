@@ -19,6 +19,11 @@ reference.
   password + authenticator prompt covers every guarded action until it expires.
 - A new device can sign in by showing a pairing code that a signed-in device
   approves.
+- One browser can be signed in to several accounts at once (10 by default,
+  `PROHIBITORUM_SESSION_MAX_ACCOUNTS`). Each tab stays on its own account,
+  and each account signs out on its own. OIDC, SAML and forward-auth
+  applications ask which account to use; OIDC clients can steer it with
+  `prompt=select_account`, `login_hint` and `id_token_hint`.
 - Account emails are verified with a mailed code when SMTP is configured, or
   asserted by an admin.
 - Personal access tokens act as their owner at the forward-auth gateway and,
@@ -64,8 +69,9 @@ reference.
 **Dashboard**
 
 - English and Chinese, light and dark themes, desktop and mobile.
-- Public pages: sign-in, recovery, enrollment, consent, device pairing,
-  identity confirmation, error, and maintenance.
+- Public pages: sign-in, recovery, enrollment, consent, account chooser,
+  device pairing, identity confirmation, sign-out confirmation, error, and
+  maintenance.
 - Members: application launcher, profile and avatar, security (passkeys,
   password and authenticator, sessions, connected identities, personal access
   tokens), connected applications, and devices.
