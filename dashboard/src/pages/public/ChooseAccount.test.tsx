@@ -180,6 +180,68 @@ describe("choosing an account for an application", () => {
     );
   });
 
+  it("opens the consent page in place, keeping the stage, when authorize leads there", async () => {
+    const api = chooserApi();
+    let lead!: (response: Response) => void;
+    api.routes["GET /oauth/authorize"] = () =>
+      new Promise<Response>((resolve) => {
+        lead = resolve;
+      });
+    api.routes["GET /api/prohibitorum/consent"] = () =>
+      Response.json({
+        client: { clientId: "wiki", displayName: "Wiki", host: "wiki.example" },
+        account: { displayName: "Ops on call" },
+        scopes: ["openid"],
+      });
+    const user = userEvent.setup();
+    renderApp("/choose-account?ticket=c-1", queryClient);
+    await user.click(
+      await screen.findByRole("button", { name: /Ops on call/ }),
+    );
+    const stage = document.querySelector('[data-slot="stage"]');
+
+    await waitFor(() =>
+      expect(api.sent("GET", "/oauth/authorize")).toHaveLength(1),
+    );
+    const [asked] = api.sent("GET", "/oauth/authorize");
+    expect(asked?.url.search).toBe("?client_id=wiki&account_choice=c-1");
+    expect(asked?.headers.get("X-Prohibitorum-Navigation")).toBe("follow");
+    // Held while the hop answers.
+    expect(row(/Ops on call/)).toHaveAttribute("aria-busy", "true");
+
+    lead(
+      Response.json({
+        location: `${window.location.origin}/consent?ticket=t-9&return_to=%2Foauth%2Fauthorize%3Fclient_id%3Dwiki`,
+      }),
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "Allow Wiki to access your account?",
+      }),
+    ).toBeVisible();
+    expect(api.sent("GET", "/api/prohibitorum/consent")[0]?.url.search).toBe(
+      "?ticket=t-9",
+    );
+    expect(loadDocument).not.toHaveBeenCalled();
+    // The same stage carries on: the layout was never drawn again.
+    expect(document.querySelector('[data-slot="stage"]')).toBe(stage);
+  });
+
+  it("loads an application's address, held by the server, as a document", async () => {
+    const api = chooserApi();
+    api.routes["GET /oauth/authorize"] = () =>
+      Response.json({ location: "/oauth/handoff" });
+    const user = userEvent.setup();
+    renderApp("/choose-account?ticket=c-1", queryClient);
+    await user.click(
+      await screen.findByRole("button", { name: /Ops on call/ }),
+    );
+    await waitFor(() =>
+      expect(loadDocument).toHaveBeenCalledWith("/oauth/handoff"),
+    );
+    expect(row(/Ops on call/)).toHaveAttribute("aria-busy", "true");
+  });
+
   it("does not choose an account without access", async () => {
     const api = chooserApi();
     const user = userEvent.setup();

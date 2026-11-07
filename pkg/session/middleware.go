@@ -178,6 +178,32 @@ func ClearedSessionCookies(cfg *configx.Config) []*http.Cookie {
 	}
 }
 
+// HandoffCookieName carries the key of a redirect the dashboard asked a
+// protocol hop to hold for the browser (server navigationMW).
+const HandoffCookieName = "prohibitorum_handoff"
+
+// HandoffCookie is HttpOnly so the page that asked for the hop never learns
+// the key, and sent only to the handoff address that spends it. Max-Age 60
+// mirrors the KV TTL.
+func HandoffCookie(cfg *configx.Config, path, value string) *http.Cookie {
+	return &http.Cookie{
+		Name:     HandoffCookieName,
+		Value:    value,
+		Path:     path,
+		HttpOnly: true,
+		Secure:   secureCookies(cfg),
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   60,
+	}
+}
+
+// ClearedHandoffCookie expires the handoff cookie.
+func ClearedHandoffCookie(cfg *configx.Config, path string) *http.Cookie {
+	c := HandoffCookie(cfg, path, "")
+	c.MaxAge = -1
+	return c
+}
+
 // CeremonyCookie carries the random key that links /auth/login/begin and
 // /auth/login/complete. name is CeremonyCookieName for a button-started (modal)
 // ceremony and ConditionalCeremonyCookieName for an autofill (conditional) one;

@@ -378,6 +378,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 	// Inside the diagnostic capture so PAT refusals can be looked up by request
 	// ID; LoadSession leaves the cookie unread for these requests.
 	router.Use(patAuthMW(queries, audit.NewWriter(queries)))
+	router.Use(navigationMW(kvStore, config))
 	router.Use(maintenanceGateMW(brandingResolver))
 	api := humachi.New(router, humaConfig())
 	registerSecurityScheme(api, sessstore.SessionCookieNameFor(config))
@@ -1025,6 +1026,9 @@ func (s *Server) registerOperations() {
 	s.router.Get("/oauth/jwks", oidcop.CORS(s.oidcOP.HandleJWKS))
 	s.router.Options("/oauth/jwks", oidcop.Preflight("GET"))
 	s.router.Get("/oauth/authorize", s.oidcOP.HandleAuthorize)
+	// Where the browser collects a redirect authorize held for it when the
+	// dashboard followed the hop itself (navigationMW).
+	s.router.Get(handoffPath, s.handleNavigationHandoff)
 	s.router.Post("/oauth/token", oidcop.CORS(s.oidcOP.HandleToken))
 	s.router.Options("/oauth/token", oidcop.Preflight("POST"))
 	s.router.Get("/oauth/userinfo", oidcop.CORS(s.oidcOP.HandleUserinfo))

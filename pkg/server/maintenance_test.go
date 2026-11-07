@@ -49,6 +49,7 @@ func TestMaintenanceGate(t *testing.T) {
 		{"non-admin logout allowlisted", true, sessionForRole("user"), "POST", "/api/prohibitorum/auth/logout", http.StatusOK},
 		{"non-admin account chooser allowlisted", true, sessionForRole("user"), "POST", "/api/prohibitorum/account-chooser", http.StatusOK},
 		{"non-admin chooser continue allowlisted", true, sessionForRole("user"), "GET", "/api/prohibitorum/account-chooser/continue", http.StatusOK},
+		{"non-admin navigation handoff allowlisted", true, sessionForRole("user"), "GET", "/oauth/handoff", http.StatusOK},
 		{"non-admin chooser switch blocked", true, sessionForRole("user"), "POST", "/api/prohibitorum/account-chooser/switch", http.StatusServiceUnavailable},
 		{"non-admin static shell passes", true, sessionForRole("user"), "GET", "/security", http.StatusOK},
 		{"non-admin avatar allowlisted", true, sessionForRole("user"), "GET", "/avatar/abc", http.StatusOK},

@@ -15,8 +15,8 @@ import {
 } from "@/api/queries";
 import type { AccountChooserAccount } from "@/api/raw-paths";
 import { readLastUsed, sameRef, writeLastUsed } from "@/app/account-storage";
-import { loadDocument } from "@/app/load-document";
 import { followRedirect, sitePathOf } from "@/app/redirect";
+import { withRouterSkipLoading } from "@/app/router";
 import { withoutU, withU } from "@/app/tab-account";
 import { usePageRestore } from "@/app/use-page-restore";
 import {
@@ -97,7 +97,11 @@ function TicketChooser({ ticket }: { ticket: string }) {
         accountId: account.accountId,
       });
       writeLastUsed(chooser.app.key, account.u);
-      loadDocument(redirect);
+      // The row keeps its spinner until the next page has loaded: the consent
+      // page opens in place, an application's address loads as a document.
+      await withRouterSkipLoading(router, () =>
+        followRedirect(router, redirect),
+      );
     } catch (error) {
       setChosen(undefined);
       // The account signed out, or lost access, since the list was read:

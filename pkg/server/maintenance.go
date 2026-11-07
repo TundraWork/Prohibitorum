@@ -120,6 +120,10 @@ func maintenanceAllowedPath(r *http.Request) bool {
 		// The account picked here may be an admin's; the protocol endpoint
 		// it resumes checks maintenance for that account.
 		return true
+	case p == handoffPath:
+		// Only carries out a redirect authorize already decided, past this
+		// gate, for the account it settled on.
+		return true
 	case strings.HasPrefix(p, "/branding/"), strings.HasPrefix(p, "/avatar/"):
 		return true
 	}
