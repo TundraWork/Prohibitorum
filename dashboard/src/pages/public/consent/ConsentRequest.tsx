@@ -105,16 +105,22 @@ export function ConsentRequest({
         </div>
       }
     >
-      <div className="flex min-w-0 items-center gap-2.5 rounded-xl bg-muted px-3 py-2 text-sm">
-        <Avatar className="size-6 shrink-0" aria-hidden="true">
-          {account.avatarUrl && <AvatarImage src={account.avatarUrl} alt="" />}
-          <AvatarFallback>{displayName.slice(0, 1)}</AvatarFallback>
-        </Avatar>
-        <p className="min-w-0 break-keep wrap-anywhere">
-          <Trans id="consent.account">
-            Signed in as <b className="font-medium">{displayName}</b>
-          </Trans>
-        </p>
+      {/* The button moves under the account when both do not fit on one line,
+          so the name keeps the row's width instead of breaking mid-word. */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 rounded-xl bg-muted px-3 py-2 text-sm">
+        <div className="flex min-w-0 grow items-center gap-2.5">
+          <Avatar className="size-6 shrink-0" aria-hidden="true">
+            {account.avatarUrl && (
+              <AvatarImage src={account.avatarUrl} alt="" />
+            )}
+            <AvatarFallback>{displayName.slice(0, 1)}</AvatarFallback>
+          </Avatar>
+          <p className="min-w-0 break-keep wrap-anywhere">
+            <Trans id="consent.account">
+              Signed in as <b className="font-medium">{displayName}</b>
+            </Trans>
+          </p>
+        </div>
         <Button
           variant="ghost"
           size="sm"

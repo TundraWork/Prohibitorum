@@ -234,9 +234,12 @@ function ConsentSkeleton() {
     <div className="flex flex-col gap-4">
       {slots.strip ? createPortal(strip, slots.strip) : null}
       <Skeleton className="h-7 w-3/5" />
-      <div className="flex items-center gap-2.5 rounded-xl bg-muted px-3 py-2">
-        <Skeleton className="size-6 shrink-0 rounded-full" />
-        <Skeleton className="h-4 w-40" />
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-xl bg-muted px-3 py-2">
+        <div className="flex grow items-center gap-2.5">
+          <Skeleton className="size-6 shrink-0 rounded-full" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <Skeleton className="ms-auto h-8 w-36" />
       </div>
       <div className="flex flex-col gap-2">
         <Skeleton className="h-3.5 w-32" />
