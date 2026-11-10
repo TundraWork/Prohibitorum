@@ -273,14 +273,7 @@ function PairingStep({
             {actions}
             {showBack && (
               <Button
-                render={
-                  <RouterLink
-                    to="/login"
-                    search={
-                      returnTo === undefined ? {} : { return_to: returnTo }
-                    }
-                  />
-                }
+                render={<RouterLink to="/login" search={true} />}
                 variant="ghost"
                 size="lg"
                 className="w-full"

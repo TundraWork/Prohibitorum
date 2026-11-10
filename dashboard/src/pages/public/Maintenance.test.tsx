@@ -68,12 +68,29 @@ describe("the maintenance page", () => {
       await screen.findByRole("heading", { name: /^Sign in to / }),
     ).toBeVisible();
     expect(router.state.location.pathname).toBe("/login");
-    expect(router.state.location.searchStr).toBe("?admin=1");
+    expect(router.state.location.searchStr).toBe("?admin=1&add=1");
     expect(
       screen.getByText(
         "Maintenance is in progress. Only administrators can sign in.",
       ),
     ).toBeVisible();
+  });
+
+  it("lets a signed-in member's browser add an administrator without signing out", async () => {
+    fakeApi(publicApi(testSession, maintenance));
+    const user = userEvent.setup();
+    const router = renderApp("/maintenance", queryClient);
+    expect(
+      await screen.findByRole("button", { name: "Sign out" }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Administrator sign-in" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: /^Sign in to / }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/login");
+    expect(router.state.location.searchStr).toBe("?admin=1&add=1");
   });
 
   it("moves on once a recheck finds maintenance over", async () => {

@@ -478,6 +478,34 @@ describe("signing in with another device", () => {
     ).toHaveAttribute("href", `/login?return_to=${encodeURIComponent(target)}`);
   });
 
+  it("leads back to sign-in with the whole sign-in search", async () => {
+    pairApi();
+    renderApp(
+      `/pair?return_to=${encodeURIComponent(target)}&login_hint=carol&add=1`,
+      queryClient,
+    );
+    await waiting();
+    expect(
+      screen.getByRole("link", { name: "Back to sign in" }),
+    ).toHaveAttribute(
+      "href",
+      `/login?return_to=${encodeURIComponent(target)}&login_hint=carol&add=1`,
+    );
+  });
+
+  it("returns a signed-in browser adding an account to the sign-in page", async () => {
+    pairApi({ session: testSession });
+    const user = userEvent.setup();
+    const router = renderApp("/pair?add=1", queryClient);
+    await waiting();
+    await user.click(screen.getByRole("link", { name: "Back to sign in" }));
+    expect(
+      await screen.findByRole("heading", { name: /^Sign in to / }),
+    ).toBeVisible();
+    expect(router.state.location.pathname).toBe("/login");
+    expect(router.state.location.searchStr).toBe("?add=1");
+  });
+
   it("pairs a signed-in browser too, adding another account to it", async () => {
     const api = pairApi({ session: testSession });
     const router = renderApp("/pair", queryClient);

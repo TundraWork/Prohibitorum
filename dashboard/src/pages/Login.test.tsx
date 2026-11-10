@@ -1020,6 +1020,15 @@ describe("signing in with another device", () => {
     ).toBe("/oauth/authorize?client_id=wiki");
   });
 
+  it("carries the rest of the sign-in search to pairing", async () => {
+    at("/login?add=1&login_hint=carol");
+    const user = userEvent.setup();
+    const router = mount();
+    await user.click(await screen.findByRole("button", { name }));
+    await screen.findByRole("heading", { name: "Pairing" });
+    expect(router.state.location.searchStr).toBe("?add=1&login_hint=carol");
+  });
+
   it("opens pairing alone without a return_to", async () => {
     const user = userEvent.setup();
     const router = mount();

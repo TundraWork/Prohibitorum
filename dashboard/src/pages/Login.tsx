@@ -819,12 +819,9 @@ function OtherSignIns({
         {pairing && (
           <Button
             disabled={busy}
-            onClick={() =>
-              void navigate({
-                to: "/pair",
-                search: returnTo === undefined ? {} : { return_to: returnTo },
-              })
-            }
+            // The whole search goes along and comes back with "Back to sign
+            // in": `add` is what keeps a signed-in browser on this page.
+            onClick={() => void navigate({ to: "/pair", search: true })}
             variant="ghost"
             className="-ms-2.5 h-auto items-start justify-start self-start whitespace-normal py-1.5 text-balance text-start text-muted-foreground"
           >

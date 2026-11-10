@@ -50,6 +50,11 @@ export function ErrorLandingPage() {
   // could restart — an authorize request or a require-identity entry, in
   // either shape — turns the way out into a retry; every other code keeps the
   // go-back link a server-validated return_to offers.
+  //
+  // That return_to comes only from a provider sign-in that failed, and going
+  // back means going back to that sign-in, with the address it was headed
+  // for. Following the address itself would open it as an account the
+  // browser already holds, when the reader was signing in another one.
   const retryTo = retryAddress(search.error, search.reason, search.return_to);
   const back =
     retryTo === undefined && isSitePath(search.return_to)
@@ -128,7 +133,12 @@ export function ErrorLandingPage() {
             </Button>
           ) : back ? (
             <Button
-              onClick={() => followRedirect(router, back)}
+              onClick={() =>
+                navigate({
+                  to: "/login",
+                  search: { return_to: back, u: undefined },
+                })
+              }
               variant="outline"
               size="lg"
             >

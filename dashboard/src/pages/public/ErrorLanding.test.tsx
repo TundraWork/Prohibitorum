@@ -109,26 +109,38 @@ describe("the error landing page", () => {
     },
   );
 
-  it("goes back to a page on this site", async () => {
+  it.each([
+    ["signed in", true],
+    ["signed out", false],
+  ])(
+    "goes back to the provider sign-in that failed, %s",
+    async (_, signedIn) => {
+      const user = userEvent.setup();
+      const router = await open(
+        `/error?error=federation_state_invalid&return_to=${encodeURIComponent("/")}`,
+        signedIn,
+      );
+      await user.click(screen.getByRole("button", { name: "Go back" }));
+      // A browser that holds an account stays on the sign-in page rather
+      // than opening the address as that account.
+      expect(
+        await screen.findByRole("heading", { name: /^Sign in to / }),
+      ).toBeVisible();
+      expect(router.state.location.pathname).toBe("/login");
+      expect(router.state.location.search).toEqual({ return_to: "/" });
+    },
+  );
+
+  it("goes back to sign in for the page the provider sign-in was headed for", async () => {
     const user = userEvent.setup();
     const router = await open(
       `/error?error=server_error&return_to=${encodeURIComponent("/security")}`,
     );
     await user.click(screen.getByRole("button", { name: "Go back" }));
     await vi.waitFor(() =>
-      expect(router.state.location.pathname).toBe("/security"),
+      expect(router.state.location.pathname).toBe("/login"),
     );
-  });
-
-  it("keeps offering to go back rather than retry an identity link", async () => {
-    const user = userEvent.setup();
-    const router = await open(
-      `/error?error=federation_state_invalid&return_to=${encodeURIComponent("/security")}`,
-    );
-    await user.click(screen.getByRole("button", { name: "Go back" }));
-    await vi.waitFor(() =>
-      expect(router.state.location.pathname).toBe("/security"),
-    );
+    expect(router.state.location.search).toEqual({ return_to: "/security" });
   });
 
   it("starts the authorization again after a server error", async () => {
